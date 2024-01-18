@@ -16,10 +16,11 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
+import { IInlineEdit, InlineEditRejectionReason, InlineEditTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 
 export class InlineEditController extends Disposable {
@@ -47,6 +48,7 @@ export class InlineEditController extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -70,7 +72,7 @@ export class InlineEditController extends Disposable {
 		//Remove the previous ghoust thext
 		this._register(editor.onDidChangeModelContent(async () => {
 			this._isCursorAtInlineEditContext.set(false);
-			this.clear();
+			this.clear(false);
 			const edit = await this.fetchInlineEdit(editor, true);
 			if (!edit) {
 				return;
@@ -168,7 +170,7 @@ export class InlineEditController extends Disposable {
 
 	public async showNext() {
 		const edit = await this.fetchInlineEdit(this.editor, true);
-		this.clear();
+		this.clear(false);
 		if (!edit) {
 			return;
 		}
@@ -196,8 +198,14 @@ export class InlineEditController extends Disposable {
 		else {
 			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), text)]);
 		}
+		if (data.accepted) {
+			this._commandService.executeCommand(data.accepted.id, ...data.accepted.arguments ?? []);
+		}
 		widget.dispose();
-
+		this._currentWidget = undefined;
+		this._isVisibleContext.set(false);
+		this._isCursorAtInlineEditContext.set(false);
+		this.showRulerDecoration(undefined);
 	}
 
 	public jumpToCurrent(): void {
@@ -210,11 +218,18 @@ export class InlineEditController extends Disposable {
 		this.editor.revealPositionInCenterIfOutsideViewport(Position.lift(data.position));
 	}
 
-	public clear() {
+	public clear(explcit: boolean) {
+		const rejectReason = explcit ? InlineEditRejectionReason.Explicit : InlineEditRejectionReason.Implicit;
+		const edit = this._currentWidget?.[1];
+		if (edit && edit?.rejected) {
+			this._commandService.executeCommand(edit.rejected.id, rejectReason, ...edit.rejected.arguments ?? []);
+		}
+
 		// this._widgetsData = [];
 		this._currentWidget?.[0].dispose();
 		this._currentWidget = undefined;
 		this._isVisibleContext.set(false);
+		this._isCursorAtInlineEditContext.set(false);
 		this.showRulerDecoration(undefined);
 	}
 }

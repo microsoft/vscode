@@ -807,6 +807,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
 		InlineEditTriggerKind: standaloneEnums.InlineEditTriggerKind,
+		InlineEditRejectionReason: standaloneEnums.InlineEditRejectionReason,
 		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 		NewSymbolNameTag: standaloneEnums.NewSymbolNameTag,
 

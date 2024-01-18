@@ -7919,6 +7919,8 @@ declare namespace monaco.languages {
 		position: IPosition;
 		text: string;
 		replaceRange?: IRange;
+		accepted?: Command;
+		rejected?: Command;
 	}
 
 	export interface IInlineEditContext {
@@ -7928,6 +7930,11 @@ declare namespace monaco.languages {
 	export enum InlineEditTriggerKind {
 		Invoke = 0,
 		Automatic = 1
+	}
+
+	export enum InlineEditRejectionReason {
+		Explicit = 0,
+		Implicit = 1
 	}
 
 	export interface InlineEditProvider {

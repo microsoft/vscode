@@ -1362,6 +1362,8 @@ class InlineEditAdapter {
 	};
 
 	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<languages.IInlineEdit | undefined> {
+		let disposableStore: DisposableStore | undefined = undefined;
+
 		const doc = this._documents.getDocument(uri);
 		const result = await this._provider.provideInlineEdit(doc, {
 			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
@@ -1377,12 +1379,27 @@ class InlineEditAdapter {
 			// of results as they will leak
 			return undefined;
 		}
+		let acceptCommand: languages.Command | undefined = undefined;
+		if (result.accepted) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			acceptCommand = this._commands.toInternal(result.accepted, disposableStore);
+		}
+		let rejectCommand: languages.Command | undefined = undefined;
+		if (result.rejected) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
+		}
 
-		//TODO: commands covert
 		const langResult: languages.IInlineEdit = {
 			position: typeConvert.Position.from(result.position),
 			text: result.text,
 			replaceRange: typeConvert.Range.from(result.replaceRange),
+			accepted: acceptCommand,
+			rejected: rejectCommand,
 		};
 
 		return langResult;
@@ -1392,7 +1409,7 @@ class InlineEditAdapter {
 		_extension: IExtensionDescription,
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineEditProvider,
-		_commands: CommandsConverter,
+		private readonly _commands: CommandsConverter,
 	) {
 	}
 }
