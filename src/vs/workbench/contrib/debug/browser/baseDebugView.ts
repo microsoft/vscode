@@ -63,7 +63,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 			container.classList.add('error');
 		}
 	} else {
-		if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
+		if (typeof expressionOrValue !== 'string' && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
 			// value changed color has priority over other colors.
 			container.className = 'value changed';
 			expressionOrValue.valueChanged = false;

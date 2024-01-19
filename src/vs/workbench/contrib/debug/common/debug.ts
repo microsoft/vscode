@@ -151,6 +151,7 @@ export interface IReplElementSource {
 export interface IExpressionValue {
 	readonly value: string;
 	readonly type?: string;
+	valueChanged?: boolean;
 }
 
 export interface IExpressionContainer extends ITreeElement, IExpressionValue {
@@ -159,7 +160,6 @@ export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
 	readonly memoryReference?: string;
-	valueChanged?: boolean;
 	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
 }
 
