@@ -27,7 +27,6 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sandbox/window';
 
 // Actions
@@ -229,24 +228,24 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if `#window.titleBarStyle#` is set to `custom`.")
 			},
-			[TitleBarSetting.TITLE_BAR_STYLE]: {
+			'window.titleBarStyle': {
 				'type': 'string',
-				'enum': [TitlebarStyle.NATIVE, TitlebarStyle.CUSTOM],
-				'default': isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM,
+				'enum': ['native', 'custom'],
+				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
-			[TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY]: {
+			'window.customTitleBarVisibility': {
 				'type': 'string',
-				'enum': [CustomTitleBarVisibility.AUTO, CustomTitleBarVisibility.WINDOWED, CustomTitleBarVisibility.NEVER],
+				'enum': ['auto', 'windowed', 'never'],
 				'markdownEnumDescriptions': [
-					localize(`${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}.${CustomTitleBarVisibility.AUTO}`, "Automatically changes custom titlebar visibility."),
-					localize(`${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}.${CustomTitleBarVisibility.WINDOWED}`, "Hide custom titlebar in full screen. Automatically changes custom titlebar visibility in windowed."),
-					localize(`${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}.${CustomTitleBarVisibility.NEVER}`, "Hide custom titlebar when `#window.titleBarStyle#` is set to `native`."),
+					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom titlebar visibility."),
+					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. Automatically changes custom titlebar visibility in windowed."),
+					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when `#window.titleBarStyle#` is set to `native`."),
 				],
-				'default': isLinux ? CustomTitleBarVisibility.NEVER : CustomTitleBarVisibility.AUTO,
+				'default': isLinux ? 'never' : 'auto',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, "Adjust when the custom title bar should be shown."),
+				'description': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown."),
 			},
 			'window.dialogStyle': {
 				'type': 'string',
