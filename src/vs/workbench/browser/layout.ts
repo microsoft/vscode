@@ -12,14 +12,14 @@ import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode } from 'vs/workbench/services/layout/browser/layoutService';
+import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation } from 'vs/workbench/services/layout/browser/layoutService';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/window/common/window';
+import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -48,6 +48,7 @@ import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxili
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
+import { CustomTitleBarVisibility } from '../../platform/window/common/window';
 
 //#region Layout Implementation
 
@@ -345,10 +346,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if ([
 				LayoutSettings.ACTIVITY_BAR_LOCATION,
 				LayoutSettings.COMMAND_CENTER,
+				LayoutSettings.EDITOR_ACTIONS_LOCATION,
+				LayoutSettings.LAYOUT_ACTIONS,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 				'window.menuBarVisibility',
-				'window.titleBarStyle',
+				TitleBarSetting.TITLE_BAR_STYLE,
+				TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
 			].some(setting => e.affectsConfiguration(setting))) {
 				this.doUpdateLayoutConfiguration();
 			}
@@ -366,7 +370,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(addDisposableListener(this.mainContainer, EventType.SCROLL, () => this.mainContainer.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
+		const showingCustomMenu = (isWindows || isLinux || isWeb) && !hasNativeTitlebar(this.configurationService);
+		if (showingCustomMenu) {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 
@@ -453,7 +458,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Changing fullscreen state of the main window has an impact
 		// on custom title bar visibility, so we need to update
-		if (getTitleBarStyle(this.configurationService) === 'custom') {
+		if (hasCustomTitlebar(this.configurationService)) {
 
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
@@ -488,6 +493,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
+
+		// Custom Titlebar visibility with native titlebar
+		this.updateCustomTitleBarVisibility();
 
 		// Menubar visibility
 		this.updateMenubarVisibility(!!skipLayout);
@@ -535,7 +543,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (
 			isWeb ||
 			isWindows || // not working well with zooming and window control overlays
-			getTitleBarStyle(this.configurationService) !== 'custom'
+			hasNativeTitlebar(this.configurationService)
 		) {
 			return;
 		}
@@ -1219,19 +1227,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private shouldShowTitleBar(): boolean {
 
-		// Using the native title bar, don't ever show the custom one
-		if (getTitleBarStyle(this.configurationService) === 'native') {
+		if (!hasCustomTitlebar(this.configurationService)) {
 			return false;
 		}
 
-		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
+		const nativeTitleBarEnabled = hasNativeTitlebar(this.configurationService);
+		const showCustomTitleBar = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && this.state.runtime.mainWindowFullscreen) {
+			return false;
+		}
+
+		if (!this.isTitleBarEmpty(nativeTitleBarEnabled)) {
 			return true;
 		}
 
-		// with the activity bar on top, we should always show
-		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
-			return true;
+		// Hide custom title bar when native title bar enabled and custom title bar is empty
+		if (nativeTitleBarEnabled) {
+			return false;
 		}
 
 		// macOS desktop does not need a title bar when full screen
@@ -1263,6 +1275,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			default:
 				return isWeb ? false : !this.state.runtime.mainWindowFullscreen || this.state.runtime.menuBar.toggled;
 		}
+	}
+
+	private isTitleBarEmpty(nativeTitleBarEnabled: boolean): boolean {
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
+			return false;
+		}
+
+		// with the activity bar on top, we should always show
+		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+			return false;
+		}
+
+		// with the editor actions on top, we should always show
+		const editorActionsLocation = this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION);
+		const editorTabsMode = this.configurationService.getValue<EditorTabsMode>(LayoutSettings.EDITOR_TABS_MODE);
+		if (editorActionsLocation === EditorActionsLocation.TITLEBAR || editorActionsLocation === EditorActionsLocation.DEFAULT && editorTabsMode === EditorTabsMode.NONE) {
+			return false;
+		}
+
+		// Layout don't show with native title bar
+		if (!nativeTitleBarEnabled && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private shouldShowBannerFirst(): boolean {
@@ -2060,6 +2098,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	updateCustomTitleBarVisibility(): void {
+		const shouldShowTitleBar = this.shouldShowTitleBar();
+		const titlebarVisible = this.isVisible(Parts.TITLEBAR_PART);
+		if (shouldShowTitleBar !== titlebarVisible) {
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
+		}
+	}
+
 	toggleMenuBar(): void {
 		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
 		if (typeof currentVisibilityValue !== 'string') {
@@ -2068,7 +2114,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
-			newVisibilityValue = getTitleBarStyle(this.configurationService) === 'native' ? 'toggle' : 'compact';
+			newVisibilityValue = hasNativeTitlebar(this.configurationService) ? 'toggle' : 'compact';
 		} else {
 			newVisibilityValue = 'classic';
 		}

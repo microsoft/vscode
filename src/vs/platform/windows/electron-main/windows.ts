@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, getTitleBarStyle, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -173,8 +173,8 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
 	}
 
-	const useCustomTitleStyle = getTitleBarStyle(configurationService) === 'custom';
-	if (useCustomTitleStyle) {
+	const hideNativeTitleBar = !hasNativeTitlebar(configurationService);
+	if (hideNativeTitleBar) {
 		options.titleBarStyle = 'hidden';
 		if (!isMacintosh) {
 			options.frame = false;
