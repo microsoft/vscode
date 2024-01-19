@@ -106,6 +106,7 @@ export class InlineChatController implements IEditorContribution {
 	private _historyCandidate: string = '';
 	private _historyUpdate: (prompt: string) => void;
 
+	private _isDisposed: boolean = false;
 	private readonly _store = new DisposableStore();
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
@@ -190,11 +191,14 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		if (this._session) {
-			this._inlineChatSessionService.releaseSession(this._session);
+		if (this._currentRun) {
+			this._messages.fire((this._session?.lastExchange
+				? Message.PAUSE_SESSION
+				: Message.CANCEL_SESSION)
+			);
 		}
-		this._strategy?.dispose();
 		this._store.dispose();
+		this._isDisposed = true;
 		this._log('DISPOSED controller');
 	}
 
@@ -262,7 +266,7 @@ export class InlineChatController implements IEditorContribution {
 
 	protected async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
 		let nextState: State | void = state;
-		while (nextState) {
+		while (nextState && !this._isDisposed) {
 			this._log('setState to ', nextState);
 			nextState = await this[nextState](options);
 		}
@@ -457,18 +461,18 @@ export class InlineChatController implements IEditorContribution {
 			store.dispose();
 		}
 
-		this._zone.value.widget.selectAll(false);
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
 			return State.CANCEL;
 		}
 
-		if (message & Message.ACCEPT_SESSION) {
-			return State.ACCEPT;
-		}
-
 		if (message & Message.PAUSE_SESSION) {
 			return State.PAUSE;
+		}
+
+		if (message & Message.ACCEPT_SESSION) {
+			this._zone.value.widget.selectAll(false);
+			return State.ACCEPT;
 		}
 
 		if (message & Message.RERUN_INPUT && this._session.lastExchange) {
