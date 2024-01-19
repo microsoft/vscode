@@ -12,14 +12,6 @@ import { Branch, RefType, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Operation } from './operation';
 
-function isBranchRefEqual(brach1: Branch | undefined, branch2: Branch | undefined): boolean {
-	return brach1?.name === branch2?.name && brach1?.commit === branch2?.commit;
-}
-
-function isUpstreamRefEqual(upstream1: UpstreamRef | undefined, upstream2: UpstreamRef | undefined): boolean {
-	return upstream1?.name === upstream2?.name && upstream1?.remote === upstream2?.remote && upstream1?.commit === upstream2?.commit;
-}
-
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
 	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
@@ -29,15 +21,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private _HEAD: Branch | undefined;
-	private _HEADBase: UpstreamRef | undefined;
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
 
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
 	set currentHistoryItemGroup(value: SourceControlHistoryItemGroup | undefined) {
-		if (this._currentHistoryItemGroup === undefined && value === undefined) {
-			return;
-		}
-
 		this._currentHistoryItemGroup = value;
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
@@ -54,31 +41,30 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
-		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
-		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit || this.repository.HEAD.type === RefType.Tag) {
-			this._HEAD = this._HEADBase = undefined;
-			this.currentHistoryItemGroup = undefined;
-			return;
-		}
-
-		// Resolve HEAD base
-		const HEADBase = await this.resolveHEADBase(this.repository.HEAD);
-
-		// Check if HEAD or HEADBase has changed
-		if (isBranchRefEqual(this._HEAD, this.repository.HEAD) && isUpstreamRefEqual(this._HEADBase, HEADBase)) {
+		// Check if HEAD has changed
+		if (this._HEAD?.name === this.repository.HEAD?.name &&
+			this._HEAD?.commit === this.repository.HEAD?.commit &&
+			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
+			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
 			return;
 		}
 
 		this._HEAD = this.repository.HEAD;
-		this._HEADBase = HEADBase;
+
+		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
+		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
+			this.currentHistoryItemGroup = undefined;
+			return;
+		}
 
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this._HEAD.name ?? ''}`,
 			label: this._HEAD.name ?? '',
-			base: this._HEADBase ?
+			base: this._HEAD.upstream ?
 				{
-					id: `refs/remotes/${this._HEADBase.remote}/${this._HEADBase.name}`,
-					label: `${this._HEADBase.remote}/${this._HEADBase.name}`,
+					id: `refs/remotes/${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
+					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 				} : undefined
 		};
 	}
@@ -165,17 +151,26 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
-	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
-		const ancestor = await this.repository.getMergeBase(refId1, refId2);
+	async resolveHistoryItemGroupCommonAncestor(historyItemId1: string, historyItemId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+		if (!historyItemId2) {
+			const upstreamRef = await this.resolveHistoryItemGroupBase(historyItemId1);
+			if (!upstreamRef) {
+				return undefined;
+			}
+
+			historyItemId2 = `refs/remotes/${upstreamRef.remote}/${upstreamRef.name}`;
+		}
+
+		const ancestor = await this.repository.getMergeBase(historyItemId1, historyItemId2);
 		if (!ancestor) {
 			return undefined;
 		}
 
 		try {
-			const commitCount = await this.repository.getCommitCount(`${refId1}...${refId2}`);
+			const commitCount = await this.repository.getCommitCount(`${historyItemId1}...${historyItemId2}`);
 			return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
 		} catch (err) {
-			this.logger.error(`Failed to get ahead/behind for '${refId1}...${refId2}': ${err.message}`);
+			this.logger.error(`Failed to get ahead/behind for '${historyItemId1}...${historyItemId2}': ${err.message}`);
 		}
 
 		return undefined;
@@ -185,27 +180,22 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private async resolveHEADBase(HEAD: Branch): Promise<UpstreamRef | undefined> {
-		// Upstream
-		if (HEAD.upstream) {
-			return HEAD.upstream;
+	private async resolveHistoryItemGroupBase(historyItemId: string): Promise<UpstreamRef | undefined> {
+		try {
+			const remoteBranch = await this.repository.getBranchBase(historyItemId);
+			if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
+				return undefined;
+			}
+
+			return {
+				name: remoteBranch.name,
+				remote: remoteBranch.remote,
+				commit: remoteBranch.commit
+			};
 		}
-
-		// try {
-		// 	const remoteBranch = await this.repository.getBranchBase(HEAD.name ?? '');
-		// 	if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
-		// 		return undefined;
-		// 	}
-
-		// 	return {
-		// 		name: remoteBranch.name,
-		// 		remote: remoteBranch.remote,
-		// 		commit: remoteBranch.commit
-		// 	};
-		// }
-		// catch (err) {
-		// 	this.logger.error(`Failed to get branch base for '${HEAD.name}': ${err.message}`);
-		// }
+		catch (err) {
+			this.logger.error(`Failed to get branch base for '${historyItemId}': ${err.message}`);
+		}
 
 		return undefined;
 	}

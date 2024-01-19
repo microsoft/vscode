@@ -960,7 +960,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
-	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 		return await historyProvider?.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2, token) ?? undefined;
 	}
