@@ -19,7 +19,7 @@ import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, IExpressionValue } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 
@@ -51,7 +51,7 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-export function renderExpressionValue(expressionOrValue: IExpressionContainer | string, container: HTMLElement, options: IRenderValueOptions): void {
+export function renderExpressionValue(expressionOrValue: IExpressionValue | string, container: HTMLElement, options: IRenderValueOptions): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -63,7 +63,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 			container.classList.add('error');
 		}
 	} else {
-		if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
+		if (typeof expressionOrValue !== 'string' && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
 			// value changed color has priority over other colors.
 			container.className = 'value changed';
 			expressionOrValue.valueChanged = false;
