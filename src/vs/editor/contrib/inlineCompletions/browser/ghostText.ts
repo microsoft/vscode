@@ -53,9 +53,9 @@ export class GhostText {
 		let result = '';
 		let lastCol = cursorColumn;
 		for (const part of this.parts) {
-			const partInsertText = this._getInsertTextForPartFromColumn(lineText, part, lastCol);
-			result += partInsertText.text;
-			lastCol = partInsertText.newColumn;
+			const { text, newColumn } = this._getInsertTextForPartFromColumn(lineText, part, lastCol);
+			result += text;
+			lastCol = newColumn;
 		}
 		return result;
 	}
