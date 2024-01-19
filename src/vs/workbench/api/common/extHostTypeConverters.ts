@@ -2320,9 +2320,7 @@ export namespace InteractiveEditorResponseFeedbackKind {
 
 export namespace ChatResponseProgress {
 	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
-		if ('placeholder' in progress && 'resolvedContent' in progress) {
-			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
-		} else if ('markdownContent' in progress) {
+		if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
@@ -2430,7 +2428,7 @@ export namespace ChatResponseProgress {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, slashCommand: vscode.ChatAgentSlashCommand | undefined): vscode.ChatAgentRequest {
+	export function to(request: IChatAgentRequest, slashCommand: vscode.ChatAgentSubCommand | undefined): vscode.ChatAgentRequest {
 		return {
 			prompt: request.message,
 			variables: ChatVariable.objectTo(request.variables),

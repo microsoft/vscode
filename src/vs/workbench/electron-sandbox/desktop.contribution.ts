@@ -235,6 +235,18 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
+			'window.customTitleBarVisibility': {
+				'type': 'string',
+				'enum': ['auto', 'windowed', 'never'],
+				'markdownEnumDescriptions': [
+					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom titlebar visibility."),
+					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. Automatically changes custom titlebar visibility in windowed."),
+					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when `#window.titleBarStyle#` is set to `native`."),
+				],
+				'default': isLinux ? 'never' : 'auto',
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown."),
+			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],

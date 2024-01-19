@@ -279,7 +279,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				return { canPreview: !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				if (action && action.action.diagnostics) {
+				// If provider contributes ranges, then highlight contributed range over diagnostic range.
+				if (action && action.action.ranges) {
+					currentDecorations.clear();
+					const decorations: IModelDeltaDecoration[] = action.action.ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+					currentDecorations.set(decorations);
+				} else if (action && action.action.diagnostics) {
 					currentDecorations.clear();
 					const decorations: IModelDeltaDecoration[] = action.action.diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
 					currentDecorations.set(decorations);

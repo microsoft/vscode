@@ -162,6 +162,11 @@ export interface INotebookRendererContribution {
 	readonly mimeTypes: string[];
 }
 
+export interface IDebugVisualizationContribution {
+	readonly id: string;
+	readonly when: string;
+}
+
 export interface ITranslation {
 	id: string;
 	path: string;
@@ -199,6 +204,7 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
+	readonly debugVisualizers?: IDebugVisualizationContribution[];
 }
 
 export interface IExtensionCapabilities {

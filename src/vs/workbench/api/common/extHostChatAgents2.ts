@@ -98,20 +98,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					}
 
 					if ('placeholder' in progress && 'resolvedContent' in progress) {
-						const resolvedContent = Promise.all([this._proxy.$handleProgressChunk(request.requestId, convertedProgress), progress.resolvedContent]);
-						raceCancellation(resolvedContent, token).then(res => {
-							if (!res) {
-								return; /* Cancelled */
-							}
-							const [progressHandle, progressContent] = res;
-							const convertedContent = typeConvert.ChatResponseProgress.from(agent.extension, progressContent);
-							if (!convertedContent) {
-								this._logService.error('Unknown progress type: ' + JSON.stringify(progressContent));
-								return;
-							}
-
-							this._proxy.$handleProgressChunk(request.requestId, convertedContent, progressHandle ?? undefined);
-						});
+						// Ignore for now, this is the deleted Task type
 					} else {
 						this._proxy.$handleProgressChunk(request.requestId, convertedProgress);
 					}
@@ -240,8 +227,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 
-	private _slashCommandProvider: vscode.ChatAgentSlashCommandProvider | undefined;
-	private _lastSlashCommands: vscode.ChatAgentSlashCommand[] | undefined;
+	private _slashCommandProvider: vscode.ChatAgentSubCommandProvider | undefined;
+	private _lastSlashCommands: vscode.ChatAgentSubCommand[] | undefined;
 	private _followupProvider: vscode.FollowupProvider<TResult> | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
@@ -297,7 +284,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		if (!this._slashCommandProvider) {
 			return [];
 		}
-		const result = await this._slashCommandProvider.provideSlashCommands(token);
+		const result = await this._slashCommandProvider.provideSubCommands(token);
 		if (!result) {
 			return [];
 		}
@@ -385,10 +372,10 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 				that._iconPath = v;
 				updateMetadataSoon();
 			},
-			get slashCommandProvider() {
+			get subCommandProvider() {
 				return that._slashCommandProvider;
 			},
-			set slashCommandProvider(v) {
+			set subCommandProvider(v) {
 				that._slashCommandProvider = v;
 				updateMetadataSoon();
 			},

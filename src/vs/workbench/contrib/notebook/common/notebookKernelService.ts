@@ -46,6 +46,8 @@ export interface VariablesResult {
 	indexedChildrenCount: number;
 }
 
+export const variablePageSize = 100;
+
 export interface INotebookKernel {
 	readonly id: string;
 	readonly viewType: string;

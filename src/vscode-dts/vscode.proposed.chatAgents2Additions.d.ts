@@ -26,7 +26,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSlashCommand;
+		command?: ChatAgentSubCommand;
 	}
 
 	export interface ChatAgentVulnerability {

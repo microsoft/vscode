@@ -15,10 +15,9 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryItemGroupDetails, ISCMHistoryItemGroupEntry, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Codicon } from 'vs/base/common/codicons';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { basename } from 'vs/base/common/resources';
 
@@ -141,49 +140,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
-		// History item group base
-		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
-
-		if (!historyItemGroupBase) {
-			return undefined;
-		}
-
-		// Common ancestor, ahead, behind
-		const ancestor = await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id);
-
-		if (!ancestor) {
-			return undefined;
-		}
-
-		// Incoming
-		const incoming: ISCMHistoryItemGroupEntry = {
-			id: historyItemGroupBase.id,
-			label: historyItemGroupBase.label,
-			icon: Codicon.arrowCircleDown,
-			direction: 'incoming',
-			ancestor: ancestor.id,
-			count: ancestor.behind,
-		};
-
-		// Outgoing
-		const outgoing: ISCMHistoryItemGroupEntry = {
-			id: historyItemGroup.id,
-			label: historyItemGroup.label,
-			icon: Codicon.arrowCircleUp,
-			direction: 'outgoing',
-			ancestor: ancestor.id,
-			count: ancestor.ahead,
-		};
-
-		return { incoming, outgoing };
-	}
-
-	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined> {
-		return this.proxy.$resolveHistoryItemGroupBase(this.handle, historyItemGroupId, CancellationToken.None);
-	}
-
-	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupId1, historyItemGroupId2, CancellationToken.None);
 	}
 

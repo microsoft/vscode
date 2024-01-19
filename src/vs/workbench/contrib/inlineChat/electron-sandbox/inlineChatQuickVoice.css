@@ -37,3 +37,7 @@
 		color: var(--vscode-editorCursor-background);
 	}
 }
+
+.monaco-editor .inline-chat-quick-voice .message.preview {
+	opacity: .4;
+}
