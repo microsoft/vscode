@@ -10,6 +10,7 @@ import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { localize } from 'vs/nls';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 
 const $ = dom.$;
@@ -33,9 +34,6 @@ export interface IVariableTemplateData {
 	value: HTMLSpanElement;
 }
 
-const booleanRegex = /^(true|false)$/i;
-const stringRegex = /^(['"]).*\1$/;
-
 export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, IVariableTemplateData> {
 
 	static readonly ID = 'variableElement';
@@ -55,19 +53,10 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 	}
 
 	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, data: IVariableTemplateData): void {
-		const value = element.element.value;
-		const text = typeof value === 'string' ? `${element.element.name}:` : element.element.name;
-
+		const text = typeof element.element.value === 'string' ? `${element.element.name}:` : element.element.name;
 		data.name.textContent = text;
-		data.value.textContent = value;
 
-		if (!isNaN(+value)) {
-			data.value.classList.add('number');
-		} else if (booleanRegex.test(value)) {
-			data.value.classList.add('boolean');
-		} else if (stringRegex.test(value)) {
-			data.value.classList.add('string');
-		}
+		renderExpressionValue(element.element.value, data.value, { colorize: true, showHover: true });
 	}
 
 	disposeTemplate(): void {
