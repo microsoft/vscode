@@ -99,6 +99,8 @@ stages:
               . build/azure-pipelines/win32/exec.ps1
               . build/azure-pipelines/win32/retry.ps1
               $ErrorActionPreference = "Stop"
+              # TODO: remove custom node-gyp when updating to Node v20,
+              # refs https://github.com/npm/cli/releases/tag/v10.2.3 which is available with Node >= 20.10.0
               $nodeGypDir = "$(Agent.TempDirectory)/custom-packages"
               mkdir "$nodeGypDir"
               npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
