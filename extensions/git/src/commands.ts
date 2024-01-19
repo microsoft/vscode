@@ -2961,6 +2961,16 @@ export class CommandCenter {
 		await repository.fetchAll();
 	}
 
+	@command('git.fetchRef', { repository: true })
+	async fetchRef(repository: Repository, ref: string): Promise<void> {
+		if (!repository || !ref) {
+			return;
+		}
+
+		const branch = await repository.getBranch(ref);
+		await repository.fetch({ remote: branch.remote, ref: branch.name });
+	}
+
 	@command('git.pullFrom', { repository: true })
 	async pullFrom(repository: Repository): Promise<void> {
 		const remotes = repository.remotes;
@@ -3021,6 +3031,16 @@ export class CommandCenter {
 		}
 
 		await repository.pullWithRebase(repository.HEAD);
+	}
+
+	@command('git.pullRef', { repository: true })
+	async pullRef(repository: Repository, ref: string): Promise<void> {
+		if (!repository || !ref) {
+			return;
+		}
+
+		const branch = await repository.getBranch(ref);
+		await repository.pullFrom(false, branch.remote, branch.name);
 	}
 
 	private async _push(repository: Repository, pushOptions: PushOptions) {
@@ -3158,6 +3178,15 @@ export class CommandCenter {
 	@command('git.pushWithTagsForce', { repository: true })
 	async pushFollowTagsForce(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
+	}
+
+	@command('git.pushRef', { repository: true })
+	async pushRef(repository: Repository, ref: string): Promise<void> {
+		if (!repository || !ref) {
+			return;
+		}
+
+		await this._push(repository, { pushType: PushType.Push });
 	}
 
 	@command('git.cherryPick', { repository: true })
