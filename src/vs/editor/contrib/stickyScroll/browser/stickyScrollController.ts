@@ -415,19 +415,19 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _logEnablementChangeEvent() {
-		type StickyScrollConfigurationEvent = { value: boolean };
-		type StickyScrollConfigurationClassificationEditor = {
-			comment: 'Helps understand the effectiveness of the editor sticky scroll gradual release';
-			value: {
-				classification: 'SystemMetaData';
-				purpose: 'FeatureInsight';
+		this._telemetryService.publicLog2<
+			{ value: boolean },
+			{
 				comment: 'Helps understand the effectiveness of the editor sticky scroll gradual release';
-			};
-			owner: 'aiday-mar';
-		};
-		const options = this._editor.getOption(EditorOption.stickyScroll);
-		this._telemetryService.publicLog2<StickyScrollConfigurationEvent, StickyScrollConfigurationClassificationEditor>('stickyScrollSettingEditor', {
-			value: options.enabled
+				value: {
+					classification: 'SystemMetaData';
+					purpose: 'FeatureInsight';
+					comment: 'Helps understand the effectiveness of the editor sticky scroll gradual release';
+				};
+				owner: 'aiday-mar';
+			}
+		>('editorStickyScrollSettingChange', {
+			value: this._editor.getOption(EditorOption.stickyScroll).enabled
 		});
 	}
 
