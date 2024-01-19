@@ -323,10 +323,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		if (!this.extension.hasPreReleaseVersion) {
-			return;
-		}
-		if (this.extension.state === ExtensionState.Installed && !this.extension.local?.isPreReleaseVersion) {
+		if (!this.extension.isPreReleaseVersion) {
 			return;
 		}
 		this.element = append(this.parent, $('div.extension-bookmark'));
