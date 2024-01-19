@@ -548,10 +548,11 @@ export interface CompletionList {
 }
 
 /**
- * Metadata provided on partial acceptance.
- */
-export interface PartialAcceptMetadata {
+	 * Info provided on partial acceptance.
+	 */
+export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 /**
@@ -734,7 +735,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	/**
 	 * Will be called when an item is partially accepted.
 	 */
-	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, metadata?: PartialAcceptMetadata): void;
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, metadata?: PartialAcceptInfo): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.

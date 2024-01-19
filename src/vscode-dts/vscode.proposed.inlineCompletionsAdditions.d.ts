@@ -52,11 +52,19 @@ declare module 'vscode' {
 		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number, metadata?: PartialAcceptMetadata): void;
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
+
+		/**
+		 * Is called when an inline completion item was accepted partially.
+		 * @param info Additional info for the partial accepted trigger.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
 	}
 
-	export interface PartialAcceptMetadata {
+	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
+		acceptedLength: number;
 	}
 
 	export enum PartialAcceptTriggerKind {

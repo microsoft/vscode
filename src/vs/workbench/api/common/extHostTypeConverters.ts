@@ -2467,13 +2467,11 @@ export namespace TerminalQuickFix {
 }
 
 
-export namespace PartialAcceptMetadata {
-	export function to(metadata: languages.PartialAcceptMetadata | undefined): types.PartialAcceptMetadata | undefined {
-		if (!metadata) {
-			return undefined;
-		}
+export namespace PartialAcceptInfo {
+	export function to(info: languages.PartialAcceptInfo): types.PartialAcceptInfo {
 		return {
-			kind: PartialAcceptTriggerKind.to(metadata.kind)
+			kind: PartialAcceptTriggerKind.to(info.kind),
+			acceptedLength: info.acceptedLength
 		};
 	}
 }
