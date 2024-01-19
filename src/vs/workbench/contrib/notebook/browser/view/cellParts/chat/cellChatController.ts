@@ -23,6 +23,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
@@ -80,6 +81,7 @@ export class NotebookCellChatController extends Disposable {
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -368,6 +370,22 @@ export class NotebookCellChatController extends Disposable {
 				const replyResponse = response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId);
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(editor, replyResponse.allLocalEdits[i], undefined);
+				}
+
+				if (this._activeSession?.provider.provideFollowups) {
+					const followupCts = new CancellationTokenSource();
+					const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, replyResponse.raw, followupCts.token);
+					if (followups && this._widget) {
+						const widget = this._widget;
+						widget.updateFollowUps(followups, followup => {
+							if (followup.kind === 'reply') {
+								widget.value = followup.message;
+								this.acceptInput();
+							} else {
+								this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+							}
+						});
+					}
 				}
 			}
 		} catch (e) {
