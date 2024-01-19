@@ -504,7 +504,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.activityBar.location.side', "Show the Activity Bar to the side of the Primary Side Bar."),
 					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
 					localize('workbench.activityBar.location.hide', "Hide the Activity Bar.")
-				]
+				],
+				tags: ['FeatureInsight']
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
