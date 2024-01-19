@@ -313,10 +313,7 @@ export class InlineCompletionsModel extends Disposable {
 			const replacedTextAfterPrimaryCursor = textModel
 				.getLineContent(primaryPosition.lineNumber)
 				.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-			const secondaryInsertText = state.ghostText.getFullInsertText(
-				textModel.getLineContent(state.ghostText.lineNumber),
-				primaryPosition.column
-			);
+			const secondaryInsertText = completion.insertText.substring(primaryPosition.column - completion.range.startColumn);
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
@@ -445,7 +442,7 @@ export class InlineCompletionsModel extends Disposable {
 				const length = lengthOfText(partialText);
 				const partialLength = lengthOfText(secondaryPartialText);
 				editor.executeEdits('inlineSuggestion.accept', [
-					EditOperation.replace(Range.fromPositions(position), partialText),
+					EditOperation.replace(Range.fromPositions(primaryPosition, position), completion.insertText.substring(primaryPosition.column - 1, position.column - 1) + partialText),
 					...secondaryPositions.map(pos => {
 						const textAfterSecondaryCursor = this.textModel
 							.getLineContent(pos.lineNumber)
