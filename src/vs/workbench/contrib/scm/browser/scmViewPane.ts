@@ -3291,7 +3291,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	async getChildren(inputOrElement: ISCMViewService | TreeElement): Promise<Iterable<TreeElement>> {
-		const { alwaysShowRepositories, showActionButton, showIncomingChanges, showOutgoingChanges } = this.getConfiguration();
+		const { alwaysShowRepositories, showActionButton } = this.getConfiguration();
 		const repositoryCount = this.scmViewService.visibleRepositories.length;
 
 		if (isSCMViewService(inputOrElement) && (repositoryCount > 1 || alwaysShowRepositories)) {
@@ -3331,10 +3331,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				let label = localize('syncSeparatorHeader', "Incoming/Outgoing");
 				let ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
 
-				if (showIncomingChanges !== 'never' && showOutgoingChanges === 'never') {
+				const incomingHistoryItems = historyItemGroups.find(g => g.direction === 'incoming');
+				const outgoingHistoryItems = historyItemGroups.find(g => g.direction === 'outgoing');
+
+				if (incomingHistoryItems && !outgoingHistoryItems) {
 					label = localize('syncIncomingSeparatorHeader', "Incoming");
 					ariaLabel = localize('syncIncomingSeparatorHeaderAriaLabel', "Incoming changes");
-				} else if (showIncomingChanges === 'never' && showOutgoingChanges !== 'never') {
+				} else if (!incomingHistoryItems && outgoingHistoryItems) {
 					label = localize('syncOutgoingSeparatorHeader', "Outgoing");
 					ariaLabel = localize('syncOutgoingSeparatorHeaderAriaLabel', "Outgoing changes");
 				}
@@ -3384,7 +3387,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || !currentHistoryItemGroup.base || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
+		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
 			return [];
 		}
 
@@ -3396,12 +3399,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		if (!incomingHistoryItemGroup || !outgoingHistoryItemGroup) {
 			// Common ancestor, ahead, behind
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base.id);
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
 			if (!ancestor) {
 				return [];
 			}
 
-			incomingHistoryItemGroup = {
+			// Only show "Incoming" node if there is a base branch
+			incomingHistoryItemGroup = currentHistoryItemGroup.base ? {
 				id: currentHistoryItemGroup.base.id,
 				label: currentHistoryItemGroup.base.label,
 				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.label),
@@ -3411,7 +3415,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				count: ancestor.behind,
 				repository: element,
 				type: 'historyItemGroup'
-			};
+			} : undefined;
 
 			outgoingHistoryItemGroup = {
 				id: currentHistoryItemGroup.id,
