@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
-import { coalesceInPlace, equals, tail } from 'vs/base/common/arrays';
-import { AsyncIterableSource, IntervalTimer } from 'vs/base/common/async';
+import { coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
@@ -17,20 +16,18 @@ import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { HunkInformation, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
@@ -38,6 +35,7 @@ import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX
 import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
+import { performAsyncTextEdit, asProgressiveEdit } from './utils';
 
 export interface IEditObserver {
 	start(): void;
@@ -105,7 +103,8 @@ export abstract class EditModeStrategy {
 				const wordCount = countWords(edit.text ?? '');
 				const speed = wordCount / durationInSec;
 				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress, obs);
+				const asyncEdit = asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token);
+				await performAsyncTextEdit(this._session.textModelN, asyncEdit, progress, obs);
 			}
 
 		} else {
@@ -233,13 +232,11 @@ export class LivePreviewStrategy extends EditModeStrategy {
 
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
-	private _currentLineRangeGroups: LineRangeMapping[][] = [];
 
 	constructor(
 		session: Session,
 		editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
@@ -279,153 +276,119 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		await undoModelUntil(modelN, targetAltVersion);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
-			let last: Position | null = null;
-			for (const edit of undoEdits) {
-				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-			}
-			return last && [Selection.fromPositions(last)];
-		};
-
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			this._editor.pushUndoStop();
-		}
-		obs.start();
-		this._editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
-		obs.stop();
-	}
-
 	override async undoChanges(altVersionId: number): Promise<void> {
 		const { textModelN } = this._session;
 		await undoModelUntil(textModelN, altVersionId);
-		await this._updateDiffZones();
+		this._updateDiffZones();
+	}
+
+	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
+		return this._makeChanges(edits, obs, undefined, undefined);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
-
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			this._editor.pushUndoStop();
-		}
-
-		//add a listener that shows the diff zones as soon as the first edit is applied
-		let renderTask = Promise.resolve();
-		const changeListener = this._session.textModelN.onDidChangeContent(() => {
-			changeListener.dispose();
-			renderTask = this._updateDiffZones();
-		});
-
-		const durationInSec = opts.duration / 1000;
-		for (const edit of edits) {
-			const wordCount = countWords(edit.text ?? '');
-			const speed = wordCount / durationInSec;
-			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), undefined, obs);
-		}
-
-		await renderTask;
-		changeListener.dispose();
+		await this._makeChanges(edits, obs, opts, new Progress<any>(() => {
+			this._updateDiffZones();
+		}));
 	}
 
-	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-
-		await this._updateDiffZones();
+	override async renderChanges(response: ReplyResponse): Promise<Position | undefined> {
 
 		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
 			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
 			this._previewZone.value.hide();
 		}
+
+		return this._updateDiffZones();
 	}
 
-	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[]) {
-		let linesChanged = 0;
-		for (const change of mappings) {
-			linesChanged += change.changedLineCount;
-		}
+
+	protected _updateSummaryMessage(hunkCount: number) {
 		let message: string;
-		if (linesChanged === 0) {
-			message = localize('lines.0', "Nothing changed");
-		} else if (linesChanged === 1) {
-			message = localize('lines.1', "Changed 1 line");
+		if (hunkCount === 0) {
+			message = localize('change.0', "Nothing changed");
+		} else if (hunkCount === 1) {
+			message = localize('change.1', "1 change");
 		} else {
-			message = localize('lines.N', "Changed {0} lines", linesChanged);
+			message = localize('lines.NM', "{0} changes", hunkCount);
 		}
 		this._zone.widget.updateStatus(message);
 	}
 
-	private async _updateDiffZones() {
-		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		if (!diff || diff.changes.length === 0) {
+
+	private _updateDiffZones(): Position | undefined {
+
+		const { hunkData } = this._session;
+		const hunks = hunkData.getInfo().filter(hunk => hunk.getState() === HunkState.Pending);
+
+		if (hunks.length === 0) {
 			for (const zone of this._diffZonePool) {
 				zone.hide();
 			}
-			return;
-		}
 
-		const originalStartLineNumber = this._session.session.wholeRange?.startLineNumber ?? 1;
-
-		const mainGroup: LineRangeMapping[] = [];
-		let lastGroup: LineRangeMapping[] | undefined;
-		const groups: LineRangeMapping[][] = [mainGroup];
-
-		for (let i = 0; i < diff.changes.length; i++) {
-			const change = diff.changes[i];
-
-			// everything below the original start line is one group
-			if (change.original.startLineNumber >= originalStartLineNumber || 'true') { // TODO@jrieken be smarter and fix this
-				mainGroup.push(change);
-				continue;
-			}
-
-			if (!lastGroup) {
-				lastGroup = [change];
-				groups.push(lastGroup);
-				continue;
-			}
-
-			// when the distance between the two changes is less than 75% of the total number of lines changed
-			// they get merged into the same group
-			const last = tail(lastGroup);
-			const treshold = Math.ceil((change.modified.length + last.modified.length) * .75);
-			if (change.modified.startLineNumber - last.modified.endLineNumberExclusive <= treshold) {
-				lastGroup.push(change);
+			if (hunkData.getInfo().find(hunk => hunk.getState() === HunkState.Accepted)) {
+				this._onDidAccept.fire();
 			} else {
-				lastGroup = [change];
-				groups.push(lastGroup);
+				this._onDidDiscard.fire();
 			}
-		}
 
-		const beforeAndNowAreEqual = equals(this._currentLineRangeGroups, groups, (groupA, groupB) => {
-			return equals(groupA, groupB, (mappingA, mappingB) => {
-				return mappingA.original.equals(mappingB.original) && mappingA.modified.equals(mappingB.modified);
-			});
-		});
-
-		if (beforeAndNowAreEqual) {
 			return;
 		}
 
-		this._updateSummaryMessage(diff.changes);
-		this._currentLineRangeGroups = groups;
-
-		const handleDiff = () => {
-			this._updateDiffZones();
-		};
+		this._updateSummaryMessage(hunks.length);
 
 		// create enough zones
-		while (groups.length > this._diffZonePool.length) {
+		const handleDiff = () => this._updateDiffZones();
+
+		type Data = { position: Position; distance: number; accept: Function; discard: Function };
+		let nearest: Data | undefined;
+
+		// create enough zones
+		while (hunks.length > this._diffZonePool.length) {
 			this._diffZonePool.push(this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, {}, this._diffZonePool.length === 0 ? handleDiff : undefined));
 		}
-		for (let i = 0; i < groups.length; i++) {
-			this._diffZonePool[i].showForChanges(groups[i]);
+
+		for (let i = 0; i < hunks.length; i++) {
+			const hunk = hunks[i];
+			this._diffZonePool[i].showForChanges(hunk);
+
+			const modifiedRange = hunk.getRangesN()[0];
+			const zoneLineNumber = this._zone.position!.lineNumber;
+			const distance = zoneLineNumber <= modifiedRange.startLineNumber
+				? modifiedRange.startLineNumber - zoneLineNumber
+				: zoneLineNumber - modifiedRange.endLineNumber;
+
+			if (!nearest || nearest.distance > distance) {
+				nearest = {
+					position: modifiedRange.getStartPosition().delta(-1),
+					distance,
+					accept: () => {
+						hunk.acceptChanges();
+						handleDiff();
+					},
+					discard: () => {
+						hunk.discardChanges();
+						handleDiff();
+					}
+				};
+			}
+
 		}
 		// hide unused zones
-		for (let i = groups.length; i < this._diffZonePool.length; i++) {
+		for (let i = hunks.length; i < this._diffZonePool.length; i++) {
 			this._diffZonePool[i].hide();
 		}
+
+		this.acceptHunk = async () => nearest?.accept();
+		this.discardHunk = async () => nearest?.discard();
+
+		if (nearest) {
+			this._zone.updatePositionAndHeight(nearest.position);
+			this._editor.revealPositionInCenterIfOutsideViewport(nearest.position);
+		}
+
+		return nearest?.position;
 	}
 
 	override hasFocus(): boolean {
@@ -434,79 +397,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 			|| this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
 	}
 }
-
-export interface AsyncTextEdit {
-	readonly range: IRange;
-	readonly newText: AsyncIterable<string>;
-}
-
-export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdit, progress?: IProgress<IValidEditOperation[]>, obs?: IEditObserver) {
-
-	const [id] = model.deltaDecorations([], [{
-		range: edit.range,
-		options: {
-			description: 'asyncTextEdit',
-			stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-		}
-	}]);
-
-	let first = true;
-	for await (const part of edit.newText) {
-
-		if (model.isDisposed()) {
-			break;
-		}
-
-		const range = model.getDecorationRange(id);
-		if (!range) {
-			throw new Error('FAILED to perform async replace edit because the anchor decoration was removed');
-		}
-
-		const edit = first
-			? EditOperation.replace(range, part) // first edit needs to override the "anchor"
-			: EditOperation.insert(range.getEndPosition(), part);
-		obs?.start();
-		model.pushEditOperations(null, [edit], (undoEdits) => {
-			progress?.report(undoEdits);
-			return null;
-		});
-		obs?.stop();
-		first = false;
-	}
-}
-
-export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
-
-	wordsPerSec = Math.max(10, wordsPerSec);
-
-	const stream = new AsyncIterableSource<string>();
-	let newText = edit.text ?? '';
-
-	interval.cancelAndSet(() => {
-		const r = getNWords(newText, 1);
-		stream.emitOne(r.value);
-		newText = newText.substring(r.value.length);
-		if (r.isFullString) {
-			interval.cancel();
-			stream.resolve();
-			d.dispose();
-		}
-
-	}, 1000 / wordsPerSec);
-
-	// cancel ASAP
-	const d = token.onCancellationRequested(() => {
-		interval.cancel();
-		stream.resolve();
-		d.dispose();
-	});
-
-	return {
-		range: edit.range,
-		newText: stream.asyncIterable
-	};
-}
-
 
 type HunkDisplayData = {
 
