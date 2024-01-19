@@ -6930,8 +6930,8 @@ declare namespace monaco.languages {
 	}
 
 	/**
-		 * Info provided on partial acceptance.
-		 */
+	 * Info provided on partial acceptance.
+	 */
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
 		acceptedLength: number;
