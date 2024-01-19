@@ -12,6 +12,8 @@ import { localize } from 'vs/nls';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 
+const $ = dom.$;
+
 export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
 export class NotebookVariablesDelegate implements IListVirtualDelegate<INotebookVariableElement> {
@@ -25,7 +27,16 @@ export class NotebookVariablesDelegate implements IListVirtualDelegate<INotebook
 	}
 }
 
-export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, { wrapper: HTMLElement }> {
+export interface IVariableTemplateData {
+	expression: HTMLElement;
+	name: HTMLSpanElement;
+	value: HTMLSpanElement;
+}
+
+const booleanRegex = /^(true|false)$/i;
+const stringRegex = /^(['"]).*\1$/;
+
+export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, IVariableTemplateData> {
 
 	static readonly ID = 'variableElement';
 
@@ -33,13 +44,30 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		return NotebookVariableRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement) {
-		const wrapper = dom.append(container, dom.$('.variable'));
-		return { wrapper };
+	renderTemplate(container: HTMLElement): IVariableTemplateData {
+		const expression = dom.append(container, $('.expression'));
+		const name = dom.append(expression, $('span.name'));
+		const value = dom.append(expression, $('span.value'));
+
+		const template: IVariableTemplateData = { expression, name, value };
+
+		return template;
 	}
 
-	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, templateData: { wrapper: HTMLElement }): void {
-		templateData.wrapper.innerText = `${element.element.name}: ${element.element.value}`;
+	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, data: IVariableTemplateData): void {
+		const value = element.element.value;
+		const text = typeof value === 'string' ? `${element.element.name}:` : element.element.name;
+
+		data.name.textContent = text;
+		data.value.textContent = value;
+
+		if (!isNaN(+value)) {
+			data.value.classList.add('number');
+		} else if (booleanRegex.test(value)) {
+			data.value.classList.add('boolean');
+		} else if (stringRegex.test(value)) {
+			data.value.classList.add('string');
+		}
 	}
 
 	disposeTemplate(): void {
