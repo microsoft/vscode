@@ -119,15 +119,6 @@ export interface IChatTreeData {
 	kind: 'treeData';
 }
 
-export interface IChatAsyncContent {
-	/**
-	 * The placeholder to show while the content is loading
-	 */
-	content: string;
-	resolvedContent: Promise<string | IMarkdownString | IChatTreeData>;
-	kind: 'asyncContent';
-}
-
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
@@ -157,7 +148,6 @@ export type IChatProgress =
 	| IChatAgentContentWithVulnerabilities
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
-	| IChatAsyncContent
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
