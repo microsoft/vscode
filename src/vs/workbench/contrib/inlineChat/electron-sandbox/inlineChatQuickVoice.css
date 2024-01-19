@@ -10,8 +10,10 @@
 	display: flex;
 	align-items: center;
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
-	white-space: nowrap;
 	z-index: 1000;
+	min-height: var(--vscode-inline-chat-quick-voice-height);
+	line-height: var(--vscode-inline-chat-quick-voice-height);
+	max-width: var(--vscode-inline-chat-quick-voice-width);
 }
 
 .monaco-editor .inline-chat-quick-voice .codicon.codicon-mic-filled {

@@ -107,6 +107,7 @@ export class CancelAction extends EditorAction2 {
 class QuickVoiceWidget implements IContentWidget {
 
 	readonly suppressMouseDown = true;
+	readonly allowEditorOverflow = true;
 
 	private readonly _domNode = document.createElement('div');
 	private readonly _elements = dom.h('.inline-chat-quick-voice@main', [
@@ -157,8 +158,10 @@ class QuickVoiceWidget implements IContentWidget {
 
 	beforeRender(): IDimension | null {
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		this._elements.main.style.lineHeight = `${lineHeight}px`;
-		this._elements.main.style.height = `${lineHeight}px`;
+		const width = this._editor.getLayoutInfo().contentWidth * 0.7;
+
+		this._elements.main.style.setProperty('--vscode-inline-chat-quick-voice-height', `${lineHeight}px`);
+		this._elements.main.style.setProperty('--vscode-inline-chat-quick-voice-width', `${width}px`);
 		return null;
 	}
 
