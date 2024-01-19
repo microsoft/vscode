@@ -191,21 +191,21 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return HEAD.upstream;
 		}
 
-		try {
-			const remoteBranch = await this.repository.getBranchBase(HEAD.name ?? '');
-			if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
-				return undefined;
-			}
+		// try {
+		// 	const remoteBranch = await this.repository.getBranchBase(HEAD.name ?? '');
+		// 	if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
+		// 		return undefined;
+		// 	}
 
-			return {
-				name: remoteBranch.name,
-				remote: remoteBranch.remote,
-				commit: remoteBranch.commit
-			};
-		}
-		catch (err) {
-			this.logger.error(`Failed to get branch base for '${HEAD.name}': ${err.message}`);
-		}
+		// 	return {
+		// 		name: remoteBranch.name,
+		// 		remote: remoteBranch.remote,
+		// 		commit: remoteBranch.commit
+		// 	};
+		// }
+		// catch (err) {
+		// 	this.logger.error(`Failed to get branch base for '${HEAD.name}': ${err.message}`);
+		// }
 
 		return undefined;
 	}
