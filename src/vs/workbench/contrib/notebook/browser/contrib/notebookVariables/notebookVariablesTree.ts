@@ -14,6 +14,7 @@ import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDe
 import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 
 const $ = dom.$;
+const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
@@ -56,7 +57,11 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		const text = element.element.value.trim() !== '' ? `${element.element.name}:` : element.element.name;
 		data.name.textContent = text;
 
-		renderExpressionValue(element.element.value, data.value, { colorize: true, showHover: true });
+		renderExpressionValue(element.element, data.value, {
+			colorize: true,
+			showHover: true,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET
+		});
 	}
 
 	disposeTemplate(): void {
