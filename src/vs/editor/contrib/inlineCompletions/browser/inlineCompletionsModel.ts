@@ -20,6 +20,7 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
+import { InlineCompletionItem } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
@@ -306,30 +307,16 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
-			const selections = editor.getSelections() ?? [];
-			const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
-			const primaryPosition = selections[0].getPosition();
+			const { replacedTextAfterPrimaryCursor, primaryPosition, secondaryPositions } = this._getCursorPositionsAndReplacedTextAfterPrimaryCursor(editor, completion);
 			const secondaryInsertText = state.ghostText.getFullInsertText(
 				this.textModel.getLineContent(state.ghostText.lineNumber),
 				primaryPosition.column
 			);
-			const textModel = editor.getModel()!;
-			const replacedTextAfterPrimaryCursor = textModel
-				.getLineContent(primaryPosition.lineNumber)
-				.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
 					EditOperation.replaceMove(completion.range, completion.insertText),
-					...secondaryPositions.map(pos => {
-						const textAfterSecondaryCursor = textModel
-							.getLineContent(pos.lineNumber)
-							.substring(pos.column - 1);
-						const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-						const range = Range.fromPositions(pos, pos.delta(0, l));
-						return EditOperation.replaceMove(range, secondaryInsertText);
-					}),
+					...this._getEditsForSecondaryPositions(editor.getModel()!, secondaryPositions, replacedTextAfterPrimaryCursor, secondaryInsertText),
 					...completion.additionalTextEdits
 				]
 			);
@@ -431,32 +418,17 @@ export class InlineCompletionsModel extends Disposable {
 			this._isAcceptingPartially = true;
 			try {
 				editor.pushUndoStop();
-				const selections = editor.getSelections() ?? [];
-				const secondaryPositions = selections.slice(1).map(s => s.getPosition());
-				const primaryPosition = selections[0].getPosition();
-				/// const primarPosition = position;
+				const { replacedTextAfterPrimaryCursor, primaryPosition, secondaryPositions } = this._getCursorPositionsAndReplacedTextAfterPrimaryCursor(editor, completion);
 				const secondaryPartialText = state.ghostText.getPartialInsertText(
 					this.textModel.getLineContent(state.ghostText.lineNumber),
 					primaryPosition.column,
 					acceptUntilIndexExclusive
 				);
-				const textModel = editor.getModel()!;
-				const replacedTextAfterPrimaryCursor = textModel
-					.getLineContent(primaryPosition.lineNumber)
-					.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-
 				const length = lengthOfText(partialText);
 				const partialLength = lengthOfText(secondaryPartialText);
 				editor.executeEdits('inlineSuggestion.accept', [
 					EditOperation.replace(Range.fromPositions(position), partialText),
-					...secondaryPositions.map(pos => {
-						const textAfterSecondaryCursor = textModel
-							.getLineContent(pos.lineNumber)
-							.substring(pos.column - 1);
-						const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-						const range = Range.fromPositions(pos, pos.delta(0, l));
-						return EditOperation.replaceMove(range, secondaryPartialText);
-					}),
+					...this._getEditsForSecondaryPositions(editor.getModel()!, secondaryPositions, replacedTextAfterPrimaryCursor, secondaryPartialText),
 				]);
 				editor.setSelections([
 					Selection.fromPositions(addPositions(position, length)),
@@ -492,5 +464,27 @@ export class InlineCompletionsModel extends Disposable {
 			inlineCompletion.sourceInlineCompletion,
 			itemEdit.text.length,
 		);
+	}
+
+	private _getEditsForSecondaryPositions(textModel: ITextModel, secondaryPositions: Position[], replacedTextAfterPrimaryCursor: string, secondaryInsertText: string) {
+		return secondaryPositions.map(pos => {
+			const textAfterSecondaryCursor = textModel
+				.getLineContent(pos.lineNumber)
+				.substring(pos.column - 1);
+			const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+			const range = Range.fromPositions(pos, pos.delta(0, l));
+			return EditOperation.replaceMove(range, secondaryInsertText);
+		});
+	}
+
+	private _getCursorPositionsAndReplacedTextAfterPrimaryCursor(editor: ICodeEditor, completion: InlineCompletionItem): { replacedTextAfterPrimaryCursor: string; primaryPosition: Position; secondaryPositions: Position[] } {
+		const selections = editor.getSelections() ?? [];
+		const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
+		const primaryPosition = selections[0].getPosition();
+		const textModel = editor.getModel()!;
+		const replacedTextAfterPrimaryCursor = textModel
+			.getLineContent(primaryPosition.lineNumber)
+			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
+		return { replacedTextAfterPrimaryCursor, primaryPosition, secondaryPositions };
 	}
 }
