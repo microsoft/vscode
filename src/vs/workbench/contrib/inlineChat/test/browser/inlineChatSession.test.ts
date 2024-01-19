@@ -431,6 +431,28 @@ suite('InlineChatSession', function () {
 		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three'].join('\n'));
 	});
 
+	test('HunkData, (mirror) edit after dicard ', async function () {
+
+		const lines = ['one', 'two', 'three'];
+		model.setValue(lines.join('\n'));
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI WAS HERE\n')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'AI WAS HERE', 'three'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), lines.join('\n'));
+
+		assert.strictEqual(session.hunkData.size, 1);
+		const [hunk] = session.hunkData.getInfo();
+		hunk.discardChanges();
+		assert.strictEqual(session.textModelN.getValue(), lines.join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), lines.join('\n'));
+
+		makeEdit([EditOperation.replace(new Range(3, 4, 3, 6), '3333')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'thr3333'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'thr3333'].join('\n'));
+	});
+
 	test('HunkData, (mirror) edit after, multi turn', async function () {
 
 		const lines = ['one', 'two', 'three', 'four', 'five'];
@@ -483,6 +505,12 @@ suite('InlineChatSession', function () {
 		makeEdit([EditOperation.replace(new Range(6, 3, 6, 5), 'vefivefi')]);
 		assert.strictEqual(session.textModelN.getValue(), ['one', 'twozwei', 'AI_EDIT', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
 		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
+
+		session.hunkData.getInfo()[0].acceptChanges();
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
+
+		makeEdit([EditOperation.replace(new Range(1, 1, 1, 1), 'done')]);
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
 	});
 
 });
