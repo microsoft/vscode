@@ -9,16 +9,17 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export interface INotebookScope {
-	type: 'root';
+	kind: 'root';
 	readonly notebook: NotebookTextModel;
 }
 
 export interface INotebookVariableElement {
-	type: 'variable';
+	kind: 'variable';
 	readonly id: string;
 	readonly extHostId: number;
 	readonly name: string;
 	readonly value: string;
+	readonly type?: string;
 	readonly indexedChildrenCount: number;
 	readonly indexStart?: number;
 	readonly hasNamedChildren: boolean;
@@ -30,11 +31,11 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 	constructor(private readonly notebookKernelService: INotebookKernelService) { }
 
 	hasChildren(element: INotebookScope | INotebookVariableElement): boolean {
-		return element.type === 'root' || element.hasNamedChildren || element.indexedChildrenCount > 0;
+		return element.kind === 'root' || element.hasNamedChildren || element.indexedChildrenCount > 0;
 	}
 
 	async getChildren(element: INotebookScope | INotebookVariableElement): Promise<Array<INotebookVariableElement>> {
-		if (element.type === 'root') {
+		if (element.kind === 'root') {
 			return this.getRootVariables(element.notebook);
 		} else {
 			return this.getVariables(element);
@@ -74,7 +75,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 				}
 
 				childNodes.push({
-					type: 'variable',
+					kind: 'variable',
 					notebook: parent.notebook,
 					id: parent.id + `${start}`,
 					extHostId: parent.extHostId,
@@ -115,7 +116,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 	private createVariableElement(variable: VariablesResult, notebook: NotebookTextModel): INotebookVariableElement {
 		return {
 			...variable,
-			type: 'variable',
+			kind: 'variable',
 			notebook,
 			extHostId: variable.id,
 			id: `${variable.id}`

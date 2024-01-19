@@ -78,7 +78,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		this.tree.layout();
 		if (this.activeNotebook) {
-			this.tree.setInput({ type: 'root', notebook: this.activeNotebook });
+			this.tree.setInput({ kind: 'root', notebook: this.activeNotebook });
 		}
 	}
 
@@ -100,7 +100,7 @@ export class NotebookVariablesView extends ViewPane {
 
 	private handleActiveEditorChange() {
 		if (this.setActiveNotebook() && this.activeNotebook) {
-			this.tree?.setInput({ type: 'root', notebook: this.activeNotebook });
+			this.tree?.setInput({ kind: 'root', notebook: this.activeNotebook });
 			this.tree?.updateChildren();
 		}
 	}
@@ -116,7 +116,7 @@ export class NotebookVariablesView extends ViewPane {
 
 	private handleVariablesChanged(notebookUri: URI) {
 		if (this.activeNotebook && notebookUri.toString() === this.activeNotebook.uri.toString()) {
-			this.tree?.setInput({ type: 'root', notebook: this.activeNotebook });
+			this.tree?.setInput({ kind: 'root', notebook: this.activeNotebook });
 			this.tree?.updateChildren();
 		}
 	}
