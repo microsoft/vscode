@@ -563,8 +563,8 @@ suite('Inline Completions', () => {
 		);
 	});
 
-	suite('multi cursor', () => {
-		test('test1', async function () {
+	suite('inlineCompletionMultiCursor', () => {
+		test('Basic', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 				{ fakeClock: true, provider },
@@ -597,7 +597,7 @@ suite('Inline Completions', () => {
 			);
 		});
 
-		test('test2', async function () {
+		test('Multi Part', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 				{ fakeClock: true, provider },
@@ -630,7 +630,7 @@ suite('Inline Completions', () => {
 			);
 		});
 
-		test('test3', async function () {
+		test('Multi Part and Different Cursor Columns', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 				{ fakeClock: true, provider },
@@ -663,9 +663,13 @@ suite('Inline Completions', () => {
 			);
 		});
 
-		// partial acceptance
+		function acceptNextWord(model: InlineCompletionsModel, editor: ITestCodeEditor, timesToAccept: number = 1) {
+			for (let i = 0; i < timesToAccept; i++) {
+				model.acceptNextWord(editor);
+			}
+		}
 
-		test('partial multicursor acceptance', async function () {
+		test('Basic Partial Completion', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 				{ fakeClock: true, provider },
@@ -684,8 +688,7 @@ suite('Inline Completions', () => {
 					model.triggerExplicitly();
 					await timeout(1000);
 
-					model.acceptNextWord(editor);
-					model.acceptNextWord(editor);
+					acceptNextWord(model, editor, 2);
 
 					assert.deepStrictEqual(
 						editor.getValue(),
@@ -699,7 +702,7 @@ suite('Inline Completions', () => {
 			);
 		});
 
-		test('partial multicursor acceptance 2', async function () {
+		test('Partial Multi-Part Completion', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 				{ fakeClock: true, provider },
@@ -718,9 +721,7 @@ suite('Inline Completions', () => {
 					model.triggerExplicitly();
 					await timeout(1000);
 
-					model.acceptNextWord(editor);
-					model.acceptNextWord(editor);
-					model.acceptNextWord(editor);
+					acceptNextWord(model, editor, 3);
 
 					assert.deepStrictEqual(
 						editor.getValue(),
@@ -734,15 +735,15 @@ suite('Inline Completions', () => {
 			);
 		});
 
-		test('partial multicursor acceptance 3', async function () {
+		test('Partial Mutli-Part and Different Cursor Columns Completion', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 				{ fakeClock: true, provider },
 				async ({ editor, editorViewModel, model, context }) => {
-					context.keyboardType('console.log()\nconsole.warn\n');
+					context.keyboardType(`console.log()\nconsole.warnnnn\n`);
 					editor.setSelections([
 						new Selection(1, 12, 1, 12),
-						new Selection(2, 14, 2, 14),
+						new Selection(2, 16, 2, 16),
 					]);
 
 					provider.setReturnValue({
@@ -753,16 +754,13 @@ suite('Inline Completions', () => {
 					model.triggerExplicitly();
 					await timeout(1000);
 
-					model.acceptNextWord(editor);
-					model.acceptNextWord(editor);
-					model.acceptNextWord(editor);
-					model.acceptNextWord(editor);
+					acceptNextWord(model, editor, 4);
 
 					assert.deepStrictEqual(
 						editor.getValue(),
 						[
 							`console.log("hello" + )`,
-							`console.warn("hello" + `,
+							`console.warnnnn("hello" + `,
 							``
 						].join('\n')
 					);

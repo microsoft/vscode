@@ -53,25 +53,25 @@ export class GhostText {
 		let result = '';
 		let lastCol = cursorColumn;
 		for (const part of this.parts) {
-			if (part.column < lastCol) {
-				continue;
-			}
-			result += lineText.substring(lastCol - 1, part.column - 1);
-			result += part.lines.join('\n');
-			lastCol = part.column;
+			const partInsertText = this._getInsertTextForPartFromColumn(lineText, part, lastCol);
+			result += partInsertText.text;
+			lastCol = partInsertText.newColumn;
 		}
 		return result;
 	}
 
 	getPartialInsertText(lineText: string, cursorColumn: number, acceptUntilIndexExclusive: number): string {
+		return this._getInsertTextForPartFromColumn(lineText, this.parts[0], cursorColumn, acceptUntilIndexExclusive).text;
+	}
+
+	private _getInsertTextForPartFromColumn(lineText: string, part: GhostTextPart, column: number, acceptUntilIndexExclusive: number | undefined = undefined): { text: string; newColumn: number } {
 		let result = '';
-		const firstPart = this.parts[0];
-		if (firstPart.column < cursorColumn) {
-			return result;
+		if (part.column < column) {
+			return { text: result, newColumn: column };
 		}
-		result += lineText.substring(cursorColumn - 1, firstPart.column - 1);
-		result += firstPart.lines.join('\n').substring(0, acceptUntilIndexExclusive);
-		return result;
+		result += lineText.substring(column - 1, part.column - 1);
+		result += part.lines.join('\n').substring(0, acceptUntilIndexExclusive);
+		return { text: result, newColumn: part.column };
 	}
 
 
@@ -142,7 +142,6 @@ export class GhostTextReplacement {
 	}
 
 	getPartialInsertText(lineText: string): string {
-		// TODO
 		return this.newLines.join('\n');
 	}
 
