@@ -52,7 +52,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
 		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit || this.repository.HEAD.type === RefType.Tag) {
-			this.currentHistoryItemGroup = this._HEAD = undefined;
+			this._HEAD = this.repository.HEAD;
+			this.currentHistoryItemGroup = undefined;
 			return;
 		}
 
