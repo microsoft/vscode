@@ -18,6 +18,7 @@ import { AccessibleViewProviderId, AccessibilityVerbositySettingId } from 'vs/wo
 import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { IAccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
@@ -77,6 +78,11 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 		content.push(AccessibilityHelpNLS.listAudioCues);
 		content.push(AccessibilityHelpNLS.listAlerts);
 
+		const chatCommandInfo = getChatCommandInfo(this._keybindingService, this._contextKeyService);
+		if (chatCommandInfo) {
+			content.push(chatCommandInfo);
+		}
+
 		const commentCommandInfo = getCommentCommandInfo(this._keybindingService, this._contextKeyService, this._editor);
 		if (commentCommandInfo) {
 			content.push(commentCommandInfo);
@@ -105,6 +111,16 @@ export function getCommentCommandInfo(keybindingService: IKeybindingService, con
 		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousThread, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadNoKb, keybindingService));
 		commentCommandInfo.push(descriptionForCommand(CommentCommandId.NextRange, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb, keybindingService));
 		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousRange, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb, keybindingService));
+		return commentCommandInfo.join('\n');
+	}
+	return;
+}
+
+export function getChatCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService): string | undefined {
+	if (CONTEXT_PROVIDER_EXISTS.getValue(contextKeyService)) {
+		const commentCommandInfo: string[] = [];
+		commentCommandInfo.push(descriptionForCommand('workbench.action.quickchat.toggle', AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.quickChatNoKb, keybindingService));
+		commentCommandInfo.push(descriptionForCommand('inlineChat.start', AccessibilityHelpNLS.startInlineChat, AccessibilityHelpNLS.startInlineChatNoKb, keybindingService));
 		return commentCommandInfo.join('\n');
 	}
 	return;
