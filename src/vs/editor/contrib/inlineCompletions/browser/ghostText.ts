@@ -63,17 +63,6 @@ export class GhostText {
 		return result;
 	}
 
-	getPartialInsertText(lineText: string, cursorColumn: number, acceptUntilIndexExclusive: number): string {
-		let result = '';
-		const firstPart = this.parts[0];
-		if (firstPart.column < cursorColumn) {
-			return result;
-		}
-		result += lineText.substring(cursorColumn - 1, firstPart.column - 1);
-		result += firstPart.lines.join('\n').substring(0, acceptUntilIndexExclusive);
-		return result;
-	}
-
 	isEmpty(): boolean {
 		return this.parts.every(p => p.lines.length === 0);
 	}
@@ -137,11 +126,6 @@ export class GhostTextReplacement {
 	}
 
 	getFullInsertText(lineText: string): string {
-		return this.newLines.join('\n');
-	}
-
-	getPartialInsertText(lineText: string): string {
-		// What should be the value here?
 		return this.newLines.join('\n');
 	}
 

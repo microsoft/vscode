@@ -7,6 +7,7 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { commonPrefixLength } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -307,28 +308,31 @@ export class InlineCompletionsModel extends Disposable {
 		} else {
 			const selections = editor.getSelections() ?? [];
 			const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
+			const primaryPosition = selections[0].getPosition();
 			const secondaryInsertText = state.ghostText.getFullInsertText(
 				this.textModel.getLineContent(state.ghostText.lineNumber),
-				selections[0].getPosition().column
+				primaryPosition.column
 			);
+			const textModel = editor.getModel()!;
+			const replacedTextAfterPrimaryCursor = textModel
+				.getLineContent(primaryPosition.lineNumber)
+				.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
+
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
 					EditOperation.replaceMove(completion.range, completion.insertText),
-					...secondaryPositions.map(pos => EditOperation.replaceMove(Range.fromPositions(pos), secondaryInsertText)),
+					...secondaryPositions.map(pos => {
+						const textAfterSecondaryCursor = textModel
+							.getLineContent(pos.lineNumber)
+							.substring(pos.column - 1);
+						const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+						const range = Range.fromPositions(pos, pos.delta(0, l));
+						return EditOperation.replaceMove(range, secondaryInsertText);
+					}),
 					...completion.additionalTextEdits
 				]
 			);
-			const length = lengthOfText(completion.insertText);
-			// need to update all the cursor positions
-			const _primaryPosition = addPositions(completion.range.getStartPosition(), length);
-			editor.setSelections([
-				Selection.fromPositions(_primaryPosition, _primaryPosition),
-				...secondaryPositions.map(pos => {
-					const _position = addPositions(pos, length);
-					return Selection.fromPositions(_position, _position);
-				}),
-			], 'inlineCompletionAccept');
 		}
 
 		if (completion.command) {
@@ -427,43 +431,14 @@ export class InlineCompletionsModel extends Disposable {
 			this._isAcceptingPartially = true;
 			try {
 				editor.pushUndoStop();
-				// need to change the positions here
 				const selections = editor.getSelections() ?? [];
-				const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
-				const secondaryInsertText = state.ghostText.getFullInsertText(
-					this.textModel.getLineContent(state.ghostText.lineNumber),
-					selections[0].getPosition().column
-				);
-				const secondaryPartialText = state.ghostText.getPartialInsertText(
-					this.textModel.getLineContent(state.ghostText.lineNumber),
-					selections[0].getPosition().column,
-					acceptUntilIndexExclusive
-				);
-				console.log('line : ', line);
-				console.log('partialText : ', partialText);
-				console.log('acceptUntilIndexExclusive : ', acceptUntilIndexExclusive);
-				console.log('secondaryInsertText : ', secondaryInsertText);
-				console.log('secondaryPartialText : ', secondaryPartialText);
-				console.log('secondaryPositions : ', JSON.stringify(secondaryPositions));
-
-				editor.executeEdits('inlineSuggestion.accept', [
-					// maybe can join everything
-					EditOperation.replace(Range.fromPositions(position), partialText),
-					...secondaryPositions.map(pos => EditOperation.replace(Range.fromPositions(pos), secondaryPartialText)),
-				]);
-
-				console.log('editor.getValue() : ', editor.getValue());
-
+				const secondaryPositions = selections.slice(1).map(s => s.getPosition());
+				const positions = [position, ...secondaryPositions];
+				const edits = positions.map(pos => EditOperation.replace(Range.fromPositions(pos), partialText));
 				const length = lengthOfText(partialText);
-				// need to update all the cursor positions
-				const _primaryPosition = addPositions(position, length);
-				editor.setSelections([
-					Selection.fromPositions(_primaryPosition, _primaryPosition),
-					...secondaryPositions.map(pos => {
-						const _position = addPositions(pos, length);
-						return Selection.fromPositions(_position, _position);
-					}),
-				], 'inlineCompletionPartialAccept');
+				const newSelections = positions.map(pos => Selection.fromPositions(addPositions(pos, length)));
+				editor.executeEdits('inlineSuggestion.accept', edits);
+				editor.setSelections(newSelections, 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
 			}

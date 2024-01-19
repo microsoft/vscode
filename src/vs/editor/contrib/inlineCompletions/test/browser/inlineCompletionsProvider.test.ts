@@ -693,7 +693,7 @@ suite('Inline Completions', () => {
 						editor.getValue(),
 						[
 							`for (let i)`,
-							`for (let i)`,
+							`for (let i`,
 							``
 						].join('\n')
 					);
