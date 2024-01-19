@@ -67,7 +67,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 	markChanged(session: Session): void {
 		if (!this._sessionData.has(session)) {
 
-			let uri = session.textModelN.uri;
+			let uri = session.targetUri;
 
 			// notebooks: use the notebook-uri because saving happens on the notebook-level
 			if (uri.scheme === Schemas.vscodeNotebookCell) {
@@ -209,7 +209,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 				break;
 			}
 
-			array.sort((a, b) => compare(a.session.textModelN.uri.toString(), b.session.textModelN.uri.toString()));
+			array.sort((a, b) => compare(a.session.targetUri.toString(), b.session.targetUri.toString()));
 
 
 			for (const data of array) {
@@ -217,15 +217,15 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 				const input: IResourceEditorInput = { resource: data.resourceUri };
 				const pane = await this._editorService.openEditor(input, group);
 				let editor: ICodeEditor | undefined;
-				if (data.session.textModelN.uri.scheme === Schemas.vscodeNotebookCell) {
+				if (data.session.targetUri.scheme === Schemas.vscodeNotebookCell) {
 					const notebookEditor = getNotebookEditorFromEditorPane(pane);
-					const uriData = CellUri.parse(data.session.textModelN.uri);
+					const uriData = CellUri.parse(data.session.targetUri);
 					if (notebookEditor && notebookEditor.hasModel() && uriData) {
 						const cell = notebookEditor.getCellByHandle(uriData.handle);
 						if (cell) {
 							await notebookEditor.revealRangeInCenterIfOutsideViewportAsync(cell, data.session.wholeRange.value);
 						}
-						const tuple = notebookEditor.codeEditors.find(tuple => tuple[1].getModel()?.uri.toString() === data.session.textModelN.uri.toString());
+						const tuple = notebookEditor.codeEditors.find(tuple => tuple[1].getModel()?.uri.toString() === data.session.targetUri.toString());
 						editor = tuple?.[1];
 					}
 
@@ -240,7 +240,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 					break;
 				}
 				this._inlineChatSessionService.moveSession(data.session, editor);
-				this._logService.info('WAIT for session to end', editor.getId(), data.session.textModelN.uri.toString());
+				this._logService.info('WAIT for session to end', editor.getId(), data.session.targetUri.toString());
 				await this._whenSessionsEnded(Iterable.single(data), token);
 			}
 		}

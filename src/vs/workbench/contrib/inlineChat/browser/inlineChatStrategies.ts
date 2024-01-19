@@ -9,7 +9,7 @@ import { AsyncIterableSource, IntervalTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -21,7 +21,6 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -38,6 +37,7 @@ import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/in
 import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export interface IEditObserver {
 	start(): void;
@@ -53,9 +53,11 @@ export abstract class EditModeStrategy {
 		className: 'inline-chat-block-selection',
 	});
 
+	protected readonly _store = new DisposableStore();
+	protected readonly _onDidAccept = this._store.add(new Emitter<void>());
+	protected readonly _onDidDiscard = this._store.add(new Emitter<void>());
 
-	protected readonly _onDidAccept = new Emitter<void>();
-	protected readonly _onDidDiscard = new Emitter<void>();
+	protected _editCount: number = 0;
 
 	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
@@ -65,12 +67,12 @@ export abstract class EditModeStrategy {
 
 	constructor(
 		protected readonly _session: Session,
+		protected readonly _editor: ICodeEditor,
 		protected readonly _zone: InlineChatZoneWidget,
 	) { }
 
 	dispose(): void {
-		this._onDidAccept.dispose();
-		this._onDidDiscard.dispose();
+		this._store.dispose();
 	}
 
 	abstract apply(): Promise<void>;
@@ -89,6 +91,34 @@ export abstract class EditModeStrategy {
 
 	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void>;
 
+	protected async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined, progress: Progress<IValidEditOperation[]> | undefined): Promise<void> {
+
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
+		}
+
+		if (opts) {
+			// ASYNC
+			const durationInSec = opts.duration / 1000;
+			for (const edit of edits) {
+				const wordCount = countWords(edit.text ?? '');
+				const speed = wordCount / durationInSec;
+				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress, obs);
+			}
+
+		} else {
+			// SYNC
+			obs.start();
+			this._session.textModelN.pushEditOperations(null, edits, (undoEdits) => {
+				progress?.report(undoEdits);
+				return null;
+			});
+			obs.stop();
+		}
+	}
+
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
 	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
@@ -106,48 +136,54 @@ export abstract class EditModeStrategy {
 export class PreviewStrategy extends EditModeStrategy {
 
 	private readonly _ctxDocumentChanged: IContextKey<boolean>;
-	private readonly _listener: IDisposable;
 
 	constructor(
 		session: Session,
+		editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
+		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(session, zone);
+		super(session, editor, zone);
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
-		this._listener = Event.debounce(session.textModelN.onDidChangeContent.bind(session.textModelN), () => { }, 350)(_ => {
-			if (!session.textModelN.isDisposed() && !session.textModel0.isDisposed()) {
+
+		const baseModel = modelService.getModel(session.targetUri)!;
+		Event.debounce(baseModel.onDidChangeContent.bind(baseModel), () => { }, 350)(_ => {
+			if (!baseModel.isDisposed() && !session.textModel0.isDisposed()) {
 				this._ctxDocumentChanged.set(session.hasChangedText);
 			}
-		});
+		}, undefined, this._store);
 	}
 
 	override dispose(): void {
-		this._listener.dispose();
 		this._ctxDocumentChanged.reset();
 		super.dispose();
 	}
 
 	async apply() {
 
-		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
-			return;
-		}
-		const editResponse = this._session.lastExchange?.response;
-		const { textModelN: modelN } = this._session;
+		// (1) ensure the editor still shows the original text
+		// (2) accept all pending hunks (moves changes from N to 0)
+		// (3) replace editor model with textModel0
+		const textModel = this._editor.getModel();
+		if (textModel?.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
 
-		if (modelN.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
-			modelN.pushStackElement();
-			for (const edits of editResponse.allLocalEdits) {
-				modelN.pushEditOperations(null, edits.map(TextEdit.asEditOperation), () => null);
+			this._session.hunkData.getInfo().forEach(item => item.acceptChanges());
+
+			const newText = this._session.textModel0.getValue();
+			const range = textModel.getFullModelRange();
+
+			textModel.pushStackElement();
+			textModel.pushEditOperations(null, [EditOperation.replace(range, newText)], () => null);
+			textModel.pushStackElement();
+		}
+
+		if (this._session.lastExchange?.response instanceof ReplyResponse) {
+			const { untitledTextModel } = this._session.lastExchange.response;
+			if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
+				await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
 			}
-			modelN.pushStackElement();
-		}
-
-		const { untitledTextModel } = this._session.lastExchange.response;
-		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
-			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
 		}
 	}
 
@@ -155,22 +191,22 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
-		// nothing to do
+	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
+		return this._makeChanges(edits, obs, undefined, undefined);
 	}
 
-	override async undoChanges(_altVersionId: number): Promise<void> {
-		// nothing to do
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+		return this._makeChanges(edits, obs, opts, undefined);
 	}
 
-	override async makeProgressiveChanges(): Promise<void> {
-		// nothing to do
+	override async undoChanges(altVersionId: number): Promise<void> {
+		const { textModelN } = this._session;
+		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async renderChanges(response: ReplyResponse): Promise<undefined> {
 		if (response.allLocalEdits.length > 0) {
-			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
-			await this._zone.widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
+			await this._zone.widget.showEditsPreview(this._session.textModel0, this._session.textModelN);
 		} else {
 			this._zone.widget.hideEditsPreview();
 		}
@@ -198,18 +234,17 @@ export class LivePreviewStrategy extends EditModeStrategy {
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
 	private _currentLineRangeGroups: LineRangeMapping[][] = [];
-	private _editCount: number = 0;
 
 	constructor(
 		session: Session,
-		private readonly _editor: ICodeEditor,
+		editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		super(session, zone);
+		super(session, editor, zone);
 
-		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, _editor));
+		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 	}
 
 	override dispose(): void {
@@ -506,7 +541,6 @@ export class LiveStrategy extends EditModeStrategy {
 		className: 'inline-chat-inserted-range',
 	});
 
-	private readonly _store = new DisposableStore();
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 
 	private readonly _ctxCurrentChangeHasDiff: IContextKey<boolean>;
@@ -514,32 +548,30 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
 
-	private _editCount: number = 0;
 
 	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
 	override discardHunk: () => Promise<void> = () => super.discardHunk();
 
 	constructor(
 		session: Session,
-		protected readonly _editor: ICodeEditor,
+		editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
-		super(session, zone);
+		super(session, editor, zone);
 		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
 		this._progressiveEditingDecorations = this._editor.createDecorationsCollection();
-		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, _editor));
+		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 
 	}
 
 	override dispose(): void {
 		this._resetDiff();
 		this._previewZone.rawValue?.dispose();
-		this._store.dispose();
 		super.dispose();
 	}
 
@@ -581,25 +613,15 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
-
 		const { textModelN } = this._session;
 		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		return this._makeChanges(edits, obs, undefined);
+		return this._makeChanges(edits, obs, undefined, undefined);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
-		return this._makeChanges(edits, obs, opts);
-	}
-
-	private async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined): Promise<void> {
-
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			this._editor.pushUndoStop();
-		}
 
 		// add decorations once per line that got edited
 		const progress = new Progress<IValidEditOperation[]>(edits => {
@@ -619,26 +641,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 			this._progressiveEditingDecorations.append(newDecorations);
 		});
-
-		if (opts) {
-			// ASYNC
-			const durationInSec = opts.duration / 1000;
-			for (const edit of edits) {
-				const wordCount = countWords(edit.text ?? '');
-				const speed = wordCount / durationInSec;
-				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress, obs);
-			}
-
-		} else {
-			// SYNC
-			obs.start();
-			this._editor.executeEdits('inline-chat-live', edits, undoEdits => {
-				progress.report(undoEdits);
-				return null;
-			});
-			obs.stop();
-		}
+		return this._makeChanges(edits, obs, opts, progress);
 	}
 
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
