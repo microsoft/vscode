@@ -12,14 +12,6 @@ import { Branch, RefType, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Operation } from './operation';
 
-function isBranchRefEqual(brach1: Branch | undefined, branch2: Branch | undefined): boolean {
-	return brach1?.name === branch2?.name && brach1?.commit === branch2?.commit;
-}
-
-function isUpstreamRefEqual(upstream1: UpstreamRef | undefined, upstream2: UpstreamRef | undefined): boolean {
-	return upstream1?.name === upstream2?.name && upstream1?.remote === upstream2?.remote && upstream1?.commit === upstream2?.commit;
-}
-
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
 	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
@@ -29,15 +21,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private _HEAD: Branch | undefined;
-	private _HEADBase: UpstreamRef | undefined;
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
 
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
 	set currentHistoryItemGroup(value: SourceControlHistoryItemGroup | undefined) {
-		if (this._currentHistoryItemGroup === undefined && value === undefined) {
-			return;
-		}
-
 		this._currentHistoryItemGroup = value;
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
@@ -54,31 +41,30 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
-		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
-		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit || this.repository.HEAD.type === RefType.Tag) {
-			this._HEAD = this._HEADBase = undefined;
-			this.currentHistoryItemGroup = undefined;
+		// Check if HEAD has changed
+		if (this._HEAD?.name === this.repository.HEAD?.name &&
+			this._HEAD?.commit === this.repository.HEAD?.commit &&
+			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
+			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
 			return;
 		}
 
-		// Resolve HEAD base
-		const HEADBase = this.repository.HEAD.upstream;
-
-		// Check if HEAD or HEADBase has changed
-		if (isBranchRefEqual(this._HEAD, this.repository.HEAD) && isUpstreamRefEqual(this._HEADBase, HEADBase)) {
+		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
+		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit || this.repository.HEAD.type === RefType.Tag) {
+			this.currentHistoryItemGroup = this._HEAD = undefined;
 			return;
 		}
 
 		this._HEAD = this.repository.HEAD;
-		this._HEADBase = HEADBase;
 
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this._HEAD.name ?? ''}`,
 			label: this._HEAD.name ?? '',
-			base: this._HEADBase ?
+			base: this._HEAD.upstream ?
 				{
-					id: `refs/remotes/${this._HEADBase.remote}/${this._HEADBase.name}`,
-					label: `${this._HEADBase.remote}/${this._HEADBase.name}`,
+					id: `refs/remotes/${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
+					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 				} : undefined
 		};
 	}
