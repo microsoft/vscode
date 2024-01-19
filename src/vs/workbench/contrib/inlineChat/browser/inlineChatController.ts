@@ -190,7 +190,7 @@ export class InlineChatController implements IEditorContribution {
 		};
 	}
 
-	async dispose(): Promise<void> {
+	dispose(): void {
 		if (this._currentRun) {
 			this._messages.fire((this._session?.lastExchange
 				? Message.PAUSE_SESSION
