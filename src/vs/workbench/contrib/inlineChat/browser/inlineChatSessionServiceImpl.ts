@@ -19,6 +19,8 @@ import { raceCancellation } from 'vs/base/common/async';
 import { Recording, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService';
 import { HunkData, Session, SessionWholeRange, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ITextModel } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -71,9 +73,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		let raw: IInlineChatSession | undefined | null;
+		let rawSession: IInlineChatSession | undefined | null;
 		try {
-			raw = await raceCancellation(
+			rawSession = await raceCancellation(
 				Promise.resolve(provider.prepareInlineChatSession(textModel, selection, token)),
 				token
 			);
@@ -82,7 +84,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			this._logService.error(error);
 			return undefined;
 		}
-		if (!raw) {
+		if (!rawSession) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return undefined;
 		}
@@ -91,35 +93,46 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()},  ${provider.debugName}`);
 		const store = new DisposableStore();
 
-		// create: keep a reference to prevent disposal of the "actual" model
-		const refTextModelN = await this._textModelService.createModelReference(textModel.uri);
-		store.add(refTextModelN);
+		const targetUri = textModel.uri;
+
+		let textModelN: ITextModel;
+		if (options.editMode === EditMode.Preview) {
+			// AI edits happen in a copy
+			textModelN = store.add(this._modelService.createModel(
+				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
+				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
+				targetUri.with({ scheme: Schemas.inMemory, query: 'inline-chat-textModelN' }), true
+			));
+		} else {
+			// AI edits happen in the actual model, keep a reference but make no copy
+			store.add((await this._textModelService.createModelReference(textModel.uri)));
+			textModelN = textModel;
+		}
 
 		// create: keep a snapshot of the "actual" model
-		const textModel0 = this._modelService.createModel(
+		const textModel0 = store.add(this._modelService.createModel(
 			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
 			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-			undefined, true
-		);
-		store.add(textModel0);
+			targetUri.with({ scheme: Schemas.inMemory, query: 'inline-chat-textModel0' }), true
+		));
 
 		let wholeRange = options.wholeRange;
 		if (!wholeRange) {
-			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
+			wholeRange = rawSession.wholeRange ? Range.lift(rawSession.wholeRange) : editor.getSelection();
 		}
 
-
-		// install managed-marker for the decoration range
-		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);
-		store.add(wholeRangeMgr);
-
-		const hunkData = new HunkData(this._editorWorkerService, textModel0, textModel);
-		store.add(hunkData);
-
-		const session = new Session(options.editMode, textModel0, textModel, provider, raw, wholeRangeMgr, hunkData);
+		const session = new Session(
+			options.editMode,
+			targetUri,
+			textModel0,
+			textModelN,
+			provider, rawSession,
+			store.add(new SessionWholeRange(textModelN, wholeRange)),
+			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN))
+		);
 
 		// store: key -> session
-		const key = this._key(editor, textModel.uri);
+		const key = this._key(editor, session.targetUri);
 		if (this._sessions.has(key)) {
 			store.dispose();
 			throw new Error(`Session already stored for ${key}`);
@@ -129,7 +142,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	moveSession(session: Session, target: ICodeEditor): void {
-		const newKey = this._key(target, session.textModelN.uri);
+		const newKey = this._key(target, session.targetUri);
 		const existing = this._sessions.get(newKey);
 		if (existing) {
 			if (existing.session !== session) {

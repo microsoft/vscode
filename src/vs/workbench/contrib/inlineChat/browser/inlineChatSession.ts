@@ -142,7 +142,17 @@ export class Session {
 
 	constructor(
 		readonly editMode: EditMode,
+		/**
+		 * The URI of the document which is being EditorEdit
+		 */
+		readonly targetUri: URI,
+		/**
+		 * A copy of the document at the time the session was started
+		 */
 		readonly textModel0: ITextModel,
+		/**
+		 * The document into which AI edits went, when live this is `targetUri` otherwise it is a temporary document
+		 */
 		readonly textModelN: ITextModel,
 		readonly provider: IInlineChatSessionProvider,
 		readonly session: IInlineChatSession,
@@ -707,6 +717,9 @@ export interface HunkInformation {
 
 	discardChanges(): void;
 
+	/**
+	 * Accept the hunk. Applies the corresponding edits into textModel0
+	 */
 	acceptChanges(): void;
 
 	getState(): HunkState;

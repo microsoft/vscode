@@ -330,7 +330,7 @@ export class InlineChatController implements IEditorContribution {
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._editor, this._zone.value);
 				break;
 			case EditMode.LivePreview:
 			default:
