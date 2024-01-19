@@ -665,6 +665,41 @@ suite('Inline Completions', () => {
 				}
 			);
 		});
+
+		test('partial multicursor acceptance 2', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('for ()\nfor\n');
+					editor.setSelections([
+						new Selection(1, 5, 1, 5),
+						new Selection(2, 1000, 2, 1000),
+					]);
+
+					provider.setReturnValue({
+						insertText: `for (let i = 0; i < 10; i++) {`,
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					model.acceptNextWord(editor);
+					model.acceptNextWord(editor);
+					model.acceptNextWord(editor);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`for (let i)`,
+							`for (let i)`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
 	});
 });
 

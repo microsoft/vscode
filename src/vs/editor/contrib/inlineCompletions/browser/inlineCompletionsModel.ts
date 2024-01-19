@@ -430,11 +430,29 @@ export class InlineCompletionsModel extends Disposable {
 				// need to change the positions here
 				const selections = editor.getSelections() ?? [];
 				const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
+				const secondaryInsertText = state.ghostText.getFullInsertText(
+					this.textModel.getLineContent(state.ghostText.lineNumber),
+					selections[0].getPosition().column
+				);
+				const secondaryPartialText = state.ghostText.getPartialInsertText(
+					this.textModel.getLineContent(state.ghostText.lineNumber),
+					selections[0].getPosition().column,
+					acceptUntilIndexExclusive
+				);
+				console.log('line : ', line);
+				console.log('partialText : ', partialText);
+				console.log('acceptUntilIndexExclusive : ', acceptUntilIndexExclusive);
+				console.log('secondaryInsertText : ', secondaryInsertText);
+				console.log('secondaryPartialText : ', secondaryPartialText);
+				console.log('secondaryPositions : ', JSON.stringify(secondaryPositions));
+
 				editor.executeEdits('inlineSuggestion.accept', [
 					// maybe can join everything
 					EditOperation.replace(Range.fromPositions(position), partialText),
-					...secondaryPositions.map(pos => EditOperation.replace(Range.fromPositions(pos), partialText)),
+					...secondaryPositions.map(pos => EditOperation.replace(Range.fromPositions(pos), secondaryPartialText)),
 				]);
+
+				console.log('editor.getValue() : ', editor.getValue());
 
 				const length = lengthOfText(partialText);
 				// need to update all the cursor positions
