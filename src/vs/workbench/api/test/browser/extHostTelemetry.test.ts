@@ -237,6 +237,7 @@ suite('ExtHostTelemetry', function () {
 		logger.logError('test-error-event', { properties: { 'test-data': 'test-data' } });
 		assert.strictEqual(functionSpy.dataArr.length, 3);
 		assert.strictEqual(functionSpy.dataArr[2].data.properties['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[2].data.properties['common.product'], 'test');
 
 		logger.dispose();
 		assert.strictEqual(functionSpy.flushCalled, true);
