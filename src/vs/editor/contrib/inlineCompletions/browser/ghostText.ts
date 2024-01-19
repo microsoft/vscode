@@ -49,32 +49,6 @@ export class GhostText {
 		return text.substring(this.parts[0].column - 1);
 	}
 
-	getFullInsertText(lineText: string, cursorColumn: number): string {
-		let result = '';
-		let lastCol = cursorColumn;
-		for (const part of this.parts) {
-			const { text, newColumn } = this._getInsertTextForPartFromColumn(lineText, part, lastCol);
-			result += text;
-			lastCol = newColumn;
-		}
-		return result;
-	}
-
-	getPartialInsertText(lineText: string, cursorColumn: number, acceptUntilIndexExclusive: number): string {
-		return this._getInsertTextForPartFromColumn(lineText, this.parts[0], cursorColumn, acceptUntilIndexExclusive).text;
-	}
-
-	private _getInsertTextForPartFromColumn(lineText: string, part: GhostTextPart, column: number, acceptUntilIndexExclusive: number | undefined = undefined): { text: string; newColumn: number } {
-		let result = '';
-		if (part.column < column) {
-			return { text: result, newColumn: column };
-		}
-		result += lineText.substring(column - 1, part.column - 1);
-		result += part.lines.join('\n').substring(0, acceptUntilIndexExclusive);
-		return { text: result, newColumn: part.column };
-	}
-
-
 	isEmpty(): boolean {
 		return this.parts.every(p => p.lines.length === 0);
 	}

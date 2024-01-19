@@ -434,11 +434,7 @@ export class InlineCompletionsModel extends Disposable {
 				const replacedTextAfterPrimaryCursor = textModel
 					.getLineContent(primaryPosition.lineNumber)
 					.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-				const secondaryPartialText = state.ghostText.getPartialInsertText(
-					this.textModel.getLineContent(state.ghostText.lineNumber),
-					primaryPosition.column,
-					acceptUntilIndexExclusive
-				);
+				const secondaryPartialText = completion.insertText.substring(primaryPosition.column - completion.range.startColumn, firstPart.column + acceptUntilIndexExclusive - 1);
 				const length = lengthOfText(partialText);
 				const partialLength = lengthOfText(secondaryPartialText);
 				editor.executeEdits('inlineSuggestion.accept', [
