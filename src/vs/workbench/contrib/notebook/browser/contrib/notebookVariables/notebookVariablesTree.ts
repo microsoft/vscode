@@ -55,6 +55,7 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, data: IVariableTemplateData): void {
 		const text = element.element.value.trim() !== '' ? `${element.element.name}:` : element.element.name;
 		data.name.textContent = text;
+		data.name.title = element.element.type ?? '';
 
 		renderExpressionValue(element.element.value, data.value, { colorize: true, showHover: true });
 	}

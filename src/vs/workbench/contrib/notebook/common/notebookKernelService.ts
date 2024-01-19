@@ -42,6 +42,7 @@ export interface VariablesResult {
 	id: number;
 	name: string;
 	value: string;
+	type?: string;
 	hasNamedChildren: boolean;
 	indexedChildrenCount: number;
 }
