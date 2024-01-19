@@ -40,6 +40,10 @@
 	}
 }
 
-.monaco-editor .inline-chat-quick-voice .message.preview {
+.monaco-editor .inline-chat-quick-voice .preview {
 	opacity: .4;
+}
+
+.monaco-editor .inline-chat-quick-voice .message:not(:empty) {
+	margin-right: 0.4ch;
 }

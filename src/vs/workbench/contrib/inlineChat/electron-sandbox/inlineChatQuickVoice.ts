@@ -112,7 +112,10 @@ class QuickVoiceWidget implements IContentWidget {
 	private readonly _domNode = document.createElement('div');
 	private readonly _elements = dom.h('.inline-chat-quick-voice@main', [
 		dom.h('span@mic'),
-		dom.h('span.message@message'),
+		dom.h('span', [
+			dom.h('span.message@message'),
+			dom.h('span.preview@preview'),
+		])
 	]);
 
 	private _focusTracker: dom.IFocusTracker | undefined;
@@ -174,9 +177,9 @@ class QuickVoiceWidget implements IContentWidget {
 
 	// ---
 
-	updateInput(input: string | undefined, isDefinite: boolean): void {
-		this._elements.message.classList.toggle('preview', !isDefinite);
-		this._elements.message.textContent = input ?? '';
+	updateInput(data: { message?: string; preview?: string }): void {
+		this._elements.message.textContent = data.message ?? '';
+		this._elements.preview.textContent = data.preview ?? '';
 	}
 
 	show() {
@@ -189,7 +192,8 @@ class QuickVoiceWidget implements IContentWidget {
 
 	hide() {
 		this._elements.main.classList.remove('recording');
-		this.updateInput(undefined, true);
+		this._elements.message.textContent = '';
+		this._elements.preview.textContent = '';
 		this._editor.removeContentWidget(this);
 		this._focusTracker?.dispose();
 	}
@@ -233,6 +237,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 		this._ctxQuickChatInProgress.set(true);
 
 		let message: string | undefined;
+		let preview: string | undefined;
 		const session = this._speechService.createSpeechToTextSession(cts.token);
 		const listener = session.onDidChange(e => {
 
@@ -247,11 +252,13 @@ export class InlineChatQuickVoice implements IEditorContribution {
 				case SpeechToTextStatus.Stopped:
 					break;
 				case SpeechToTextStatus.Recognizing:
-					this._widget.updateInput(!message ? e.text : `${message} ${e.text}`, false);
+					preview = e.text;
+					this._widget.updateInput({ message, preview });
 					break;
 				case SpeechToTextStatus.Recognized:
 					message = !message ? e.text : `${message} ${e.text}`;
-					this._widget.updateInput(message, true);
+					preview = '';
+					this._widget.updateInput({ message, preview });
 					break;
 			}
 		});
