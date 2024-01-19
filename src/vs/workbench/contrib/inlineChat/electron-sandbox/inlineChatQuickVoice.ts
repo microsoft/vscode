@@ -258,6 +258,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 			listener.dispose();
 			this._widget.hide();
 			this._ctxQuickChatInProgress.reset();
+			this._editor.focus();
 
 			if (!abort && message) {
 				InlineChatController.get(this._editor)?.run({ message, autoSend: true });
