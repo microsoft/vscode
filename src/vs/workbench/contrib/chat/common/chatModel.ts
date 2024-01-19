@@ -284,15 +284,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	/**
 	 * Apply one of the progress updates that are not part of the actual response content.
 	 */
-	applyReference(progress: IChatUsedContext | IChatContentReference | IChatProgressMessage) {
+	applyReference(progress: IChatUsedContext | IChatContentReference) {
 		if (progress.kind === 'usedContext') {
 			this._usedContext = progress;
 		} else if (progress.kind === 'reference') {
 			this._contentReferences.push(progress);
 			this._onDidChange.fire();
-		} else if (progress.kind === 'progressMessage') {
-			// this._progressMessages.push(progress);
-			// this._onDidChange.fire();
 		}
 	}
 

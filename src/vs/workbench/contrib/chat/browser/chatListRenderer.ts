@@ -571,11 +571,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 				}
 
-				// Did this part go from being a placeholder string to resolved tree data?
-				else if (part.kind === 'treeData' && !isInteractiveProgressTreeData(renderedPart)) {
-					partsToRender[index] = part.treeData;
-				}
-
 				// Did this part's content change?
 				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart) && !isProgressMessageRenderData(renderedPart)) {
 					const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), renderedPart);
