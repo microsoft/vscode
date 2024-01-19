@@ -433,12 +433,35 @@ export class InlineCompletionsModel extends Disposable {
 				editor.pushUndoStop();
 				const selections = editor.getSelections() ?? [];
 				const secondaryPositions = selections.slice(1).map(s => s.getPosition());
-				const positions = [position, ...secondaryPositions];
-				const edits = positions.map(pos => EditOperation.replace(Range.fromPositions(pos), partialText));
+				const primaryPosition = selections[0].getPosition();
+				/// const primarPosition = position;
+				const secondaryPartialText = state.ghostText.getPartialInsertText(
+					this.textModel.getLineContent(state.ghostText.lineNumber),
+					primaryPosition.column,
+					acceptUntilIndexExclusive
+				);
+				const textModel = editor.getModel()!;
+				const replacedTextAfterPrimaryCursor = textModel
+					.getLineContent(primaryPosition.lineNumber)
+					.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
+
 				const length = lengthOfText(partialText);
-				const newSelections = positions.map(pos => Selection.fromPositions(addPositions(pos, length)));
-				editor.executeEdits('inlineSuggestion.accept', edits);
-				editor.setSelections(newSelections, 'inlineCompletionPartialAccept');
+				const partialLength = lengthOfText(secondaryPartialText);
+				editor.executeEdits('inlineSuggestion.accept', [
+					EditOperation.replace(Range.fromPositions(position), partialText),
+					...secondaryPositions.map(pos => {
+						const textAfterSecondaryCursor = textModel
+							.getLineContent(pos.lineNumber)
+							.substring(pos.column - 1);
+						const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+						const range = Range.fromPositions(pos, pos.delta(0, l));
+						return EditOperation.replaceMove(range, secondaryPartialText);
+					}),
+				]);
+				editor.setSelections([
+					Selection.fromPositions(addPositions(position, length)),
+					...secondaryPositions.map(pos => Selection.fromPositions(addPositions(pos, partialLength)))
+				], 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
 			}

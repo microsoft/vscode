@@ -638,7 +638,7 @@ suite('Inline Completions', () => {
 					context.keyboardType('console.log()\nconsole.warn\n');
 					editor.setSelections([
 						new Selection(1, 12, 1, 12),
-						new Selection(2, 1000, 2, 1000),
+						new Selection(2, 14, 2, 14),
 					]);
 
 					provider.setReturnValue({
@@ -727,6 +727,42 @@ suite('Inline Completions', () => {
 						[
 							`for (let i)`,
 							`for (let i`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
+		test('partial multicursor acceptance 3', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('console.log()\nconsole.warn\n');
+					editor.setSelections([
+						new Selection(1, 12, 1, 12),
+						new Selection(2, 14, 2, 14),
+					]);
+
+					provider.setReturnValue({
+						insertText: `console.log("hello" + " " + "world");`,
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					model.acceptNextWord(editor);
+					model.acceptNextWord(editor);
+					model.acceptNextWord(editor);
+					model.acceptNextWord(editor);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`console.log("hello" + )`,
+							`console.warn("hello" + `,
 							``
 						].join('\n')
 					);
