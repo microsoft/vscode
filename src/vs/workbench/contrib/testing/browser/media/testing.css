@@ -43,6 +43,7 @@
 
 .test-explorer .test-item .label,
 .test-output-peek-tree .test-peek-item .name,
+.test-coverage-list-item .name,
 .test-coverage-list-item-label {
 	flex-grow: 1;
 	width: 0;
@@ -365,6 +366,7 @@
 
 .test-coverage-list-item {
 	display: flex;
+	align-items: center;
 }
 
 .test-coverage-bars {
@@ -376,7 +378,6 @@
 }
 
 .test-coverage-bars .bar {
-	width: 16px;
 	height: 8px;
 	border: 1px solid currentColor;
 	border-radius: 2px;
@@ -393,6 +394,14 @@
 	opacity: 0.7;
 }
 
+.test-coverage-list-item .icon {
+	margin-right: 0.2em;
+}
+
+.test-coverage-list-item.not-covered .name {
+	opacity: 0.7;
+}
+
 /** -- coverage in the explorer  */
 
 .explorer-item-with-test-coverage {
@@ -404,4 +413,87 @@
 }
 .explorer-item-with-test-coverage .monaco-icon-label::after {
 	margin-right: 12px; /* slightly reduce because the bars handle the scrollbar margin */
+}
+
+/** -- coverage decorations  */
+
+.coverage-deco-gutter {
+	z-index: 0;
+}
+
+.coverage-deco-gutter::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+}
+
+.coverage-deco-gutter.coverage-deco-hit::before {
+	background: var(--vscode-testing-coveredGutterBackground);
+	border-color: var(--vscode-testing-coveredGutterBackground);
+}
+
+.coverage-deco-gutter.coverage-deco-miss::before {
+	background: var(--vscode-testing-uncoveredGutterBackground);
+	border-color: var(--vscode-testing-uncoveredGutterBackground);
+}
+
+.hc-light .coverage-deco-gutter::before,
+.hc-black .coverage-deco-gutter::before {
+	border-width: 3px 0 3px 5px;
+	border-style: solid;
+	background: none;
+}
+
+.coverage-deco-gutter.coverage-deco-miss.coverage-deco-hit::before {
+	background-image: linear-gradient(45deg,
+		var(--vscode-testing-coveredGutterBackground) 25%,
+		var(--vscode-testing-uncoveredGutterBackground) 25%,
+		var(--vscode-testing-uncoveredGutterBackground) 50%,
+		var(--vscode-testing-coveredGutterBackground) 50%,
+		75%,
+		var(--vscode-testing-uncoveredGutterBackground) 75%,
+		var(--vscode-testing-uncoveredGutterBackground) 100%
+	);
+	background-size: 6px 6px;
+	background-color: transparent;
+}
+
+.coverage-deco-inline {
+	outline-offset: -1px;
+}
+
+.coverage-deco-inline.coverage-deco-hit {
+	background: var(--vscode-testing-coveredBackground);
+	outline: 1px solid var(--vscode-testing-coveredBorder);
+}
+
+.coverage-deco-inline.coverage-deco-miss {
+	background: var(--vscode-testing-uncoveredBackground);
+	outline: 1px solid var(--vscode-testing-uncoveredBorder);
+}
+
+.hc-light .coverage-deco-inline.coverage-deco-hit,
+.hc-black .coverage-deco-inline.coverage-deco-hit {
+	outline-style: dashed;
+}
+
+.coverage-deco-branch-miss-indicator {
+	height: 100%;
+	width: 4ch;
+	position: relative;
+	display: inline-block;
+	font: inherit !important;
+}
+
+.coverage-deco-branch-miss-indicator::before {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	text-align: center;
+	transform: translate(-50%, -50%);
+	padding: calc(var(--vscode-testing-coverage-lineHeight) / 10);
+	border-radius: 2px;
+	font: normal normal normal calc(var(--vscode-testing-coverage-lineHeight) / 2)/1 codicon;
+	border: 1px solid;
 }

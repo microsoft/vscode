@@ -34,7 +34,7 @@ export class AudioCueLineFeatureContribution
 
 	private readonly isEnabledCache = new CachedFunction<AudioCue, IObservable<boolean>>((cue) => observableFromEvent(
 		this.audioCueService.onEnabledChanged(cue),
-		() => this.audioCueService.isEnabled(cue)
+		() => this.audioCueService.isCueEnabled(cue)
 	));
 
 	constructor(

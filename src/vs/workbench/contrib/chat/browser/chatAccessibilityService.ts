@@ -5,7 +5,7 @@
 
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -15,7 +15,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	declare readonly _serviceBrand: undefined;
 
-	private _pendingCueMap: Map<number, AudioCueScheduler> = new Map();
+	private _pendingCueMap: DisposableMap<number, AudioCueScheduler> = this._register(new DisposableMap());
 
 	private _requestId: number = 0;
 
@@ -25,12 +25,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	acceptRequest(): number {
 		this._requestId++;
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, { allowManyInParallel: true });
-		this._pendingCueMap.set(this._requestId, this._register(this._instantiationService.createInstance(AudioCueScheduler)));
+		this._pendingCueMap.set(this._requestId, this._instantiationService.createInstance(AudioCueScheduler));
 		return this._requestId;
 	}
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
-		this._pendingCueMap.get(requestId)?.dispose();
-		this._pendingCueMap.delete(requestId);
+		this._pendingCueMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.asString();
 		this._audioCueService.playAudioCue(AudioCue.chatResponseReceived, { allowManyInParallel: true });

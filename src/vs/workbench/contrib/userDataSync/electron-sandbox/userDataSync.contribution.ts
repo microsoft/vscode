@@ -8,7 +8,6 @@ import { IUserDataSyncUtilService, SyncStatus } from 'vs/platform/userDataSync/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { UserDataSycnUtilServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize, localize2 } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -18,14 +17,17 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { CONTEXT_SYNC_STATE, DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR, IUserDataSyncWorkbenchService, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Schemas } from 'vs/base/common/network';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-class UserDataSyncServicesContribution implements IWorkbenchContribution {
+class UserDataSyncServicesContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
-		sharedProcessService.registerChannel('userDataSyncUtil', new UserDataSycnUtilServiceChannel(userDataSyncUtilService));
+		super();
+		sharedProcessService.registerChannel('userDataSyncUtil', ProxyChannel.fromService(userDataSyncUtilService, this._store));
 	}
 }
 

@@ -939,11 +939,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// We want to seed history from opened editors
 			// too as well as previous stored state, so we
 			// need to wait for the editor groups being ready
-			if (this.editorGroupService.mainPart.isReady) {
+			if (this.editorGroupService.isReady) {
 				this.loadHistory();
 			} else {
 				(async () => {
-					await this.editorGroupService.mainPart.whenReady;
+					await this.editorGroupService.whenReady;
 
 					this.loadHistory();
 				})();

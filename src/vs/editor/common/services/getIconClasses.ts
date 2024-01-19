@@ -16,7 +16,7 @@ const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
 export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind, icon?: ThemeIcon): string[] {
 	if (icon) {
-		return [`codicon-${icon.id}`, 'product-icon'];
+		return [`codicon-${icon.id}`, 'predefined-file-icon'];
 	}
 
 	// we always set these base classes even if we do not have a path

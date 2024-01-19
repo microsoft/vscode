@@ -16,25 +16,30 @@ import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { variablesViewIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
-	private listener: IDisposable | undefined;
+	private listeners: IDisposable[] = [];
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super();
 
-		this.listener = this.editorService.onDidEditorsChange(() => {
-			if (configurationService.getValue('notebook.experimental.notebookVariablesView')
-				&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
-				if (this.initializeView()) {
-					this.listener?.dispose();
-				}
+		this.listeners.push(this.editorService.onDidEditorsChange(() => this.handleInitEvent(configurationService)));
+		this.listeners.push(this.notebookExecutionStateService.onDidChangeExecution(() => this.handleInitEvent(configurationService)));
+	}
+
+	private handleInitEvent(configurationService: IConfigurationService) {
+		if (configurationService.getValue('notebook.experimental.notebookVariablesView')
+			&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
+			if (this.initializeView()) {
+				this.listeners.forEach(listener => listener.dispose());
 			}
-		});
+		}
 	}
 
 	private initializeView() {
@@ -43,7 +48,8 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 		if (debugViewContainer) {
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			const viewDescriptor = {
-				id: 'NOTEBOOK_VARIABLES', name: nls.localize2('notebookVariables', "Notebook Variables"), containerIcon: variablesViewIcon, ctorDescriptor: new SyncDescriptor(NotebookVariablesView),
+				id: 'NOTEBOOK_VARIABLES', name: nls.localize2('notebookVariables', "Notebook Variables"),
+				containerIcon: variablesViewIcon, ctorDescriptor: new SyncDescriptor(NotebookVariablesView),
 				order: 50, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.notEquals(NOTEBOOK_KERNEL.key, ''),
 			};
 

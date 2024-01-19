@@ -256,6 +256,14 @@ export class ApiRepository implements Repository {
 	commit(message: string, opts?: CommitOptions): Promise<void> {
 		return this.repository.commit(message, opts);
 	}
+
+	merge(ref: string): Promise<void> {
+		return this.repository.merge(ref);
+	}
+
+	mergeAbort(): Promise<void> {
+		return this.repository.mergeAbort();
+	}
 }
 
 export class ApiGit implements Git {

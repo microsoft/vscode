@@ -862,11 +862,11 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	set(uri: URI, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
-	set(uri: URI, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void;
+	set(uri: URI, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void;
 	set(uri: URI, edits: readonly NotebookEdit[]): void;
-	set(uri: URI, edits: ReadonlyArray<[NotebookEdit, vscode.WorkspaceEditEntryMetadata]>): void;
+	set(uri: URI, edits: ReadonlyArray<[NotebookEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void;
 
-	set(uri: URI, edits: null | undefined | ReadonlyArray<TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void {
+	set(uri: URI, edits: null | undefined | ReadonlyArray<TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata | undefined] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void {
 		if (!edits) {
 			// remove all text, snippet, or notebook edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -3448,6 +3448,13 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+export class DebugVisualization {
+	iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+	visualization?: vscode.Command | vscode.TreeDataProvider<unknown>;
+
+	constructor(public name: string) { }
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -3948,8 +3955,15 @@ export class TestTag implements vscode.TestTag {
 
 //#region Test Coverage
 export class CoveredCount implements vscode.CoveredCount {
-	constructor(public covered: number, public total: number) { }
+	constructor(public covered: number, public total: number) {
+	}
 }
+
+const validateCC = (cc?: vscode.CoveredCount) => {
+	if (cc && cc.covered > cc.total) {
+		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
+	}
+};
 
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
@@ -3991,7 +4005,11 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.CoveredCount,
 		public branchCoverage?: vscode.CoveredCount,
 		public functionCoverage?: vscode.CoveredCount,
-	) { }
+	) {
+		validateCC(statementCoverage);
+		validateCC(branchCoverage);
+		validateCC(functionCoverage);
+	}
 }
 
 export class StatementCoverage implements vscode.StatementCoverage {
@@ -4006,6 +4024,7 @@ export class BranchCoverage implements vscode.BranchCoverage {
 	constructor(
 		public executionCount: number,
 		public location: Position | Range,
+		public label?: string,
 	) { }
 }
 
@@ -4191,6 +4210,11 @@ export enum SpeechToTextStatus {
 	Recognizing = 2,
 	Recognized = 3,
 	Stopped = 4
+}
+
+export enum KeywordRecognitionStatus {
+	Recognized = 1,
+	Stopped = 2
 }
 
 //#endregion

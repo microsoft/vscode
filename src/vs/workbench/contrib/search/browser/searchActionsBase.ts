@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import * as nls from 'vs/nls';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';

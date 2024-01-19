@@ -167,7 +167,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 		let readOnlyMessage: IMarkdownString | undefined;
 		if (options.isReadonly && isMarkdownString(options.isReadonly)) {
-			checkProposedApiEnabled(extension, 'readonlyMessage');
 			readOnlyMessage = {
 				value: options.isReadonly.value,
 				isTrusted: options.isReadonly.isTrusted,

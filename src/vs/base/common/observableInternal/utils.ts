@@ -6,8 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setRecomputeInitiallyAndOnChange, getDebugName, getFunctionName, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { derived } from 'vs/base/common/observableInternal/derived';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, Owner, _setKeepObserved, _setRecomputeInitiallyAndOnChange, getDebugName, getFunctionName, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
+import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 /**
@@ -249,7 +249,7 @@ export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
 
 class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	public get debugName() {
-		return getDebugName(this, this._debugName, undefined, this._owner, this) ?? 'Observable Signal';
+		return getDebugName(this, this._debugName, undefined, this._owner) ?? 'Observable Signal';
 	}
 
 	constructor(
@@ -331,6 +331,8 @@ export function keepObserved<T>(observable: IObservable<T>): IDisposable {
 	});
 }
 
+_setKeepObserved(keepObserved);
+
 /**
  * This converts the given observable into an autorun.
  */
@@ -405,4 +407,70 @@ export function derivedObservableWithWritableCache<T>(owner: object, computeFn: 
 			counter.set(counter.get() + 1, transaction);
 		},
 	});
+}
+
+/**
+ * When the items array changes, referential equal items are not mapped again.
+ */
+export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(owner: Owner, items: IObservable<readonly TIn[]>, map: (input: TIn, store: DisposableStore) => TOut, keySelector?: (input: TIn) => TKey): IObservable<readonly TOut[]> {
+	let m = new ArrayMap(map, keySelector);
+	const self = derivedOpts({
+		debugName: () => getDebugName(m, undefined, map, owner),
+		owner,
+		onLastObserverRemoved: () => {
+			m.dispose();
+			m = new ArrayMap(map);
+		}
+	}, (reader) => {
+		m.setItems(items.read(reader));
+		return m.getItems();
+	});
+	return self;
+}
+
+class ArrayMap<TIn, TOut, TKey> implements IDisposable {
+	private readonly _cache = new Map<TKey, { out: TOut; store: DisposableStore }>();
+	private _items: TOut[] = [];
+	constructor(
+		private readonly _map: (input: TIn, store: DisposableStore) => TOut,
+		private readonly _keySelector?: (input: TIn) => TKey,
+	) {
+	}
+
+	public dispose(): void {
+		this._cache.forEach(entry => entry.store.dispose());
+		this._cache.clear();
+	}
+
+	public setItems(items: readonly TIn[]): void {
+		const newItems: TOut[] = [];
+		const itemsToRemove = new Set(this._cache.keys());
+
+		for (const item of items) {
+			const key = this._keySelector ? this._keySelector(item) : item as unknown as TKey;
+
+			let entry = this._cache.get(key);
+			if (!entry) {
+				const store = new DisposableStore();
+				const out = this._map(item, store);
+				entry = { out, store };
+				this._cache.set(key, entry);
+			} else {
+				itemsToRemove.delete(key);
+			}
+			newItems.push(entry.out);
+		}
+
+		for (const item of itemsToRemove) {
+			const entry = this._cache.get(item)!;
+			entry.store.dispose();
+			this._cache.delete(item);
+		}
+
+		this._items = newItems;
+	}
+
+	public getItems(): TOut[] {
+		return this._items;
+	}
 }

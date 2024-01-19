@@ -88,7 +88,8 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 					features: {
 						elevation: !!environmentService.options?.tunnelProvider?.features?.elevation,
 						public: !!environmentService.options?.tunnelProvider?.features?.public,
-						privacyOptions
+						privacyOptions,
+						protocol: environmentService.options?.tunnelProvider?.features?.protocol === undefined ? true : !!environmentService.options?.tunnelProvider?.features?.protocol
 					}
 				} : undefined;
 			remoteExplorerService.setTunnelInformation(tunnelInformation);

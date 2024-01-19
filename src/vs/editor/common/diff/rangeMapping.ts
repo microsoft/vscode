@@ -10,16 +10,15 @@ import { Range } from 'vs/editor/common/core/range';
  * Maps a line range in the original text model to a line range in the modified text model.
  */
 export class LineRangeMapping {
-	public static inverse(mapping: readonly DetailedLineRangeMapping[], originalLineCount: number, modifiedLineCount: number): DetailedLineRangeMapping[] {
-		const result: DetailedLineRangeMapping[] = [];
+	public static inverse(mapping: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[] {
+		const result: LineRangeMapping[] = [];
 		let lastOriginalEndLineNumber = 1;
 		let lastModifiedEndLineNumber = 1;
 
 		for (const m of mapping) {
-			const r = new DetailedLineRangeMapping(
+			const r = new LineRangeMapping(
 				new LineRange(lastOriginalEndLineNumber, m.original.startLineNumber),
 				new LineRange(lastModifiedEndLineNumber, m.modified.startLineNumber),
-				undefined
 			);
 			if (!r.modified.isEmpty) {
 				result.push(r);
@@ -27,13 +26,24 @@ export class LineRangeMapping {
 			lastOriginalEndLineNumber = m.original.endLineNumberExclusive;
 			lastModifiedEndLineNumber = m.modified.endLineNumberExclusive;
 		}
-		const r = new DetailedLineRangeMapping(
+		const r = new LineRangeMapping(
 			new LineRange(lastOriginalEndLineNumber, originalLineCount + 1),
 			new LineRange(lastModifiedEndLineNumber, modifiedLineCount + 1),
-			undefined
 		);
 		if (!r.modified.isEmpty) {
 			result.push(r);
+		}
+		return result;
+	}
+
+	public static clip(mapping: readonly LineRangeMapping[], originalRange: LineRange, modifiedRange: LineRange): LineRangeMapping[] {
+		const result: LineRangeMapping[] = [];
+		for (const m of mapping) {
+			const original = m.original.intersect(originalRange);
+			const modified = m.modified.intersect(modifiedRange);
+			if (original && !original.isEmpty && modified && !modified.isEmpty) {
+				result.push(new LineRangeMapping(original, modified));
+			}
 		}
 		return result;
 	}

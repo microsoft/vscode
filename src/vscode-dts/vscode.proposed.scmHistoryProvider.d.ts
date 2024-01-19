@@ -25,10 +25,10 @@ declare module 'vscode' {
 		// onDidChangeHistoryItemGroups: Event<SourceControlHistoryChangeEvent>;
 
 		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
-		provideHistoryItemChanges(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
+		provideHistoryItemSummary?(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItem>;
+		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
-		resolveHistoryItemGroupBase(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup | undefined>;
-		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId: string, token: CancellationToken): ProviderResult<{ id: string; ahead: number; behind: number }>;
+		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): ProviderResult<{ id: string; ahead: number; behind: number }>;
 	}
 
 	export interface SourceControlHistoryOptions {
@@ -39,7 +39,7 @@ declare module 'vscode' {
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
 		readonly label: string;
-		readonly upstream?: SourceControlRemoteHistoryItemGroup;
+		readonly base?: Omit<SourceControlRemoteHistoryItemGroup, 'base'>;
 	}
 
 	export interface SourceControlRemoteHistoryItemGroup {
