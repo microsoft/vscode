@@ -605,7 +605,7 @@ export class LiveStrategy extends EditModeStrategy {
 							const scrollState = StableEditorScrollState.capture(this._editor);
 							changeDecorationsAndViewZones(this._editor, (_decorationsAccessor, viewZoneAccessor) => {
 								assertType(data);
-								if (!data.viewZone) {
+								if (!data.viewZoneId) {
 									const [hunkRange] = hunkData.getRangesN();
 									viewZoneData.afterLineNumber = hunkRange.startLineNumber - 1;
 									data.viewZoneId = viewZoneAccessor.addZone(viewZoneData);
