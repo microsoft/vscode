@@ -61,6 +61,7 @@ export class GhostTextWidget extends Disposable {
 		if (!ghostText) {
 			return undefined;
 		}
+		const removeRange = this.model.removeRange?.read(reader);
 
 		const replacedRange = ghostText instanceof GhostTextReplacement ? ghostText.columnRange : undefined;
 
@@ -91,6 +92,11 @@ export class GhostTextWidget extends Disposable {
 		let lastIdx = 0;
 		for (const part of ghostText.parts) {
 			let lines = part.lines;
+			//If remove range is set, we want to push all new liens to virtual area
+			if (removeRange) {
+				addToAdditionalLines(lines, 'ghost-text');
+				lines = [];
+			}
 			if (hiddenTextStartColumn === undefined) {
 				inlineTexts.push({
 					column: part.column,
@@ -119,14 +125,14 @@ export class GhostTextWidget extends Disposable {
 
 		const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
 
-		const removeRange = this.model.removeRange?.read(reader);
 
 		return {
 			replacedRange,
 			inlineTexts,
 			additionalLines,
 			hiddenRange,
-			lineNumber: ghostText.lineNumber,
+			//TODO: -1 is here beacuse we're passing removeRange that includes next line, why?
+			lineNumber: removeRange ? removeRange.endLineNumber - 1 : ghostText.lineNumber,
 			additionalReservedLineCount: this.model.minReservedLineCount.read(reader),
 			targetTextModel: textModel,
 			removeRange,

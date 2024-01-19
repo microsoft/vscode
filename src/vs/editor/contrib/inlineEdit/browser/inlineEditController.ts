@@ -94,7 +94,10 @@ export class InlineEditController extends Disposable {
 			}
 			const gt = this._currentWidget[1];
 			const pos = e.position;
-			if (pos.lineNumber === gt.position.lineNumber && pos.column === gt.position.column) {
+			if (gt.replaceRange && gt.replaceRange.startLineNumber === pos.lineNumber && gt.replaceRange.startColumn === pos.column) {
+				this._isCursorAtInlineEditContext.set(true);
+			}
+			else if (gt.replaceRange === undefined && pos.lineNumber === gt.position.lineNumber && pos.column === gt.position.column) {
 				this._isCursorAtInlineEditContext.set(true);
 			} else {
 				this._isCursorAtInlineEditContext.set(false);
@@ -141,6 +144,7 @@ export class InlineEditController extends Disposable {
 			this._currentWidget[0].dispose();
 			this._currentWidget = undefined;
 		}
+		console.log('showSingleInlineEdit', JSON.stringify(gt, undefined, 2));
 
 		const ghostText = new GhostText(gt.position.lineNumber, [new GhostTextPart(gt.position.column, gt.text.split('\n'), false)]);
 		const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
@@ -218,9 +222,13 @@ export class InlineEditController extends Disposable {
 		this._jumpBackPosition = this.editor.getSelection()?.getStartPosition();
 
 		const data = this._currentWidget[1];
-		this.editor.setPosition(Position.lift(data.position));
+		const position = data.replaceRange ?
+			Position.lift({ lineNumber: data.replaceRange.startLineNumber, column: data.replaceRange.startColumn }) :
+			Position.lift(data.position);
+
+		this.editor.setPosition(position);
 		//if position is outside viewports, scroll to it
-		this.editor.revealPositionInCenterIfOutsideViewport(Position.lift(data.position));
+		this.editor.revealPositionInCenterIfOutsideViewport(position);
 	}
 
 	public clear(explcit: boolean) {
