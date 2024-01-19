@@ -38,6 +38,7 @@ import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inline
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
 
 export const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 export const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
@@ -82,6 +83,7 @@ export class NotebookCellChatController extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IInlineChatSavingService private readonly _inlineChatSavingService: IInlineChatSavingService,
 	) {
 		super();
 
@@ -466,6 +468,7 @@ export class NotebookCellChatController extends Disposable {
 		const actualEdits = !opts && moreMinimalEdits ? moreMinimalEdits : edits;
 		const editOperations = actualEdits.map(TextEdit.asEditOperation);
 
+		this._inlineChatSavingService.markChanged(this._activeSession);
 		try {
 			// this._ignoreModelContentChanged = true;
 			this._activeSession.wholeRange.trackEdits(editOperations);
