@@ -15,7 +15,8 @@ export interface INotebookScope {
 
 export interface INotebookVariableElement {
 	type: 'variable';
-	readonly id: number;
+	readonly id: string;
+	readonly extHostId: number;
 	readonly name: string;
 	readonly value: string;
 	readonly indexedChildrenCount: number;
@@ -46,7 +47,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 			let children: INotebookVariableElement[] = [];
 			if (parent.hasNamedChildren) {
-				const variables = selectedKernel.provideVariables(parent.notebook.uri, parent.id, 'named', 0, CancellationToken.None);
+				const variables = selectedKernel.provideVariables(parent.notebook.uri, parent.extHostId, 'named', 0, CancellationToken.None);
 				const childNodes = await variables
 					.map(variable => { return this.createVariableElement(variable, parent.notebook); })
 					.toPromise();
@@ -75,7 +76,8 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 				childNodes.push({
 					type: 'variable',
 					notebook: parent.notebook,
-					id: parent.id,
+					id: parent.id + `${start}`,
+					extHostId: parent.extHostId,
 					name: `[${start}..${end - 1}]`,
 					value: '',
 					indexedChildrenCount: end - start,
@@ -85,7 +87,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 			}
 		}
 		else if (parent.indexedChildrenCount > 0) {
-			const variables = kernel.provideVariables(parent.notebook.uri, parent.id, 'indexed', parent.indexStart ?? 0, CancellationToken.None);
+			const variables = kernel.provideVariables(parent.notebook.uri, parent.extHostId, 'indexed', parent.indexStart ?? 0, CancellationToken.None);
 
 			for await (const variable of variables) {
 				childNodes.push(this.createVariableElement(variable, parent.notebook));
@@ -112,9 +114,11 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 	private createVariableElement(variable: VariablesResult, notebook: NotebookTextModel): INotebookVariableElement {
 		return {
+			...variable,
 			type: 'variable',
 			notebook,
-			...variable
+			extHostId: variable.id,
+			id: `${variable.id}`
 		};
 	}
 }
