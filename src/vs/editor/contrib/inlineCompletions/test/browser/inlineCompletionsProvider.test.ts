@@ -630,6 +630,39 @@ suite('Inline Completions', () => {
 			);
 		});
 
+		test('test3', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('console.log()\nconsole.warn\n');
+					editor.setSelections([
+						new Selection(1, 12, 1, 12),
+						new Selection(2, 1000, 2, 1000),
+					]);
+
+					provider.setReturnValue({
+						insertText: 'console.log("hello");',
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					model.accept(editor);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`console.log("hello");`,
+							`console.warn("hello");`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
 		// partial acceptance
 
 		test('partial multicursor acceptance', async function () {
@@ -671,7 +704,7 @@ suite('Inline Completions', () => {
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 				{ fakeClock: true, provider },
 				async ({ editor, editorViewModel, model, context }) => {
-					context.keyboardType('for ()\nfor\n');
+					context.keyboardType('for ()\nfor \n');
 					editor.setSelections([
 						new Selection(1, 5, 1, 5),
 						new Selection(2, 1000, 2, 1000),
