@@ -121,7 +121,6 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 		super({
 			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
 			title: localize('cursorMoveUp', 'Focus Previous Cell Editor'),
-			precondition: CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 			keybinding: [
 				{
 					when: ContextKeyExpr.and(
