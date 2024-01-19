@@ -7092,7 +7092,7 @@ declare namespace monaco.languages {
 		/**
 		 * Will be called when an item is partially accepted.
 		 */
-		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, metadata?: PartialAcceptInfo): void;
+		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
