@@ -16,6 +16,8 @@ import type { IDecoration } from '@xterm/xterm';
 import { IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { localize } from 'vs/nls';
 
 const symbolMap: { [key: string]: string } = {
 	'Ampersand': '&',
@@ -82,7 +84,7 @@ export class TerminalVoiceSession extends Disposable {
 			voiceTimeout = SpeechTimeoutDefault;
 		}
 		this._acceptTranscriptionScheduler = this._disposables.add(new RunOnceScheduler(() => {
-			this._terminalService.activeInstance?.sendText(this._input, false);
+			this._sendText();
 			this.stop();
 		}, voiceTimeout));
 		this._cancellationTokenSource = this._register(new CancellationTokenSource());
@@ -124,7 +126,7 @@ export class TerminalVoiceSession extends Disposable {
 		this._setInactive();
 		if (send) {
 			this._acceptTranscriptionScheduler!.cancel();
-			this._terminalService.activeInstance?.sendText(this._input, false);
+			this._sendText();
 		}
 		this._marker?.dispose();
 		this._ghostTextMarker?.dispose();
@@ -135,6 +137,11 @@ export class TerminalVoiceSession extends Disposable {
 		this._cancellationTokenSource?.cancel();
 		this._disposables.clear();
 		this._input = '';
+	}
+
+	private _sendText(): void {
+		this._terminalService.activeInstance?.sendText(this._input, false);
+		alert(localize('terminalVoiceTextInserted', '{0} inserted', this._input));
 	}
 
 	private _updateInput(e: ISpeechToTextEvent): void {
@@ -153,7 +160,8 @@ export class TerminalVoiceSession extends Disposable {
 		if (!xterm) {
 			return;
 		}
-		this._marker = activeInstance.registerMarker(-1);
+		const onFirstLine = xterm.buffer.active.cursorY === 0;
+		this._marker = activeInstance.registerMarker(onFirstLine ? 0 : -1);
 		if (!this._marker) {
 			return;
 		}
@@ -164,7 +172,7 @@ export class TerminalVoiceSession extends Disposable {
 		});
 		this._decoration?.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-voice', 'recording');
-			e.style.transform = 'translate(-5px, -5px)';
+			e.style.transform = onFirstLine ? 'translate(10px, -2px)' : 'translate(-6px, -5px)';
 		});
 	}
 
@@ -187,15 +195,16 @@ export class TerminalVoiceSession extends Disposable {
 		if (!this._ghostTextMarker) {
 			return;
 		}
+		const onFirstLine = xterm.buffer.active.cursorY === 0;
 		this._ghostText = xterm.registerDecoration({
 			marker: this._ghostTextMarker,
 			layer: 'top',
-			x: xterm.buffer.active.cursorX + 1 ?? 0,
+			x: onFirstLine ? xterm.buffer.active.cursorX + 4 : xterm.buffer.active.cursorX + 1 ?? 0,
 		});
 		this._ghostText?.onRender((e: HTMLElement) => {
 			e.classList.add('terminal-voice-progress-text');
 			e.textContent = text;
-			e.style.width = 'fit-content';
+			e.style.width = (xterm.cols - xterm.buffer.active.cursorX) / xterm.cols * 100 + '%';
 		});
 	}
 }
