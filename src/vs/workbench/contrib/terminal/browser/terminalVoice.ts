@@ -17,6 +17,7 @@ import { IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilit
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { localize } from 'vs/nls';
 
 const symbolMap: { [key: string]: string } = {
 	'Ampersand': '&',
@@ -140,7 +141,7 @@ export class TerminalVoiceSession extends Disposable {
 
 	private _sendText(): void {
 		this._terminalService.activeInstance?.sendText(this._input, false);
-		alert(this._input + ' inserted');
+		alert(localize('terminalVoiceTextInserted', '{0} inserted', this._input));
 	}
 
 	private _updateInput(e: ISpeechToTextEvent): void {
