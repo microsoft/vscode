@@ -18,7 +18,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -77,39 +76,6 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 					mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
 					weight: KeybindingWeight.WorkbenchContrib
-				},
-				{
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
-						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
-						ContextKeyExpr.and(
-							ContextKeyExpr.has(InputFocusedContextKey),
-							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
-							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
-						),
-						CTX_INLINE_CHAT_FOCUSED,
-						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
-						EditorContextKeys.isEmbeddedDiffEditor.negate()
-					),
-					primary: KeyCode.DownArrow,
-					weight: KeybindingWeight.EditorCore
-				},
-				{
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
-						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
-						ContextKeyExpr.and(
-							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
-							NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.isEqualTo(false),
-							NOTEBOOK_CURSOR_NAVIGATION_MODE),
-						CTX_INLINE_CHAT_FOCUSED,
-						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
-						EditorContextKeys.isEmbeddedDiffEditor.negate()
-					),
-					primary: KeyCode.DownArrow,
-					weight: KeybindingWeight.EditorCore
 				},
 				{
 					when: NOTEBOOK_EDITOR_FOCUSED,
