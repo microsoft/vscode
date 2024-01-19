@@ -44,6 +44,7 @@ export class InlineEditController extends Disposable {
 	private _currentRequestCts: CancellationTokenSource | undefined;
 
 	private _jumpBackPosition: Position | undefined;
+	private _isAccepting: boolean = false;
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -71,10 +72,12 @@ export class InlineEditController extends Disposable {
 
 		//Automatically request inline edit when the content was changed
 		//Cancel the previous request if there is one
-		//Remove the previous ghoust thext
+		//Remove the previous ghost text
 		this._register(editor.onDidChangeModelContent(async () => {
+
 			this._isCursorAtInlineEditContext.set(false);
 			this.clear(false);
+			this._isAccepting = false;
 			const edit = await this.fetchInlineEdit(editor, true);
 			if (!edit) {
 				return;
@@ -183,8 +186,8 @@ export class InlineEditController extends Disposable {
 		if (!this._currentWidget) {
 			return;
 		}
-		const widget = this._currentWidget[0];
-		const data = this._currentWidget[1];
+		this._isAccepting = true;
+		const [widget, data] = this._currentWidget;
 
 		//It should only happen in case of last line suggestion
 		let text = data.text;
@@ -223,7 +226,7 @@ export class InlineEditController extends Disposable {
 	public clear(explcit: boolean) {
 		const rejectReason = explcit ? InlineEditRejectionReason.Explicit : InlineEditRejectionReason.Implicit;
 		const edit = this._currentWidget?.[1];
-		if (edit && edit?.rejected) {
+		if (edit && edit?.rejected && !this._isAccepting) {
 			this._commandService.executeCommand(edit.rejected.id, rejectReason, ...edit.rejected.arguments ?? []);
 		}
 
