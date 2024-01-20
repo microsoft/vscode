@@ -16,7 +16,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableData {
@@ -42,7 +42,6 @@ export type IChatProgressResponseContent =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
-	| IChatAsyncContent
 	| IChatContentInlineReference
 	| IChatProgressMessage;
 
@@ -160,22 +159,6 @@ export class Response implements IResponse {
 			}
 
 			this._updateRepr(quiet);
-		} else if (progress.kind === 'asyncContent') {
-			// Add a new resolving part
-			const responsePosition = this._responseParts.push(progress) - 1;
-			this._updateRepr(quiet);
-
-			progress.resolvedContent?.then((content) => {
-				// Replace the resolving part's content with the resolved response
-				if (typeof content === 'string') {
-					this._responseParts[responsePosition] = { content: new MarkdownString(content), kind: 'markdownContent' };
-				} else if (isMarkdownString(content)) {
-					this._responseParts[responsePosition] = { content, kind: 'markdownContent' };
-				} else {
-					this._responseParts[responsePosition] = content;
-				}
-				this._updateRepr(quiet);
-			});
 		} else if (progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage') {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -188,8 +171,6 @@ export class Response implements IResponse {
 				return '';
 			} else if (part.kind === 'inlineReference') {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
-			} else if (part.kind === 'asyncContent') {
-				return part.content;
 			} else {
 				return part.content.value;
 			}
@@ -303,15 +284,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	/**
 	 * Apply one of the progress updates that are not part of the actual response content.
 	 */
-	applyReference(progress: IChatUsedContext | IChatContentReference | IChatProgressMessage) {
+	applyReference(progress: IChatUsedContext | IChatContentReference) {
 		if (progress.kind === 'usedContext') {
 			this._usedContext = progress;
 		} else if (progress.kind === 'reference') {
 			this._contentReferences.push(progress);
 			this._onDidChange.fire();
-		} else if (progress.kind === 'progressMessage') {
-			// this._progressMessages.push(progress);
-			// this._onDidChange.fire();
 		}
 	}
 
@@ -667,9 +645,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (progress.kind === 'vulnerability') {
-			// TODO@roblourens ChatModel should just work with strings
 			request.response.updateContent({ kind: 'markdownVuln', content: { value: progress.content }, vulnerabilities: progress.vulnerabilities }, quiet);
-		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'asyncContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage') {
+		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln' || progress.kind === 'progressMessage') {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
@@ -758,8 +735,6 @@ export class ChatModel extends Disposable implements IChatModel {
 								return item.treeData;
 							} else if (item.kind === 'markdownContent') {
 								return item.content;
-							} else if (item.kind === 'asyncContent') {
-								return new MarkdownString(item.content);
 							} else {
 								return item as any; // TODO
 							}

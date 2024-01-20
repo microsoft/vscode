@@ -442,9 +442,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
-					: data.kind === 'asyncContent' ? this.renderPlaceholder(new MarkdownString(data.content), templateData)
-						: onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false)
-							: undefined;
+					: onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false)
+						: undefined;
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
@@ -572,11 +571,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 				}
 
-				// Did this part go from being a placeholder string to resolved tree data?
-				else if (part.kind === 'treeData' && !isInteractiveProgressTreeData(renderedPart)) {
-					partsToRender[index] = part.treeData;
-				}
-
 				// Did this part's content change?
 				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart) && !isProgressMessageRenderData(renderedPart)) {
 					const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), renderedPart);
@@ -638,9 +632,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
 					else if (!hasRenderedOneMarkdownBlock && wordCountResults[index]) {
 						const { value } = wordCountResults[index];
-						result = renderableResponse[index].kind === 'asyncContent'
-							? this.renderPlaceholder(new MarkdownString(value), templateData)
-							: this.renderMarkdown(new MarkdownString(value), element, templateData, true);
+						result = this.renderMarkdown(new MarkdownString(value), element, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
 					}
 
@@ -818,18 +810,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
 		element.ariaLabel = expanded ? localize('usedReferencesExpanded', "{0}, expanded", label) : localize('usedReferencesCollapsed', "{0}, collapsed", label);
-	}
-
-	private renderPlaceholder(markdown: IMarkdownString, templateData: IChatListItemTemplate): IMarkdownRenderResult {
-		const codicon = $('.interactive-response-codicon-details', undefined, renderIcon({ id: 'sync~spin' }));
-		codicon.classList.add('interactive-response-placeholder-codicon');
-		const result = dom.append(templateData.value, codicon);
-
-		const content = this.renderer.render(markdown);
-		content.element.className = 'interactive-response-placeholder-content';
-		result.appendChild(content.element);
-
-		return { element: result, dispose: () => content.dispose() };
 	}
 
 	private renderProgressMessage(progress: IChatProgressMessage, showSpinner: boolean): IMarkdownRenderResult {
