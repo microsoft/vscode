@@ -34,6 +34,7 @@ import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chat
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -290,36 +291,81 @@ export function getHistoryAction(viewId: string, providerId: string) {
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			const chatService = accessor.get(IChatService);
-			const quickInputService = accessor.get(IQuickInputService);
-			const chatContribService = accessor.get(IChatContributionService);
-			const viewsService = accessor.get(IViewsService);
-			const items = chatService.getHistory();
-			const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
-				label: i.title,
-				chat: i,
-				buttons: [{
-					iconClass: ThemeIcon.asClassName(Codicon.x),
-					tooltip: localize('interactiveSession.history.delete', "Delete"),
-				}]
-			}));
-			const selection = await quickInputService.pick(picks,
-				{
-					placeHolder: localize('interactiveSession.history.pick', "Switch to chat"),
-					onDidTriggerItemButton: context => {
-						chatService.removeHistoryEntry(context.item.chat.sessionId);
-						context.removeItem();
-					}
-				});
-			if (selection) {
-				const sessionId = selection.chat.sessionId;
-				const provider = chatContribService.registeredProviders[0]?.id;
-				if (provider) {
-					const viewId = chatContribService.getViewIdForProvider(provider);
-					const view = await viewsService.openView(viewId) as ChatViewPane;
-					view.loadSession(sessionId);
-				}
-			}
+			showHistoryEntries(accessor);
 		}
 	};
+}
+
+async function showHistoryEntries(accessor: ServicesAccessor): Promise<void> {
+	const chatService = accessor.get(IChatService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const chatContribService = accessor.get(IChatContributionService);
+	const viewsService = accessor.get(IViewsService);
+	const items = chatService.getHistory();
+	const editButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.pencil),
+		tooltip: localize('chat.history.edit', "Edit"),
+		kind: 'edit'
+	};
+	const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
+		label: i.title,
+		chat: i,
+		buttons: [
+			editButton,
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.x),
+				tooltip: localize('interactiveSession.history.delete', "Delete"),
+			}]
+	}));
+	const selection = await quickInputService.pick(picks,
+		{
+			placeHolder: localize('interactiveSession.history.pick', "Switch to chat"),
+			onDidTriggerItemButton: context => {
+				if (context.button === editButton) {
+					instantiationService.invokeFunction(
+						accessor => renameHistoryEntry(accessor, context.item.chat));
+				} else {
+					chatService.removeHistoryEntry(context.item.chat.sessionId);
+					context.removeItem();
+				}
+			}
+		});
+	if (selection) {
+		const sessionId = selection.chat.sessionId;
+		const provider = chatContribService.registeredProviders[0]?.id;
+		if (provider) {
+			const viewId = chatContribService.getViewIdForProvider(provider);
+			const view = await viewsService.openView(viewId) as ChatViewPane;
+			view.loadSession(sessionId);
+		}
+	}
+}
+
+async function renameHistoryEntry(accessor: ServicesAccessor, chat: IChatDetail) {
+	const quickInputService = accessor.get(IQuickInputService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const chatService = accessor.get(IChatService);
+	const input = quickInputService.createInputBox();
+	input.buttons = [quickInputService.backButton];
+	input.placeholder = localize('chat.history.rename', "Enter a new title for the chat");
+	input.show();
+
+	input.onDidTriggerButton(e => {
+		if (e === quickInputService.backButton) {
+			instantiationService.invokeFunction(showHistoryEntries);
+		}
+	});
+
+	input.onDidAccept(() => {
+		if (input.value) {
+			chatService.renameHistoryEntry(chat.sessionId, input.value);
+		}
+
+		instantiationService.invokeFunction(showHistoryEntries);
+	});
+
+	input.onDidHide(() => {
+		input.dispose();
+	});
 }

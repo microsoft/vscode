@@ -306,6 +306,7 @@ export interface IChatService {
 	getHistory(): IChatDetail[];
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
+	renameHistoryEntry(sessionId: string, newName: string): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;

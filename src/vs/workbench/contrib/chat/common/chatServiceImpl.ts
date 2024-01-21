@@ -321,12 +321,25 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(session => !session.isImported)
 			.map(item => {
 				const firstRequestMessage = item.requests[0]?.message;
+				const title = item.customTitle ??
+					ChatModel.getDefaultTitle(
+						(typeof firstRequestMessage === 'string' ? firstRequestMessage : firstRequestMessage?.text)
+						?? '');
 				return {
 					sessionId: item.sessionId,
-					title: (typeof firstRequestMessage === 'string' ? firstRequestMessage :
-						firstRequestMessage?.text) ?? '',
+					title,
 				};
 			});
+	}
+
+	renameHistoryEntry(sessionId: string, newName: string): void {
+		const model = this._sessionModels.get(sessionId);
+		if (model) {
+			model.customTitle = newName;
+		}
+
+		const session = this._persistedSessions[sessionId];
+		session.customTitle = newName;
 	}
 
 	removeHistoryEntry(sessionId: string): void {

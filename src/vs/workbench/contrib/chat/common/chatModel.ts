@@ -368,6 +368,7 @@ export interface ISerializableChatRequestData {
 
 export interface IExportableChatData {
 	providerId: string;
+	customTitle?: string;
 	welcomeMessage: (string | IChatReplyFollowup[])[] | undefined;
 	requests: ISerializableChatRequestData[];
 	requesterUsername: string;
@@ -429,6 +430,11 @@ export enum ChatModelInitState {
 }
 
 export class ChatModel extends Disposable implements IChatModel {
+	static getDefaultTitle(firstRequestMessage: string): string {
+		const message = firstRequestMessage;
+		return message.split('\n')[0].substring(0, 50);
+	}
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -497,10 +503,23 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isImported;
 	}
 
+	private _customTitle: string | undefined;
+
+	get customTitle(): string | undefined {
+		return this._customTitle;
+	}
+
+	set customTitle(value: string | undefined) {
+		this._customTitle = value;
+	}
+
 	get title(): string {
+		if (this._customTitle) {
+			return this._customTitle;
+		}
+
 		const firstRequestMessage = firstOrDefault(this._requests)?.message;
-		const message = firstRequestMessage?.text ?? '';
-		return message.split('\n')[0].substring(0, 50);
+		return ChatModel.getDefaultTitle(firstRequestMessage?.text ?? '');
 	}
 
 	constructor(
@@ -511,6 +530,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	) {
 		super();
 
+		this._customTitle = initialData?.customTitle;
 		this._isImported = (!!initialData && !isSerializableSessionData(initialData)) || (initialData?.isImported ?? false);
 		this._sessionId = (isSerializableSessionData(initialData) && initialData.sessionId) || generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
@@ -713,6 +733,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toExport(): IExportableChatData {
 		return {
+			customTitle: this._customTitle,
 			requesterUsername: this.requesterUsername,
 			requesterAvatarIconUri: this.requesterAvatarIconUri,
 			responderUsername: this.responderUsername,
@@ -754,6 +775,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		};
 	}
 
+	/**
+	 * This is what is called when we serialize a chat model.
+	 */
 	toJSON(): ISerializableChatData {
 		return {
 			...this.toExport(),
