@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -29,16 +30,28 @@ export interface ICommand {
 	 * (Optional) Category string by which the command is grouped in the UI
 	 */
 	readonly category?: string | ILocalizedString;
-}
-
-export interface IConfigurationProperty {
-	readonly description: string;
-	readonly type: string | string[];
-	readonly default?: any;
+	/**
+	 * (Optional) Condition which must be true to enable the command in the UI (menu and keybindings). Does not prevent executing the command by other means, like the `executeCommand`-api.
+	 */
+	readonly enablement?: string;
+	/**
+	 * (Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\$(zap)`
+	 */
+	readonly icon?:
+	| string
+	| {
+		/**
+		 * Icon path when a light theme is used
+		 */
+		readonly light?: string;
+		/**
+		 * Icon path when a dark theme is used
+		 */
+		readonly dark?: string;
+	};
 }
 
 export interface IConfiguration {
-	id?: string;
 	/**
 	 * When specified, gives the order of this category of settings relative to other categories.
 	 */
@@ -50,7 +63,7 @@ export interface IConfiguration {
 	/**
 	 * Description of the configuration properties.
 	 */
-	readonly properties: { [key: string]: IConfigurationProperty };
+	readonly properties: { [key: string]: IJSONSchema };
 }
 
 export interface IDebugger {
@@ -63,9 +76,89 @@ export interface IDebugger {
 	 */
 	readonly type: string;
 	/**
+	 * Path to the debug adapter program. Path is either absolute or relative to the extension folder.
+	 */
+	readonly program?: string;
+	/**
+	 * Optional arguments to pass to the adapter.
+	 */
+	readonly args?: unknown[];
+	/**
 	 * Optional runtime in case the program attribute is not an executable but requires a runtime.
 	 */
 	readonly runtime?: string;
+	/**
+	 * Optional runtime arguments.
+	 */
+	readonly runtimeArgs?: unknown[];
+	/**
+	 * Mapping from interactive variables (e.g. ${action.pickProcess}) in `launch.json` to a command.
+	 */
+	readonly variables?: {};
+	/**
+	 * Configurations for generating the initial 'launch.json'.
+	 */
+	readonly initialConfigurations?: unknown[] | string;
+	/**
+	 * List of languages for which the debug extension could be considered the "default debugger".
+	 */
+	readonly languages?: unknown[];
+	/**
+	 * Snippets for adding new configurations in 'launch.json'.
+	 */
+	readonly configurationSnippets?: unknown[];
+	/**
+	 * JSON schema configurations for validating 'launch.json'.
+	 */
+	readonly configurationAttributes?: {};
+	/**
+	 * Condition which must be true to enable this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension-defined context key as appropriate for this.
+	 */
+	readonly when?: string;
+	/**
+	 * When this condition is true, this debugger type is hidden from the debugger list, but is still enabled.
+	 */
+	readonly hiddenWhen?: string;
+	/**
+	 * Optional message to mark this debug type as being deprecated.
+	 */
+	readonly deprecated?: string;
+	/**
+	 * Windows specific settings.
+	 */
+	readonly windows?: {
+		/**
+		 * Runtime used for Windows.
+		 */
+		runtime?: string;
+	};
+	/**
+	 * macOS specific settings.
+	 */
+	readonly osx?: {
+		/**
+		 * Runtime used for macOS.
+		 */
+		runtime?: string;
+	};
+	/**
+	 * Linux specific settings.
+	 */
+	readonly linux?: {
+		/**
+		 * Runtime used for Linux.
+		 */
+		readonly runtime?: string;
+	};
+	/**
+	 * UI strings contributed by this debug adapter.
+	 */
+	readonly strings?: {
+		/**
+		 * When there are unverified breakpoints in a language supported by this debug adapter, this message will appear on the breakpoint hover and in the breakpoints view. Markdown and command links are supported.
+		 */
+		readonly unverifiedBreakpoints?: string;
+	};
 }
 
 export interface IGrammar {
@@ -73,6 +166,36 @@ export interface IGrammar {
 	 * Language identifier for which this syntax is contributed to.
 	 */
 	readonly language: string;
+	/**
+	 * Textmate scope name used by the tmLanguage file.
+	 */
+	readonly scopeName: string;
+	/**
+	 * Path of the tmLanguage file. The path is relative to the extension folder and typically starts with './syntaxes/'.
+	 */
+	readonly path: string;
+	/**
+	 * A map of scope name to language id if this grammar contains embedded languages.
+	 */
+	readonly embeddedLanguages?: {};
+	/**
+	 * A map of scope name to token types.
+	 */
+	readonly tokenTypes?: {
+		[k: string]: 'string' | 'comment' | 'other';
+	};
+	/**
+	 * List of language scope names to which this grammar is injected to.
+	 */
+	readonly injectTo?: string[];
+	/**
+	 * Defines which scope names contain balanced brackets.
+	 */
+	readonly balancedBracketScopes?: string[];
+	/**
+	 * Defines which scope names do not contain balanced brackets.
+	 */
+	readonly unbalancedBracketScopes?: string[];
 }
 
 export interface IJSONValidation {
@@ -91,6 +214,12 @@ export interface IKeyBinding {
 	 * Identifier of the command to run when keybinding is triggered.
 	 */
 	readonly command: string;
+	/**
+	 * Arguments to pass to the command to execute.
+	 */
+	readonly args?: {
+		[k: string]: unknown;
+	};
 	/**
 	 * Key or key sequence (separate keys with plus-sign and sequences with space, e.g. Ctrl+O and Ctrl+L L for a chord).
 	 */
@@ -122,6 +251,43 @@ export interface ILanguage {
 	 * File extensions associated to the language.
 	 */
 	readonly extensions: string[];
+	/**
+	 * Name aliases for the language.
+	 */
+	readonly aliases?: string[];
+	/**
+	 * File names associated to the language.
+	 */
+	readonly filenames?: string[];
+	/**
+	 * File name glob patterns associated to the language.
+	 */
+	readonly filenamePatterns?: string[];
+	/**
+	 * Mime types associated to the language.
+	 */
+	readonly mimetypes?: string[];
+	/**
+	 * A regular expression matching the first line of a file of the language.
+	 */
+	readonly firstLine?: string;
+	/**
+	 * A relative path to a file containing configuration options for the language.
+	 */
+	readonly configuration?: string;
+	/**
+	 * A icon to use as file icon, if no icon theme provides one for the language.
+	 */
+	readonly icon?: {
+		/**
+		 * Icon path when a light theme is used
+		 */
+		readonly light?: string;
+		/**
+		 * Icon path when a dark theme is used
+		 */
+		readonly dark?: string;
+	};
 }
 
 export interface IMenu {
@@ -148,13 +314,59 @@ export interface ISnippet {
 	 * Language identifier for which this snippet is contributed to.
 	 */
 	readonly language: string;
+	/**
+	 * Path of the snippets file. The path is relative to the extension folder and typically starts with './snippets/'.
+	 */
+	readonly path: string;
 }
 
-export interface ITheme {
+export interface IColorTheme {
+	/**
+	 * Id of the color theme as used in the user settings.
+	 */
+	readonly id: string;
 	/**
 	 * Label of the color theme as shown in the UI.
 	 */
 	readonly label: string;
+	/**
+	 * Base theme defining the colors around the editor: 'vs' is the light color theme, 'vs-dark' is the dark color theme. 'hc-black' is the dark high contrast theme, 'hc-light' is the light high contrast theme.
+	 */
+	readonly uiTheme: 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
+	/**
+	 * Path of the tmTheme file. The path is relative to the extension folder and is typically './colorthemes/awesome-color-theme.json'.
+	 */
+	readonly path: string;
+}
+
+export interface IIconTheme {
+	/**
+	 * Id of the file icon theme as used in the user settings.
+	 */
+	readonly id: string;
+	/**
+	 * Label of the file icon theme as shown in the UI.
+	 */
+	readonly label: string;
+	/**
+	 * Path of the file icon theme definition file. The path is relative to the extension folder and is typically './fileicons/awesome-icon-theme.json'.
+	 */
+	readonly path: string;
+}
+
+export interface IProductTheme {
+	/**
+	 * Id of the product icon theme as used in the user settings.
+	 */
+	readonly id: string;
+	/**
+	 * Label of the product icon theme as shown in the UI.
+	 */
+	readonly label: string;
+	/**
+	 * Path of the product icon theme definition file. The path is relative to the extension folder and is typically './producticons/awesome-product-icon-theme.json'.
+	 */
+	readonly path: string;
 }
 
 export interface IViewContainer {
@@ -173,11 +385,32 @@ export interface IViewContainer {
 }
 
 export interface IView {
+	readonly type?: 'tree' | 'webview';
 	readonly id: string;
 	/**
 	 * The human-readable name of the view. Will be shown
 	 */
 	readonly name: string;
+	/**
+	 * Condition which must be true to show this view
+	 */
+	readonly when?: string;
+	/**
+	 * Path to the view icon. View icons are displayed when the name of the view cannot be shown. It is recommended that icons be in SVG, though any image file type is accepted.
+	 */
+	readonly icon?: string;
+	/**
+	 * Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used.
+	 */
+	readonly contextualTitle?: string;
+	/**
+	 * Initial state of the view when the extension is first installed. Once the user has changed the view state by collapsing, moving, or hiding the view, the initial state will not be used again.
+	 */
+	readonly visibility?: 'visible' | 'hidden' | 'collapsed';
+	/**
+	 * The initial size of the view. The size will behave like the css 'flex' property, and will set the initial size when the view is first shown. In the side bar, this is the height of the view. This value is only respected when the same extension owns both the view and the view container.
+	 */
+	readonly initialSize?: number;
 }
 
 export interface IColor {
@@ -188,7 +421,7 @@ export interface IColor {
 	/**
 	 * The description of the themable color
 	 */
-	readonly description?: string;
+	readonly description: string;
 	readonly defaults: {
 		/**
 		 * The default color for light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.
@@ -202,12 +435,20 @@ export interface IColor {
 		 * The default color for high contrast dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default. If not provided, the `dark` color is used as default for high contrast dark themes.
 		 */
 		readonly highContrast: string;
+		/**
+		 * The default color for high contrast light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default. If not provided, the `light` color is used as default for high contrast light themes.
+		 */
+		readonly highContrastLight?: string;
 	};
 }
 
 interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
+	/**
+	 * Human readable name of the custom editor. This is displayed to users when selecting which editor to use.
+	 */
+	readonly displayName: string;
 	/**
 	 * Set of globs that the custom editor is enabled for.
 	 */
@@ -262,7 +503,10 @@ export interface IWalkthroughStep {
 	/**
 	 * Description of step. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms). Links on their own line will be rendered as buttons.
 	 */
-	readonly description: string | undefined;
+	readonly description?: string;
+	readonly button?: {
+		[k: string]: unknown;
+	};
 	/**
 	 * Media to show alongside this step, either an image or markdown content.
 	 */
@@ -379,6 +623,20 @@ export interface INotebookEntry {
 	 * Human readable name of the notebook.
 	 */
 	readonly displayName: string;
+	/**
+	 * Set of globs that the notebook is for.
+	 */
+	readonly selector: {
+		/**
+		 * Glob that the notebook is enabled for.
+		 */
+		readonly filenamePattern?: string;
+		/**
+		 * Glob that the notebook is disabled for.
+		 */
+		readonly excludeFileNamePattern?: string;
+	}[];
+	readonly priority?: 'default' | 'option';
 }
 
 export interface INotebookRendererContribution {
@@ -390,10 +648,20 @@ export interface INotebookRendererContribution {
 	 * Human readable name of the notebook output renderer.
 	 */
 	readonly displayName: string;
+	readonly dependencies?: string[];
+	readonly optionalDependencies?: string[];
+	/**
+	 * Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.
+	 */
+	readonly requiresMessaging?: 'always' | 'optional' | 'never';
 	/**
 	 * Set of globs that the notebook is for.
 	 */
 	readonly mimeTypes: string[];
+	readonly entrypoint: string | {
+		readonly extends: string;
+		readonly path: string;
+	};
 }
 
 export interface IDebugVisualizationContribution {
@@ -472,15 +740,15 @@ export interface IExtensionContributions {
 	/**
 	 * Contributes textmate color themes.
 	 */
-	readonly themes?: ITheme[];
+	readonly themes?: IColorTheme[];
 	/**
 	 * Contributes file icon themes.
 	 */
-	readonly iconThemes?: ITheme[];
+	readonly iconThemes?: IIconTheme[];
 	/**
 	 * Contributes product icon themes.
 	 */
-	readonly productIconThemes?: ITheme[];
+	readonly productIconThemes?: IProductTheme[];
 	/**
 	 * Contributes views containers to the editor
 	 */
