@@ -880,7 +880,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (this.extension.isBuiltin) {
 			return;
 		}
-		if (this.enableWhenOutdated && !this.extension.outdated) {
+		if (this.enableWhenOutdated && (this.extension.state !== ExtensionState.Installed || !this.extension.outdated)) {
 			return;
 		}
 		if (!this.enableWhenAutoUpdateValue.includes(this.extensionsWorkbenchService.getAutoUpdateValue())) {
