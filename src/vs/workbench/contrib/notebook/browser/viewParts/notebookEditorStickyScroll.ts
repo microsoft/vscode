@@ -89,7 +89,7 @@ export class NotebookStickyLine extends Disposable {
 	}
 
 	private toggleFoldRange(currentState: CellFoldingState) {
-		const foldingController = this.notebookEditor.getContribution('workbench.notebook.foldingController') as FoldingController;
+		const foldingController = this.notebookEditor.getContribution<FoldingController>(FoldingController.id);
 
 		const index = this.entry.index;
 		const headerLevel = this.entry.level;
