@@ -434,6 +434,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly onDidScroll: Event<void>;
 
 	/**
+	 * The identifier of the window the editor part is contained in.
+	 */
+	readonly windowId: number;
+
+	/**
 	 * The size of the editor part.
 	 */
 	readonly contentDimension: IDimension;
@@ -460,11 +465,6 @@ export interface IEditorPart extends IEditorGroupsContainer {
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
-
-	/**
-	 * The identifier of the window the auxiliary editor part is contained in.
-	 */
-	readonly windowId: number;
 
 	/**
 	 * Close this auxiliary editor part after moving all
@@ -590,7 +590,7 @@ export interface IEditorGroup {
 	readonly id: GroupIdentifier;
 
 	/**
-	 * The identifier of the `CodeWindow` this editor group is part of.
+	 * The identifier of the window this editor group is part of.
 	 */
 	readonly windowId: number;
 

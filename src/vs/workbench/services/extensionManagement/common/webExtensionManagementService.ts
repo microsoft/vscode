@@ -230,6 +230,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		publisherDisplayName: metadata.publisherDisplayName || null,
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
+		hasPreReleaseVersion: !!metadata.hasPreReleaseVersion,
 		preRelease: !!metadata.preRelease,
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
@@ -280,14 +281,14 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.publisherId = this.extension.publisherId;
 			metadata.installedTimestamp = Date.now();
 			metadata.isPreReleaseVersion = this.extension.properties.isPreReleaseVersion;
+			metadata.hasPreReleaseVersion = metadata.hasPreReleaseVersion || this.extension.properties.isPreReleaseVersion;
 			metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 			metadata.updated = !!existingExtension;
 			metadata.isApplicationScoped = this.options.isApplicationScoped || metadata.isApplicationScoped;
-			metadata.preRelease = this.extension.properties.isPreReleaseVersion ||
-				(isBoolean(this.options.installPreReleaseVersion)
-					? this.options.installPreReleaseVersion /* Respect the passed flag */
-					: metadata?.preRelease /* Respect the existing pre-release flag if it was set */);
+			metadata.preRelease = isBoolean(this.options.preRelease)
+				? this.options.preRelease
+				: this.options.installPreReleaseVersion || this.extension.properties.isPreReleaseVersion || metadata.preRelease;
 		}
 		metadata.pinned = this.options.installGivenVersion ? true : (this.options.pinned ?? metadata.pinned);
 

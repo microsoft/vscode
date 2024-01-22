@@ -13,14 +13,13 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
+import { IModelDecorationOptions, ITextModel, InjectedTextCursorStops, InjectedTextOptions } from 'vs/editor/common/model';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -173,12 +172,12 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			return;
 		}
 
-		const wasPreviouslyHovering = typeof this.hoveredSubject === 'number';
 		this.hoveredStore.clear();
 		this.hoveredSubject = lineNumber;
 
 		const todo = [{ line: lineNumber, dir: 0 }];
 		const toEnable = new Set<string>();
+		const inlineEnabled = CodeCoverageDecorations.showInline.get();
 		if (!CodeCoverageDecorations.showInline.get()) {
 			for (let i = 0; i < todo.length && i < MAX_HOVERED_LINES; i++) {
 				const { line, dir } = todo[i];
@@ -209,7 +208,9 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			});
 		}
 
-		this.lineHoverWidget.value.startShowingAt(lineNumber, this.details, wasPreviouslyHovering);
+		if (toEnable.size || inlineEnabled) {
+			this.lineHoverWidget.value.startShowingAt(lineNumber);
+		}
 
 		this.hoveredStore.add(this.editor.onMouseLeave(() => {
 			this.hoveredStore.clear();
@@ -240,7 +241,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 
 		model.changeDecorations(e => {
 			for (const detailRange of details.ranges) {
-				const { metadata: { detail, description }, range } = detailRange;
+				const { metadata: { detail, description }, range, primary } = detailRange;
 				if (detail.type === DetailType.Branch) {
 					const hits = detail.detail.branches![detail.branch].count;
 					const cls = hits ? CLASS_HIT : CLASS_MISS;
@@ -263,6 +264,9 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 							};
 						} else {
 							target.className = `coverage-deco-inline ${cls}`;
+							if (primary) {
+								target.before = countBadge(hits);
+							}
 						}
 					};
 
@@ -282,6 +286,9 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
 						target.className = `coverage-deco-inline ${cls}`;
 						target.hoverMessage = description;
+						if (primary) {
+							target.before = countBadge(detail.count);
+						}
 					};
 
 					if (showInlineByDefault) {
@@ -336,8 +343,21 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	}
 }
 
+const countBadge = (count: number): InjectedTextOptions | undefined => {
+	if (count === 0) {
+		return undefined;
+	}
+
+	return {
+		content: `${count > 99 ? '99+' : count}x`,
+		cursorStops: InjectedTextCursorStops.None,
+		inlineClassName: `coverage-deco-inline-count`,
+		inlineClassNameAffectsLetterSpacing: true,
+	};
+};
+
 type CoverageDetailsWithBranch = CoverageDetails | { type: DetailType.Branch; branch: number; detail: IStatementCoverage };
-type DetailRange = { range: Range; metadata: { detail: CoverageDetailsWithBranch; description: IMarkdownString | undefined } };
+type DetailRange = { range: Range; primary: boolean; metadata: { detail: CoverageDetailsWithBranch; description: IMarkdownString | undefined } };
 
 export class CoverageDetailsModel {
 	public readonly ranges: DetailRange[] = [];
@@ -351,6 +371,7 @@ export class CoverageDetailsModel {
 		// the editor without ugly overlaps.
 		const detailRanges: DetailRange[] = details.map(detail => ({
 			range: tidyLocation(detail.location),
+			primary: true,
 			metadata: { detail, description: this.describe(detail, textModel) }
 		}));
 
@@ -360,6 +381,7 @@ export class CoverageDetailsModel {
 					const branch: CoverageDetailsWithBranch = { type: DetailType.Branch, branch: i, detail };
 					detailRanges.push({
 						range: tidyLocation(detail.branches[i].location || Range.fromPositions(range.getEndPosition())),
+						primary: true,
 						metadata: {
 							detail: branch,
 							description: this.describe(branch, textModel),
@@ -404,11 +426,13 @@ export class CoverageDetailsModel {
 			// until after the `item.range` ends.
 			const prev = stack[stack.length - 1];
 			if (prev) {
+				const primary = prev.primary;
 				const si = prev.range.setEndPosition(start.lineNumber, start.column);
 				prev.range = prev.range.setStartPosition(item.range.endLineNumber, item.range.endColumn);
+				prev.primary = false;
 				// discard the previous range if it became empty, e.g. a nested statement
 				if (prev.range.isEmpty()) { stack.pop(); }
-				result.push({ range: si, metadata: prev.metadata });
+				result.push({ range: si, primary, metadata: prev.metadata });
 			}
 
 			stack.push(item);
@@ -460,39 +484,20 @@ function tidyLocation(location: Range | Position): Range {
 
 class LineHoverComputer implements IHoverComputer<IMarkdownString> {
 	public line = -1;
-	public textModel!: ITextModel;
-	public details!: CoverageDetailsModel;
 
 	constructor(@IKeybindingService private readonly keybindingService: IKeybindingService) { }
 
 	/** @inheritdoc */
 	public computeSync(): IMarkdownString[] {
-		const bestDetails: DetailRange[] = [];
-		let bestLine = -1;
-		for (const detail of this.details.ranges) {
-			if (detail.range.startLineNumber > this.line) {
-				break;
-			}
-			if (detail.range.endLineNumber < this.line) {
-				continue;
-			}
-			if (detail.range.startLineNumber !== bestLine) {
-				bestDetails.length = 0;
-			}
-			bestLine = detail.range.startLineNumber;
-			bestDetails.push(detail);
-		}
+		const strs: IMarkdownString[] = [];
 
-		const strs = bestDetails.map(d => d.metadata.detail.type === DetailType.Branch ? undefined : d.metadata.description).filter(isDefined);
-		if (strs.length) {
-			const s = new MarkdownString().appendMarkdown(`[${TOGGLE_INLINE_COMMAND_TEXT}](command:${TOGGLE_INLINE_COMMAND_ID})`);
-			s.isTrusted = true;
-			const binding = this.keybindingService.lookupKeybinding(TOGGLE_INLINE_COMMAND_ID);
-			if (binding) {
-				s.appendText(` (${binding.getLabel()})`);
-			}
-			strs.push(s);
+		const s = new MarkdownString().appendMarkdown(`[${TOGGLE_INLINE_COMMAND_TEXT}](command:${TOGGLE_INLINE_COMMAND_ID})`);
+		s.isTrusted = true;
+		const binding = this.keybindingService.lookupKeybinding(TOGGLE_INLINE_COMMAND_ID);
+		if (binding) {
+			s.appendText(` (${binding.getLabel()})`);
 		}
+		strs.push(s);
 
 		return strs;
 	}
@@ -556,7 +561,7 @@ class LineHoverWidget extends Disposable implements IOverlayWidget {
 	}
 
 	/** Shows the hover widget at the given line */
-	public startShowingAt(lineNumber: number, details: CoverageDetailsModel, showImmediate: boolean) {
+	public startShowingAt(lineNumber: number) {
 		this.hide();
 		const textModel = this.editor.getModel();
 		if (!textModel) {
@@ -564,9 +569,7 @@ class LineHoverWidget extends Disposable implements IOverlayWidget {
 		}
 
 		this.computer.line = lineNumber;
-		this.computer.textModel = textModel;
-		this.computer.details = details;
-		this.hoverOperation.start(showImmediate ? HoverStartMode.Immediate : HoverStartMode.Delayed);
+		this.hoverOperation.start(HoverStartMode.Delayed);
 	}
 
 	/** Hides the hover widget */
