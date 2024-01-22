@@ -250,7 +250,7 @@ export interface ILanguage {
 	/**
 	 * File extensions associated to the language.
 	 */
-	readonly extensions: string[];
+	readonly extensions?: string[];
 	/**
 	 * Name aliases for the language.
 	 */
