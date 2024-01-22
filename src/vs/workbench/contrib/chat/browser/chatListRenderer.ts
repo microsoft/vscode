@@ -26,6 +26,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { FileAccess } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
+import { basename } from 'vs/base/common/path';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -1165,7 +1166,7 @@ class ContentReferencesListPool extends Disposable {
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
-					getAriaLabel: (element: IChatResponseProgressFileTreeData) => element.label,
+					getAriaLabel: (element: IChatResponseProgressFileTreeData) => basename(element.uri.path),
 					getWidgetAriaLabel: () => localize('usedReferences', "Used References")
 				},
 			});
