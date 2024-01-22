@@ -1302,11 +1302,10 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 		}
 		this.enabled = true;
 		this.class = TogglePreReleaseExtensionAction.EnabledClass;
-		this.label = this.extension.preRelease ? localize('togglePreRleaseDisableLabel', "Disable Pre-Release Updates") : localize('togglePreRleaseEnableLabel', "Enable Pre-Release Updates");
-		this.tooltip = this.extension.preRelease ?
-			this.extension.isPreReleaseVersion ? localize('togglePreRleaseDisableTooltip1', "This will switch to release version and stop updating to pre-release versions")
-				: localize('togglePreRleaseDisableTooltip2', "This will stop updating to pre-release versions")
-			: localize('togglePreRleaseEnableTooltip', "This will switch to pre-release version and enable updates to pre-release versions");
+		this.label = this.extension.preRelease ? localize('togglePreRleaseDisableLabel', "Switch to Release Version") : localize('togglePreRleaseEnableLabel', "Switch to Pre-Release Version");
+		this.tooltip = this.extension.preRelease
+			? localize('togglePreRleaseDisableTooltip1', "This will switch and enable updates to release versions")
+			: localize('togglePreRleaseEnableTooltip', "This will switch to pre-release version and enable updates to latest version always");
 	}
 
 	override async run(): Promise<any> {

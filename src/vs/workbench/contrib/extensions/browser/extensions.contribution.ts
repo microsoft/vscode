@@ -1373,7 +1373,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enablePreRlease',
-			title: localize('enablePreRleaseLabel', "Enable Pre-Release Updates"),
+			title: localize('enablePreRleaseLabel', "Switch to Pre-Release Version"),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.ExtensionContext,
@@ -1395,7 +1395,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disablPreRlease',
-			title: localize('disablePreRleaseLabel', "Disable Pre-Release Updates"),
+			title: localize('disablePreRleaseLabel', "Switch to Release Version"),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.ExtensionContext,
