@@ -42,7 +42,7 @@ export class JumpToInlineEdit extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
+				primary: KeyMod.Alt | KeyCode.Backquote,
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext)
 			},
 		});
@@ -63,7 +63,7 @@ export class JumpBackInlineEdit extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 10,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
+				primary: KeyMod.Alt | KeyCode.Backquote,
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.cursorAtInlineEditContext)
 			},
 		});
@@ -83,7 +83,7 @@ export class RejectInlineEdit extends EditorAction {
 			alias: 'Reject Inline Edit',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				weight: 100,
+				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.Escape,
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext)
 			},
