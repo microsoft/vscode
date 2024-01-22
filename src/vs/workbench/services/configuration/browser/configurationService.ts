@@ -1349,7 +1349,7 @@ class ConfigurationTelemetryContribution implements IWorkbenchContribution {
 		const userSource = ConfigurationTargetToString(ConfigurationTarget.USER_LOCAL);
 		for (const setting of user) {
 			const schema = this.configurationRegistry.getConfigurationProperties()[setting];
-			if (schema.tags?.includes('FeatureInsight')) {
+			if (schema?.tags?.includes('FeatureInsight')) {
 				const value = this.getValueToReport(setting, ConfigurationTarget.USER_LOCAL, schema);
 				this.telemetryService.publicLog2<UpdatedSettingEvent, UpdatedSettingClassification>('updatedsetting', { setting, value, source: userSource });
 			}
@@ -1357,7 +1357,7 @@ class ConfigurationTelemetryContribution implements IWorkbenchContribution {
 		const worskpaceSource = ConfigurationTargetToString(ConfigurationTarget.WORKSPACE);
 		for (const setting of workspace) {
 			const schema = this.configurationRegistry.getConfigurationProperties()[setting];
-			if (schema.tags?.includes('FeatureInsight')) {
+			if (schema?.tags?.includes('FeatureInsight')) {
 				const value = this.getValueToReport(setting, ConfigurationTarget.WORKSPACE, schema);
 				this.telemetryService.publicLog2<UpdatedSettingEvent, UpdatedSettingClassification>('updatedsetting', { setting, value, source: worskpaceSource });
 			}
