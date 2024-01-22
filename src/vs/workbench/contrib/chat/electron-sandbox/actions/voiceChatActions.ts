@@ -854,7 +854,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 					],
 					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be speech recognized to start a voice chat session."),
 					'default': 'off',
-					'tags': ['accessibility']
+					'tags': ['accessibility', 'FeatureInsight']
 				}
 			}
 		});
