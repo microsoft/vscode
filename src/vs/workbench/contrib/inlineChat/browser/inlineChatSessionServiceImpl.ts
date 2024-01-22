@@ -22,6 +22,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { generateUuid } from 'vs/base/common/uuid';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -98,6 +99,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()},  ${provider.debugName}`);
 		const store = new DisposableStore();
 
+		const id = generateUuid();
 		const targetUri = textModel.uri;
 
 		let textModelN: ITextModel;
@@ -106,7 +108,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			textModelN = store.add(this._modelService.createModel(
 				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
 				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-				targetUri.with({ scheme: Schemas.inMemory, query: 'inline-chat-textModelN' }), true
+				targetUri.with({ scheme: Schemas.inMemory, query: new URLSearchParams({ id, 'inline-chat-textModelN': '' }).toString() }), true
 			));
 		} else {
 			// AI edits happen in the actual model, keep a reference but make no copy
@@ -118,7 +120,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const textModel0 = store.add(this._modelService.createModel(
 			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
 			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-			targetUri.with({ scheme: Schemas.inMemory, query: 'inline-chat-textModel0' }), true
+			targetUri.with({ scheme: Schemas.inMemory, query: new URLSearchParams({ id, 'inline-chat-textModel0': '' }).toString() }), true
 		));
 
 		let wholeRange = options.wholeRange;
