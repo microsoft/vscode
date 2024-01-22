@@ -99,7 +99,7 @@ steps:
       mkdir "$nodeGypDir"
       npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
       $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
-      $env:npm_config_arch = "$(NPM_ARCH)"
+      $env:npm_config_arch = "$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:
