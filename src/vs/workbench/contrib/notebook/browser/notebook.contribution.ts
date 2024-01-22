@@ -1065,8 +1065,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
-		[NotebookSetting.notebookVariableView]: {
-			markdownDescription: nls.localize('notebook.notebookVariableView.description', "Enable the experimental notebook variable view within the debug panel."),
+		[NotebookSetting.notebookVariablesView]: {
+			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
 			type: 'boolean',
 			default: false
 		}

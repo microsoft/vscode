@@ -35,7 +35,7 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 	}
 
 	private handleInitEvent(configurationService: IConfigurationService) {
-		if (configurationService.getValue(NotebookSetting.notebookVariableView)
+		if (configurationService.getValue(NotebookSetting.notebookVariablesView)
 			&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
 			if (this.initializeView()) {
 				this.listeners.forEach(listener => listener.dispose());
