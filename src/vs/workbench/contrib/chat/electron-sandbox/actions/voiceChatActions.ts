@@ -766,6 +766,16 @@ registerThemingParticipant((theme, collector) => {
 	`);
 });
 
+function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService): boolean {
+	if (!speechService.hasSpeechProvider) {
+		return false;
+	}
+
+	const value = configurationService.getValue(KeywordActivationContribution.SETTINGS_ID);
+
+	return typeof value === 'string' && value !== KeywordActivationContribution.SETTINGS_VALUE.OFF;
+}
+
 export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
 
 	static SETTINGS_ID = 'accessibility.voice.keywordActivation';
@@ -844,7 +854,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 					],
 					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be speech recognized to start a voice chat session."),
 					'default': 'off',
-					'tags': ['accessibility']
+					'tags': ['accessibility', 'FeatureInsight']
 				}
 			}
 		});
@@ -852,8 +862,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 
 	private handleKeywordActivation(): void {
 		const enabled =
-			this.speechService.hasSpeechProvider &&
-			this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID) !== KeywordActivationContribution.SETTINGS_VALUE.OFF &&
+			supportsKeywordActivation(this.configurationService, this.speechService) &&
 			!this.speechService.hasActiveSpeechToTextSession;
 		if (
 			(enabled && this.activeSession) ||
@@ -957,7 +966,7 @@ class KeywordActivationStatusEntry extends Disposable {
 	}
 
 	private updateStatusEntry(): void {
-		const visible = this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID) !== KeywordActivationContribution.SETTINGS_VALUE.OFF;
+		const visible = supportsKeywordActivation(this.configurationService, this.speechService);
 		if (visible) {
 			if (!this.entry.value) {
 				this.createStatusEntry();

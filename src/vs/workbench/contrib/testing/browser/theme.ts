@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
@@ -134,6 +134,20 @@ export const testingUncoveredGutterBackground = registerColor('testing.uncovered
 	hcDark: chartsRed,
 	hcLight: chartsRed
 }, localize('testing.uncoveredGutterBackground', 'Gutter color of regions where code not covered.'));
+
+export const testingCoverCountBadgeBackground = registerColor('testing.coverCountBadgeBackground', {
+	dark: badgeBackground,
+	light: badgeBackground,
+	hcDark: badgeBackground,
+	hcLight: badgeBackground
+}, localize('testing.coverCountBadgeBackground', 'Background for the badge indicating execution count'));
+
+export const testingCoverCountBadgeForeground = registerColor('testing.coverCountBadgeForeground', {
+	dark: badgeForeground,
+	light: badgeForeground,
+	hcDark: badgeForeground,
+	hcLight: badgeForeground
+}, localize('testing.coverCountBadgeForeground', 'Foreground for the badge indicating execution count'));
 
 export const testMessageSeverityColors: {
 	[K in TestMessageType]: {
