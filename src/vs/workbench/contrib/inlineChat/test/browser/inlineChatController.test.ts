@@ -437,40 +437,41 @@ suite('InteractiveChatController', function () {
 		});
 	});
 
+	test('escape doesn\'t remove code added from inline editor chat #3523 1/2', async function () {
 
-	test('escape doesn\'t remove code added from inline editor chat #3523', async function () {
 
-		{
-			// NO manual edits -> cancel
-			ctrl = instaService.createInstance(TestController, editor);
-			const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
-			const r = ctrl.run({ message: 'GENERATED', autoSend: true });
-			await p;
+		// NO manual edits -> cancel
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
+		await p;
 
-			assert.ok(model.getValue().includes('GENERATED'));
-			assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), undefined);
-			ctrl.cancelSession();
-			await r;
-			assert.ok(!model.getValue().includes('GENERATED'));
-		}
+		assert.ok(model.getValue().includes('GENERATED'));
+		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), undefined);
+		ctrl.cancelSession();
+		await r;
+		assert.ok(!model.getValue().includes('GENERATED'));
 
-		{
-			// manual edits -> finish
-			ctrl = instaService.createInstance(TestController, editor);
-			const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
-			const r = ctrl.run({ message: 'GENERATED', autoSend: true });
-			await p;
+	});
 
-			assert.ok(model.getValue().includes('GENERATED'));
+	test('escape doesn\'t remove code added from inline editor chat #3523, 2/2', async function () {
 
-			editor.executeEdits('test', [EditOperation.insert(model.getFullModelRange().getEndPosition(), 'MANUAL')]);
-			assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), true);
+		// manual edits -> finish
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
+		await p;
 
-			ctrl.finishExistingSession();
-			await r;
-			assert.ok(model.getValue().includes('GENERATED'));
-			assert.ok(model.getValue().includes('MANUAL'));
-		}
+		assert.ok(model.getValue().includes('GENERATED'));
+
+		editor.executeEdits('test', [EditOperation.insert(model.getFullModelRange().getEndPosition(), 'MANUAL')]);
+		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), true);
+
+		ctrl.finishExistingSession();
+		await r;
+		assert.ok(model.getValue().includes('GENERATED'));
+		assert.ok(model.getValue().includes('MANUAL'));
+
 	});
 
 });
