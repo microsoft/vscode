@@ -365,7 +365,6 @@ export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', {
 	hcLight: PANEL_ACTIVE_TITLE_FOREGROUND
 }, localize('panelDragAndDropBorder', "Drag and drop feedback color for the panel titles. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-
 export const PANEL_SECTION_DRAG_AND_DROP_BACKGROUND = registerColor('panelSection.dropBackground', {
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
@@ -684,6 +683,35 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcDark: Color.white,
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_FOREGROUND = registerColor('activityBarTop.foreground', {
+	dark: '#E7E7E7',
+	light: '#424242',
+	hcDark: Color.white,
+	hcLight: editorForeground
+}, localize('activityBarTop', "Active foreground color of the item in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_ACTIVE_BORDER = registerColor('activityBarTop.activeBorder', {
+	dark: ACTIVITY_BAR_TOP_FOREGROUND,
+	light: ACTIVITY_BAR_TOP_FOREGROUND,
+	hcDark: contrastBorder,
+	hcLight: '#B5200D'
+}, localize('activityBarTopActiveFocusBorder', "Focus border color for the active item in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND = registerColor('activityBarTop.inactiveForeground', {
+	dark: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.6),
+	light: transparent(ACTIVITY_BAR_TOP_FOREGROUND, 0.75),
+	hcDark: Color.white,
+	hcLight: editorForeground
+}, localize('activityBarTopInActiveForeground', "Inactive foreground color of the item in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER = registerColor('activityBarTop.dropBorder', {
+	dark: ACTIVITY_BAR_TOP_FOREGROUND,
+	light: ACTIVITY_BAR_TOP_FOREGROUND,
+	hcDark: ACTIVITY_BAR_TOP_FOREGROUND,
+	hcLight: ACTIVITY_BAR_TOP_FOREGROUND
+}, localize('activityBarTopDragAndDropBorder', "Drag and drop feedback color for the items in the Activity bar when it is on top. The activity allows to switch between views of the side bar."));
+
 
 // < --- Profiles --- >
 

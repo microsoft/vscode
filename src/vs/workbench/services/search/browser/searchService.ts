@@ -100,9 +100,16 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					return;
 				}
 
+				// force resource to revive using URI.revive.
+				// TODO @andrea see why we can't just use `revive()` below. For some reason, (<MarshalledObject>obj).$mid was undefined for result.resource
+				const reviveMatch = (result: IFileMatch<UriComponents>): IFileMatch => ({
+					resource: URI.revive(result.resource),
+					results: revive(result.results)
+				});
+
 				queryDisposables.add(this.onDidReceiveTextSearchMatch(e => {
 					if (e.queryId === queryId) {
-						onProgress?.(revive(e.match));
+						onProgress?.(reviveMatch(e.match));
 					}
 				}));
 

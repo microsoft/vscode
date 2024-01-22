@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export interface IChatVariableData {
@@ -42,12 +42,7 @@ export interface IChatVariablesService {
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
-}
-
-export interface IChatVariableResolveResult {
-	variables: Record<string, IChatRequestVariableValue[]>;
-	prompt: string;
+	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData>;
 }
 
 export interface IDynamicVariable {

@@ -17,7 +17,7 @@ import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } fr
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, IRegisteredConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditing, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -104,7 +104,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private readonly configurationRegistry: IConfigurationRegistry;
 
 	private instantiationService: IInstantiationService | undefined;
-	private configurationEditing: ConfigurationEditing | undefined;
+	private configurationEditing: Promise<ConfigurationEditing> | undefined;
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
@@ -1030,8 +1030,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 
 		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
-		this.configurationEditing = this.configurationEditing ?? this.instantiationService.createInstance(ConfigurationEditing, (await this.remoteAgentService.getEnvironment())?.settingsPath ?? null);
-		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, ...options });
+		this.configurationEditing = this.configurationEditing ?? this.createConfigurationEditingService(this.instantiationService);
+		await (await this.configurationEditing).writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, ...options });
 		switch (editableConfigurationTarget) {
 			case EditableConfigurationTarget.USER_LOCAL:
 				if (this.applicationConfiguration && this.isSettingAppliedForAllProfiles(key)) {
@@ -1051,6 +1051,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				}
 			}
 		}
+	}
+
+	private async createConfigurationEditingService(instantiationService: IInstantiationService): Promise<ConfigurationEditing> {
+		const remoteSettingsResource = (await this.remoteAgentService.getEnvironment())?.settingsPath ?? null;
+		return instantiationService.createInstance(ConfigurationEditing, remoteSettingsResource);
 	}
 
 	private getConfigurationModelForEditableConfigurationTarget(target: EditableConfigurationTarget, resource?: URI | null): ConfigurationModel | undefined {
@@ -1330,40 +1335,66 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 	) {
 		super();
 
-		const { user, workspace } = configurationService.keys();
-		for (const key of user) {
-			this.reportConfiguration(key, ConfigurationTarget.USER_LOCAL);
-		}
-		for (const key of workspace) {
-			this.reportConfiguration(key, ConfigurationTarget.WORKSPACE);
-		}
-	}
+		// Debounce the event by 1000 ms and merge all affected keys into one event
+		const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
+			const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
+			return { ...cur, affectedKeys: newAffectedKeys };
+		}, 1000, true);
 
-	private reportConfiguration(key: string, target: ConfigurationTarget): void {
-		type UpdateConfigurationClassification = {
-			owner: 'sandy081';
-			comment: 'Event which fires for updated configurations';
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
-			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration key was updated' };
-			value?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Value of the key that was updated' };
-		};
-		type UpdateConfigurationEvent = {
-			source: string;
-			key: string;
-			value?: any;
-		};
-		this.telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-			source: ConfigurationTargetToString(target),
-			key,
-			value: this.getValueToReport(key, target)
+		debouncedConfigService(event => {
+			if (event.source !== ConfigurationTarget.DEFAULT) {
+				type UpdateConfigurationClassification = {
+					owner: 'sandy081';
+					comment: 'Event which fires when user updates settings';
+					configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
+					configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
+				};
+				type UpdateConfigurationEvent = {
+					configurationSource: string;
+					configurationKeys: string[];
+				};
+				telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
+					configurationSource: ConfigurationTargetToString(event.source),
+					configurationKeys: Array.from(event.affectedKeys)
+				});
+			}
 		});
+
+		type UpdatedSettingClassification = {
+			owner: 'sandy081';
+			comment: 'Event reporting the updated setting';
+			setting: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'name of the setting' };
+			value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+		};
+		type UpdatedSettingEvent = {
+			setting: string;
+			value: string;
+			source: string;
+		};
+		const { user, workspace } = configurationService.keys();
+		const userSource = ConfigurationTargetToString(ConfigurationTarget.USER_LOCAL);
+		for (const setting of user) {
+			const schema = this.configurationRegistry.getConfigurationProperties()[setting];
+			if (schema?.tags?.includes('FeatureInsight')) {
+				const value = this.getValueToReport(setting, ConfigurationTarget.USER_LOCAL, schema);
+				this.telemetryService.publicLog2<UpdatedSettingEvent, UpdatedSettingClassification>('updatedsetting', { setting, value, source: userSource });
+			}
+		}
+		const worskpaceSource = ConfigurationTargetToString(ConfigurationTarget.WORKSPACE);
+		for (const setting of workspace) {
+			const schema = this.configurationRegistry.getConfigurationProperties()[setting];
+			if (schema?.tags?.includes('FeatureInsight')) {
+				const value = this.getValueToReport(setting, ConfigurationTarget.WORKSPACE, schema);
+				this.telemetryService.publicLog2<UpdatedSettingEvent, UpdatedSettingClassification>('updatedsetting', { setting, value, source: worskpaceSource });
+			}
+		}
 	}
 
-	private getValueToReport(key: string, target: ConfigurationTarget): any {
-		const schema = this.configurationRegistry.getConfigurationProperties()[key];
-		if (!schema) {
-			return undefined;
-		}
+	/**
+	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
+	 */
+	private getValueToReport(key: string, target: ConfigurationTarget, schema: IRegisteredConfigurationPropertySchema): any {
 		const configurationModel = this.configurationService.getConfigurationModel(target);
 		const value = configurationModel?.getValue(key);
 		if (isNumber(value) || isBoolean(value)) {

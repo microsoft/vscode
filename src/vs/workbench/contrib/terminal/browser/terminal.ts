@@ -789,8 +789,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 
 	/**
 	 * Registers and returns a marker
+	 * @param the y offset from the cursor
 	 */
-	registerMarker(): IMarker | undefined;
+	registerMarker(offset?: number): IMarker | undefined;
 
 	/**
 	 * Adds a marker to the buffer, mapping it to an ID if provided.

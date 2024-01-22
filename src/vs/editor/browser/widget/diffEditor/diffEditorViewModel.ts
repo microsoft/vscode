@@ -22,6 +22,7 @@ import { DiffEditorOptions } from './diffEditorOptions';
 import { optimizeSequenceDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
 import { isDefined } from 'vs/base/common/types';
 import { groupAdjacentBy } from 'vs/base/common/arrays';
+import { softAssert } from 'vs/base/common/assert';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>(this, false);
@@ -509,8 +510,14 @@ export class UnchangedRegion {
 		visibleLineCountTop: number,
 		visibleLineCountBottom: number,
 	) {
-		this._visibleLineCountTop.set(visibleLineCountTop, undefined);
-		this._visibleLineCountBottom.set(visibleLineCountBottom, undefined);
+		const visibleLineCountTop2 = Math.max(Math.min(visibleLineCountTop, this.lineCount), 0);
+		const visibleLineCountBottom2 = Math.max(Math.min(visibleLineCountBottom, this.lineCount - visibleLineCountTop), 0);
+
+		softAssert(visibleLineCountTop === visibleLineCountTop2);
+		softAssert(visibleLineCountBottom === visibleLineCountBottom2);
+
+		this._visibleLineCountTop.set(visibleLineCountTop2, undefined);
+		this._visibleLineCountBottom.set(visibleLineCountBottom2, undefined);
 	}
 
 	public setVisibleRanges(visibleRanges: LineRangeMapping[], tx: ITransaction): UnchangedRegion[] {

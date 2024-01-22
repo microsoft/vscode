@@ -10,6 +10,13 @@ ARCH=$(uname -m)
 found_required_glibc=0
 found_required_glibcxx=0
 
+# Extract the ID value from /etc/os-release
+OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed 's/ID=//')"
+if [ "$OS_ID" = "nixos" ]; then
+  echo "Warning: NixOS detected, skipping GLIBC check"
+  exit 0
+fi
+
 # Based on https://github.com/bminor/glibc/blob/520b1df08de68a3de328b65a25b86300a7ddf512/elf/cache.c#L162-L245
 case $ARCH in
 	x86_64) LDCONFIG_ARCH="x86-64";;
@@ -32,7 +39,7 @@ elif [ -f /usr/lib/libstdc++.so.6 ]; then
 	libstdcpp_path='/usr/lib/libstdc++.so.6'
 elif [ -f /sbin/ldconfig ]; then
     # Look up path
-    libstdcpp_paths=$(ldconfig -p | grep 'libstdc++.so.6')
+    libstdcpp_paths=$(/sbin/ldconfig -p | grep 'libstdc++.so.6')
 
     if [ "$(echo "$libstdcpp_paths" | wc -l)" -gt 1 ]; then
         libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
@@ -66,7 +73,7 @@ if [ -n "$(ldd --version | grep -v musl)" ]; then
         libc_path='/usr/lib/libc.so.6'
     elif [ -f /sbin/ldconfig ]; then
         # Look up path
-        libc_paths=$(ldconfig -p | grep 'libc.so.6')
+        libc_paths=$(/sbin/ldconfig -p | grep 'libc.so.6')
 
         if [ "$(echo "$libc_paths" | wc -l)" -gt 1 ]; then
             libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
@@ -81,13 +88,7 @@ if [ -n "$(ldd --version | grep -v musl)" ]; then
 		# Rather than trusting the output of ldd --version (which is not always accurate)
 		# we instead use the version of the cached libc.so.6 file itself.
         libc_real_path=$(readlink -f "$libc_path")
-        if [ -x "$libc_real_path" ]; then
-            # get version from executable
-            libc_version=$($libc_real_path --version | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
-        else
-            # .so is not executable on this host; try getting from strings
-            libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
-        fi
+        libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
         if [ "$(printf '%s\n' "2.28" "$libc_version" | sort -V | head -n1)" = "2.28" ]; then
             found_required_glibc=1
         else
