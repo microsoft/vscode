@@ -656,7 +656,8 @@ class Extensions extends Disposable {
 	private async onDidUpdateExtensionMetadata(local: ILocalExtension): Promise<void> {
 		const extension = this.installed.find(e => areSameExtensions(e.identifier, local.identifier));
 		if (extension?.local) {
-			const hasChanged = extension.local.pinned !== local.pinned;
+			const hasChanged = extension.local.pinned !== local.pinned
+				|| extension.local.preRelease !== local.preRelease;
 			extension.local = local;
 			if (hasChanged) {
 				this._onChange.fire({ extension });

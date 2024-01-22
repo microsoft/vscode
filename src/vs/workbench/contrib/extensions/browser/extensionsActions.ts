@@ -1272,7 +1272,7 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 	static readonly ID = 'workbench.extensions.action.togglePreRlease';
 	static readonly LABEL = localize('togglePreRleaseLabel', "Pre-Release");
 
-	private static readonly EnabledClass = `${ExtensionAction.EXTENSION_ACTION_CLASS} pre-release`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} pre-release`;
 	private static readonly DisabledClass = `${TogglePreReleaseExtensionAction.EnabledClass} hide`;
 
 	constructor(
@@ -1302,7 +1302,11 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 		}
 		this.enabled = true;
 		this.class = TogglePreReleaseExtensionAction.EnabledClass;
-		this.checked = this.extension.preRelease;
+		this.label = this.extension.preRelease ? localize('togglePreRleaseDisableLabel', "Disable Pre-Release Updates") : localize('togglePreRleaseEnableLabel', "Enable Pre-Release Updates");
+		this.tooltip = this.extension.preRelease ?
+			this.extension.isPreReleaseVersion ? localize('togglePreRleaseDisableTooltip1', "This will switch to release version and stop updating to pre-release versions")
+				: localize('togglePreRleaseDisableTooltip2', "This will stop updating to pre-release versions")
+			: localize('togglePreRleaseEnableTooltip', "This will switch to pre-release version and enable updates to pre-release versions");
 	}
 
 	override async run(): Promise<any> {
