@@ -1166,7 +1166,16 @@ class ContentReferencesListPool extends Disposable {
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
-					getAriaLabel: (element: IChatResponseProgressFileTreeData) => basename(element.uri.path),
+					getAriaLabel: (element: IChatContentReference) => {
+						if (URI.isUri(element.reference)) {
+							console.log(basename(element.reference.path));
+							return basename(element.reference.path);
+						} else {
+							console.log(basename((element.reference.uri.path)));
+							return basename(element.reference.uri.path);
+						}
+					},
+
 					getWidgetAriaLabel: () => localize('usedReferences', "Used References")
 				},
 			});
