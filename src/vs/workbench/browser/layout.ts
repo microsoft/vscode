@@ -1246,7 +1246,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		if (!this.isTitleBarEmpty(nativeTitleBarEnabled)) {
+		if (!this.isTitleBarEmpty()) {
 			return true;
 		}
 
@@ -1286,7 +1286,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private isTitleBarEmpty(nativeTitleBarEnabled: boolean): boolean {
+	private isTitleBarEmpty(): boolean {
 		// with the command center enabled, we should always show
 		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
 			return false;

@@ -12,8 +12,8 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IAction } from 'vs/base/common/actions';
-import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarVisibleContext } from 'vs/workbench/common/contextkeys';
-import { CustomTitleBarVisibility, TitleBarSetting } from 'vs/platform/window/common/window';
+import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarStyleContext, TitleBarVisibleContext } from 'vs/workbench/common/contextkeys';
+import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
 
 // --- Context Menu Actions --- //
 
@@ -67,8 +67,8 @@ registerAction2(class ToggleCustomTitleBar extends Action2 {
 			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}`,
 			title: localize('toggle.hideCustomTitleBar', 'Hide Custom Title Bar'),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.or(ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native'), ContextKeyExpr.equals(`config.window.nativeTabs`, ContextKeyExpr.true())), group: '3_toggle' },
-				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.or(ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native'), ContextKeyExpr.equals(`config.window.nativeTabs`, ContextKeyExpr.true())), group: '3_toggle' },
+				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), group: '3_toggle' },
+				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), group: '3_toggle' },
 			]
 		});
 	}
@@ -106,7 +106,7 @@ class ToggleCustomTitleBar extends Action2 {
 			title: localize('toggle.customTitleBar', 'Custom Title Bar'),
 			toggled: TitleBarVisibleContext,
 			menu: [
-				{ id: MenuId.MenubarAppearanceMenu, order: 6, when: ContextKeyExpr.or(ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, 'native'), IsMainWindowFullscreenContext), group: '2_workbench_layout' },
+				{ id: MenuId.MenubarAppearanceMenu, order: 6, when: ContextKeyExpr.or(ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext), group: '2_workbench_layout' },
 			]
 		});
 	}
