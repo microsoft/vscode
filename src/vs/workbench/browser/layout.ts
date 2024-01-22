@@ -354,6 +354,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				TitleBarSetting.TITLE_BAR_STYLE,
 				TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
 			].some(setting => e.affectsConfiguration(setting))) {
+				// Show Custom TitleBar if actions moved to the titlebar
+				const activityBarMovedToTop = e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) && this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+				const editorActionsMovedToTitlebar = e.affectsConfiguration(LayoutSettings.EDITOR_ACTIONS_LOCATION) && this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION) === EditorActionsLocation.TITLEBAR;
+				if (activityBarMovedToTop || editorActionsMovedToTitlebar) {
+					if (this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.NEVER) {
+						this.configurationService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
+					}
+				}
+
 				this.doUpdateLayoutConfiguration();
 			}
 		}));
@@ -1295,8 +1304,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		// Layout don't show with native title bar
-		if (!nativeTitleBarEnabled && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
+		// with the layout actions on top, we should always show
+		if (this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
 			return false;
 		}
 
@@ -1742,7 +1751,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private canActivityBarBeHidden(): boolean {
-		return !(this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP && !this.isVisible(Parts.TITLEBAR_PART, mainWindow));
+		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
 	private setBannerHidden(hidden: boolean): void {
