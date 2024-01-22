@@ -73,10 +73,10 @@ import {
 	SetLanguageAction,
 	SetProductIconThemeAction,
 	ToggleAutoUpdateForExtensionAction,
-	SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction,
 	UninstallAction,
 	UpdateAction,
-	WebInstallAction
+	WebInstallAction,
+	TogglePreReleaseExtensionAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { errorIcon, infoIcon, preReleaseIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
@@ -218,16 +218,7 @@ class PreReleaseTextWidget extends ExtensionWithDifferentGalleryVersionWidget {
 		this.render();
 	}
 	render(): void {
-		this.element.style.display = this.isPreReleaseVersion() ? 'inherit' : 'none';
-	}
-	private isPreReleaseVersion(): boolean {
-		if (!this.extension) {
-			return false;
-		}
-		if (this.gallery) {
-			return this.gallery.properties.isPreReleaseVersion;
-		}
-		return !!(this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion);
+		this.element.style.display = this.extension?.isPreReleaseVersion ? 'inherit' : 'none';
 	}
 }
 
@@ -365,8 +356,7 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction),
 				]
 			]),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
+			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, [false, 'onlySelectedExtensions']),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -382,6 +372,9 @@ export class ExtensionEditor extends EditorPane {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				if (action instanceof ToggleAutoUpdateForExtensionAction) {
+					return new CheckboxActionViewItem(undefined, action, { icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
+				}
+				if (action instanceof TogglePreReleaseExtensionAction) {
 					return new CheckboxActionViewItem(undefined, action, { icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
 				}
 				return undefined;

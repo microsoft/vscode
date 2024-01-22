@@ -237,6 +237,7 @@ export type Metadata = Partial<IGalleryMetadata & {
 	isSystem: boolean;
 	updated: boolean;
 	preRelease: boolean;
+	hasPreReleaseVersion: boolean;
 	installedTimestamp: number;
 	pinned: boolean;
 }>;
@@ -248,6 +249,7 @@ export interface ILocalExtension extends IExtension {
 	publisherDisplayName: string | null;
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
+	hasPreReleaseVersion: boolean;
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
@@ -446,14 +448,15 @@ export type InstallOptions = {
 	pinned?: boolean;
 	donotIncludePackAndDependencies?: boolean;
 	installGivenVersion?: boolean;
+	preRelease?: boolean;
 	installPreReleaseVersion?: boolean;
 	donotVerifySignature?: boolean;
 	operation?: InstallOperation;
+	profileLocation?: URI;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
 	context?: IStringDictionary<any>;
-	profileLocation?: URI;
 };
 export type InstallVSIXOptions = InstallOptions & { installOnlyNewlyAddedFromExtensionPack?: boolean };
 export type UninstallOptions = { readonly donotIncludePack?: boolean; readonly donotCheckDependents?: boolean; readonly versionOnly?: boolean; readonly remove?: boolean; readonly profileLocation?: URI };
