@@ -1064,6 +1064,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
 			type: 'boolean',
 			default: false
+		},
+		[NotebookSetting.notebookVariableView]: {
+			markdownDescription: nls.localize('notebook.notebookVariableView.description', "Enable the experimental notebook variable view within the debug panel."),
+			type: 'boolean',
+			default: false
 		}
 	}
 });
