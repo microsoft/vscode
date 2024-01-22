@@ -1,0 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .ghost-text-remove {
+	background-color: var(--vscode-editorGhostText-background);
+	font-style: italic;
+	text-decoration: line-through;
+	text-decoration-skip: leading-spaces trailing-spaces;
+}
