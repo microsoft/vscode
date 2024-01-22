@@ -192,7 +192,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
-	async acceptInput(userQuery?: string, inputState?: any): Promise<void> {
+	acceptInput(userQuery?: string, inputState?: any): void {
 		if (userQuery) {
 			this.history.add({ text: userQuery, state: inputState });
 		}

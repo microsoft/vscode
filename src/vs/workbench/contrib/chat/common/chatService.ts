@@ -283,7 +283,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>;
+	onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand; sessionId: string }>;
 	onDidRegisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	hasSessions(providerId: string): boolean;
@@ -295,9 +295,14 @@ export interface IChatService {
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
 
 	/**
+	 * This has a short lifespan- shouldn't be needed once the interactive session provider is completely gone.
+	 */
+	waitForModelInitialization(sessionId: string): Promise<void>;
+
+	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: string, message: string): { responseCompletePromise: Promise<void> } | undefined;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;

@@ -42,8 +42,8 @@ const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
 const variableTextDecorationType = 'chat-variable-text';
 
-function agentAndCommandToKey(agent: string, subcommand: string): string {
-	return `${agent}__${subcommand}`;
+function agentAndCommandToKey(agent: string, subcommand: string | undefined): string {
+	return subcommand ? `${agent}__${subcommand}` : agent;
 }
 
 class InputEditorDecorations extends Disposable {
@@ -78,7 +78,7 @@ class InputEditorDecorations extends Disposable {
 		}));
 		this._register(this.chatService.onDidSubmitAgent((e) => {
 			if (e.sessionId === this.widget.viewModel?.sessionId) {
-				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand.name));
+				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand?.name));
 			}
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
@@ -172,20 +172,24 @@ class InputEditorDecorations extends Disposable {
 			return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
 		};
 
+		const getRangeForPlaceholder = (part: IParsedChatRequestPart) => ({
+			startLineNumber: part.editorRange.startLineNumber,
+			endLineNumber: part.editorRange.endLineNumber,
+			startColumn: part.editorRange.endColumn + 1,
+			endColumn: 1000
+		});
+
 		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
 		if (onlyAgentAndWhitespace) {
 			// Agent reference with no other text - show the placeholder
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent.id, undefined));
+			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentPart.agent.metadata.followupPlaceholder;
 			if (agentPart.agent.metadata.description && exactlyOneSpaceAfterPart(agentPart)) {
 				placeholderDecoration = [{
-					range: {
-						startLineNumber: agentPart.editorRange.startLineNumber,
-						endLineNumber: agentPart.editorRange.endLineNumber,
-						startColumn: agentPart.editorRange.endColumn + 1,
-						endColumn: 1000
-					},
+					range: getRangeForPlaceholder(agentPart),
 					renderOptions: {
 						after: {
-							contentText: agentPart.agent.metadata.description,
+							contentText: shouldRenderFollowupPlaceholder ? agentPart.agent.metadata.followupPlaceholder : agentPart.agent.metadata.description,
 							color: this.getPlaceholderColor(),
 						}
 					}
@@ -200,36 +204,10 @@ class InputEditorDecorations extends Disposable {
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
 			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
 				placeholderDecoration = [{
-					range: {
-						startLineNumber: agentSubcommandPart.editorRange.startLineNumber,
-						endLineNumber: agentSubcommandPart.editorRange.endLineNumber,
-						startColumn: agentSubcommandPart.editorRange.endColumn + 1,
-						endColumn: 1000
-					},
+					range: getRangeForPlaceholder(agentSubcommandPart),
 					renderOptions: {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? agentSubcommandPart.command.followupPlaceholder : agentSubcommandPart.command.description,
-							color: this.getPlaceholderColor(),
-						}
-					}
-				}];
-			}
-		}
-
-		const onlySlashCommandAndWhitespace = slashCommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashCommandPart);
-		if (onlySlashCommandAndWhitespace) {
-			// Command reference with no other text - show the placeholder
-			if (slashCommandPart.slashCommand.detail && exactlyOneSpaceAfterPart(slashCommandPart)) {
-				placeholderDecoration = [{
-					range: {
-						startLineNumber: slashCommandPart.editorRange.startLineNumber,
-						endLineNumber: slashCommandPart.editorRange.endLineNumber,
-						startColumn: slashCommandPart.editorRange.endColumn + 1,
-						endColumn: 1000
-					},
-					renderOptions: {
-						after: {
-							contentText: slashCommandPart.slashCommand.detail,
 							color: this.getPlaceholderColor(),
 						}
 					}
@@ -280,9 +258,19 @@ class InputEditorSlashCommandMode extends Disposable {
 		}));
 	}
 
-	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand) {
-		if (slashCommand.shouldRepopulate) {
-			const value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
+	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
+		let value: string | undefined;
+		if (slashCommand) {
+			if (slashCommand.shouldRepopulate) {
+				value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
+			}
+		} else {
+			if (agent.metadata.shouldRepopulate) {
+				value = `${chatAgentLeader}${agent.id} `;
+			}
+		}
+
+		if (value) {
 			this.widget.inputEditor.setValue(value);
 			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 		}

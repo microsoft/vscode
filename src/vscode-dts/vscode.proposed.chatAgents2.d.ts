@@ -103,19 +103,20 @@ declare module 'vscode' {
 		readonly sampleRequest?: string;
 
 		/**
-		 * Whether executing the command puts the
-		 * chat into a persistent mode, where the
-		 * subCommand is prepended to the chat input.
+		 * Whether executing the subCommand puts the chat into a persistent mode, where the
+		 * subCommand is automatically prepended to the chat input for the next message.
 		 */
-		readonly shouldRepopulate?: boolean;
+		readonly repopulate?: {
+			/**
+			 * Indicates that the subCommand should be automatically repopulated.
+			 */
+			shouldRepopulate: true;
 
-		/**
-		 * Placeholder text to render in the chat input
-		 * when the subCommand has been repopulated.
-		 * Has no effect if `shouldRepopulate` is `false`.
-		 */
-		// TODO@API merge this with shouldRepopulate? so that invalid state cannot be represented?
-		readonly followupPlaceholder?: string;
+			/**
+			 * This can be set to a string to use a different placeholder message in the input box when the subCommand has been repopulated.
+			 */
+			repopulatePlaceholder?: string;
+		};
 	}
 
 	export interface ChatAgentSubCommandProvider {
@@ -221,6 +222,22 @@ declare module 'vscode' {
 		 * When the user clicks this agent in `/help`, this text will be submitted to this subCommand
 		 */
 		sampleRequest?: string;
+
+		/**
+		 * Whether executing the agent puts the chat into a persistent mode, where the
+		 * agent is automatically prepended to the chat input for the next message.
+		 */
+		repopulate?: {
+			/**
+			 * Indicates that the subCommand should be automatically repopulated.
+			 */
+			shouldRepopulate: true;
+
+			/**
+			 * This can be set to a string to use a different placeholder message in the input box when the subCommand has been repopulated.
+			 */
+			repopulatePlaceholder?: string;
+		};
 
 		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
