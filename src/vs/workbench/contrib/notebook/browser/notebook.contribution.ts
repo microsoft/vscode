@@ -872,10 +872,21 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.stickyScroll]: {
-			description: nls.localize('notebook.stickyScroll.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
+		[NotebookSetting.stickyScrollEnabled]: {
+			description: nls.localize('notebook.stickyScrollEnabled.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
 			type: 'boolean',
 			default: false,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.stickyScrollMode]: {
+			description: nls.localize('notebook.stickyScrollMode.description', "Control whether nested sticky lines appear to stack flat or indented."),
+			type: 'string',
+			enum: ['flat', 'indented'],
+			enumDescriptions: [
+				nls.localize('notebook.stickyScrollMode.flat', "Nested sticky lines appear flat."),
+				nls.localize('notebook.stickyScrollMode.indented', "Nested sticky lines appear indented."),
+			],
+			default: 'flat',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.consolidatedOutputButton]: {

@@ -25,6 +25,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -188,13 +189,13 @@ export class NotebookStickyScroll extends Disposable {
 	) {
 		super();
 
-		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScroll) {
+		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
 			this.init();
 		}
 
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
-			if (e.stickyScroll) {
-				this.updateConfig();
+			if (e.stickyScrollEnabled || e.stickyScrollMode) {
+				this.updateConfig(e);
 			}
 		}));
 
@@ -211,20 +212,26 @@ export class NotebookStickyScroll extends Disposable {
 		});
 	}
 
-	private updateConfig() {
-		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScroll) {
-			this.init();
-		} else {
-			this._disposables.clear();
-			this.disposeCurrentStickyLines();
-			DOM.clearNode(this.domNode);
-			this.updateDisplay();
+	private updateConfig(e: NotebookOptionsChangeEvent) {
+		if (e.stickyScrollEnabled) {
+			if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
+				this.init();
+			} else {
+				this._disposables.clear();
+				this.notebookOutline.dispose();
+				this.disposeCurrentStickyLines();
+				DOM.clearNode(this.domNode);
+				this.updateDisplay();
+			}
+		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
 		}
 	}
 
 	private init() {
 		this.notebookOutline.init();
 		this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
+		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
 
 		this._disposables.add(this.notebookOutline.onDidChange(() => {
 			this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
@@ -358,7 +365,11 @@ export class NotebookStickyScroll extends Disposable {
 	static createStickyElement(entry: OutlineEntry, notebookEditor: INotebookEditor) {
 		const stickyElement = document.createElement('div');
 		stickyElement.classList.add('notebook-sticky-scroll-element');
-		stickyElement.style.paddingLeft = NotebookStickyLine.getParentCount(entry) * 10 + 'px';
+
+		const indentMode = notebookEditor.notebookOptions.getLayoutConfiguration().stickyScrollMode;
+		if (indentMode === 'indented') {
+			stickyElement.style.paddingLeft = NotebookStickyLine.getParentCount(entry) * 10 + 'px';
+		}
 
 		let isCollapsed = false;
 		if (entry.cell.cellKind === CellKind.Markup) {
@@ -386,6 +397,7 @@ export class NotebookStickyScroll extends Disposable {
 	override dispose() {
 		this._disposables.dispose();
 		this.disposeCurrentStickyLines();
+		this.notebookOutline.dispose();
 		super.dispose();
 	}
 }
