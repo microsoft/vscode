@@ -1087,7 +1087,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['installedExtensionIsPreReleaseVersion', !!extension.local?.isPreReleaseVersion]);
 			cksOverlay.push(['installedExtensionIsOptedToPreRelease', !!extension.local?.preRelease]);
 			cksOverlay.push(['galleryExtensionIsPreReleaseVersion', !!extension.gallery?.properties.isPreReleaseVersion]);
-			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
+			cksOverlay.push(['galleryExtensionHasPreReleaseVersion', extension.gallery?.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
 
 			const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes()]);
@@ -1300,12 +1300,22 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 		if (!this.extension.gallery) {
 			return;
 		}
+		if (this.extension.preRelease && !this.extension.isPreReleaseVersion) {
+			return;
+		}
+		if (!this.extension.preRelease && !this.extension.gallery.hasPreReleaseVersion) {
+			return;
+		}
 		this.enabled = true;
 		this.class = TogglePreReleaseExtensionAction.EnabledClass;
-		this.label = this.extension.preRelease ? localize('togglePreRleaseDisableLabel', "Switch to Release Version") : localize('togglePreRleaseEnableLabel', "Switch to Pre-Release Version");
-		this.tooltip = this.extension.preRelease
-			? localize('togglePreRleaseDisableTooltip1', "This will switch and enable updates to release versions")
-			: localize('togglePreRleaseEnableTooltip', "This will switch to pre-release version and enable updates to latest version always");
+
+		if (this.extension.preRelease) {
+			this.label = localize('togglePreRleaseDisableLabel', "Switch to Release Version");
+			this.tooltip = localize('togglePreRleaseDisableTooltip', "This will switch and enable updates to release versions");
+		} else {
+			this.label = localize('switchToPreReleaseLabel', "Switch to Pre-Release Version");
+			this.tooltip = localize('switchToPreReleaseTooltip', "This will switch to pre-release version and enable updates to latest version always");
+		}
 	}
 
 	override async run(): Promise<any> {
