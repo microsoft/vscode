@@ -309,6 +309,21 @@ export interface IMenu {
 	readonly group?: string;
 }
 
+export interface ISubMenu {
+	/**
+	 * Identifier of the submenu to display in this item.
+	 */
+	readonly submenu: string;
+	/**
+	 * Condition which must be true to show this item
+	 */
+	readonly when?: string;
+	/**
+	 * Group into which this item belongs
+	 */
+	readonly group?: string;
+}
+
 export interface ISnippet {
 	/**
 	 * Language identifier for which this snippet is contributed to.
@@ -700,6 +715,378 @@ export interface ILocalizationContribution {
 	readonly minimalTranslations?: { [key: string]: string };
 }
 
+export interface ITerminal {
+	readonly profiles?: {
+		readonly id: string;
+		readonly title: string;
+		readonly icon?: (string | {
+			/**
+			 * Icon path when a light theme is used
+			 */
+			readonly light?: string;
+			/**
+			 * Icon path when a dark theme is used
+			 */
+			readonly dark?: string;
+			[k: string]: unknown;
+		});
+	}[];
+}
+
+export interface IStatusBarItem {
+	readonly id: string;
+	/**
+	 * The name of the entry, like 'Python Language Indicator', 'Git Status' etc. Try to keep the length of the name short, yet descriptive enough that users can understand what the status bar item is about.
+	 */
+	readonly name: string;
+	/**
+	 * The text to show for the entry. You can embed icons in the text by leveraging the `$(<name>)`-syntax, like 'Hello $(globe)!'
+	 */
+	readonly text: string;
+	/**
+	 * The tooltip text for the entry.
+	 */
+	readonly tooltip?: string;
+	/**
+	 * The command to execute when the status bar entry is clicked.
+	 */
+	readonly command?: string;
+	/**
+	 * The alignment of the status bar entry.
+	 */
+	readonly alignment: 'left' | 'right';
+	/**
+	 * The priority of the status bar entry. Higher value means the item should be shown more to the left.
+	 */
+	readonly priority?: number;
+	/**
+	 * Defines the role and aria label to be used when the status bar entry is focused.
+	 */
+	readonly accessibilityInformation?: {
+		/**
+		 * The role of the status bar entry which defines how a screen reader interacts with it. More about aria roles can be found here https://w3c.github.io/aria/#widget_roles
+		 */
+		readonly role?: string;
+		/**
+		 * The aria label of the status bar entry. Defaults to the entry's text.
+		 */
+		readonly label?: string;
+	};
+}
+
+export interface IRemoteHelp {
+	/**
+	 * The url, or a command that returns the url, to your project's Getting Started page, or a walkthrough ID contributed by your project's extension
+	 */
+	readonly getStarted?: string | {
+		/**
+		 * The ID of a Get Started walkthrough to open.
+		 */
+		id: string;
+	};
+	/**
+	 * The url, or a command that returns the url, to your project's documentation page
+	 */
+	readonly documentation?: string;
+	/**
+	 * The url, or a command that returns the url, to your project's feedback reporter
+	 */
+	readonly feedback?: string;
+	/**
+	 * The url, or a command that returns the url, to your project's issue reporter
+	 */
+	readonly reportIssue?: string;
+	/**
+	 * The url, or a command that returns the url, to your project's issues list
+	 */
+	readonly issues?: string;
+}
+
+export interface ITaskDefinitions {
+	/**
+	 * The actual task type. Please note that types starting with a '$' are reserved for internal usage.
+	 */
+	readonly type?: string;
+	readonly required?: string[];
+	/**
+	 * Additional properties of the task type
+	 */
+	readonly properties?: {
+		[k: string]: IJSONSchema;
+	};
+	readonly when?: string;
+}
+
+export interface IIcon {
+	/**
+	 * The description of the themable icon
+	 */
+	readonly description: string;
+	/**
+	 * The default of the icon. Either a reference to an extisting ThemeIcon or an icon in an icon font.
+	 */
+	readonly default: string | {
+		/**
+		 * The path of the icon font that defines the icon.
+		 */
+		readonly fontPath: string;
+		/**
+		 * The character for the icon in the icon font.
+		 */
+		readonly fontCharacter: string;
+	};
+}
+
+export interface IDocumentationRefactoring {
+	/**
+	 * Label for the documentation used in the UI.
+	 */
+	readonly title: string;
+	/**
+	 * When clause.
+	 */
+	readonly when: string;
+	/**
+	 * Command executed.
+	 */
+	readonly command: string;
+}
+
+export interface IDocumentation {
+	/**
+	 * Contributed documentation for refactorings.
+	 */
+	readonly refactoring?: IDocumentationRefactoring[];
+}
+
+export interface ISubMenu {
+	/**
+	 * Identifier of the menu to display as a submenu.
+	 */
+	readonly id: string;
+	/**
+	 * The label of the menu item which leads to this submenu.
+	 */
+	readonly label: string;
+	/**
+	 * (Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\$(zap)`
+	 */
+	readonly icon?:
+	| string
+	| {
+		/**
+		 * Icon path when a light theme is used
+		 */
+		readonly light?: string;
+		/**
+		 * Icon path when a dark theme is used
+		 */
+		readonly dark?: string;
+	};
+}
+
+interface IResourceLabelFormatters {
+	/**
+	 * URI scheme on which to match the formatter on. For example "file". Simple glob patterns are supported.
+	 */
+	readonly scheme: string;
+	/**
+	 * URI authority on which to match the formatter on. Simple glob patterns are supported.
+	 */
+	readonly authority?: string;
+	/**
+	 * Rules for formatting uri resource labels.
+	 */
+	readonly formatting: {
+		/**
+		 * Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme}, ${authority} and ${authoritySuffix} are supported as variables.
+		 */
+		readonly label?: string;
+		/**
+		 * Separator to be used in the uri label display. '/' or '' as an example.
+		 */
+		readonly separator?: string;
+		/**
+		 * Controls whether `${path}` substitutions should have starting separator characters stripped.
+		 */
+		readonly stripPathStartingSeparator?: boolean;
+		/**
+		 * Controls if the start of the uri label should be tildified when possible.
+		 */
+		readonly tildify?: boolean;
+		/**
+		 * Suffix appended to the workspace label.
+		 */
+		readonly workspaceSuffix?: string;
+	};
+}
+
+export interface ISemanticTokenTypes {
+	/**
+	 * The identifier of the semantic token type
+	 */
+	readonly id?: string;
+	/**
+	 * The super type of the semantic token type
+	 */
+	readonly superType?: string;
+	/**
+	 * The description of the semantic token type
+	 */
+	readonly description?: string;
+}
+
+export interface ISemanticTokenModifiers {
+	/**
+	 * The identifier of the semantic token modifier
+	 */
+	readonly id?: string;
+	/**
+	 * The description of the semantic token modifier
+	 */
+	readonly description?: string;
+}
+
+export interface ISemanticTokenScopes {
+	/**
+	 * Lists the languge for which the defaults are.
+	 */
+	readonly language?: string;
+	/**
+	 * Maps a semantic token (described by semantic token selector) to one or more textMate scopes used to represent that token.
+	 */
+	readonly scopes?: {
+		[k: string]: string[];
+	};
+}
+
+export interface IBreakpoint {
+	/**
+	 * Allow breakpoints for this language.
+	 */
+	readonly language?: string;
+	/**
+	 * Condition which must be true to enable breakpoints in this language. Consider matching this to the debugger when clause as appropriate.
+	 */
+	readonly when?: string;
+}
+
+export interface ITerminalQuickFix {
+	/**
+	 * The ID of the quick fix provider
+	 */
+	readonly id: string;
+	/**
+	 * A regular expression or string to test the command line against
+	 */
+	readonly commandLineMatcher: string;
+	readonly outputMatcher: {
+		/**
+		 * A regular expression or string to test the command line against
+		 */
+		readonly lineMatcher: string;
+		/**
+		 * Where the search should begin in the buffer
+		 */
+		readonly anchor: 'top' | 'bottom';
+		/**
+		 * The number of lines vertically from the anchor in the buffer to start matching against
+		 */
+		readonly offset: number;
+		/**
+		 * The number of rows to match against, this should be as small as possible for performance reasons
+		 */
+		readonly length: number;
+	};
+	/**
+	 * The command exit result to match on
+	 */
+	readonly commandExitResult: 'success' | 'error';
+	/**
+	 * The kind of the resulting quick fix. This changes how the quick fix is presented. Defaults to `"fix"`.
+	 */
+	readonly kind?: 'default' | 'explain';
+}
+
+export interface IInteractiveSession {
+	/**
+	 * Unique identifier for this Interactive Session provider.
+	 */
+	readonly id: string;
+	/**
+	 * Display name for this Interactive Session provider.
+	 */
+	readonly label: string;
+	/**
+	 * An icon for this Interactive Session provider.
+	 */
+	readonly icon?: string;
+	/**
+	 * A condition which must be true to enable this Interactive Session provider.
+	 */
+	readonly when?: string;
+}
+
+export interface INotebook {
+	/**
+	 * Type of the notebook.
+	 */
+	readonly type: string;
+	/**
+	 * Human readable name of the notebook.
+	 */
+	readonly displayName: string;
+	/**
+	 * Set of globs that the notebook is for.
+	 */
+	readonly selector: {
+		/**
+		 * Glob that the notebook is enabled for.
+		 */
+		readonly filenamePattern?: string;
+		/**
+		 * Glob that the notebook is disabled for.
+		 */
+		readonly excludeFileNamePattern?: string;
+	}[];
+	readonly priority?: 'default' | 'option';
+}
+
+export interface NotebookPreload {
+	/**
+	 * Type of the notebook.
+	 */
+	readonly type: string;
+	/**
+	 * Path to file loaded in the webview.
+	 */
+	readonly entrypoint: string;
+	/**
+	 * Paths to additional resources that should be allowed in the webview.
+	 */
+	readonly localResourceRoots?: string[];
+}
+
+export interface IViewsWelcome {
+	readonly view: string;
+	/**
+	 * Welcome content to be displayed. The format of the contents is a subset of Markdown, with support for links only.
+	 */
+	readonly contents: string;
+	/**
+	 * Condition when the welcome content should be displayed.
+	 */
+	readonly when?: string;
+	/**
+	 * Group to which this welcome content belongs. Proposed API.
+	 */
+	readonly group?: string;
+	/**
+	 * Condition when the welcome content buttons and command links should be enabled.
+	 */
+	readonly enablement?: string;
+}
+
 export interface IExtensionContributions {
 	/**
 	 * Contributes commands to the command palette.
@@ -713,6 +1100,10 @@ export interface IExtensionContributions {
 	 * Contributes debug adapters.
 	 */
 	readonly debuggers?: IDebugger[];
+	/**
+	 * Contributes breakpoints.
+	 */
+	readonly breakpoints?: IBreakpoint[];
 	/**
 	 * Contributes textmate tokenizers.
 	 */
@@ -733,6 +1124,10 @@ export interface IExtensionContributions {
 	 * Contributes menu items to the editor
 	 */
 	readonly menus?: { [context: string]: IMenu[] };
+	/**
+	 * Contributes submenu items to the editor
+	 */
+	readonly submenus?: ISubMenu[];
 	/**
 	 * Contributes snippets.
 	 */
@@ -788,6 +1183,63 @@ export interface IExtensionContributions {
 	 */
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
+	/**
+	 * Contributes notebook preloads.
+	 */
+	readonly notebookPreload?: NotebookPreload[];
+	/**
+	 * Contributes items to the status bar.
+	 */
+	readonly statusBarItems?: IStatusBarItem[];
+	/**
+	 * Contributes help information for Remote
+	 */
+	readonly remoteHelp?: IRemoteHelp;
+	/**
+	 * Contributes task kinds
+	 */
+	readonly taskDefinitions?: ITaskDefinitions[];
+	/**
+	 * Contributes terminal functionality.
+	 */
+	readonly terminal?: ITerminal;
+	/**
+	 * Contributes extension defined themable icons
+	 */
+	readonly icons?: { [id: string]: IIcon };
+	/**
+	 * Contributed documentation.
+	 */
+	readonly documentation?: IDocumentation;
+	/**
+	 * Contributes resource label formatting rules.
+	 */
+	readonly resourceLabelFormatters?: IResourceLabelFormatters[];
+	readonly configurationDefaults?: { [id: string]: any };
+	/**
+	 * Contributes semantic token types.
+	 */
+	readonly semanticTokenTypes?: ISemanticTokenTypes[];
+	/**
+	 * Contributes semantic token modifiers.
+	 */
+	readonly semanticTokenModifiers?: ISemanticTokenModifiers[];
+	/**
+	 * Contributes semantic token scope maps.
+	 */
+	readonly semanticTokenScopes?: ISemanticTokenScopes[];
+	/**
+	 * Contributes terminal quick fixes.
+	 */
+	readonly terminalQuickFixes?: ITerminalQuickFix[];
+	/**
+	 * Contributes an Interactive Session provider
+	 */
+	readonly interactiveSession?: IInteractiveSession[];
+	/**
+	 * Contributed views welcome content. Welcome content will be rendered in tree based views whenever they have no meaningful content to display, ie. the File Explorer when no folder is open. Such content is useful as in-product documentation to drive users to use certain features before they are available. A good example would be a `Clone Repository` button in the File Explorer welcome view.
+	 */
+	readonly viewsWelcome?: IViewsWelcome[];
 }
 
 export interface IExtensionCapabilities {
