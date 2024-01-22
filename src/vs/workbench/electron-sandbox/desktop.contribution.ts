@@ -247,6 +247,7 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'default': isLinux ? 'never' : 'auto',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown."),
+				tags: ['FeatureInsight']
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -260,7 +261,8 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh
+				'included': isMacintosh,
+				tags: ['FeatureInsight']
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',
