@@ -16,11 +16,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { raceCancellation } from 'vs/base/common/async';
-import { Recording, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService';
-import { HunkData, Session, SessionWholeRange, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent } from './inlineChatSessionService';
+import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -35,11 +36,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
 
-	private readonly _onDidMoveSession = new Emitter<{ session: Session; editor: ICodeEditor }>();
-	readonly onDidMoveSession: Event<{ session: Session; editor: ICodeEditor }> = this._onDidMoveSession.event;
+	private readonly _onDidMoveSession = new Emitter<IInlineChatSessionEvent>();
+	readonly onDidMoveSession: Event<IInlineChatSessionEvent> = this._onDidMoveSession.event;
 
-	private readonly _onDidEndSession = new Emitter<{ editor: ICodeEditor; session: Session }>();
-	readonly onDidEndSession: Event<{ editor: ICodeEditor; session: Session }> = this._onDidEndSession.event;
+	private readonly _onDidEndSession = new Emitter<IInlineChatSessionEvent>();
+	readonly onDidEndSession: Event<IInlineChatSessionEvent> = this._onDidEndSession.event;
+
+	private readonly _onDidStashSession = new Emitter<IInlineChatSessionEvent>();
+	readonly onDidStashSession: Event<IInlineChatSessionEvent> = this._onDidStashSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
@@ -51,7 +55,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) { }
 
 	dispose() {
@@ -189,16 +194,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return;
 		}
 
-		// keep recording
-		const newLen = this._recordings.unshift(session.asRecording());
-		if (newLen > 5) {
-			this._recordings.pop();
-		}
-
-		// send telemetry
+		this._keepRecording(session);
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 
 		this._onDidEndSession.fire({ editor: data.editor, session });
+	}
+
+	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession {
+		this._keepRecording(session);
+		const result = this._instaService.createInstance(StashedSession, editor, session, undoCancelEdits);
+		this._onDidStashSession.fire({ editor, session });
+		this._logService.trace(`[IE] did STASH session for ${editor.getId()}, ${session.provider.debugName}`);
+		return result;
 	}
 
 	getCodeEditor(session: Session): ICodeEditor {
@@ -229,6 +236,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	// --- debug
+
+	private _keepRecording(session: Session) {
+		const newLen = this._recordings.unshift(session.asRecording());
+		if (newLen > 5) {
+			this._recordings.pop();
+		}
+	}
+
 	recordings(): readonly Recording[] {
 		return this._recordings;
 	}

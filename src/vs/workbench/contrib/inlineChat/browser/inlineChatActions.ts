@@ -49,7 +49,7 @@ export class UnstashSessionAction extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
 		const ctrl = InlineChatController.get(editor);
 		if (ctrl) {
 			const session = ctrl.unstashLastSession();
