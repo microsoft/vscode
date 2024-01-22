@@ -55,7 +55,6 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	contextValue: string = '';
 
 	private readonly _onDidChangeResources = new Emitter<void>();
 	readonly onDidChangeResources = this._onDidChangeResources.event;
@@ -70,6 +69,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public label: string,
 		public id: string,
 		public readonly multiDiffEditorEnableViewChanges: boolean,
+		public contextValue: string | undefined,
 		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
@@ -331,8 +331,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 	}
 
-	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][]): void {
-		const groups = _groups.map(([handle, id, label, features, multiDiffEditorEnableViewChanges]) => {
+	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextValue*/][]): void {
+		const groups = _groups.map(([handle, id, label, features, multiDiffEditorEnableViewChanges, contextValue]) => {
 			const group = new MainThreadSCMResourceGroup(
 				this.handle,
 				handle,
@@ -341,6 +341,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label,
 				id,
 				multiDiffEditorEnableViewChanges,
+				contextValue,
 				this._uriIdentService
 			);
 
@@ -548,7 +549,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): void {
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextKey*/][], splices: SCMRawResourceSplices[]): void {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
