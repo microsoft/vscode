@@ -258,9 +258,21 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 	private readonly historyItemMenus = new Map<SCMHistoryItemTreeElement, IMenu>();
 	private readonly disposables = new DisposableStore();
 
+	private _incomingHistoryItemGroupMenu: IMenu;
+	get incomingHistoryItemGroupMenu(): IMenu { return this._incomingHistoryItemGroupMenu; }
+
+	private _outgoingHistoryItemGroupMenu: IMenu;
+	get outgoingHistoryItemGroupMenu(): IMenu { return this._outgoingHistoryItemGroupMenu; }
+
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService) { }
+		@IMenuService private readonly menuService: IMenuService) {
+		this._incomingHistoryItemGroupMenu = this.menuService.createMenu(MenuId.SCMIncomingChanges, this.contextKeyService);
+		this.disposables.add(this._incomingHistoryItemGroupMenu);
+
+		this._outgoingHistoryItemGroupMenu = this.menuService.createMenu(MenuId.SCMOutgoingChanges, this.contextKeyService);
+		this.disposables.add(this._outgoingHistoryItemGroupMenu);
+	}
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
 		return this.getOrCreateHistoryItemMenu(historyItem);

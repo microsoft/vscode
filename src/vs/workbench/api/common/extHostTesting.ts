@@ -148,7 +148,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				return new TestRunProfileImpl(this.proxy, profiles, extension, activeProfiles, this.defaultProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
+				return new TestRunProfileImpl(this.proxy, profiles, activeProfiles, this.defaultProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
 			},
 			createTestItem(id, label, uri) {
 				return new TestItemImpl(controllerId, id, label, uri);
@@ -1068,7 +1068,6 @@ const updateProfile = (impl: TestRunProfileImpl, proxy: MainThreadTestingShape, 
 
 export class TestRunProfileImpl implements vscode.TestRunProfile {
 	readonly #proxy: MainThreadTestingShape;
-	readonly #extension: IRelaxedExtensionDescription;
 	readonly #activeProfiles: Set<number>;
 	readonly #onDidChangeDefaultProfiles: Event<DefaultProfileChangeEvent>;
 	#initialPublish?: ITestRunProfile;
@@ -1140,7 +1139,6 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	}
 
 	public get onDidChangeDefault() {
-		checkProposedApiEnabled(this.#extension, 'testingActiveProfile');
 		return Event.chain(this.#onDidChangeDefaultProfiles, $ => $
 			.map(ev => ev.get(this.controllerId)?.get(this.profileId))
 			.filter(isDefined)
@@ -1150,7 +1148,6 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	constructor(
 		proxy: MainThreadTestingShape,
 		profiles: Map<number, vscode.TestRunProfile>,
-		extension: IRelaxedExtensionDescription,
 		activeProfiles: Set<number>,
 		onDidChangeActiveProfiles: Event<DefaultProfileChangeEvent>,
 		public readonly controllerId: string,
@@ -1164,7 +1161,6 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	) {
 		this.#proxy = proxy;
 		this.#profiles = profiles;
-		this.#extension = extension;
 		this.#activeProfiles = activeProfiles;
 		this.#onDidChangeDefaultProfiles = onDidChangeActiveProfiles;
 		profiles.set(profileId, this);

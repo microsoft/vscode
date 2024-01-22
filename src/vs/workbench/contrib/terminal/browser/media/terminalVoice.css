@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.terminal-speech-to-text {
+.terminal-voice {
 	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 	padding: 2px;
 	border-radius: 8px;
@@ -13,14 +13,14 @@
 	z-index: 1000;
 }
 
-.terminal-speech-to-text.codicon.codicon-mic-filled {
+.terminal-voice.codicon.codicon-mic-filled {
 	display: flex;
 	align-items: center;
 	width: 16px;
 	height: 16px;
 }
 
-.terminal-speech-to-text.recording.codicon.codicon-mic-filled {
+.terminal-voice.recording.codicon.codicon-mic-filled {
 	color: var(--vscode-activityBarBadge-background);
 	animation: ani-terminal-speech 1s infinite;
 }
@@ -39,7 +39,7 @@
 	}
 }
 
-.terminal-speech-progress-text {
+.terminal-voice-progress-text {
 	font-style: italic;
 	color: var(--vscode-editorGhostText-foreground) !important;
 	border: 1px solid var(--vscode-editorGhostText-border);

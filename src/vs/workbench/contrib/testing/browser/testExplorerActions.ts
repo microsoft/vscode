@@ -1611,11 +1611,11 @@ export class CancelTestRefreshAction extends Action2 {
 	}
 }
 
-export class CloseCoverage extends Action2 {
+export class CleareCoverage extends Action2 {
 	constructor() {
 		super({
-			id: TestCommandId.CoverageClose,
-			title: localize2('testing.closeCoverage', 'Close Coverage'),
+			id: TestCommandId.CoverageClear,
+			title: localize2('testing.clearCoverage', 'Clear Coverage'),
 			icon: widgetClose,
 			category,
 			menu: [{
@@ -1665,7 +1665,7 @@ export const allTestActions = [
 	CancelTestRefreshAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
-	CloseCoverage,
+	CleareCoverage,
 	CollapseAllAction,
 	ConfigureTestProfilesAction,
 	ContinuousRunTestAction,

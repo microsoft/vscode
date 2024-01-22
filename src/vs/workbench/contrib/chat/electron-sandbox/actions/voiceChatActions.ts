@@ -21,8 +21,6 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -46,6 +44,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -73,6 +76,15 @@ interface IVoiceChatSessionController {
 	clearInputPlaceholder(): void;
 }
 
+function getFocusedCodeEditor(editorService: IEditorService, codeEditorService: ICodeEditorService): ICodeEditor | null {
+	const codeEditor = getCodeEditor(codeEditorService.getFocusedCodeEditor());
+	if (codeEditor && !(codeEditor instanceof EmbeddedCodeEditorWidget)) {
+		return codeEditor;
+	}
+
+	return getCodeEditor(editorService.activeTextEditorControl);
+}
+
 class VoiceChatSessionControllerFactory {
 
 	static create(accessor: ServicesAccessor, context: 'inline'): Promise<IVoiceChatSessionController | undefined>;
@@ -84,9 +96,10 @@ class VoiceChatSessionControllerFactory {
 		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
 		const chatContributionService = accessor.get(IChatContributionService);
-		const editorService = accessor.get(IEditorService);
+		const codeEditorService = accessor.get(ICodeEditorService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const editorService = accessor.get(IEditorService);
 
 		// Currently Focused Context
 		if (context === 'focused') {
@@ -114,7 +127,7 @@ class VoiceChatSessionControllerFactory {
 			}
 
 			// Try with the inline chat
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+			const activeCodeEditor = getFocusedCodeEditor(editorService, codeEditorService);
 			if (activeCodeEditor) {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat?.hasFocus()) {
@@ -136,7 +149,7 @@ class VoiceChatSessionControllerFactory {
 
 		// Inline Chat
 		if (context === 'inline') {
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+			const activeCodeEditor = getFocusedCodeEditor(editorService, codeEditorService);
 			if (activeCodeEditor) {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat) {
@@ -753,6 +766,16 @@ registerThemingParticipant((theme, collector) => {
 	`);
 });
 
+function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService): boolean {
+	if (!speechService.hasSpeechProvider) {
+		return false;
+	}
+
+	const value = configurationService.getValue(KeywordActivationContribution.SETTINGS_ID);
+
+	return typeof value === 'string' && value !== KeywordActivationContribution.SETTINGS_VALUE.OFF;
+}
+
 export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
 
 	static SETTINGS_ID = 'accessibility.voice.keywordActivation';
@@ -772,7 +795,10 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -828,7 +854,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 					],
 					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be speech recognized to start a voice chat session."),
 					'default': 'off',
-					'tags': ['accessibility']
+					'tags': ['accessibility', 'FeatureInsight']
 				}
 			}
 		});
@@ -836,8 +862,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 
 	private handleKeywordActivation(): void {
 		const enabled =
-			this.speechService.hasSpeechProvider &&
-			this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID) !== KeywordActivationContribution.SETTINGS_VALUE.OFF &&
+			supportsKeywordActivation(this.configurationService, this.speechService) &&
 			!this.speechService.hasActiveSpeechToTextSession;
 		if (
 			(enabled && this.activeSession) ||
@@ -867,7 +892,15 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		this.activeSession = undefined;
 
 		if (result === KeywordRecognitionStatus.Recognized) {
-			this.commandService.executeCommand(this.getKeywordCommand());
+			if (this.hostService.hasFocus) {
+				this.commandService.executeCommand(this.getKeywordCommand());
+			}
+
+			// Immediately start another keyboard activation session
+			// because we cannot assume that the command we execute
+			// will trigger a speech recognition session.
+
+			this.handleKeywordActivation();
 		}
 	}
 
@@ -879,7 +912,9 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 			case KeywordActivationContribution.SETTINGS_VALUE.QUICK_CHAT:
 				return QuickVoiceChatAction.ID;
 			case KeywordActivationContribution.SETTINGS_VALUE.CHAT_IN_CONTEXT:
-				return StartVoiceChatAction.ID;
+				if (getFocusedCodeEditor(this.editorService, this.codeEditorService)) {
+					return InlineVoiceChatAction.ID;
+				}
 			default:
 				return VoiceChatInChatViewAction.ID;
 		}
@@ -903,8 +938,8 @@ class KeywordActivationStatusEntry extends Disposable {
 
 	private static STATUS_NAME = localize('keywordActivation.status.name', "Voice Keyword Activation");
 	private static STATUS_COMMAND = 'keywordActivation.status.command';
-	private static STATUS_ACTIVE = localize('keywordActivation.status.active', "Voice Keyword Activation: Active");
-	private static STATUS_INACTIVE = localize('keywordActivation.status.inactive', "Voice Keyword Activation: Inactive");
+	private static STATUS_ACTIVE = localize('keywordActivation.status.active', "Listening to 'Hey Code'...");
+	private static STATUS_INACTIVE = localize('keywordActivation.status.inactive', "Waiting for voice chat to end...");
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
@@ -931,7 +966,7 @@ class KeywordActivationStatusEntry extends Disposable {
 	}
 
 	private updateStatusEntry(): void {
-		const visible = this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID) !== KeywordActivationContribution.SETTINGS_VALUE.OFF;
+		const visible = supportsKeywordActivation(this.configurationService, this.speechService);
 		if (visible) {
 			if (!this.entry.value) {
 				this.createStatusEntry();
@@ -950,11 +985,11 @@ class KeywordActivationStatusEntry extends Disposable {
 	private getStatusEntryProperties(): IStatusbarEntry {
 		return {
 			name: KeywordActivationStatusEntry.STATUS_NAME,
-			text: '$(mic)',
+			text: this.speechService.hasActiveKeywordRecognition ? '$(mic-filled)' : '$(mic)',
 			tooltip: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
 			ariaLabel: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
 			command: KeywordActivationStatusEntry.STATUS_COMMAND,
-			kind: this.speechService.hasActiveKeywordRecognition ? 'prominent' : 'standard'
+			kind: 'prominent'
 		};
 	}
 
