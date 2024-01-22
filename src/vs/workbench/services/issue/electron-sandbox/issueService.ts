@@ -105,8 +105,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					displayName: manifest.displayName,
 					id: extension.identifier.id,
 					command: dataOverrides.command,
-					template: dataOverrides.template,
-					data: dataOverrides.data,
 					isTheme,
 					isBuiltin,
 					extensionData: 'Extensions data loading',
