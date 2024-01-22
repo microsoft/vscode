@@ -58,6 +58,8 @@ export interface IssueReporterExtensionData {
 	hasIssueUriRequestHandler?: boolean;
 	hasIssueDataProviders?: boolean;
 	command?: boolean;
+	data?: string;
+	template?: string;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -72,6 +74,8 @@ export interface IssueReporterData extends WindowData {
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
 	readonly command?: boolean;
+	readonly data?: string;
+	readonly template?: string;
 }
 
 export interface ISettingSearchResult {

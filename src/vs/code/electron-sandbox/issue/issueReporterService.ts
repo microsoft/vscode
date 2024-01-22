@@ -135,7 +135,7 @@ export class IssueReporter extends Disposable {
 
 		// Handle case where extension is pre-selected through the command
 		if (configuration.data.command && targetExtension) {
-			this.updateExtensionStatus(targetExtension);
+			this.updateExtensionStatus(targetExtension, configuration.data);
 		}
 	}
 
@@ -806,6 +806,14 @@ export class IssueReporter extends Disposable {
 			show(extensionDataBlock);
 		}
 
+		if (fileOnExtension && selectedExtension?.extensionData) {
+			const data = selectedExtension?.extensionData;
+			(extensionDataTextArea as HTMLElement).innerText = data.toString();
+			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
+			show(extensionDataBlock);
+		}
+
+
 		if (issueType === IssueType.Bug) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
@@ -1164,8 +1172,32 @@ export class IssueReporter extends Disposable {
 		});
 	}
 
-	private async updateExtensionStatus(extension: IssueReporterExtensionData) {
+	private async updateExtensionStatus(extension: IssueReporterExtensionData, extensionData?: IssueReporterData) {
 		this.issueReporterModel.update({ selectedExtension: extension });
+
+		if (this.configuration.data.command) {
+			// const temp1 = await this.configuration.data.data;
+			const template = this.configuration.data.template;
+			if (template) {
+				const descriptionTextArea = this.getElementById('description')!;
+				const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
+				if (descriptionText === '' || !descriptionText.includes(template.toString())) {
+					const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template.toString();
+					(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
+					this.issueReporterModel.update({ issueDescription: fullTextArea });
+				}
+			}
+			const temp1 = this.configuration.data.data;
+			if (temp1) {
+				const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
+				show(extensionDataBlock);
+				this.issueReporterModel.update({ extensionData: temp1 });
+			}
+
+			// then update this
+			this.updateIssueReporterUri(extension);
+		}
+
 
 		// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
 		if (!extension.hasIssueDataProviders && !extension.hasIssueUriRequestHandler) {
@@ -1198,8 +1230,6 @@ export class IssueReporter extends Disposable {
 			// then update this
 			this.updateIssueReporterUri(extension);
 
-			// reset to false so issue url is updated, but won't be affected later.
-			// extension.hasIssueUriRequestHandler = false;
 		} else if (extension.hasIssueUriRequestHandler) {
 			this.updateIssueReporterUri(extension);
 		} else if (extension.hasIssueDataProviders) {
