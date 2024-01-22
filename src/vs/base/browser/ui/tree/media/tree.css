@@ -156,6 +156,11 @@
 	cursor: pointer;
 }
 
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container.empty,
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container.empty .monaco-tree-sticky-container-shadow {
+	display: none;
+}
+
 .monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-container-shadow{
 	position: absolute;
 	bottom: -3px;
@@ -163,4 +168,8 @@
 	height: 3px;
 	width: 100%;
 	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}
+
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container[tabindex="0"]:focus{
+	outline: none;
 }

@@ -20,6 +20,7 @@ export function fromGitUri(uri: Uri): GitUriParams {
 }
 
 export interface GitUriOptions {
+	scheme?: string;
 	replaceFileExtension?: boolean;
 	submoduleOf?: string;
 }
@@ -45,11 +46,7 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 		path = `${path}.diff`;
 	}
 
-	return uri.with({
-		scheme: 'git',
-		path,
-		query: JSON.stringify(params)
-	});
+	return uri.with({ scheme: options.scheme ?? 'git', path, query: JSON.stringify(params) });
 }
 
 /**

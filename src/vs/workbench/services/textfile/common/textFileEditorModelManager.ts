@@ -159,9 +159,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Resolve model to update (use a queue to prevent accumulation of resolves
 		// when the resolve actually takes long. At most we only want the queue
 		// to have a size of 2 (1 running resolve and 1 queued resolve).
-		const queue = this.modelResolveQueue.queueFor(model.resource);
-		if (queue.size <= 1) {
-			queue.queue(async () => {
+		const queueSize = this.modelResolveQueue.queueSize(model.resource);
+		if (queueSize <= 1) {
+			this.modelResolveQueue.queueFor(model.resource, async () => {
 				try {
 					await this.reload(model);
 				} catch (error) {

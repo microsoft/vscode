@@ -254,6 +254,8 @@ pub enum ExtensionSubcommand {
 	Install(InstallExtensionArgs),
 	/// Uninstall an extension.
 	Uninstall(UninstallExtensionArgs),
+	/// Update the installed extensions.
+	Update,
 }
 
 impl ExtensionSubcommand {
@@ -283,6 +285,9 @@ impl ExtensionSubcommand {
 				for id in args.id.iter() {
 					target.push(format!("--uninstall-extension={}", id));
 				}
+			}
+			ExtensionSubcommand::Update => {
+				target.push("--update-extensions".to_string());
 			}
 		}
 	}

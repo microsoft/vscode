@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeFullscreen } from 'vs/base/browser/browser';
-import { detectFullscreen, hide, show } from 'vs/base/browser/dom';
+import { isFullscreen, onDidChangeFullscreen, onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
+import { hasCustomTitlebar } from 'vs/platform/window/common/window';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart, IEditorPartUIState } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -107,12 +107,24 @@ export class AuxiliaryEditorPart {
 		// Titlebar
 		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
 		let titlebarPartVisible = false;
-		const useCustomTitle = isNative && getTitleBarStyle(this.configurationService) === 'custom'; // custom title in aux windows only enabled in native
+		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
 			titlebarPartVisible = true;
 
 			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
+			disposables.add(onDidChangeZoomLevel(targetWindowId => {
+				if (auxiliaryWindow.window.vscodeWindowId === targetWindowId && titlebarPartVisible) {
+
+					// This is a workaround for https://github.com/microsoft/vscode/issues/202377
+					// The title bar part prevents zooming in certain cases and when doing so,
+					// adjusts its size accordingly. This is however not reported from the
+					// `onDidchange` event that we listen to above, so we manually update the
+					// editor part height here.
+
+					updateEditorPartHeight(true);
+				}
+			}));
 
 			disposables.add(onDidChangeFullscreen(windowId => {
 				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
@@ -122,7 +134,7 @@ export class AuxiliaryEditorPart {
 				// Make sure to hide the custom title when we enter
 				// fullscren mode and show it when we lave it.
 
-				const fullscreen = detectFullscreen(auxiliaryWindow.window);
+				const fullscreen = isFullscreen(auxiliaryWindow.window);
 				const oldTitlebarPartVisible = titlebarPartVisible;
 				titlebarPartVisible = !fullscreen;
 				if (titlebarPart && oldTitlebarPartVisible !== titlebarPartVisible) {
@@ -195,7 +207,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	readonly onWillClose = this._onWillClose.event;
 
 	constructor(
-		readonly windowId: number,
+		windowId: number,
 		editorPartsView: IEditorPartsView,
 		private readonly state: IEditorPartUIState | undefined,
 		groupsLabel: string,
@@ -208,7 +220,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {

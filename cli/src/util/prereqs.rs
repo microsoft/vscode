@@ -141,8 +141,8 @@ async fn check_glibc_version() -> Result<(), String> {
 			Ok(())
 		} else {
 			Err(format!(
-				"find GLIBC >= 2.17 (but found {} instead) for GNU environments",
-				v
+				"find GLIBC >= {} (but found {} instead) for GNU environments",
+				*MIN_LDD_VERSION, v
 			))
 		};
 	}
@@ -201,7 +201,8 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<(), String
 
 	if !all_versions.iter().any(|v| &*MIN_CXX_VERSION >= v) {
 		return Err(format!(
-			"find GLIBCXX >= 3.4.18 (but found {} instead) for GNU environments",
+			"find GLIBCXX >= {} (but found {} instead) for GNU environments",
+			*MIN_CXX_VERSION,
 			all_versions
 				.iter()
 				.map(String::from)

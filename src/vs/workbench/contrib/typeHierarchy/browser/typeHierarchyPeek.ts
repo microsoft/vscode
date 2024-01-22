@@ -64,7 +64,7 @@ class LayoutInfo {
 	) { }
 }
 
-class TypeHierarchyTree extends WorkbenchAsyncDataTree<TypeHierarchyModel, typeHTree.Type, FuzzyScore>{ }
+class TypeHierarchyTree extends WorkbenchAsyncDataTree<TypeHierarchyModel, typeHTree.Type, FuzzyScore> { }
 
 export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 

@@ -602,27 +602,26 @@
 	margin: 0 0 0 4px;
 }
 
-.interactive-item-container .progress-steps {
+.interactive-item-container .rendered-markdown.progress-step {
 	display: flex;
-	flex-direction: column;
-	gap: 4px;
 	margin-left: 4px;
 	white-space: normal;
 }
 
-.interactive-item-container .progress-steps .progress-step {
+.interactive-item-container .rendered-markdown.progress-step > p {
 	display: flex;
 	gap: 5px;
 	align-items: center;
 	opacity: 0.7;
+	margin-bottom: 4px;
 }
 
-.interactive-item-container .progress-steps .progress-step .codicon {
+.interactive-item-container .rendered-markdown.progress-step > p .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-item-container .progress-steps .progress-step .codicon.codicon-check {
+.interactive-item-container .rendered-markdown.progress-step > p .codicon.codicon-check {
 	font-size: 14px;
 	color: var(--vscode-debugIcon-startForeground) !important;
 }

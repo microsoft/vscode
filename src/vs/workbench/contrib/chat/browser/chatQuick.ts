@@ -292,6 +292,7 @@ class QuickChat extends Disposable {
 			if (request.response?.response.value || request.response?.errorDetails) {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as IParsedChatRequest,
+					request.variableData,
 					{
 						message: request.response.response.value,
 						errorDetails: request.response.errorDetails,
