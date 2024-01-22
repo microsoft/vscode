@@ -1325,7 +1325,7 @@ class ResetConfigurationDefaultsOverridesCache extends Disposable implements IWo
 	}
 }
 
-class ConfigurationTelemetryContribution implements IWorkbenchContribution {
+class ConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -1333,6 +1333,33 @@ class ConfigurationTelemetryContribution implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: WorkspaceService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
+		super();
+
+		// Debounce the event by 1000 ms and merge all affected keys into one event
+		const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
+			const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
+			return { ...cur, affectedKeys: newAffectedKeys };
+		}, 1000, true);
+
+		debouncedConfigService(event => {
+			if (event.source !== ConfigurationTarget.DEFAULT) {
+				type UpdateConfigurationClassification = {
+					owner: 'sandy081';
+					comment: 'Event which fires when user updates settings';
+					configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
+					configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
+				};
+				type UpdateConfigurationEvent = {
+					configurationSource: string;
+					configurationKeys: string[];
+				};
+				telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
+					configurationSource: ConfigurationTargetToString(event.source),
+					configurationKeys: Array.from(event.affectedKeys)
+				});
+			}
+		});
+
 		type UpdatedSettingClassification = {
 			owner: 'sandy081';
 			comment: 'Event reporting the updated setting';
