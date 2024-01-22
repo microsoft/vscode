@@ -19,21 +19,22 @@ export interface ICommand {
 	/**
 	 * Identifier of the command to execute
 	 */
-	command: string;
+	readonly command: string;
 	/**
 	 * Title by which the command is represented in the UI
 	 */
-	title: string | ILocalizedString;
+	readonly title: string | ILocalizedString;
+	readonly shortTitle?: string;
 	/**
 	 * (Optional) Category string by which the command is grouped in the UI
 	 */
-	category?: string | ILocalizedString;
+	readonly category?: string | ILocalizedString;
 }
 
 export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
+	readonly description: string;
+	readonly type: string | string[];
+	readonly default?: any;
 }
 
 export interface IConfiguration {
@@ -41,166 +42,166 @@ export interface IConfiguration {
 	/**
 	 * When specified, gives the order of this category of settings relative to other categories.
 	 */
-	order?: number;
+	readonly order?: number;
 	/**
 	 * A title for the current category of settings. This label will be rendered in the Settings editor as a subheading. If the title is the same as the extension display name, then the category will be grouped under the main extension heading.
 	 */
-	title?: string;
+	readonly title?: string;
 	/**
 	 * Description of the configuration properties.
 	 */
-	properties: { [key: string]: IConfigurationProperty };
+	readonly properties: { [key: string]: IConfigurationProperty };
 }
 
 export interface IDebugger {
 	/**
 	 * Display name for this debug adapter.
 	 */
-	label?: string;
+	readonly label?: string;
 	/**
 	 * Unique identifier for this debug adapter.
 	 */
-	type: string;
+	readonly type: string;
 	/**
 	 * Optional runtime in case the program attribute is not an executable but requires a runtime.
 	 */
-	runtime?: string;
+	readonly runtime?: string;
 }
 
 export interface IGrammar {
 	/**
 	 * Language identifier for which this syntax is contributed to.
 	 */
-	language: string;
+	readonly language: string;
 }
 
 export interface IJSONValidation {
 	/**
 	 * The file pattern (or an array of patterns) to match, for example "package.json" or "*.launch". Exclusion patterns start with '!'
 	 */
-	fileMatch: string | string[];
+	readonly fileMatch: string | string[];
 	/**
 	 * A schema URL ('http:', 'https:') or relative path to the extension folder ('./').
 	 */
-	url: string;
+	readonly url: string;
 }
 
 export interface IKeyBinding {
 	/**
 	 * Identifier of the command to run when keybinding is triggered.
 	 */
-	command: string;
+	readonly command: string;
 	/**
 	 * Key or key sequence (separate keys with plus-sign and sequences with space, e.g. Ctrl+O and Ctrl+L L for a chord).
 	 */
-	key: string;
+	readonly key: string;
 	/**
 	 * Condition when the key is active.
 	 */
-	when?: string;
+	readonly when?: string;
 	/**
 	 * Mac specific key or key sequence.
 	 */
-	mac?: string;
+	readonly mac?: string;
 	/**
 	 * Linux specific key or key sequence.
 	 */
-	linux?: string;
+	readonly linux?: string;
 	/**
 	 * Windows specific key or key sequence.
 	 */
-	win?: string;
+	readonly win?: string;
 }
 
 export interface ILanguage {
 	/**
 	 * ID of the language.
 	 */
-	id: string;
+	readonly id: string;
 	/**
 	 * File extensions associated to the language.
 	 */
-	extensions: string[];
+	readonly extensions: string[];
 }
 
 export interface IMenu {
 	/**
 	 * Identifier of the command to execute. The command must be declared in the 'commands'-section
 	 */
-	command: string;
+	readonly command: string;
 	/**
 	 * Identifier of an alternative command to execute. The command must be declared in the 'commands'-section
 	 */
-	alt?: string;
+	readonly alt?: string;
 	/**
 	 * Condition which must be true to show this item
 	 */
-	when?: string;
+	readonly when?: string;
 	/**
 	 * Group into which this item belongs
 	 */
-	group?: string;
+	readonly group?: string;
 }
 
 export interface ISnippet {
 	/**
 	 * Language identifier for which this snippet is contributed to.
 	 */
-	language: string;
+	readonly language: string;
 }
 
 export interface ITheme {
 	/**
 	 * Label of the color theme as shown in the UI.
 	 */
-	label: string;
+	readonly label: string;
 }
 
 export interface IViewContainer {
 	/**
 	 * Unique id used to identify the container in which views can be contributed using 'views' contribution point
 	 */
-	id: string;
+	readonly id: string;
 	/**
 	 * Human readable string used to render the container
 	 */
-	title: string;
+	readonly title: string;
 	/**
 	 * Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted.
 	 */
-	icon: string;
+	readonly icon: string;
 }
 
 export interface IView {
-	id: string;
+	readonly id: string;
 	/**
 	 * The human-readable name of the view. Will be shown
 	 */
-	name: string;
+	readonly name: string;
 }
 
 export interface IColor {
 	/**
 	 * The identifier of the themable color
 	 */
-	id: string;
+	readonly id: string;
 	/**
 	 * The description of the themable color
 	 */
-	description: string;
-	defaults: {
+	readonly description?: string;
+	readonly defaults: {
 		/**
 		 * The default color for light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.
 		 */
-		light: string;
+		readonly light: string;
 		/**
 		 * The default color for dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.
 		 */
-		dark: string;
+		readonly dark: string;
 		/**
 		 * The default color for high contrast dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default. If not provided, the `dark` color is used as default for high contrast dark themes.
 		 */
-		highContrast: string;
+		readonly highContrast: string;
 	};
 }
 
@@ -266,57 +267,57 @@ export interface IWalkthroughStep {
 	 * Media to show alongside this step, either an image or markdown content.
 	 */
 	readonly media: {
-		path?: {
+		readonly path?: {
 			[k: string]: unknown;
 		};
 		/**
 		 * Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide.
 		 */
-		image: string | {
+		readonly image: string | {
 			/**
 			 * Path to the image for dark themes, relative to extension directory.
 			 */
-			dark: string;
+			readonly dark: string;
 			/**
 			 * Path to the image for light themes, relative to extension directory.
 			 */
-			light: string;
+			readonly light: string;
 			/**
 			 * Path to the image for hc themes, relative to extension directory.
 			 */
-			hc: string;
+			readonly hc: string;
 			/**
 			 * Path to the image for hc light themes, relative to extension directory.
 			 */
-			hcLight: string;
+			readonly hcLight: string;
 		};
 		/**
 		 * Alternate text to display when the image cannot be loaded or in screen readers.
 		 */
-		altText: string;
-		markdown?: never;
-		svg?: never;
+		readonly altText: string;
+		readonly markdown?: never;
+		readonly svg?: never;
 	} | {
 		/**
 		 * Path to an svg, color tokens are supported in variables to support theming to match the workbench.
 		 */
-		svg: string;
+		readonly svg: string;
 		/**
 		 * Alternate text to display when the image cannot be loaded or in screen readers.
 		 */
-		altText: string;
-		image?: never;
-		markdown?: never;
+		readonly altText: string;
+		readonly image?: never;
+		readonly markdown?: never;
 	} | {
-		path?: {
+		readonly path?: {
 			[k: string]: unknown;
 		};
 		/**
 		 * Path to the markdown document, relative to extension directory.
 		 */
-		markdown: string;
-		image?: never;
-		svg?: never;
+		readonly markdown: string;
+		readonly image?: never;
+		readonly svg?: never;
 	};
 	/**
 	 * Events that should trigger this step to become checked off. If empty or not defined, the step will check off when any of the step's buttons or links are clicked; if the step has no buttons or links it will check on when it is selected.
@@ -354,7 +355,7 @@ export interface IWalkthrough {
 	/**
 	 * Walkthroughs that match one of these glob patterns appear as 'featured' in workspaces with the specified files. For example, a walkthrough for TypeScript projects might specify `tsconfig.json` here.
 	 */
-	readonly featuredFor: string[] | undefined;
+	readonly featuredFor?: string[];
 	/**
 	 * Context key expression to control the visibility of this walkthrough.
 	 */
@@ -404,98 +405,98 @@ export interface ITranslation {
 	/**
 	 * Id of VS Code or Extension for which this translation is contributed to. Id of VS Code is always `vscode` and of extension should be in format `publisherId.extensionName`.
 	 */
-	id: string;
+	readonly id: string;
 	/**
 	 * A relative path to a file containing translations for the language.
 	 */
-	path: string;
+	readonly path: string;
 }
 
 export interface ILocalizationContribution {
 	/**
 	 * Id of the language into which the display strings are translated.
 	 */
-	languageId: string;
+	readonly languageId: string;
 	/**
 	 * Name of the language in English.
 	 */
-	languageName?: string;
+	readonly languageName?: string;
 	/**
 	 * Name of the language in contributed language.
 	 */
-	localizedLanguageName?: string;
+	readonly localizedLanguageName?: string;
 	/**
 	 *
 	 */
-	translations: ITranslation[];
-	minimalTranslations?: { [key: string]: string };
+	readonly translations: ITranslation[];
+	readonly minimalTranslations?: { [key: string]: string };
 }
 
 export interface IExtensionContributions {
 	/**
 	 * Contributes commands to the command palette.
 	 */
-	commands?: ICommand[];
+	readonly commands?: ICommand[];
 	/**
 	 * Contributes configuration settings.
 	 */
-	configuration?: IConfiguration | IConfiguration[];
+	readonly configuration?: IConfiguration | IConfiguration[];
 	/**
 	 * Contributes debug adapters.
 	 */
-	debuggers?: IDebugger[];
+	readonly debuggers?: IDebugger[];
 	/**
 	 * Contributes textmate tokenizers.
 	 */
-	grammars?: IGrammar[];
+	readonly grammars?: IGrammar[];
 	/**
 	 * Contributes json schema configuration.
 	 */
-	jsonValidation?: IJSONValidation[];
+	readonly jsonValidation?: IJSONValidation[];
 	/**
 	 * Contributes keybindings.
 	 */
-	keybindings?: IKeyBinding[];
+	readonly keybindings?: IKeyBinding[];
 	/**
 	 * Contributes language declarations.
 	 */
-	languages?: ILanguage[];
+	readonly languages?: ILanguage[];
 	/**
 	 * Contributes menu items to the editor
 	 */
-	menus?: { [context: string]: IMenu[] };
+	readonly menus?: { [context: string]: IMenu[] };
 	/**
 	 * Contributes snippets.
 	 */
-	snippets?: ISnippet[];
+	readonly snippets?: ISnippet[];
 	/**
 	 * Contributes textmate color themes.
 	 */
-	themes?: ITheme[];
+	readonly themes?: ITheme[];
 	/**
 	 * Contributes file icon themes.
 	 */
-	iconThemes?: ITheme[];
+	readonly iconThemes?: ITheme[];
 	/**
 	 * Contributes product icon themes.
 	 */
-	productIconThemes?: ITheme[];
+	readonly productIconThemes?: ITheme[];
 	/**
 	 * Contributes views containers to the editor
 	 */
-	viewsContainers?: { [location: string]: IViewContainer[] };
+	readonly viewsContainers?: { [location: string]: IViewContainer[] };
 	/**
 	 * Contributes views to the editor
 	 */
-	views?: { [location: string]: IView[] };
+	readonly views?: { [location: string]: IView[] };
 	/**
 	 * Contributes extension defined themable colors
 	 */
-	colors?: IColor[];
+	readonly colors?: IColor[];
 	/**
 	 * Contributes localizations to the editor
 	 */
-	localizations?: ILocalizationContribution[];
+	readonly localizations?: ILocalizationContribution[];
 	/**
 	 * Contributed custom editors.
 	 */
@@ -504,12 +505,12 @@ export interface IExtensionContributions {
 	/**
 	 * Contributes authentication
 	 */
-	authentication?: IAuthenticationContribution[];
+	readonly authentication?: IAuthenticationContribution[];
 	/**
 	 * Contribute walkthroughs to help users getting started with your extension.
 	 */
-	walkthroughs?: IWalkthrough[];
-	startEntries?: IStartEntry[];
+	readonly walkthroughs?: IWalkthrough[];
+	readonly startEntries?: IStartEntry[];
 	/**
 	 * Contributes notebook document provider.
 	 */
