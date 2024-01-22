@@ -44,6 +44,10 @@
           }
         ]
       },
+      variableData: {
+        message: "@ChatProviderWithUsedContext test request",
+        variables: {  }
+      },
       response: [  ],
       responseErrorDetails: undefined,
       followups: [  ],

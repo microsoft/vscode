@@ -3,12 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// https://github.com/microsoft/vscode/issues/166971
+import { Codicon } from 'vs/base/common/codicons';
+import { localize } from 'vs/nls';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-declare module 'vscode' {
-
-	export namespace workspace {
-
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean | MarkdownString }): Disposable;
-	}
-}
+export const MultiDiffEditorIcon = registerIcon('multi-diff-editor-label-icon', Codicon.diffMultiple, localize('multiDiffEditorLabelIcon', 'Icon of the multi diff editor label.'));

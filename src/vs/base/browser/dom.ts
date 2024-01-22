@@ -277,8 +277,19 @@ export function disposableWindowInterval(targetWindow: Window, handler: () => vo
 
 export class WindowIntervalTimer extends IntervalTimer {
 
-	override cancelAndSet(runner: () => void, interval: number, targetWindow: Window & typeof globalThis): void {
-		return super.cancelAndSet(runner, interval, targetWindow);
+	private readonly defaultTarget?: Window & typeof globalThis;
+
+	/**
+	 *
+	 * @param node The optional node from which the target window is determined
+	 */
+	constructor(node?: Node) {
+		super();
+		this.defaultTarget = node && getWindow(node);
+	}
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow?: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow ?? this.defaultTarget);
 	}
 }
 
@@ -914,6 +925,38 @@ const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HT
 
 export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+/**
+ * A version of createStyleSheet which has a unified API to initialize/set the style content.
+ */
+export function createStyleSheet2(): WrappedStyleElement {
+	return new WrappedStyleElement();
+}
+
+class WrappedStyleElement {
+	private _currentCssStyle = '';
+	private _styleSheet: HTMLStyleElement | undefined = undefined;
+
+	public setStyle(cssStyle: string): void {
+		if (cssStyle !== this._currentCssStyle) {
+			return;
+		}
+		this._currentCssStyle = cssStyle;
+
+		if (!this._styleSheet) {
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
+		} else {
+			this._styleSheet.innerText = cssStyle;
+		}
+	}
+
+	public dispose(): void {
+		if (this._styleSheet) {
+			clearNode(this._styleSheet);
+			this._styleSheet = undefined;
+		}
+	}
 }
 
 export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {

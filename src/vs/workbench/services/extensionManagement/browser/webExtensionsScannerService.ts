@@ -239,7 +239,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					this.logService.info(`Skipping invalid additional builtin extension ${webExtension.identifier.id}`);
 				}
 			} catch (error) {
-				this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
+				this.logService.info(`Error while fetching the additional builtin extension ${extensionLocation.toString()}.`, getErrorMessage(error));
 			}
 		}));
 		return result;
@@ -935,6 +935,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			if (migratedLocation) {
 				update = true;
 				webExtension.location = migratedLocation;
+			}
+			if (isUndefined(webExtension.metadata?.hasPreReleaseVersion) && webExtension.metadata?.preRelease) {
+				update = true;
+				webExtension.metadata.hasPreReleaseVersion = true;
 			}
 			return webExtension;
 		}));

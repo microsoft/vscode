@@ -23,7 +23,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusSessionActionViewItem, StartDebugActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, DISCONNECT_ID, FOCUS_SESSION_ID, SELECT_AND_START_ID, STOP_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -132,7 +133,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 	}
 
-	override addPanes(panes: { pane: ViewPane; size: number; index?: number }[]): void {
+	override addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		super.addPanes(panes);
 
 		for (const { pane: pane } of panes) {

@@ -10,7 +10,7 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { isNumber } from 'vs/base/common/types';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)

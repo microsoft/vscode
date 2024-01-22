@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.20.0"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {

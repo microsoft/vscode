@@ -20,13 +20,13 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IChatAgentCommand, IChatAgentData, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ChatAgentCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -135,7 +135,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionModels = this._register(new DisposableMap<string, ChatModel>());
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellationTokenSource>());
-	private readonly _persistedSessions: ISerializableChatsData;
+	private _persistedSessions: ISerializableChatsData;
 	private readonly _hasProvider: IContextKey<boolean>;
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
@@ -331,6 +331,12 @@ export class ChatService extends Disposable implements IChatService {
 
 	removeHistoryEntry(sessionId: string): void {
 		delete this._persistedSessions[sessionId];
+		this.saveState();
+	}
+
+	clearAllHistoryEntries(): void {
+		this._persistedSessions = {};
+		this.saveState();
 	}
 
 	startSession(providerId: string, token: CancellationToken): ChatModel {
@@ -508,29 +514,33 @@ export class ChatService extends Disposable implements IChatService {
 				const defaultAgent = this.chatAgentService.getDefaultAgent();
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const agent = (agentPart?.agent ?? defaultAgent)!;
-					const history: IChatMessage[] = [];
+					const history: IChatAgentHistoryEntry[] = [];
 					for (const request of model.getRequests()) {
 						if (!request.response) {
 							continue;
 						}
 
-						history.push({ role: ChatMessageRole.User, content: request.message.text });
-						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
+						const historyRequest: IChatAgentRequest = {
+							sessionId,
+							requestId: request.id,
+							agentId: request.response.agent?.id ?? '',
+							message: request.variableData.message,
+							variables: request.variableData.variables,
+							command: request.response.slashCommand?.name
+						};
+						history.push({ request: historyRequest, response: request.response.response.value, result: { errorDetails: request.response.errorDetails } });
 					}
 
-					request = model.addRequest(parsedRequest, agent);
+					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
+					request = model.addRequest(parsedRequest, variableData, agent, agentSlashCommandPart?.command);
 					const requestProps: IChatAgentRequest = {
 						sessionId,
 						requestId: request.id,
-						message,
-						variables: {},
+						agentId: agent.id,
+						message: variableData.message,
+						variables: variableData.variables,
 						command: agentSlashCommandPart?.command.name ?? '',
 					};
-					if ('parts' in parsedRequest) {
-						const varResult = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
-						requestProps.variables = varResult.variables;
-						requestProps.message = varResult.prompt;
-					}
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResponse = {
@@ -541,7 +551,7 @@ export class ChatService extends Disposable implements IChatService {
 					agentOrCommandFollowups = agentResult?.followUp ? Promise.resolve(agentResult.followUp) :
 						this.chatAgentService.getFollowups(agent.id, sessionId, CancellationToken.None);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
-					request = model.addRequest(parsedRequest);
+					request = model.addRequest(parsedRequest, { message, variables: {} });
 					// contributed slash commands
 					// TODO: spell this out in the UI
 					const history: IChatMessage[] = [];
@@ -633,7 +643,7 @@ export class ChatService extends Disposable implements IChatService {
 		return Array.from(this._providers.keys());
 	}
 
-	async addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, response: IChatCompleteResponse): Promise<void> {
+	async addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): Promise<void> {
 		this.trace('addCompleteRequest', `message: ${message}`);
 
 		const model = this._sessionModels.get(sessionId);
@@ -645,7 +655,7 @@ export class ChatService extends Disposable implements IChatService {
 		const parsedRequest = typeof message === 'string' ?
 			await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
 			message;
-		const request = model.addRequest(parsedRequest);
+		const request = model.addRequest(parsedRequest, variableData || { message: parsedRequest.text, variables: {} });
 		if (typeof response.message === 'string') {
 			model.acceptResponseProgress(request, { content: response.message, kind: 'content' });
 		} else {

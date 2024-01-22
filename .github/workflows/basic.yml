@@ -61,7 +61,7 @@ jobs:
         run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
-        run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64"
+        run: yarn npm-run-all --max-old-space-size=4095 -lp compile "electron x64"
 
       - name: Run Unit Tests
         id: electron-unit-tests

@@ -82,6 +82,7 @@ export interface NativeParsedArgs {
 	'pre-release'?: boolean;
 	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
+	'update-extensions'?: boolean;
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
@@ -104,6 +105,7 @@ export interface NativeParsedArgs {
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
+	'preserve-env'?: boolean;
 	'force-user-env'?: boolean;
 	'force-disable-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
@@ -138,7 +140,4 @@ export interface NativeParsedArgs {
 	'log-net-log'?: string;
 	'vmodule'?: string;
 	'disable-dev-shm-usage'?: boolean;
-
-	// MS Build command line arg
-	'ms-enable-electron-run-as-node'?: boolean;
 }

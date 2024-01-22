@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -123,11 +123,11 @@ suite('Chat', () => {
 
 		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
 		await session1.waitForInitialization();
-		session1!.addRequest({ parts: [], text: 'request 1' });
+		session1!.addRequest({ parts: [], text: 'request 1' }, { message: 'request 1', variables: {} });
 
 		const session2 = testDisposables.add(testService.startSession('provider2', CancellationToken.None));
 		await session2.waitForInitialization();
-		session2!.addRequest({ parts: [], text: 'request 2' });
+		session2!.addRequest({ parts: [], text: 'request 2' }, { message: 'request 2', variables: {} });
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
@@ -208,7 +208,7 @@ suite('Chat', () => {
 		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.addCompleteRequest(model.sessionId, 'test request', { message: 'test response' });
+		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');

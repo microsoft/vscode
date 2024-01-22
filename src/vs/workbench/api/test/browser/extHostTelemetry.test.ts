@@ -215,6 +215,34 @@ suite('ExtHostTelemetry', function () {
 
 	});
 
+	test('Log error should get common properties #193205', function () {
+		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
+
+		const logger = createLogger(functionSpy, undefined, { additionalCommonProperties: { 'common.foo': 'bar' } });
+		logger.logError(new Error('Test error'));
+		assert.strictEqual(functionSpy.exceptionArr.length, 1);
+		assert.strictEqual(functionSpy.exceptionArr[0].data['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.exceptionArr[0].data['common.product'], 'test');
+
+		logger.logError('test-error-event');
+		assert.strictEqual(functionSpy.dataArr.length, 1);
+		assert.strictEqual(functionSpy.dataArr[0].data['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[0].data['common.product'], 'test');
+
+		logger.logError('test-error-event', { 'test-data': 'test-data' });
+		assert.strictEqual(functionSpy.dataArr.length, 2);
+		assert.strictEqual(functionSpy.dataArr[1].data['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[1].data['common.product'], 'test');
+
+		logger.logError('test-error-event', { properties: { 'test-data': 'test-data' } });
+		assert.strictEqual(functionSpy.dataArr.length, 3);
+		assert.strictEqual(functionSpy.dataArr[2].data.properties['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[2].data.properties['common.product'], 'test');
+
+		logger.dispose();
+		assert.strictEqual(functionSpy.flushCalled, true);
+	});
+
 
 	test('Ensure logger properly cleans PII', function () {
 		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
