@@ -28,6 +28,7 @@ import { compare } from 'vs/base/common/strings';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Event } from 'vs/base/common/event';
 
 interface SessionData {
 	readonly resourceUri: URI;
@@ -261,7 +262,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		let listener: IDisposable | undefined;
 
 		const whenEnded = new Promise<void>(resolve => {
-			listener = this._inlineChatSessionService.onDidEndSession(e => {
+			listener = Event.any(this._inlineChatSessionService.onDidEndSession, this._inlineChatSessionService.onDidStashSession)(e => {
 				const data = sessions.get(e.session);
 				if (data) {
 					data.dispose();
