@@ -1164,17 +1164,23 @@ export class IssueReporter extends Disposable {
 			}
 
 			this.addEventListener('extension-selector', 'change', async (e: Event) => {
+				this.clearExtensionData();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
+					this.issueReporterModel.update({ selectedExtension: matches[0] });
+					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+					if (selectedExtension) {
+						selectedExtension.command = undefined;
+					}
 					this.updateExtensionStatus(matches[0]);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
 					this.validateSelectedExtension();
 				}
-				this.clearExtensionData();
+
 			});
 		}
 
@@ -1190,7 +1196,6 @@ export class IssueReporter extends Disposable {
 
 	private async updateExtensionStatus(extension: IssueReporterExtensionData) {
 		this.issueReporterModel.update({ selectedExtension: extension });
-
 		if (this.configuration.data.command) {
 			const template = this.configuration.data.command.template;
 			if (template) {
