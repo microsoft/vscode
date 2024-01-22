@@ -75,7 +75,9 @@ export abstract class EditModeStrategy {
 
 	abstract apply(): Promise<void>;
 
-	abstract cancel(): Promise<void>;
+	cancel() {
+		return this._session.hunkData.discardAll();
+	}
 
 	async acceptHunk(): Promise<void> {
 		this._onDidAccept.fire();
@@ -186,10 +188,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		}
 	}
 
-	async cancel(): Promise<void> {
-		// nothing to do
-	}
-
 	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
 		return this._makeChanges(edits, obs, undefined, undefined);
 	}
@@ -265,15 +263,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
 			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
 		}
-	}
-
-	async cancel() {
-		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
-		if (modelN.isDisposed()) {
-			return;
-		}
-		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
@@ -495,11 +484,9 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	async cancel() {
-		for (const item of this._session.hunkData.getInfo()) {
-			item.discardChanges();
-		}
+	override cancel() {
 		this._resetDiff();
+		return super.cancel();
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
