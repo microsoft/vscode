@@ -414,7 +414,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	// find it in our text file models. Currently, only textual editors
 	// support embedded editors.
 	const focusedCodeEditor = codeEditorService.getFocusedCodeEditor();
-	if (focusedCodeEditor instanceof EmbeddedCodeEditorWidget) {
+	if (focusedCodeEditor instanceof EmbeddedCodeEditorWidget && !focusedCodeEditor.isSimpleWidget) {
 		const resource = focusedCodeEditor.getModel()?.uri;
 
 		// Check that the resource of the model was not saved already
