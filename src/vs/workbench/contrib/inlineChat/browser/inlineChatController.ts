@@ -395,7 +395,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
-			if (!this._session?.hunkData.ignoreTextModelNChanges && this._strategy?.hasFocus()) {
+			if (!this._session?.hunkData.ignoreTextModelNChanges) {
 				this._ctxUserDidEdit.set(altVersionNow !== this._editor.getModel()?.getAlternativeVersionId());
 			}
 
