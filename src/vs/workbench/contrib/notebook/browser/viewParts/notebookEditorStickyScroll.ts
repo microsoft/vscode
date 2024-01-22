@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -14,7 +15,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
@@ -22,6 +23,8 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Delayer } from 'vs/base/common/async';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -63,13 +66,16 @@ export class NotebookStickyLine extends Disposable {
 	) {
 		super();
 		// click the header to focus the cell
-		this._register(DOM.addDisposableListener(this.header, DOM.EventType.CLICK, () => {
+		this._register(DOM.addDisposableListener(this.header, DOM.EventType.CLICK || TouchEventType.Tap, () => {
 			this.focusCell();
 		}));
 
 		// click the folding icon to fold the range covered by the header
-		this._register(DOM.addDisposableListener(this.foldingIcon.domNode, DOM.EventType.CLICK, () => {
-			this.foldRange();
+		this._register(DOM.addDisposableListener(this.foldingIcon.domNode, DOM.EventType.CLICK || TouchEventType.Tap, () => {
+			if (this.entry.cell.cellKind === CellKind.Markup) {
+				const currentFoldingState = (this.entry.cell as MarkupCellViewModel).foldingState;
+				this.toggleFoldRange(currentFoldingState);
+			}
 		}));
 
 		// folding icon hovers
@@ -82,8 +88,15 @@ export class NotebookStickyLine extends Disposable {
 
 	}
 
-	private foldRange() {
-		throw new Error('Method not implemented.');
+	private toggleFoldRange(currentState: CellFoldingState) {
+		const foldingController = this.notebookEditor.getContribution('workbench.notebook.foldingController') as FoldingController;
+
+		const index = this.entry.index;
+		const headerLevel = this.entry.level;
+		const newFoldingState = (currentState === CellFoldingState.Collapsed) ? CellFoldingState.Expanded : CellFoldingState.Collapsed;
+
+		foldingController.setFoldingStateUp(index, newFoldingState, headerLevel);
+		this.focusCell();
 	}
 
 	private focusCell() {
@@ -345,11 +358,15 @@ export class NotebookStickyScroll extends Disposable {
 	static createStickyElement(entry: OutlineEntry, notebookEditor: INotebookEditor) {
 		const stickyElement = document.createElement('div');
 		stickyElement.classList.add('notebook-sticky-scroll-element');
-		stickyElement.style.paddingLeft = NotebookStickyLine.getParentCount(entry) * 20 + 'px';
+		stickyElement.style.paddingLeft = NotebookStickyLine.getParentCount(entry) * 10 + 'px';
 
-		const stickyFoldingIcon = new StickyFoldingIcon(false, 16);
+		let isCollapsed = false;
+		if (entry.cell.cellKind === CellKind.Markup) {
+			isCollapsed = (entry.cell as MarkupCellViewModel).foldingState === CellFoldingState.Collapsed;
+		}
+
+		const stickyFoldingIcon = new StickyFoldingIcon(isCollapsed, 16);
 		stickyFoldingIcon.domNode.classList.add('notebook-sticky-scroll-folding-icon');
-		// stickyFoldingIcon.domNode.style.setProperty('--vscode-editorStickyScroll-foldingOpacityTransition', `opacity 0.5s`);
 		stickyFoldingIcon.setVisible(true);
 
 		const stickyHeader = document.createElement('div');

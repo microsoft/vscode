@@ -21,8 +21,9 @@
 	.notebookOverlay
 	.notebook-sticky-scroll-container
 	.notebook-sticky-scroll-element
-	.notebook-sticky-scroll-folding-icon {
-	transition: var(--vscode-editorStickyScroll-foldingOpacityTransition);
+	.notebook-sticky-scroll-folding-icon:hover {
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
 }
 
 .monaco-workbench
