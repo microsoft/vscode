@@ -93,6 +93,7 @@ export const Codicon = {
 	closeDirty: register('close-dirty', 0xea71),
 	debugBreakpoint: register('debug-breakpoint', 0xea71),
 	debugBreakpointDisabled: register('debug-breakpoint-disabled', 0xea71),
+	debugBreakpointPending: register('debug-breakpoint-pending', 0xebd9),
 	debugHint: register('debug-hint', 0xea71),
 	primitiveSquare: register('primitive-square', 0xea72),
 	edit: register('edit', 0xea73),
@@ -587,6 +588,9 @@ export const Codicon = {
 	diffSingle: register('diff-single', 0xec22),
 	diffMultiple: register('diff-multiple', 0xec23),
 	surroundWith: register('surround-with', 0xec24),
+	gitStash: register('git-stash', 0xec26),
+	gitStashApply: register('git-stash-apply', 0xec27),
+	gitStashPop: register('git-stash-pop', 0xec28),
 
 	// derived icons, that could become separate icons
 

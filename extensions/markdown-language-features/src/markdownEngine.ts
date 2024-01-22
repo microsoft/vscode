@@ -8,6 +8,7 @@ import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownPreviewConfiguration } from './preview/previewConfig';
 import { Slugifier } from './slugify';
 import { ITextDocument } from './types/textDocument';
 import { WebviewResourceProvider } from './util/resources';
@@ -116,6 +117,12 @@ export class MarkdownItEngine implements IMdParser {
 			this._md = undefined;
 			this._tokenCache.clean();
 		});
+	}
+
+
+	public async getEngine(resource: vscode.Uri | undefined): Promise<MarkdownIt> {
+		const config = this._getConfig(resource);
+		return this._getEngine(config);
 	}
 
 	private async _getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
@@ -231,11 +238,11 @@ export class MarkdownItEngine implements IMdParser {
 	}
 
 	private _getConfig(resource?: vscode.Uri): MarkdownItConfig {
-		const config = vscode.workspace.getConfiguration('markdown', resource ?? null);
+		const config = MarkdownPreviewConfiguration.getForResource(resource ?? null);
 		return {
-			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true),
-			typographer: config.get<boolean>('preview.typographer', false)
+			breaks: config.previewLineBreaks,
+			linkify: config.previewLinkify,
+			typographer: config.previewTypographer,
 		};
 	}
 

@@ -21,7 +21,7 @@ export class AudioCueLineDebuggerContribution
 
 		const isEnabled = observableFromEvent(
 			audioCueService.onEnabledChanged(AudioCue.onDebugBreak),
-			() => audioCueService.isEnabled(AudioCue.onDebugBreak)
+			() => audioCueService.isCueEnabled(AudioCue.onDebugBreak)
 		);
 		this._register(autorunWithStore((reader, store) => {
 			/** @description subscribe to debug sessions */

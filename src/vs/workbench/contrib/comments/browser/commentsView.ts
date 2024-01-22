@@ -8,26 +8,23 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { basename } from 'vs/base/common/resources';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentNode, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { IWorkspaceCommentThreadsEvent, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentsList, COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { IViewPaneOptions, ViewAction, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { CommentsList, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { IViewPaneOptions, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
@@ -43,8 +40,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
-const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
-const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
+export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
+export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
 
 function createResourceCommentsIterator(model: ICommentsModel): Iterable<ITreeElement<ResourceWithCommentThreads | CommentNode>> {
@@ -504,53 +501,3 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		return false;
 	}
 }
-
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.focusCommentsPanel',
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		viewsService.openView(COMMENTS_VIEW_ID, true);
-	}
-});
-
-registerAction2(class Collapse extends ViewAction<CommentsPanel> {
-	constructor() {
-		super({
-			viewId: COMMENTS_VIEW_ID,
-			id: 'comments.collapse',
-			title: nls.localize('collapseAll', "Collapse All"),
-			f1: false,
-			icon: Codicon.collapseAll,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS), CONTEXT_KEY_SOME_COMMENTS_EXPANDED),
-				order: 100
-			}
-		});
-	}
-	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
-		view.collapseAll();
-	}
-});
-
-registerAction2(class Expand extends ViewAction<CommentsPanel> {
-	constructor() {
-		super({
-			viewId: COMMENTS_VIEW_ID,
-			id: 'comments.expand',
-			title: nls.localize('expandAll', "Expand All"),
-			f1: false,
-			icon: Codicon.expandAll,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS), ContextKeyExpr.not(CONTEXT_KEY_SOME_COMMENTS_EXPANDED.key)),
-				order: 100
-			}
-		});
-	}
-	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
-		view.expandAll();
-	}
-});

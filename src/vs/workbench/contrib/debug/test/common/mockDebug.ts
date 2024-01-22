@@ -61,6 +61,10 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
+	sendBreakpoints(modelUri: uri, sourceModified?: boolean | undefined, session?: IDebugSession | undefined): Promise<any> {
+		throw new Error('not implemented');
+	}
+
 	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): Promise<IBreakpoint[]> {
 		throw new Error('not implemented');
 	}

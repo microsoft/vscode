@@ -81,10 +81,15 @@
 	align-items: center;
 }
 
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) {
+	min-width: 20px;
+}
+
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;
 	align-items: center;
+	line-height: 16px;
 	overflow: hidden;
 }
 
@@ -250,6 +255,7 @@
 
 .scm-view .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
+.scm-view .monaco-list .monaco-list-row .history-item-group > .actions,
 .scm-view .monaco-list .monaco-list-row .history-item > .actions {
 	display: none;
 	max-width: fit-content;
@@ -262,6 +268,9 @@
 .scm-view .monaco-list .monaco-list-row.selected .resource > .name > .monaco-icon-label > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .resource > .name > .monaco-icon-label > .actions,
 .scm-view .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions,
+.scm-view .monaco-list .monaco-list-row:hover .history-item-group > .actions,
+.scm-view .monaco-list .monaco-list-row.selected .history-item-group > .actions,
+.scm-view .monaco-list .monaco-list-row.focused .history-item-group > .actions,
 .scm-view .monaco-list .monaco-list-row:hover .history-item > .actions,
 .scm-view .monaco-list .monaco-list-row.selected .history-item > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .history-item > .actions {
@@ -283,6 +292,7 @@
 .scm-view.show-actions > .monaco-list .monaco-list-row .scm-input > .scm-editor > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .history-item-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .history-item > .actions {
 	display: block;
 }
