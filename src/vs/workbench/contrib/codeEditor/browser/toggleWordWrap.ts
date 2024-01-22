@@ -241,10 +241,6 @@ function canToggleWordWrap(codeEditorService: ICodeEditorService, editor: ICodeE
 	if (!model) {
 		return false;
 	}
-	if (model.uri.scheme === 'output') {
-		// in output editor
-		return false;
-	}
 	if (editor.getOption(EditorOption.inDiffEditor)) {
 		// this editor belongs to a diff editor
 		for (const diffEditor of codeEditorService.listDiffEditors()) {

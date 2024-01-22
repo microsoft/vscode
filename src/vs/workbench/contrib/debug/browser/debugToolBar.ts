@@ -158,7 +158,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
 				const widgetWidth = this.$el.clientWidth;
-				this.setCoordinates(0.5 * activeWindow.innerWidth - 0.5 * widgetWidth, 0);
+				this.setCoordinates(0.5 * activeWindow.innerWidth - 0.5 * widgetWidth, this.yDefault);
 				this.storePosition();
 			}
 		}));
@@ -267,7 +267,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				: this.auxWindowCoordinates.get(currentWindow)?.y;
 		}
 
-		this.setYCoordinate(y || 0);
+		this.setYCoordinate(y ?? this.yDefault);
 	}
 
 	private setYCoordinate(y = this.yCoordinate): void {
@@ -275,6 +275,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		y = Math.max(yMin, Math.min(y, yMax));
 		this.$el.style.top = `${y}px`;
 		this.yCoordinate = y;
+	}
+
+	private get yDefault() {
+		return this.layoutService.mainContainerOffset.top;
 	}
 
 	private _yRange: [number, number] | undefined;

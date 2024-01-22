@@ -55,7 +55,8 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, IXtermColorProvider, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -759,8 +760,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
-					this._audioCueService.playSound(AudioCue.terminalBell.sound.getSound());
 				}
+				this._audioCueService.playAudioCue(AudioCue.terminalBell);
 			}));
 		}, 1000, this._store);
 		this._register(xterm.raw.onSelectionChange(async () => this._onSelectionChange()));
@@ -1439,8 +1440,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public registerMarker(): IMarker | undefined {
-		return this.xterm?.raw.registerMarker();
+	public registerMarker(offset?: number): IMarker | undefined {
+		return this.xterm?.raw.registerMarker(offset);
 	}
 
 	public addBufferMarker(properties: IMarkProperties): void {

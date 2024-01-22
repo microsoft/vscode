@@ -24,6 +24,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
+export const APPLY_FIX_ALL_COMMAND_ID = '_typescript.applyFixAllCodeAction';
+
 type TriggeredCodeAction = {
 	readonly selection: Selection;
 	readonly trigger: CodeActionTrigger;
@@ -234,10 +236,15 @@ export class CodeActionModel extends Disposable {
 
 						// Search for quickfixes in the curret code action set.
 						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
-
-						if (!foundQuickfix) {
-							const allMarkers = this._markerService.read({ resource: model.uri });
-
+						const allMarkers = this._markerService.read({ resource: model.uri });
+						if (foundQuickfix) {
+							for (const action of codeActionSet.validActions) {
+								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+								}
+							}
+							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+						} else if (!foundQuickfix) {
 							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
 							if (allMarkers.length > 0) {
 								const currPosition = trigger.selection.getPosition();
@@ -266,7 +273,9 @@ export class CodeActionModel extends Disposable {
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
-												action.highlightRange = action.action.isPreferred;
+												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
+													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+												}
 											}
 
 											if (codeActionSet.allActions.length === 0) {

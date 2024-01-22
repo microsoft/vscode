@@ -52,6 +52,34 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		this.sessions.delete(session);
 	}
 
+	async $createKeywordRecognitionSession(handle: number, session: number): Promise<void> {
+		const provider = this.providers.get(handle);
+		if (!provider) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+
+		const cts = new CancellationTokenSource();
+		this.sessions.set(session, cts);
+
+		const keywordRecognitionSession = disposables.add(provider.provideKeywordRecognitionSession(cts.token));
+		disposables.add(keywordRecognitionSession.onDidChange(e => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			this.proxy.$emitKeywordRecognitionEvent(session, e);
+		}));
+
+		disposables.add(cts.token.onCancellationRequested(() => disposables.dispose()));
+	}
+
+	async $cancelKeywordRecognitionSession(session: number): Promise<void> {
+		this.sessions.get(session)?.dispose(true);
+		this.sessions.delete(session);
+	}
+
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.SpeechProvider): IDisposable {
 		const handle = ExtHostSpeech.ID_POOL++;
 
