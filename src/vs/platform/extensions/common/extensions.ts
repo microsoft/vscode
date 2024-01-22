@@ -16,8 +16,17 @@ export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
+	/**
+	 * Identifier of the command to execute
+	 */
 	command: string;
+	/**
+	 * Title by which the command is represented in the UI
+	 */
 	title: string | ILocalizedString;
+	/**
+	 * (Optional) Category string by which the command is grouped in the UI
+	 */
 	category?: string | ILocalizedString;
 }
 
@@ -29,117 +38,326 @@ export interface IConfigurationProperty {
 
 export interface IConfiguration {
 	id?: string;
+	/**
+	 * When specified, gives the order of this category of settings relative to other categories.
+	 */
 	order?: number;
+	/**
+	 * A title for the current category of settings. This label will be rendered in the Settings editor as a subheading. If the title is the same as the extension display name, then the category will be grouped under the main extension heading.
+	 */
 	title?: string;
+	/**
+	 * Description of the configuration properties.
+	 */
 	properties: { [key: string]: IConfigurationProperty };
 }
 
 export interface IDebugger {
+	/**
+	 * Display name for this debug adapter.
+	 */
 	label?: string;
+	/**
+	 * Unique identifier for this debug adapter.
+	 */
 	type: string;
+	/**
+	 * Optional runtime in case the program attribute is not an executable but requires a runtime.
+	 */
 	runtime?: string;
 }
 
 export interface IGrammar {
+	/**
+	 * Language identifier for which this syntax is contributed to.
+	 */
 	language: string;
 }
 
 export interface IJSONValidation {
+	/**
+	 * The file pattern (or an array of patterns) to match, for example "package.json" or "*.launch". Exclusion patterns start with '!'
+	 */
 	fileMatch: string | string[];
+	/**
+	 * A schema URL ('http:', 'https:') or relative path to the extension folder ('./').
+	 */
 	url: string;
 }
 
 export interface IKeyBinding {
+	/**
+	 * Identifier of the command to run when keybinding is triggered.
+	 */
 	command: string;
+	/**
+	 * Key or key sequence (separate keys with plus-sign and sequences with space, e.g. Ctrl+O and Ctrl+L L for a chord).
+	 */
 	key: string;
+	/**
+	 * Condition when the key is active.
+	 */
 	when?: string;
+	/**
+	 * Mac specific key or key sequence.
+	 */
 	mac?: string;
+	/**
+	 * Linux specific key or key sequence.
+	 */
 	linux?: string;
+	/**
+	 * Windows specific key or key sequence.
+	 */
 	win?: string;
 }
 
 export interface ILanguage {
+	/**
+	 * ID of the language.
+	 */
 	id: string;
+	/**
+	 * File extensions associated to the language.
+	 */
 	extensions: string[];
-	aliases: string[];
 }
 
 export interface IMenu {
+	/**
+	 * Identifier of the command to execute. The command must be declared in the 'commands'-section
+	 */
 	command: string;
+	/**
+	 * Identifier of an alternative command to execute. The command must be declared in the 'commands'-section
+	 */
 	alt?: string;
+	/**
+	 * Condition which must be true to show this item
+	 */
 	when?: string;
+	/**
+	 * Group into which this item belongs
+	 */
 	group?: string;
 }
 
 export interface ISnippet {
+	/**
+	 * Language identifier for which this snippet is contributed to.
+	 */
 	language: string;
 }
 
 export interface ITheme {
+	/**
+	 * Label of the color theme as shown in the UI.
+	 */
 	label: string;
 }
 
 export interface IViewContainer {
+	/**
+	 * Unique id used to identify the container in which views can be contributed using 'views' contribution point
+	 */
 	id: string;
+	/**
+	 * Human readable string used to render the container
+	 */
 	title: string;
+	/**
+	 * Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted.
+	 */
+	icon: string;
 }
 
 export interface IView {
 	id: string;
+	/**
+	 * The human-readable name of the view. Will be shown
+	 */
 	name: string;
 }
 
 export interface IColor {
+	/**
+	 * The identifier of the themable color
+	 */
 	id: string;
+	/**
+	 * The description of the themable color
+	 */
 	description: string;
-	defaults: { light: string; dark: string; highContrast: string };
+	defaults: {
+		/**
+		 * The default color for light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.
+		 */
+		light: string;
+		/**
+		 * The default color for dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.
+		 */
+		dark: string;
+		/**
+		 * The default color for high contrast dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default. If not provided, the `dark` color is used as default for high contrast dark themes.
+		 */
+		highContrast: string;
+	};
 }
 
 interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
-	readonly selector: readonly {
+	/**
+	 * Set of globs that the custom editor is enabled for.
+	 */
+	readonly selector: {
+		/**
+		 * Glob that the custom editor is enabled for.
+		 */
 		readonly filenamePattern?: string;
 	}[];
 }
 
 export interface ICodeActionContributionAction {
 	readonly kind: string;
+	/**
+	 * Label for the code action used in the UI.
+	 */
 	readonly title: string;
+	/**
+	 * Description of what the code action does.
+	 */
 	readonly description?: string;
 }
 
 export interface ICodeActionContribution {
+	/**
+	 * Language modes that the code actions are enabled for.
+	 */
 	readonly languages: readonly string[];
 	readonly actions: readonly ICodeActionContributionAction[];
 }
 
 export interface IAuthenticationContribution {
+	/**
+	 * The id of the authentication provider.
+	 */
 	readonly id: string;
+	/**
+	 * The human readable name of the authentication provider.
+	 */
 	readonly label: string;
 }
 
 export interface IWalkthroughStep {
+	/**
+	 * Unique identifier for this step. This is used to keep track of which steps have been completed.
+	 */
 	readonly id: string;
+	/**
+	 * Title of step.
+	 */
 	readonly title: string;
+	/**
+	 * Description of step. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms). Links on their own line will be rendered as buttons.
+	 */
 	readonly description: string | undefined;
-	readonly media:
-	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
-	| { markdown: string; image?: never; svg?: never }
-	| { svg: string; altText: string; markdown?: never; image?: never };
+	/**
+	 * Media to show alongside this step, either an image or markdown content.
+	 */
+	readonly media: {
+		path?: {
+			[k: string]: unknown;
+		};
+		/**
+		 * Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide.
+		 */
+		image: string | {
+			/**
+			 * Path to the image for dark themes, relative to extension directory.
+			 */
+			dark: string;
+			/**
+			 * Path to the image for light themes, relative to extension directory.
+			 */
+			light: string;
+			/**
+			 * Path to the image for hc themes, relative to extension directory.
+			 */
+			hc: string;
+			/**
+			 * Path to the image for hc light themes, relative to extension directory.
+			 */
+			hcLight: string;
+		};
+		/**
+		 * Alternate text to display when the image cannot be loaded or in screen readers.
+		 */
+		altText: string;
+		markdown?: never;
+		svg?: never;
+	} | {
+		/**
+		 * Path to an svg, color tokens are supported in variables to support theming to match the workbench.
+		 */
+		svg: string;
+		/**
+		 * Alternate text to display when the image cannot be loaded or in screen readers.
+		 */
+		altText: string;
+		image?: never;
+		markdown?: never;
+	} | {
+		path?: {
+			[k: string]: unknown;
+		};
+		/**
+		 * Path to the markdown document, relative to extension directory.
+		 */
+		markdown: string;
+		image?: never;
+		svg?: never;
+	};
+	/**
+	 * Events that should trigger this step to become checked off. If empty or not defined, the step will check off when any of the step's buttons or links are clicked; if the step has no buttons or links it will check on when it is selected.
+	 */
 	readonly completionEvents?: string[];
-	/** @deprecated use `completionEvents: 'onCommand:...'` */
+	/**
+	 * Signal to mark step as complete.
+	 * @deprecated use `completionEvents: 'onCommand:...'`
+	 **/
 	readonly doneOn?: { command: string };
+	/**
+	 * Context key expression to control the visibility of this step.
+	 */
 	readonly when?: string;
 }
 
 export interface IWalkthrough {
+	/**
+	 * Unique identifier for this walkthrough.
+	 */
 	readonly id: string;
+	/**
+	 * Title of walkthrough.
+	 */
 	readonly title: string;
+	/**
+	 * Relative path to the icon of the walkthrough. The path is relative to the extension location. If not specified, the icon defaults to the extension icon if available.
+	 */
 	readonly icon?: string;
+	/**
+	 * Description of walkthrough.
+	 */
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
+	/**
+	 * Walkthroughs that match one of these glob patterns appear as 'featured' in workspaces with the specified files. For example, a walkthrough for TypeScript projects might specify `tsconfig.json` here.
+	 */
 	readonly featuredFor: string[] | undefined;
+	/**
+	 * Context key expression to control the visibility of this walkthrough.
+	 */
 	readonly when?: string;
 }
 
@@ -152,13 +370,28 @@ export interface IStartEntry {
 }
 
 export interface INotebookEntry {
+	/**
+	 * Type of the notebook.
+	 */
 	readonly type: string;
+	/**
+	 * Human readable name of the notebook.
+	 */
 	readonly displayName: string;
 }
 
 export interface INotebookRendererContribution {
+	/**
+	 * Unique identifier of the notebook output renderer.
+	 */
 	readonly id: string;
+	/**
+	 * Human readable name of the notebook output renderer.
+	 */
 	readonly displayName: string;
+	/**
+	 * Set of globs that the notebook is for.
+	 */
 	readonly mimeTypes: string[];
 }
 
@@ -168,41 +401,122 @@ export interface IDebugVisualizationContribution {
 }
 
 export interface ITranslation {
+	/**
+	 * Id of VS Code or Extension for which this translation is contributed to. Id of VS Code is always `vscode` and of extension should be in format `publisherId.extensionName`.
+	 */
 	id: string;
+	/**
+	 * A relative path to a file containing translations for the language.
+	 */
 	path: string;
 }
 
 export interface ILocalizationContribution {
+	/**
+	 * Id of the language into which the display strings are translated.
+	 */
 	languageId: string;
+	/**
+	 * Name of the language in English.
+	 */
 	languageName?: string;
+	/**
+	 * Name of the language in contributed language.
+	 */
 	localizedLanguageName?: string;
+	/**
+	 *
+	 */
 	translations: ITranslation[];
 	minimalTranslations?: { [key: string]: string };
 }
 
 export interface IExtensionContributions {
+	/**
+	 * Contributes commands to the command palette.
+	 */
 	commands?: ICommand[];
+	/**
+	 * Contributes configuration settings.
+	 */
 	configuration?: IConfiguration | IConfiguration[];
+	/**
+	 * Contributes debug adapters.
+	 */
 	debuggers?: IDebugger[];
+	/**
+	 * Contributes textmate tokenizers.
+	 */
 	grammars?: IGrammar[];
+	/**
+	 * Contributes json schema configuration.
+	 */
 	jsonValidation?: IJSONValidation[];
+	/**
+	 * Contributes keybindings.
+	 */
 	keybindings?: IKeyBinding[];
+	/**
+	 * Contributes language declarations.
+	 */
 	languages?: ILanguage[];
+	/**
+	 * Contributes menu items to the editor
+	 */
 	menus?: { [context: string]: IMenu[] };
+	/**
+	 * Contributes snippets.
+	 */
 	snippets?: ISnippet[];
+	/**
+	 * Contributes textmate color themes.
+	 */
 	themes?: ITheme[];
+	/**
+	 * Contributes file icon themes.
+	 */
 	iconThemes?: ITheme[];
+	/**
+	 * Contributes product icon themes.
+	 */
 	productIconThemes?: ITheme[];
+	/**
+	 * Contributes views containers to the editor
+	 */
 	viewsContainers?: { [location: string]: IViewContainer[] };
+	/**
+	 * Contributes views to the editor
+	 */
 	views?: { [location: string]: IView[] };
+	/**
+	 * Contributes extension defined themable colors
+	 */
 	colors?: IColor[];
+	/**
+	 * Contributes localizations to the editor
+	 */
 	localizations?: ILocalizationContribution[];
+	/**
+	 * Contributed custom editors.
+	 */
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
+	/**
+	 * Contributes authentication
+	 */
 	authentication?: IAuthenticationContribution[];
+	/**
+	 * Contribute walkthroughs to help users getting started with your extension.
+	 */
 	walkthroughs?: IWalkthrough[];
 	startEntries?: IStartEntry[];
+	/**
+	 * Contributes notebook document provider.
+	 */
 	readonly notebooks?: INotebookEntry[];
+	/**
+	 * Contributes notebook output renderer provider.
+	 */
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 }
