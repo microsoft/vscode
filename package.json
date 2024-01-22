@@ -187,7 +187,7 @@
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
     "mime": "^1.4.1",
-    "minimatch": "^3.0.4",
+    "minimatch": "^9.0.3",
     "minimist": "^1.2.6",
     "mkdirp": "^1.0.4",
     "mocha": "^10.2.0",
@@ -215,7 +215,7 @@
     "webpack": "^5.77.0",
     "webpack-cli": "^5.0.1",
     "webpack-stream": "^7.0.0",
-    "xml2js": "^0.5.0",
+    "xml2js": "^0.6.0",
     "yaserver": "^0.4.0"
   },
   "repository": {
