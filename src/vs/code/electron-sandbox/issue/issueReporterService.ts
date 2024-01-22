@@ -818,7 +818,6 @@ export class IssueReporter extends Disposable {
 			show(extensionDataBlock);
 		}
 
-
 		if (issueType === IssueType.Bug) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
@@ -908,7 +907,7 @@ export class IssueReporter extends Disposable {
 	private async createIssue(): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 		const hasUri = selectedExtension?.hasIssueUriRequestHandler;
-		const hasData = this.issueReporterModel.getData().selectedExtension?.hasIssueDataProviders;
+		const hasData = selectedExtension?.hasIssueDataProviders;
 		// Short circuit if the extension provides a custom issue handler
 		if (hasUri && !hasData) {
 			const url = this.getExtensionBugsUrl();
@@ -1180,7 +1179,6 @@ export class IssueReporter extends Disposable {
 					this.clearSearchResults();
 					this.validateSelectedExtension();
 				}
-
 			});
 		}
 
