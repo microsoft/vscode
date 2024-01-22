@@ -43,7 +43,8 @@ import { timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { trim, rtrim } from 'vs/base/common/strings';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -1097,7 +1098,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 
 	const toPaste = await getFilesToPaste(fileList, clipboardService);
 
-	if (confirmPasteNative) {
+	if (confirmPasteNative && toPaste?.length >= 1) {
 		const message = toPaste.length > 1 ?
 			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.length) :
 			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste[0].fsPath));

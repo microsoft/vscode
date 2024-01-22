@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,7 +21,6 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
@@ -32,6 +30,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { Terminal } from '@xterm/xterm';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -68,7 +67,8 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
-		instantiationService.stub(IAccessibleNotificationService, store.add(new TestAccessibleNotificationService()));
+		instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
+
 		instantiationService.stub(ILayoutService, new TestLayoutService());
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		capabilities = store.add(new TerminalCapabilityStore());

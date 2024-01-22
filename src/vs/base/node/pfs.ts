@@ -380,11 +380,11 @@ function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Pro
 function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
 function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
 function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
-	return writeQueues.queueFor(URI.file(path), extUriBiasedIgnorePathCase).queue(() => {
+	return writeQueues.queueFor(URI.file(path), () => {
 		const ensuredOptions = ensureWriteOptions(options);
 
 		return new Promise((resolve, reject) => doWriteFileAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve()));
-	});
+	}, extUriBiasedIgnorePathCase);
 }
 
 interface IWriteFileOptions {

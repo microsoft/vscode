@@ -12,7 +12,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,23 +26,22 @@ export class AudioCueLineFeatureContribution
 	private readonly store = this._register(new DisposableStore());
 
 	private readonly features: LineFeature[] = [
-		this.instantiationService.createInstance(MarkerLineFeature, AccessibleNotificationEvent.Error, AudioCue.error, MarkerSeverity.Error),
-		this.instantiationService.createInstance(MarkerLineFeature, AccessibleNotificationEvent.Warning, AudioCue.warning, MarkerSeverity.Warning),
+		this.instantiationService.createInstance(MarkerLineFeature, AudioCue.error, MarkerSeverity.Error),
+		this.instantiationService.createInstance(MarkerLineFeature, AudioCue.warning, MarkerSeverity.Warning),
 		this.instantiationService.createInstance(FoldedAreaLineFeature),
 		this.instantiationService.createInstance(BreakpointLineFeature),
 	];
 
 	private readonly isEnabledCache = new CachedFunction<AudioCue, IObservable<boolean>>((cue) => observableFromEvent(
 		this.audioCueService.onEnabledChanged(cue),
-		() => this.audioCueService.isEnabled(cue)
+		() => this.audioCueService.isCueEnabled(cue)
 	));
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAudioCueService private readonly audioCueService: IAudioCueService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -157,7 +155,8 @@ export class AudioCueLineFeatureContribution
 						newValue?.featureStates.get(feature) &&
 						(!lastValue?.featureStates?.get(feature) || newValue.lineNumber !== lastValue.lineNumber)
 				);
-				this._accessibleNotificationService.notifyLineChanges(newFeatures.map(feature => feature.event));
+
+				this.audioCueService.playAudioCues(newFeatures.map(f => f.audioCue));
 			})
 		);
 	}
@@ -165,7 +164,6 @@ export class AudioCueLineFeatureContribution
 
 interface LineFeature {
 	audioCue: AudioCue;
-	event: AccessibleNotificationEvent;
 	debounceWhileTyping?: boolean;
 	getObservableState(
 		editor: ICodeEditor,
@@ -181,7 +179,6 @@ class MarkerLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
 	private _previousLine: number = 0;
 	constructor(
-		public readonly event: AccessibleNotificationEvent,
 		public readonly audioCue: AudioCue,
 		private readonly severity: MarkerSeverity,
 		@IMarkerService private readonly markerService: IMarkerService,
@@ -213,7 +210,7 @@ class MarkerLineFeature implements LineFeature {
 
 class FoldedAreaLineFeature implements LineFeature {
 	public readonly audioCue = AudioCue.foldedArea;
-	public readonly event = AccessibleNotificationEvent.Folded;
+
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
@@ -240,7 +237,7 @@ class FoldedAreaLineFeature implements LineFeature {
 
 class BreakpointLineFeature implements LineFeature {
 	public readonly audioCue = AudioCue.break;
-	public readonly event = AccessibleNotificationEvent.Breakpoint;
+
 	constructor(@IDebugService private readonly debugService: IDebugService) { }
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {

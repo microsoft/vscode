@@ -435,6 +435,22 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(second.edit.newText, 'Foo');
 	});
 
+	test('WorkspaceEdit - set with metadata accepts undefined', function () {
+		const edit = new types.WorkspaceEdit();
+		const uri = URI.parse('foo:bar');
+
+		edit.set(uri, [
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), { needsConfirmation: true, label: 'foo' }],
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), undefined],
+		]);
+
+		const all = edit._allEntries();
+		assert.strictEqual(all.length, 2);
+		const [first, second] = all;
+		assert.ok(first.metadata);
+		assert.ok(!second.metadata);
+	});
+
 	test('DocumentLink', () => {
 		assert.throws(() => new types.DocumentLink(null!, null!));
 		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null!));

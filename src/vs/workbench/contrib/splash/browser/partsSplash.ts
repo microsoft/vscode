@@ -21,6 +21,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
 import { mainWindow } from 'vs/base/browser/window';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { TitleBarSetting } from 'vs/platform/window/common/window';
 
 export class PartsSplash {
 
@@ -54,7 +55,7 @@ export class PartsSplash {
 		});
 
 		_configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.titleBarStyle')) {
+			if (e.affectsConfiguration(TitleBarSetting.TITLE_BAR_STYLE)) {
 				this._didChangeTitleBarStyle = true;
 				this._savePartsSplash();
 			}

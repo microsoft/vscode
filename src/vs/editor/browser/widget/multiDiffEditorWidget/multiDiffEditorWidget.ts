@@ -8,13 +8,16 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
-import { MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
 import { DiffEditorItemTemplate } from 'vs/editor/browser/widget/multiDiffEditorWidget/diffEditorItemTemplate';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
@@ -61,21 +64,15 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
 
-	private readonly _scrollState = derived(this, (reader) => {
-		const w = this._widgetImpl.read(reader);
-		const top = w.scrollTop.read(reader);
-		const left = w.scrollLeft.read(reader);
-		return { top, left };
-	});
-
-	public getScrollState(): { top: number; left: number } {
-		return this._scrollState.get();
+	public getViewState(): IMultiDiffEditorViewState {
+		return this._widgetImpl.get().getViewState();
 	}
 
-	public setScrollState(scrollState: { top?: number; left?: number }): void {
-		const w = this._widgetImpl.get();
-		w.setScrollState(scrollState);
+	public setViewState(viewState: IMultiDiffEditorViewState): void {
+		this._widgetImpl.get().setViewState(viewState);
 	}
 
-	public readonly onDidChangeScrollState = Event.fromObservableLight(this._scrollState);
+	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		return this._widgetImpl.get().tryGetCodeEditor(resource);
+	}
 }

@@ -8,6 +8,11 @@ import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegis
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { AccessibilityAlertSettingId } from 'vs/platform/audioCues/browser/audioCueService';
+import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Event } from 'vs/base/common/event';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -34,11 +39,6 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Maximum = 1
 }
 
-export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout',
-}
-export const SpeechTimeoutDefault = 1200;
-
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
@@ -52,25 +52,6 @@ export const enum AccessibilityVerbositySettingId {
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	Comments = 'accessibility.verbosity.comments'
-}
-
-export const enum AccessibilityAlertSettingId {
-	Clear = 'accessibility.alert.clear',
-	Save = 'accessibility.alert.save',
-	Format = 'accessibility.alert.format',
-	Breakpoint = 'accessibility.alert.breakpoint',
-	Error = 'accessibility.alert.error',
-	Warning = 'accessibility.alert.warning',
-	FoldedArea = 'accessibility.alert.foldedArea',
-	TerminalQuickFix = 'accessibility.alert.terminalQuickFix',
-	TerminalBell = 'accessibility.alert.terminalBell',
-	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
-	TaskCompleted = 'accessibility.alert.taskCompleted',
-	TaskFailed = 'accessibility.alert.taskFailed',
-	ChatRequestSent = 'accessibility.alert.chatRequestSent',
-	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
-	NotebookCellFailed = 'accessibility.alert.notebookCellFailed',
-	OnDebugBreak = 'accessibility.alert.onDebugBreak'
 }
 
 export const enum AccessibleViewProviderId {
@@ -95,10 +76,14 @@ const baseProperty: object = {
 	tags: ['accessibility']
 };
 
-const configuration: IConfigurationNode = {
+export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	id: 'accessibility',
 	title: localize('accessibilityConfigurationTitle', "Accessibility"),
-	type: 'object',
+	type: 'object'
+});
+
+const configuration: IConfigurationNode = {
+	...accessibilityConfigurationNodeBase,
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
@@ -146,7 +131,6 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityAlertSettingId.Save]: {
 			'markdownDescription': localize('alert.save', "Alerts when a file is saved. Also see {0}.", '`#audioCues.save#`'),
-			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'always',
 			'enumDescriptions': [
@@ -234,6 +218,24 @@ const configuration: IConfigurationNode = {
 			'default': true,
 			tags: ['accessibility']
 		},
+		[AccessibilityAlertSettingId.ChatResponsePending]: {
+			'markdownDescription': localize('alert.chatResponsePending', "Alerts when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.NoInlayHints]: {
+			'markdownDescription': localize('alert.noInlayHints', "Alerts when there are no inlay hints. Also see {0}.", '`#audioCues.noInlayHints#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.LineHasBreakpoint]: {
+			'markdownDescription': localize('alert.lineHasBreakpoint', "Alerts when on a line with a breakpoint. Also see {0}.", '`#audioCues.lineHasBreakpoint#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
 		[AccessibilityAlertSettingId.NotebookCellCompleted]: {
 			'markdownDescription': localize('alert.notebookCellCompleted', "Alerts when a notebook cell completes successfully. Also see {0}.", '`#audioCues.notebookCellCompleted#`'),
 			'type': 'boolean',
@@ -251,13 +253,6 @@ const configuration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
-		},
-		[AccessibilityVoiceSettingId.SpeechTimeout]: {
-			'markdownDescription': localize('voice.speechTimeout', "The duration in milliseconds that voice speech recognition remains active after you stop speaking. For example in a chat session, the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
-			'type': 'number',
-			'default': SpeechTimeoutDefault,
-			'minimum': 0,
-			'tags': ['accessibility']
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
@@ -298,4 +293,40 @@ export function registerAccessibilityConfiguration() {
 			}
 		}
 	});
+}
+
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout'
+}
+export const SpeechTimeoutDefault = 1200;
+
+export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@ISpeechService private readonly speechService: ISpeechService
+	) {
+		super();
+
+		this._register(Event.runAndSubscribe(speechService.onDidRegisterSpeechProvider, () => this.updateConfiguration()));
+	}
+
+	private updateConfiguration(): void {
+		if (!this.speechService.hasSpeechProvider) {
+			return; // these settings require a speech provider
+		}
+
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		registry.registerConfiguration({
+			...accessibilityConfigurationNodeBase,
+			properties: {
+				[AccessibilityVoiceSettingId.SpeechTimeout]: {
+					'markdownDescription': localize('voice.speechTimeout', "The duration in milliseconds that voice speech recognition remains active after you stop speaking. For example in a chat session, the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
+					'type': 'number',
+					'default': SpeechTimeoutDefault,
+					'minimum': 0,
+					'tags': ['accessibility']
+				}
+			}
+		});
+	}
 }

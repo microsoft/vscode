@@ -19,6 +19,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -217,10 +218,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// When saving, try to just download the contents
 		// of the active text editor if any as a workaround
 		if (context === 'save') {
-			const activeTextModel = this.codeEditorService.getActiveCodeEditor()?.getModel();
-			if (activeTextModel) {
-				triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
-				return;
+			const activeCodeEditor = this.codeEditorService.getActiveCodeEditor();
+			if (!(activeCodeEditor instanceof EmbeddedCodeEditorWidget)) {
+				const activeTextModel = activeCodeEditor?.getModel();
+				if (activeTextModel) {
+					triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
+					return;
+				}
 			}
 		}
 
