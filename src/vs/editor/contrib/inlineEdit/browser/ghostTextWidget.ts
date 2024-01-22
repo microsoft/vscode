@@ -25,6 +25,7 @@ import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineEdit/browser/utils';
 
+export const GHOST_TEXT_DESCRIPTION = 'ghost-text';
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
@@ -33,9 +34,8 @@ export interface IGhostTextWidgetModel {
 }
 
 export class GhostTextWidget extends Disposable {
-	private readonly isDisposed = observableValue('isDisposed', false);
-	private readonly isSelected = observableValue('isSelected', false);
-	private readonly currentTextModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
+	private readonly isDisposed = observableValue(this, false);
+	private readonly currentTextModel = observableFromEvent(this.editor.onDidChangeModel, () => /** @description editor.model */ this.editor.getModel());
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -48,8 +48,7 @@ export class GhostTextWidget extends Disposable {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly uiState = derived(reader => {
-		/** @description uiState */
+	private readonly uiState = derived(this, reader => {
 		if (this.isDisposed.read(reader)) {
 			return undefined;
 		}
@@ -109,9 +108,7 @@ export class GhostTextWidget extends Disposable {
 			}
 
 			if (lines.length > 0) {
-				const selected = this.isSelected.read(reader);
-				const className = selected ? 'ghost-text-selected' : 'ghost-text';
-				addToAdditionalLines(lines, className);
+				addToAdditionalLines(lines, GHOST_TEXT_DESCRIPTION);
 				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 					hiddenTextStartColumn = part.column;
 				}
@@ -139,8 +136,7 @@ export class GhostTextWidget extends Disposable {
 		};
 	});
 
-	private readonly decorations = derived(reader => {
-		/** @description decorations */
+	private readonly decorations = derived(this, reader => {
 		const uiState = this.uiState.read(reader);
 		if (!uiState) {
 			return [];
@@ -163,8 +159,6 @@ export class GhostTextWidget extends Disposable {
 		}
 
 		if (uiState.removeRange) {
-			const className = this.isSelected.read(reader) ? 'ghost-text-remove-selected' : 'ghost-text-remove';
-
 			const liens = uiState.removeRange.endLineNumber - uiState.removeRange.startLineNumber;
 			const ranges = [];
 			for (let i = 0; i < liens; i++) {
@@ -177,23 +171,18 @@ export class GhostTextWidget extends Disposable {
 			for (const range of ranges) {
 				decorations.push({
 					range,
-					options: { inlineClassName: className, description: 'ghost-text-remove', }
+					options: { inlineClassName: 'ghost-text-remove', description: 'ghost-text-remove', }
 				});
 			}
 		}
 
 		for (const p of uiState.inlineTexts) {
-			const selected = this.isSelected.read(reader);
-			let className = p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration';
-			if (selected) {
-				className += '-selected';
-			}
 
 			decorations.push({
 				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 				options: {
-					description: 'ghost-text',
-					after: { content: p.text, inlineClassName: className, cursorStops: InjectedTextCursorStops.Left },
+					description: GHOST_TEXT_DESCRIPTION,
+					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
 					showIfCollapsed: true,
 				}
 			});
@@ -221,14 +210,6 @@ export class GhostTextWidget extends Disposable {
 
 	public ownsViewZone(viewZoneId: string): boolean {
 		return this.additionalLinesWidget.viewZoneId === viewZoneId;
-	}
-
-	public select(): void {
-		this.isSelected.set(true, undefined);
-	}
-
-	public deselect(): void {
-		this.isSelected.set(false, undefined);
 	}
 }
 
@@ -373,4 +354,4 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	domNode.innerHTML = trustedhtml as string;
 }
 
-const ttPolicy = createTrustedTypesPolicy('editorMultiGhostText', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('editorInlineEdit', { createHTML: value => value });
