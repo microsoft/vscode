@@ -240,8 +240,8 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'type': 'string',
 				'enum': ['auto', 'windowed', 'never'],
 				'markdownEnumDescriptions': [
-					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom titlebar visibility."),
-					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. Automatically changes custom titlebar visibility in windowed."),
+					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom title bar visibility."),
+					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. When not in full screen, automatically change custom title bar visibility."),
 					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when `#window.titleBarStyle#` is set to `native`."),
 				],
 				'default': isLinux ? 'never' : 'auto',
