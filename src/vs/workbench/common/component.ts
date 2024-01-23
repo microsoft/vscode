@@ -48,7 +48,7 @@ export class Component extends Themable {
 	protected onDidChangeMementoValue(scope: StorageScope, disposables: DisposableStore): Event<IStorageValueChangeEvent> {
 		return this.memento.onDidChangeValue(scope, disposables);
 	}
-	// TODO: 各种操作，只对 model 进行操作，写入数据通过 saveState override 接口触发。
+
 	protected saveState(): void {
 		// Subclasses to implement for storing state
 	}
