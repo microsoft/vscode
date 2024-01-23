@@ -338,7 +338,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		};
 		actions.push(codeAction);
 
-		const copilot = vscode.extensions.getExtension('github.copilot');
+		const copilot = vscode.extensions.getExtension('github.copilot-chat');
 		if (copilot?.isActive) {
 			let message: string | undefined;
 			let expand: Expand | undefined;

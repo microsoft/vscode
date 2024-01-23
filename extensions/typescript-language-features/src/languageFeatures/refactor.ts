@@ -636,7 +636,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			codeActions.push(new MoveToFileCodeAction(document, action, rangeOrSelection));
 		} else {
 			codeActions.push(new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, undefined));
-			const copilot = vscode.extensions.getExtension('github.copilot');
+			const copilot = vscode.extensions.getExtension('github.copilot-chat');
 			if (copilot?.isActive) {
 				if (Extract_Constant.matches(action)
 					|| Extract_Function.matches(action)
