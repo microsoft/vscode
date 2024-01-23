@@ -235,28 +235,6 @@ registerAction2(class ToggleEditorActions extends Action2 {
 	}
 });
 
-registerAction2(class ToggleActivityBarActions extends Action2 {
-	static readonly settingsID = `workbench.activityBar.location`;
-	constructor() {
-
-		super({
-			id: `toggle.${ToggleActivityBarActions.settingsID}`,
-			title: localize('toggle.activityBarActions', 'Activity Bar Actions'),
-			toggled: ContextKeyExpr.equals(`config.${ToggleActivityBarActions.settingsID}`, 'top'),
-			menu: [
-				{ id: MenuId.TitleBarContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side'), group: '2_config' },
-				{ id: MenuId.TitleBarTitleContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side'), group: '2_config' }
-			]
-		});
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const configService = accessor.get(IConfigurationService);
-		const oldLocation = configService.getValue<string>(ToggleActivityBarActions.settingsID);
-		configService.updateValue(ToggleActivityBarActions.settingsID, oldLocation === 'top' ? 'hidden' : 'top');
-	}
-});
-
 // --- Toolbar actions --- //
 
 export const ACCOUNTS_ACTIVITY_TILE_ACTION: IAction = {
