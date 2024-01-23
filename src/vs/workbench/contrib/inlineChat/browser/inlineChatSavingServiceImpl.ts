@@ -55,7 +55,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._store.add(_inlineChatSessionService.onDidEndSession(e => {
+		this._store.add(Event.any(_inlineChatSessionService.onDidEndSession, _inlineChatSessionService.onDidStashSession)(e => {
 			this._sessionData.get(e.session)?.dispose();
 		}));
 	}
