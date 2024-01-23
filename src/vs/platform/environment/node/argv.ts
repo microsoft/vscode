@@ -167,6 +167,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
+	'preserve-env': { type: 'boolean' },
 	'force-user-env': { type: 'boolean' },
 	'force-disable-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },

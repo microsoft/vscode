@@ -24,7 +24,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	private readonly _onDidUnmaximizeWindow = this._register(new Emitter<IAuxiliaryWindow>());
 	readonly onDidUnmaximizeWindow = this._onDidUnmaximizeWindow.event;
 
-	private readonly _onDidChangeFullScreen = this._register(new Emitter<IAuxiliaryWindow>());
+	private readonly _onDidChangeFullScreen = this._register(new Emitter<{ window: IAuxiliaryWindow; fullscreen: boolean }>());
 	readonly onDidChangeFullScreen = this._onDidChangeFullScreen.event;
 
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
@@ -88,8 +88,8 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		disposables.add(auxiliaryWindow.onDidMaximize(() => this._onDidMaximizeWindow.fire(auxiliaryWindow)));
 		disposables.add(auxiliaryWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(auxiliaryWindow)));
-		disposables.add(auxiliaryWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire(auxiliaryWindow)));
-		disposables.add(auxiliaryWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire(auxiliaryWindow)));
+		disposables.add(auxiliaryWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: true })));
+		disposables.add(auxiliaryWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: false })));
 		disposables.add(auxiliaryWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: auxiliaryWindow, x, y })));
 
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());

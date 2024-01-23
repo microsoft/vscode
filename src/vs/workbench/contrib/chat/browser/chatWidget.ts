@@ -539,7 +539,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const input = !opts ? editorValue :
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
-			const isUserQuery = !opts || 'query' in opts;
+			const isUserQuery = !opts || 'prefix' in opts;
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 
 			if (result) {

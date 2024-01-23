@@ -14,11 +14,16 @@ export enum ApplyZoomTarget {
 	ALL_WINDOWS
 }
 
+export const MAX_ZOOM_LEVEL = 8;
+export const MIN_ZOOM_LEVEL = -8;
+
 /**
  * Apply a zoom level to the window. Also sets it in our in-memory
  * browser helper so that it can be accessed in non-electron layers.
  */
 export function applyZoom(zoomLevel: number, target: ApplyZoomTarget | Window): void {
+	zoomLevel = Math.min(Math.max(zoomLevel, MIN_ZOOM_LEVEL), MAX_ZOOM_LEVEL); // cap zoom levels between -8 and 8
+
 	const targetWindows: Window[] = [];
 	if (target === ApplyZoomTarget.ACTIVE_WINDOW) {
 		targetWindows.push(getActiveWindow());

@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
-import { grep, isDescendant, pathEquals, relativePath } from './util';
+import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -23,7 +23,7 @@ import { RemoteSourceAction } from './api/git-base';
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
 	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
+	get alwaysShow(): boolean { return false; }
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
@@ -260,6 +260,14 @@ class RepositoryItem implements QuickPickItem {
 	get description(): string { return this.path; }
 
 	constructor(public readonly path: string) { }
+}
+
+class StashItem implements QuickPickItem {
+	get label(): string { return `#${this.stash.index}: ${this.stash.description}`; }
+
+	get description(): string | undefined { return this.stash.branchName; }
+
+	constructor(readonly stash: Stash) { }
 }
 
 interface ScmCommandOptions {
@@ -1126,14 +1134,25 @@ export class CommandCenter {
 	}
 
 	@command('git.close', { repository: true })
-	async close(repository: Repository): Promise<void> {
-		this.model.close(repository);
+	async close(repository: Repository, ...args: SourceControl[]): Promise<void> {
+		const otherRepositories = args
+			.map(sourceControl => this.model.getRepository(sourceControl))
+			.filter(isDefined);
+
+		for (const r of [repository, ...otherRepositories]) {
+			this.model.close(r);
+		}
 	}
 
 	@command('git.closeOtherRepositories', { repository: true })
-	async closeOtherRepositories(repository: Repository): Promise<void> {
+	async closeOtherRepositories(repository: Repository, ...args: SourceControl[]): Promise<void> {
+		const otherRepositories = args
+			.map(sourceControl => this.model.getRepository(sourceControl))
+			.filter(isDefined);
+
+		const selectedRepositories = [repository, ...otherRepositories];
 		for (const r of this.model.repositories) {
-			if (r === repository) {
+			if (selectedRepositories.includes(r)) {
 				continue;
 			}
 			this.model.close(r);
@@ -1509,6 +1528,30 @@ export class CommandCenter {
 		await this._stageChanges(textEditor, selectedChanges);
 	}
 
+	@command('git.stageFile')
+	async stageFile(uri: Uri): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			return;
+		}
+
+		const resources = [
+			...repository.workingTreeGroup.resourceStates,
+			...repository.untrackedGroup.resourceStates]
+			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString())
+			.map(r => r.resourceUri);
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		await repository.add(resources);
+	}
+
 	@command('git.acceptMerge')
 	async acceptMerge(_uri: Uri | unknown): Promise<void> {
 		const { activeTab } = window.tabGroups.activeTabGroup;
@@ -1760,6 +1803,29 @@ export class CommandCenter {
 
 		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
+
+	@command('git.unstageFile')
+	async unstageFile(uri: Uri): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			return;
+		}
+
+		const resources = repository.indexGroup.resourceStates
+			.filter(r => r.multiFileDiffEditorModifiedUri?.toString() === uri.toString())
+			.map(r => r.resourceUri);
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		await repository.revert(resources);
+	}
+
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
@@ -2400,39 +2466,45 @@ export class CommandCenter {
 			picks.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
-		const quickpick = window.createQuickPick();
-		quickpick.busy = true;
-		quickpick.placeholder = opts?.detached
+		const disposables: Disposable[] = [];
+		const quickPick = window.createQuickPick();
+		quickPick.busy = true;
+		quickPick.sortByLabel = false;
+		quickPick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
 
-		quickpick.show();
+		quickPick.show();
 
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickpick.items = picks;
-		quickpick.busy = false;
+		quickPick.items = picks;
+		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
-			quickpick.onDidAccept(() => c(quickpick.activeItems[0]));
-			quickpick.onDidTriggerItemButton((e) => {
-				quickpick.hide();
+			disposables.push(quickPick.onDidHide(() => c(undefined)));
+			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
+			disposables.push((quickPick.onDidTriggerItemButton((e) => {
 				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
 				const item = e.item as CheckoutItem;
 				if (button.actual && item.refName) {
 					button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
 				}
-			});
+
+				c(undefined);
+			})));
 		});
-		quickpick.hide();
+
+		dispose(disposables);
+		quickPick.dispose();
 
 		if (!choice) {
 			return false;
 		}
 
 		if (choice === createBranch) {
-			await this._branch(repository, quickpick.value);
+			await this._branch(repository, quickPick.value);
 		} else if (choice === createBranchFrom) {
-			await this._branch(repository, quickpick.value, true);
+			await this._branch(repository, quickPick.value, true);
 		} else if (choice === checkoutDetached) {
 			return this._checkout(repository, { detached: true });
 		} else {
@@ -2606,6 +2678,30 @@ export class CommandCenter {
 		await repository.branch(branchName, true, target);
 	}
 
+	private async pickRef<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
+		const disposables: Disposable[] = [];
+		const quickPick = window.createQuickPick<T>();
+
+		quickPick.placeholder = placeHolder;
+		quickPick.sortByLabel = false;
+		quickPick.busy = true;
+
+		quickPick.show();
+
+		quickPick.items = await items;
+		quickPick.busy = false;
+
+		const choice = await new Promise<T | undefined>(resolve => {
+			disposables.push(quickPick.onDidHide(() => resolve(undefined)));
+			disposables.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
+		});
+
+		dispose(disposables);
+		quickPick.dispose();
+
+		return choice;
+	}
+
 	@command('git.deleteBranch', { repository: true })
 	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
@@ -2620,7 +2716,7 @@ export class CommandCenter {
 			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
-			const choice = await window.showQuickPick<BranchDeleteItem>(getBranchPicks(), { placeHolder });
+			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
 
 			if (!choice || !choice.refName) {
 				return;
@@ -2685,7 +2781,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch or tag to merge from');
-		const choice = await window.showQuickPick(getQuickPickItems(), { placeHolder });
+		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof MergeItem) {
 			await choice.run(repository);
@@ -2707,7 +2803,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
-		const choice = await window.showQuickPick(getQuickPickItems(), { placeHolder });
+		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof RebaseItem) {
 			await choice.run(repository);
@@ -2744,7 +2840,8 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a tag to delete');
-		const choice = await window.showQuickPick<TagDeleteItem | QuickPickItem>(tagPicks(), { placeHolder });
+		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
+
 
 		if (choice instanceof TagDeleteItem) {
 			await choice.run(repository);
@@ -2864,6 +2961,16 @@ export class CommandCenter {
 		await repository.fetchAll();
 	}
 
+	@command('git.fetchRef', { repository: true })
+	async fetchRef(repository: Repository, ref: string): Promise<void> {
+		if (!repository || !ref) {
+			return;
+		}
+
+		const branch = await repository.getBranch(ref);
+		await repository.fetch({ remote: branch.remote, ref: branch.name });
+	}
+
 	@command('git.pullFrom', { repository: true })
 	async pullFrom(repository: Repository): Promise<void> {
 		const remotes = repository.remotes;
@@ -2892,7 +2999,7 @@ export class CommandCenter {
 		};
 
 		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
-		const branchPick = await window.showQuickPick(getBranchPicks(), { placeHolder: branchPlaceHolder });
+		const branchPick = await this.pickRef(getBranchPicks(), branchPlaceHolder);
 
 		if (!branchPick || !branchPick.refName) {
 			return;
@@ -2924,6 +3031,16 @@ export class CommandCenter {
 		}
 
 		await repository.pullWithRebase(repository.HEAD);
+	}
+
+	@command('git.pullRef', { repository: true })
+	async pullRef(repository: Repository, ref: string): Promise<void> {
+		if (!repository || !ref) {
+			return;
+		}
+
+		const branch = await repository.getBranch(ref);
+		await repository.pullFrom(false, branch.remote, branch.name);
 	}
 
 	private async _push(repository: Repository, pushOptions: PushOptions) {
@@ -3061,6 +3178,15 @@ export class CommandCenter {
 	@command('git.pushWithTagsForce', { repository: true })
 	async pushFollowTagsForce(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
+	}
+
+	@command('git.pushRef', { repository: true })
+	async pushRef(repository: Repository, ref: string): Promise<void> {
+		if (!repository || !ref) {
+			return;
+		}
+
+		await this._push(repository, { pushType: PushType.Push });
 	}
 
 	@command('git.cherryPick', { repository: true })
@@ -3465,6 +3591,17 @@ export class CommandCenter {
 		await repository.popStash();
 	}
 
+	@command('git.stashPopEditor')
+	async stashPopEditor(uri: Uri): Promise<void> {
+		const result = await this.getStashFromUri(uri);
+		if (!result) {
+			return;
+		}
+
+		await result.repository.popStash(result.stash.index);
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+	}
+
 	@command('git.stashApply', { repository: true })
 	async stashApply(repository: Repository): Promise<void> {
 		const placeHolder = l10n.t('Pick a stash to apply');
@@ -3489,6 +3626,17 @@ export class CommandCenter {
 		await repository.applyStash();
 	}
 
+	@command('git.stashApplyEditor')
+	async stashApplyEditor(uri: Uri): Promise<void> {
+		const result = await this.getStashFromUri(uri);
+		if (!result) {
+			return;
+		}
+
+		await result.repository.applyStash(result.stash.index);
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+	}
+
 	@command('git.stashDrop', { repository: true })
 	async stashDrop(repository: Repository): Promise<void> {
 		const placeHolder = l10n.t('Pick a stash to drop');
@@ -3498,18 +3646,7 @@ export class CommandCenter {
 			return;
 		}
 
-		// request confirmation for the operation
-		const yes = l10n.t('Yes');
-		const result = await window.showWarningMessage(
-			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
-			{ modal: true },
-			yes
-		);
-		if (result !== yes) {
-			return;
-		}
-
-		await repository.dropStash(stash.index);
+		await this._stashDrop(repository, stash);
 	}
 
 	@command('git.stashDropAll', { repository: true })
@@ -3535,9 +3672,36 @@ export class CommandCenter {
 		await repository.dropStash();
 	}
 
-	@command('git.stashPreview', { repository: true })
-	async stashPreview(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('Pick a stash to preview');
+	@command('git.stashDropEditor')
+	async stashDropEditor(uri: Uri): Promise<void> {
+		const result = await this.getStashFromUri(uri);
+		if (!result) {
+			return;
+		}
+
+		if (await this._stashDrop(result.repository, result.stash)) {
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+		}
+	}
+
+	async _stashDrop(repository: Repository, stash: Stash): Promise<boolean> {
+		const yes = l10n.t('Yes');
+		const result = await window.showWarningMessage(
+			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			{ modal: true },
+			yes
+		);
+		if (result !== yes) {
+			return false;
+		}
+
+		await repository.dropStash(stash.index);
+		return true;
+	}
+
+	@command('git.stashView', { repository: true })
+	async stashView(repository: Repository): Promise<void> {
+		const placeHolder = l10n.t('Pick a stash to view');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
@@ -3563,17 +3727,45 @@ export class CommandCenter {
 	}
 
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
-		const stashes = await repository.getStashes();
+		const getStashQuickPickItems = async (): Promise<StashItem[] | QuickPickItem[]> => {
+			const stashes = await repository.getStashes();
+			return stashes.length > 0 ?
+				stashes.map(stash => new StashItem(stash)) :
+				[{ label: l10n.t('$(info) This repository has no stashes.') }];
+		};
 
-		if (stashes.length === 0) {
-			window.showInformationMessage(l10n.t('There are no stashes in the repository.'));
-			return;
+		const result = await window.showQuickPick<StashItem | QuickPickItem>(getStashQuickPickItems(), { placeHolder });
+		return result instanceof StashItem ? result.stash : undefined;
+	}
+
+	private async getStashFromUri(uri: Uri | undefined): Promise<{ repository: Repository; stash: Stash } | undefined> {
+		if (!uri || uri.scheme !== 'git-stash') {
+			return undefined;
 		}
 
-		const picks = stashes.map(stash => ({ label: `#${stash.index}: ${stash.description}`, description: stash.branchName, stash }));
-		const result = await window.showQuickPick(picks, { placeHolder });
+		const stashUri = fromGitUri(uri);
 
-		return result?.stash;
+		// Repository
+		const repository = this.model.getRepository(stashUri.path);
+		if (!repository) {
+			return undefined;
+		}
+
+		// Stash
+		const regex = /^stash@{(\d+)}$/;
+		const match = regex.exec(stashUri.ref);
+		if (!match) {
+			return undefined;
+		}
+
+		const [, index] = match;
+		const stashes = await repository.getStashes();
+		const stash = stashes.find(stash => stash.index === parseInt(index));
+		if (!stash) {
+			return undefined;
+		}
+
+		return { repository, stash };
 	}
 
 	@command('git.timeline.openDiff', { repository: false })
@@ -3617,8 +3809,8 @@ export class CommandCenter {
 		};
 	}
 
-	@command('git.timeline.openCommit', { repository: false })
-	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
+	@command('git.timeline.viewCommit', { repository: false })
+	async timelineViewCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
 		if (!GitTimelineItem.is(item)) {
 			return;
 		}
@@ -3824,28 +4016,47 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openCommit', { repository: true })
-	async openCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+	@command('git.viewCommit', { repository: true })
+	async viewCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {
 			return;
 		}
 
-		const historyProvider = repository.historyProvider;
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
-		const commitFiles = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+		const commit = await repository.getCommit(historyItem.id);
+		const title = `${historyItem.id.substring(0, 8)} - ${commit.message}`;
 
-		if (commitFiles.length === 0) {
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-commit' });
+
+		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+	}
+
+	@command('git.viewAllChanges', { repository: true })
+	async viewAllChanges(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
 			return;
 		}
 
 		const modifiedShortRef = historyItem.id.substring(0, 8);
 		const originalShortRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedShortRef}^`;
+		const title = l10n.t('All Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
 
-		const title = l10n.t('Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-commit' });
-		const resources = commitFiles.map(change => ({ originalUri: change.originalUri, modifiedUri: change.modifiedUri }));
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-changes' });
 
-		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+	}
+
+	async _viewChanges(repository: Repository, historyItem: SourceControlHistoryItem, multiDiffSourceUri: Uri, title: string): Promise<void> {
+		const historyProvider = repository.historyProvider;
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const files = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+
+		if (files.length === 0) {
+			return;
+		}
+
+		const resources = files.map(f => ({ originalUri: f.originalUri, modifiedUri: f.modifiedUri }));
+
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

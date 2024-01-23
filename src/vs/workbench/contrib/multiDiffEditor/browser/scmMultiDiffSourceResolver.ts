@@ -6,12 +6,13 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, observableFromEvent } from 'vs/base/common/observable';
 import { URI } from 'vs/base/common/uri';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
+import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -77,19 +78,26 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 			}
 		);
 
-		return {
-			get resources() {
-				return group.resources.map(e => ({
-					original: e.multiFileDiffEditorOriginalUri,
-					modified: e.multiFileDiffEditorModifiedUri
-				}));
-			},
-			onDidChange: e => group.onDidChangeResources(() => e()),
-			contextKeys: {
-				scmResourceGroup: groupId,
-				scmProvider: repository.provider.contextValue,
-			},
-		};
+		const resources = observableFromEvent<MultiDiffEditorItem[]>(group.onDidChangeResources, () => group.resources.map(e => ({
+			original: e.multiDiffEditorOriginalUri,
+			modified: e.multiDiffEditorModifiedUri
+		})));
+
+		return new ScmResolvedMultiDiffSource(resources, {
+			scmResourceGroup: groupId,
+			scmProvider: repository.provider.contextValue,
+		});
+	}
+}
+
+class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
+	get resources(): readonly MultiDiffEditorItem[] { return this._resources.get(); }
+	public readonly onDidChange = Event.fromObservableLight(this._resources);
+
+	constructor(
+		private readonly _resources: IObservable<readonly MultiDiffEditorItem[]>,
+		public readonly contextKeys: Record<string, ContextKeyValue> | undefined,
+	) {
 	}
 }
 
