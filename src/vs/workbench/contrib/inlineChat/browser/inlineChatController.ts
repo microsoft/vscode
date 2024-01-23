@@ -852,6 +852,8 @@ export class InlineChatController implements IEditorContribution {
 			assertType(this._strategy);
 			this._sessionStore.clear();
 
+			// only stash sessions that were not unstashed, not "empty", and not interacted with
+			const shouldStash = !this._session.isUnstashed && !!this._session.lastExchange && this._session.hunkData.size === this._session.hunkData.pending;
 			let undoCancelEdits: IValidEditOperation[] = [];
 			try {
 				undoCancelEdits = this._strategy.cancel();
@@ -862,8 +864,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 			this._stashedSession.clear();
-			if (!this._session.isUnstashed && !!this._session.lastExchange && this._session.hunkData.size === this._session.hunkData.pending) {
-				// only stash sessions that were not unstashed, not "empty", and not interacted with
+			if (shouldStash) {
 				this._stashedSession.value = this._inlineChatSessionService.stashSession(this._session, this._editor, undoCancelEdits);
 			} else {
 				this._inlineChatSessionService.releaseSession(this._session);
@@ -1142,7 +1143,11 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	unstashLastSession(): Session | undefined {
-		return this._stashedSession.value?.unstash();
+		const result = this._stashedSession.value?.unstash();
+		if (result) {
+			this._inlineChatSavingService.markChanged(result);
+		}
+		return result;
 	}
 
 	joinCurrentRun(): Promise<void> | undefined {
