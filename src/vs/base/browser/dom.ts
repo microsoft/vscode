@@ -939,7 +939,7 @@ class WrappedStyleElement {
 	private _styleSheet: HTMLStyleElement | undefined = undefined;
 
 	public setStyle(cssStyle: string): void {
-		if (cssStyle !== this._currentCssStyle) {
+		if (cssStyle === this._currentCssStyle) {
 			return;
 		}
 		this._currentCssStyle = cssStyle;
