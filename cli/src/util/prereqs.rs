@@ -20,8 +20,8 @@ lazy_static! {
 	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 18);
-	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
+	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
 }
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
@@ -141,8 +141,8 @@ async fn check_glibc_version() -> Result<(), String> {
 			Ok(())
 		} else {
 			Err(format!(
-				"find GLIBC >= 2.17 (but found {} instead) for GNU environments",
-				v
+				"find GLIBC >= {} (but found {} instead) for GNU environments",
+				*MIN_LDD_VERSION, v
 			))
 		};
 	}
@@ -201,7 +201,8 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<(), String
 
 	if !all_versions.iter().any(|v| &*MIN_CXX_VERSION >= v) {
 		return Err(format!(
-			"find GLIBCXX >= 3.4.18 (but found {} instead) for GNU environments",
+			"find GLIBCXX >= {} (but found {} instead) for GNU environments",
+			*MIN_CXX_VERSION,
 			all_versions
 				.iter()
 				.map(String::from)

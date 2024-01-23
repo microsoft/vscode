@@ -208,7 +208,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const initializeColorTheme = async () => {
 			const devThemes = this.colorThemeRegistry.findThemeByExtensionLocation(extDevLoc);
 			if (devThemes.length) {
-				return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+				const matchedColorTheme = devThemes.find(theme => theme.type === this.currentColorTheme.type);
+				return this.setColorTheme(matchedColorTheme ? matchedColorTheme.id : devThemes[0].id, undefined);
 			}
 
 			const preferredColorScheme = this.getPreferredColorScheme();

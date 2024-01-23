@@ -73,12 +73,12 @@ import {
 	SetLanguageAction,
 	SetProductIconThemeAction,
 	ToggleAutoUpdateForExtensionAction,
-	SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction,
 	UninstallAction,
 	UpdateAction,
-	WebInstallAction
+	WebInstallAction,
+	TogglePreReleaseExtensionAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { errorIcon, infoIcon, preReleaseIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
@@ -203,31 +203,7 @@ class VersionWidget extends ExtensionWithDifferentGalleryVersionWidget {
 		if (!this.extension || !semver.valid(this.extension.version)) {
 			return;
 		}
-		this.element.textContent = `v${this.gallery?.version ?? this.extension.version}`;
-	}
-}
-
-class PreReleaseTextWidget extends ExtensionWithDifferentGalleryVersionWidget {
-	private readonly element: HTMLElement;
-	constructor(container: HTMLElement) {
-		super();
-		this.element = append(container, $('span.pre-release'));
-		append(this.element, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
-		const textElement = append(this.element, $('span.pre-release-text'));
-		textElement.textContent = localize('preRelease', "Pre-Release");
-		this.render();
-	}
-	render(): void {
-		this.element.style.display = this.isPreReleaseVersion() ? 'inherit' : 'none';
-	}
-	private isPreReleaseVersion(): boolean {
-		if (!this.extension) {
-			return false;
-		}
-		if (this.gallery) {
-			return this.gallery.properties.isPreReleaseVersion;
-		}
-		return !!(this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion);
+		this.element.textContent = `v${this.gallery?.version ?? this.extension.version}${this.extension.isPreReleaseVersion ? ' (pre-release)' : ''}`;
 	}
 }
 
@@ -304,8 +280,6 @@ export class ExtensionEditor extends EditorPane {
 		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
 		const versionWidget = new VersionWidget(title);
 
-		const preReleaseWidget = new PreReleaseTextWidget(title);
-
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 		preview.textContent = localize('preview', "Preview");
 
@@ -330,7 +304,6 @@ export class ExtensionEditor extends EditorPane {
 		const widgets: ExtensionWidget[] = [
 			remoteBadge,
 			versionWidget,
-			preReleaseWidget,
 			verifiedPublisherWidget,
 			installCountWidget,
 			ratingsWidget,
@@ -365,8 +338,7 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction),
 				]
 			]),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
+			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, [false, 'onlySelectedExtensions']),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -455,7 +427,6 @@ export class ExtensionEditor extends EditorPane {
 			},
 			set gallery(gallery: IGalleryExtension | null) {
 				versionWidget.gallery = gallery;
-				preReleaseWidget.gallery = gallery;
 			},
 			set manifest(manifest: IExtensionManifest | null) {
 				installAction.manifest = manifest;
@@ -604,9 +575,7 @@ export class ExtensionEditor extends EditorPane {
 			this.currentIdentifier = extension.identifier.id;
 		}
 
-		if (extension.hasReadme()) {
-			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		}
+		template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		if (manifest && manifest.contributes) {
 			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 		}
@@ -941,6 +910,11 @@ export class ExtensionEditor extends EditorPane {
 		const resources: [string, URI][] = [];
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+		}
+		if (extension.url && extension.supportUrl) {
+			try {
+				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.repository) {
 			try {

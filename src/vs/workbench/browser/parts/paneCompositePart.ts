@@ -306,7 +306,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			highlightToggledItems: true,
 			toggleMenuTitle: localize('moreActions', "More Actions...")
 		}));
 
@@ -466,7 +465,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private layoutEmptyMessage(): void {
-		this.emptyPaneMessageElement?.classList.toggle('visible', !!this.paneCompositeBar.value && this.paneCompositeBar.value.getVisiblePaneCompositeIds().length === 0);
+		this.emptyPaneMessageElement?.classList.toggle('visible', !this.getActiveComposite());
 	}
 
 	private updateGlobalToolbarActions(): void {
@@ -480,7 +479,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		if (!activePane || !this.toolBar) {
 			return 0;
 		}
-		return this.toolBar.getItemsWidth() + (this.globalToolBar?.getItemsWidth() ?? 0);
+		return this.toolBar.getItemsWidth() + 5 + (this.globalToolBar?.getItemsWidth() ?? 0); // 5px toolBar padding-left
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {

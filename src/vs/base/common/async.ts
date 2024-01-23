@@ -28,7 +28,6 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	const promise = new Promise<T>((resolve, reject) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
-			source.dispose();
 			reject(new CancellationError());
 		});
 		Promise.resolve(thenable).then(value => {
@@ -45,6 +44,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	return <CancelablePromise<T>>new class {
 		cancel() {
 			source.cancel();
+			source.dispose();
 		}
 		then<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 			return promise.then(resolve, reject);
@@ -626,6 +626,8 @@ export interface ILimiter<T> {
 	readonly size: number;
 
 	queue(factory: ITask<Promise<T>>): Promise<T>;
+
+	clear(): void;
 }
 
 /**
@@ -635,6 +637,7 @@ export interface ILimiter<T> {
 export class Limiter<T> implements ILimiter<T> {
 
 	private _size = 0;
+	private _isDisposed = false;
 	private runningPromises: number;
 	private readonly maxDegreeOfParalellism: number;
 	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
@@ -648,13 +651,16 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	/**
-	 * An event that fires when every promise in the queue
-	 * has started to execute. In other words: no work is
-	 * pending to be scheduled.
 	 *
-	 * This is NOT an event that signals when all promises
-	 * have finished though.
+	 * @returns A promise that resolved when all work is done (onDrained) or when
+	 * there is nothing to do
 	 */
+	whenIdle(): Promise<void> {
+		return this.size > 0
+			? Event.toPromise(this.onDrained)
+			: Promise.resolve();
+	}
+
 	get onDrained(): Event<void> {
 		return this._onDrained.event;
 	}
@@ -664,6 +670,9 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
 		this._size++;
 
 		return new Promise<T>((c, e) => {
@@ -684,17 +693,31 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	private consumed(): void {
-		this._size--;
+		if (this._isDisposed) {
+			return;
+		}
 		this.runningPromises--;
+		if (--this._size === 0) {
+			this._onDrained.fire();
+		}
 
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
-		} else {
-			this._onDrained.fire();
 		}
 	}
 
+	clear(): void {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
+		this.outstandingPromises.length = 0;
+		this._size = this.runningPromises;
+	}
+
 	dispose(): void {
+		this._isDisposed = true;
+		this.outstandingPromises.length = 0; // stop further processing
+		this._size = 0;
 		this._onDrained.dispose();
 	}
 }
@@ -768,7 +791,13 @@ export class ResourceQueue implements IDisposable {
 		return true;
 	}
 
-	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): ILimiter<void> {
+	queueSize(resource: URI, extUri: IExtUri = defaultExtUri): number {
+		const key = extUri.getComparisonKey(resource);
+
+		return this.queues.get(key)?.size ?? 0;
+	}
+
+	queueFor(resource: URI, factory: ITask<Promise<void>>, extUri: IExtUri = defaultExtUri): Promise<void> {
 		const key = extUri.getComparisonKey(resource);
 
 		let queue = this.queues.get(key);
@@ -796,7 +825,7 @@ export class ResourceQueue implements IDisposable {
 			this.queues.set(key, queue);
 		}
 
-		return queue;
+		return queue.queue(factory);
 	}
 
 	private onDidQueueDrain(): void {
@@ -1651,6 +1680,10 @@ export class StatefulPromise<T> {
 		);
 	}
 
+	/**
+	 * Returns the resolved value.
+	 * Throws if the promise is not resolved yet.
+	 */
 	public requireValue(): T {
 		if (!this._isResolved) {
 			throw new BugIndicatingError('Promise is not resolved yet');
@@ -1663,7 +1696,7 @@ export class StatefulPromise<T> {
 }
 
 export class LazyStatefulPromise<T> {
-	private _promise = new Lazy(() => new StatefulPromise(this._compute()));
+	private readonly _promise = new Lazy(() => new StatefulPromise(this._compute()));
 
 	constructor(
 		private readonly _compute: () => Promise<T>,
@@ -1671,7 +1704,7 @@ export class LazyStatefulPromise<T> {
 
 	/**
 	 * Returns the resolved value.
-	 * Crashes if the promise is not resolved yet.
+	 * Throws if the promise is not resolved yet.
 	 */
 	public requireValue(): T {
 		return this._promise.value.requireValue();
@@ -1682,6 +1715,13 @@ export class LazyStatefulPromise<T> {
 	 */
 	public getPromise(): Promise<T> {
 		return this._promise.value.promise;
+	}
+
+	/**
+	 * Reads the current value without triggering a computation of the promise.
+	 */
+	public get currentValue(): T | undefined {
+		return this._promise.rawValue?.value;
 	}
 }
 

@@ -229,7 +229,7 @@ if (PasteAction) {
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			const result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
 			if (result) {
-				return CopyPasteController.get(focusedEditor).finishedPaste();
+				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 			} else if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {

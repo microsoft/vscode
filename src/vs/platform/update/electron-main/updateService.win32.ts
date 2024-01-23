@@ -144,13 +144,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								return Promise.resolve(updatePackagePath);
 							}
 
-							const url = update.url;
-							const hash = update.hash;
 							const downloadPath = `${updatePackagePath}.tmp`;
 
-							return this.requestService.request({ url }, CancellationToken.None)
+							return this.requestService.request({ url: update.url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
-								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
+								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
 								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
 								.then(() => updatePackagePath);
 						});

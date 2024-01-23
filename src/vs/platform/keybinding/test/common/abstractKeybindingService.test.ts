@@ -95,6 +95,10 @@ suite('AbstractKeybindingService', () => {
 		public registerSchemaContribution() {
 			// noop
 		}
+
+		public enableKeybindingHoldMode() {
+			return undefined;
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
@@ -142,10 +146,9 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				doNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
-				onDidChangeDoNotDisturbMode: undefined!,
+				onDidChangeFilter: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
@@ -172,6 +175,18 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
+				},
+				setFilter() {
+					throw new Error('not implemented');
+				},
+				getFilter() {
+					throw new Error('not implemented');
+				},
+				getFilters() {
+					throw new Error('not implemented');
+				},
+				removeFilter() {
+					throw new Error('not implemented');
 				}
 			};
 

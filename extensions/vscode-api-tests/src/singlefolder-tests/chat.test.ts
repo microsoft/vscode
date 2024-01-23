@@ -35,8 +35,8 @@ suite('chat', () => {
 			deferred.complete(request);
 			return null;
 		});
-		agent.slashCommandProvider = {
-			provideSlashCommands: (_token) => {
+		agent.subCommandProvider = {
+			provideSubCommands: (_token) => {
 				return [{ name: 'hello', description: 'Hello' }];
 			}
 		};

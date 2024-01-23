@@ -13,7 +13,7 @@ import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ResourcesDropHandler } from 'vs/workbench/browser/dnd';
-import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
+import { listDropOverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -63,7 +63,7 @@ export class EmptyView extends ViewPane {
 				dropHandler.handleDrop(e, getWindow(container));
 			},
 			onDragEnter: () => {
-				const color = this.themeService.getColorTheme().getColor(listDropBackground);
+				const color = this.themeService.getColorTheme().getColor(listDropOverBackground);
 				container.style.backgroundColor = color ? color.toString() : '';
 			},
 			onDragEnd: () => {

@@ -608,9 +608,9 @@ suite('ExtHost Testing', () => {
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
 			cts = new CancellationTokenSource();
-			c = new TestRunCoordinator(proxy);
+			c = new TestRunCoordinator(proxy, new NullLogService());
 
-			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), nullExtensionDescription, new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
 			await single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -893,6 +893,7 @@ suite('ExtHost Testing', () => {
 			const rpcProtocol = AnyCallRPCProtocol();
 			ctrl = ds.add(new TestExtHostTesting(
 				rpcProtocol,
+				new NullLogService(),
 				new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
 					override onExtensionError(): boolean {
 						return true;
@@ -916,19 +917,19 @@ suite('ExtHost Testing', () => {
 			const neverCalled = sinon.stub();
 
 			// empty default state:
-			assert.deepStrictEqual(profAA.isSelected, false);
-			assert.deepStrictEqual(profBA.isSelected, false);
-			assert.deepStrictEqual(profBB.isSelected, false);
+			assert.deepStrictEqual(profAA.isDefault, false);
+			assert.deepStrictEqual(profBA.isDefault, false);
+			assert.deepStrictEqual(profBB.isDefault, false);
 
 			// fires a change event:
-			const changeA = Event.toPromise(profAA.onDidChangeSelected as Event<boolean>);
-			const changeBA = Event.toPromise(profBA.onDidChangeSelected as Event<boolean>);
-			const changeBB = Event.toPromise(profBB.onDidChangeSelected as Event<boolean>);
+			const changeA = Event.toPromise(profAA.onDidChangeDefault as Event<boolean>);
+			const changeBA = Event.toPromise(profBA.onDidChangeDefault as Event<boolean>);
+			const changeBB = Event.toPromise(profBB.onDidChangeDefault as Event<boolean>);
 
-			ds.add(profAB.onDidChangeSelected(neverCalled));
+			ds.add(profAB.onDidChangeDefault(neverCalled));
 			assert.strictEqual(neverCalled.called, false);
 
-			ctrl.$setActiveRunProfiles({
+			ctrl.$setDefaultRunProfiles({
 				a: [ctrl.getProfileInternalId(ctrlA, profAA)],
 				b: [ctrl.getProfileInternalId(ctrlB, profBA), ctrl.getProfileInternalId(ctrlB, profBB)]
 			});
@@ -938,14 +939,14 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(await changeBB, true);
 
 			// updates internal state:
-			assert.deepStrictEqual(profAA.isSelected, true);
-			assert.deepStrictEqual(profBA.isSelected, true);
-			assert.deepStrictEqual(profBB.isSelected, true);
-			assert.deepStrictEqual(profAB.isSelected, false);
+			assert.deepStrictEqual(profAA.isDefault, true);
+			assert.deepStrictEqual(profBA.isDefault, true);
+			assert.deepStrictEqual(profBB.isDefault, true);
+			assert.deepStrictEqual(profAB.isDefault, false);
 
 			// no-ops if equal
-			ds.add(profAA.onDidChangeSelected(neverCalled));
-			ctrl.$setActiveRunProfiles({
+			ds.add(profAA.onDidChangeDefault(neverCalled));
+			ctrl.$setDefaultRunProfiles({
 				a: [ctrl.getProfileInternalId(ctrlA, profAA)],
 			});
 			assert.strictEqual(neverCalled.called, false);

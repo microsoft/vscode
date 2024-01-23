@@ -39,9 +39,9 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	enabled: boolean;
-	sticky: boolean;
-	hidingDelay: number;
+	readonly enabled: boolean;
+	readonly sticky: boolean;
+	readonly hidingDelay: number;
 }
 
 interface IHoverState {
@@ -279,9 +279,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 					(decoratorActivatedOn === 'click' && !activatedByDecoratorClick) ||
 					(decoratorActivatedOn === 'hover' && !enabled && !_sticky) ||
 					(decoratorActivatedOn === 'clickAndHover' && !enabled && !activatedByDecoratorClick))
-			)
-			||
-			(
+			) || (
 				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
 			)
 		) {
@@ -296,10 +294,16 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
+		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position && target.detail.glyphMarginLane) {
 			this._contentWidget?.hide();
 			const glyphWidget = this._getOrCreateGlyphWidget();
-			glyphWidget.startShowingAt(target.position.lineNumber);
+			glyphWidget.startShowingAt(target.position.lineNumber, target.detail.glyphMarginLane);
+			return;
+		}
+		if (target.type === MouseTargetType.GUTTER_LINE_NUMBERS && target.position) {
+			this._contentWidget?.hide();
+			const glyphWidget = this._getOrCreateGlyphWidget();
+			glyphWidget.startShowingAt(target.position.lineNumber, 'lineNo');
 			return;
 		}
 		if (_sticky) {
@@ -372,6 +376,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 			this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
 		}
 		return this._glyphWidget;
+	}
+
+	public hideContentHover(): void {
+		this._hideWidgets();
 	}
 
 	public showContentHover(

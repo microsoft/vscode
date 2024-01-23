@@ -11,6 +11,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import 'vs/css!./media/stickyScroll';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -27,7 +28,7 @@ import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalC
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
+import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -257,7 +258,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
-		if (buffer.viewportY === stickyScrollLineStart) {
+		if (buffer.viewportY <= stickyScrollLineStart) {
 			this._setVisible(false);
 			return;
 		}
@@ -284,6 +285,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				end: stickyScrollLineStart + rowOffset + Math.max(stickyScrollLineCount - 1, 0)
 			}
 		});
+
+		// If a partial command's sticky scroll would show nothing, just hide it. This is another
+		// edge case when using a pager or interactive editor.
+		if (isPartialCommand && removeAnsiEscapeCodes(content).length === 0) {
+			this._setVisible(false);
+			return;
+		}
 
 		// Write content if it differs
 		if (content && this._currentContent !== content) {
@@ -449,7 +457,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			...this._xterm.getXtermTheme(),
 			background: isHovering
 				? theme.getColor(terminalStickyScrollHoverBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString()
-				: this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
+				: theme.getColor(terminalStickyScrollBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};

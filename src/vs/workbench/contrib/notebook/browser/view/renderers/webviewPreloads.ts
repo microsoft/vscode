@@ -70,6 +70,7 @@ export interface RenderOptions {
 	readonly lineLimit: number;
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
+	readonly linkifyFilePaths: boolean;
 }
 
 interface PreloadContext {
@@ -90,6 +91,8 @@ declare function __import(path: string): Promise<any>;
 async function webviewPreloads(ctx: PreloadContext) {
 	// eslint-disable-next-line no-restricted-globals
 	const $window = window as typeof DOM.$window;
+	const userAgent = navigator.userAgent;
+	const isChrome = (userAgent.indexOf('Chrome') >= 0);
 	const textEncoder = new TextEncoder();
 	const textDecoder = new TextDecoder();
 
@@ -481,9 +484,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				deltaX: event.deltaX,
 				deltaY: event.deltaY,
 				deltaZ: event.deltaZ,
-				wheelDelta: event.wheelDelta,
-				wheelDeltaX: event.wheelDeltaX,
-				wheelDeltaY: event.wheelDeltaY,
+				// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+				wheelDelta: event.wheelDelta && isChrome ? (event.wheelDelta / $window.devicePixelRatio) : event.wheelDelta,
+				wheelDeltaX: event.wheelDeltaX && isChrome ? (event.wheelDeltaX / $window.devicePixelRatio) : event.wheelDeltaX,
+				wheelDeltaY: event.wheelDeltaY && isChrome ? (event.wheelDeltaY / $window.devicePixelRatio) : event.wheelDeltaY,
 				detail: event.detail,
 				shiftKey: event.shiftKey,
 				type: event.type
@@ -1696,6 +1700,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get lineLimit() { return currentRenderOptions.lineLimit; },
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
+					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};
