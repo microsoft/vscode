@@ -151,6 +151,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
+		key: 'scm/incomingChanges',
+		id: MenuId.SCMIncomingChanges,
+		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/outgoingChanges',
+		id: MenuId.SCMOutgoingChanges,
+		description: localize('menus.outgoingChanges', "The Source Control outgoing changes menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
 		key: 'scm/incomingChanges/allChanges/context',
 		id: MenuId.SCMIncomingChangesAllChangesContext,
 		description: localize('menus.incomingChangesAllChangesContext', "The Source Control all incoming changes context menu"),
@@ -369,6 +381,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
 		proposed: 'contribMergeEditorMenus'
 	},
+	{
+		key: 'multiDiffEditor/resource/title',
+		id: MenuId.MultiDiffEditorFileToolbar,
+		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
+		proposed: 'contribMultiDiffEditorMenus'
+	}
 ];
 
 namespace schema {

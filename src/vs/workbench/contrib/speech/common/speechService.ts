@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -34,14 +34,29 @@ export interface ISpeechToTextEvent {
 	readonly text?: string;
 }
 
+export interface ISpeechToTextSession extends IDisposable {
+	readonly onDidChange: Event<ISpeechToTextEvent>;
+}
+
+export enum KeywordRecognitionStatus {
+	Recognized = 1,
+	Stopped = 2
+}
+
+export interface IKeywordRecognitionEvent {
+	readonly status: KeywordRecognitionStatus;
+	readonly text?: string;
+}
+
+export interface IKeywordRecognitionSession extends IDisposable {
+	readonly onDidChange: Event<IKeywordRecognitionEvent>;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
-}
-
-export interface ISpeechToTextSession extends IDisposable {
-	readonly onDidChange: Event<ISpeechToTextEvent>;
+	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
 export interface ISpeechService {
@@ -55,20 +70,41 @@ export interface ISpeechService {
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
+	readonly onDidStartSpeechToTextSession: Event<void>;
+	readonly onDidEndSpeechToTextSession: Event<void>;
+
+	readonly hasActiveSpeechToTextSession: boolean;
+
+	/**
+	 * Starts to transcribe speech from the default microphone. The returned
+	 * session object provides an event to subscribe for transcribed text.
+	 */
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
+
+	readonly onDidStartKeywordRecognition: Event<void>;
+	readonly onDidEndKeywordRecognition: Event<void>;
+
+	readonly hasActiveKeywordRecognition: boolean;
+
+	/**
+	 * Starts to recognize a keyword from the default microphone. The returned
+	 * status indicates if the keyword was recognized or if the session was
+	 * stopped.
+	 */
+	recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus>;
 }
 
-export class SpeechService implements ISpeechService {
+export class SpeechService extends Disposable implements ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _onDidRegisterSpeechProvider = new Emitter<ISpeechProvider>();
+	private readonly _onDidRegisterSpeechProvider = this._register(new Emitter<ISpeechProvider>());
 	readonly onDidRegisterSpeechProvider = this._onDidRegisterSpeechProvider.event;
 
-	private readonly _onDidUnregisterSpeechProvider = new Emitter<ISpeechProvider>();
+	private readonly _onDidUnregisterSpeechProvider = this._register(new Emitter<ISpeechProvider>());
 	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
 
-	get hasSpeechProvider(): boolean { return this.providers.size > 0; }
+	get hasSpeechProvider() { return this.providers.size > 0; }
 
 	private readonly providers = new Map<string, ISpeechProvider>();
 
@@ -78,6 +114,7 @@ export class SpeechService implements ISpeechService {
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
+		super();
 	}
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable {
@@ -100,6 +137,15 @@ export class SpeechService implements ISpeechService {
 		});
 	}
 
+	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
+	readonly onDidStartSpeechToTextSession = this._onDidStartSpeechToTextSession.event;
+
+	private readonly _onDidEndSpeechToTextSession = this._register(new Emitter<void>());
+	readonly onDidEndSpeechToTextSession = this._onDidEndSpeechToTextSession.event;
+
+	private _activeSpeechToTextSession: ISpeechToTextSession | undefined = undefined;
+	get hasActiveSpeechToTextSession() { return !!this._activeSpeechToTextSession; }
+
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
@@ -108,6 +154,86 @@ export class SpeechService implements ISpeechService {
 			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
 		}
 
-		return provider.createSpeechToTextSession(token);
+		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token);
+
+		const disposables = new DisposableStore();
+
+		const onSessionStoppedOrCanceled = () => {
+			if (session === this._activeSpeechToTextSession) {
+				this._activeSpeechToTextSession = undefined;
+				this._onDidEndSpeechToTextSession.fire();
+			}
+
+			disposables.dispose();
+		};
+
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled();
+		}
+
+		disposables.add(session.onDidChange(e => {
+			switch (e.status) {
+				case SpeechToTextStatus.Started:
+					if (session === this._activeSpeechToTextSession) {
+						this._onDidStartSpeechToTextSession.fire();
+					}
+					break;
+				case SpeechToTextStatus.Stopped:
+					onSessionStoppedOrCanceled();
+					break;
+			}
+		}));
+
+		return session;
+	}
+
+	private readonly _onDidStartKeywordRecognition = this._register(new Emitter<void>());
+	readonly onDidStartKeywordRecognition = this._onDidStartKeywordRecognition.event;
+
+	private readonly _onDidEndKeywordRecognition = this._register(new Emitter<void>());
+	readonly onDidEndKeywordRecognition = this._onDidEndKeywordRecognition.event;
+
+	private _activeKeywordRecognitionSession: IKeywordRecognitionSession | undefined = undefined;
+	get hasActiveKeywordRecognition() { return !!this._activeKeywordRecognitionSession; }
+
+	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
+		const provider = firstOrDefault(Array.from(this.providers.values()));
+		if (!provider) {
+			throw new Error(`No Speech provider is registered.`);
+		} else if (this.providers.size > 1) {
+			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
+		}
+
+		const session = this._activeKeywordRecognitionSession = provider.createKeywordRecognitionSession(token);
+		this._onDidStartKeywordRecognition.fire();
+
+		const disposables = new DisposableStore();
+
+		const onSessionStoppedOrCanceled = () => {
+			if (session === this._activeKeywordRecognitionSession) {
+				this._activeKeywordRecognitionSession = undefined;
+				this._onDidEndKeywordRecognition.fire();
+			}
+
+			disposables.dispose();
+		};
+
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled();
+		}
+
+		disposables.add(session.onDidChange(e => {
+			if (e.status === KeywordRecognitionStatus.Stopped) {
+				onSessionStoppedOrCanceled();
+			}
+		}));
+
+		try {
+			return (await Event.toPromise(session.onDidChange)).status;
+		} finally {
+			onSessionStoppedOrCanceled();
+		}
 	}
 }

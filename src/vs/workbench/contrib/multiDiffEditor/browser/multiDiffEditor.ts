@@ -24,6 +24,9 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
+import { IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -34,7 +37,6 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
 	}
-
 
 	constructor(
 		@IInstantiationService instantiationService: InstantiationService,
@@ -77,7 +79,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {
-			this._multiDiffEditorWidget!.setScrollState(viewState.scrollState);
+			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
 	}
 
@@ -95,9 +97,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	protected override computeEditorViewState(resource: URI): IMultiDiffEditorViewState | undefined {
-		return {
-			scrollState: this._multiDiffEditorWidget!.getScrollState()
-		};
+		return this._multiDiffEditorWidget!.getViewState();
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {
@@ -107,11 +107,12 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
 		return (input as MultiDiffEditorInput).resource;
 	}
+
+	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		return this._multiDiffEditorWidget!.tryGetCodeEditor(resource);
+	}
 }
 
-interface IMultiDiffEditorViewState {
-	scrollState: { top: number; left: number };
-}
 
 class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(

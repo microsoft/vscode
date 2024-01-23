@@ -23,18 +23,22 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { EmptyResponse, ErrorResponse, IInlineChatSessionService, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
+import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
 
 export const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 export const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
@@ -78,6 +82,8 @@ export class NotebookCellChatController extends Disposable {
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IInlineChatSavingService private readonly _inlineChatSavingService: IInlineChatSavingService,
 	) {
 		super();
 
@@ -155,6 +161,8 @@ export class NotebookCellChatController extends Disposable {
 			// might not be attached
 		}
 
+		// dismiss since we can't restore  the widget properly now
+		this.dismiss(false);
 		this._widget?.dispose();
 		this._inlineChatListener?.dispose();
 		this._toolbar?.dispose();
@@ -163,6 +171,10 @@ export class NotebookCellChatController extends Disposable {
 		this._ctxVisible.reset();
 		NotebookCellChatController._cellChatControllers.delete(this._cell);
 		super.dispose();
+	}
+
+	isWidgetVisible() {
+		return this._isVisible;
 	}
 
 	layout() {
@@ -187,7 +199,7 @@ export class NotebookCellChatController extends Disposable {
 		this._partContainer.style.height = `${heightWithPadding - surrounding}px`;
 	}
 
-	async show() {
+	async show(input?: string, autoSend?: boolean) {
 		this._isVisible = true;
 		if (!this._widget) {
 			const editor = this._getCellEditor();
@@ -226,7 +238,19 @@ export class NotebookCellChatController extends Disposable {
 				this._widget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 				this._widget.focus();
 			}
+
+			if (this._widget && input) {
+				this._widget.value = input;
+
+				if (autoSend) {
+					this.acceptInput();
+				}
+			}
 		});
+	}
+
+	async focusWidget() {
+		this._widget?.focus();
 	}
 
 	private _getCellEditor() {
@@ -349,6 +373,22 @@ export class NotebookCellChatController extends Disposable {
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(editor, replyResponse.allLocalEdits[i], undefined);
 				}
+
+				if (this._activeSession?.provider.provideFollowups) {
+					const followupCts = new CancellationTokenSource();
+					const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, replyResponse.raw, followupCts.token);
+					if (followups && this._widget) {
+						const widget = this._widget;
+						widget.updateFollowUps(followups, followup => {
+							if (followup.kind === 'reply') {
+								widget.value = followup.message;
+								this.acceptInput();
+							} else {
+								this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+							}
+						});
+					}
+				}
 			}
 		} catch (e) {
 			response = new ErrorResponse(e);
@@ -428,6 +468,7 @@ export class NotebookCellChatController extends Disposable {
 		const actualEdits = !opts && moreMinimalEdits ? moreMinimalEdits : edits;
 		const editOperations = actualEdits.map(TextEdit.asEditOperation);
 
+		this._inlineChatSavingService.markChanged(this._activeSession);
 		try {
 			// this._ignoreModelContentChanged = true;
 			this._activeSession.wholeRange.trackEdits(editOperations);

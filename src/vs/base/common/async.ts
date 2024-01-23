@@ -1680,6 +1680,10 @@ export class StatefulPromise<T> {
 		);
 	}
 
+	/**
+	 * Returns the resolved value.
+	 * Throws if the promise is not resolved yet.
+	 */
 	public requireValue(): T {
 		if (!this._isResolved) {
 			throw new BugIndicatingError('Promise is not resolved yet');
@@ -1692,7 +1696,7 @@ export class StatefulPromise<T> {
 }
 
 export class LazyStatefulPromise<T> {
-	private _promise = new Lazy(() => new StatefulPromise(this._compute()));
+	private readonly _promise = new Lazy(() => new StatefulPromise(this._compute()));
 
 	constructor(
 		private readonly _compute: () => Promise<T>,
@@ -1700,7 +1704,7 @@ export class LazyStatefulPromise<T> {
 
 	/**
 	 * Returns the resolved value.
-	 * Crashes if the promise is not resolved yet.
+	 * Throws if the promise is not resolved yet.
 	 */
 	public requireValue(): T {
 		return this._promise.value.requireValue();
@@ -1711,6 +1715,13 @@ export class LazyStatefulPromise<T> {
 	 */
 	public getPromise(): Promise<T> {
 		return this._promise.value.promise;
+	}
+
+	/**
+	 * Reads the current value without triggering a computation of the promise.
+	 */
+	public get currentValue(): T | undefined {
+		return this._promise.rawValue?.value;
 	}
 }
 

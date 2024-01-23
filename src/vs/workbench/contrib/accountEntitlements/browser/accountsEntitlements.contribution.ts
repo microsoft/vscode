@@ -26,6 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { isWeb } from 'vs/base/common/platform';
 
 const configurationKey = 'workbench.accounts.experimental.showEntitlements';
 
@@ -61,7 +62,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 
-		if (!this.productService.gitHubEntitlement) {
+		if (!this.productService.gitHubEntitlement || isWeb) {
 			return;
 		}
 

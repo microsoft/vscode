@@ -150,6 +150,13 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		return this._widget.value;
 	}
 
+	override setVisible(visible: boolean, group?: IEditorGroup | undefined): void {
+		super.setVisible(visible, group);
+		if (!visible) {
+			this._widget.value?.onWillHide();
+		}
+	}
+
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
@@ -552,7 +559,9 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			return;
 		}
 
-		this._widget.value.layout(dimension, this._rootElement, position);
+		if (this.isVisible()) {
+			this._widget.value.layout(dimension, this._rootElement, position);
+		}
 	}
 
 	//#endregion

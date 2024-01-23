@@ -295,26 +295,16 @@
 	display: none;
 }
 
-.monaco-editor .inline-chat .previewDiff {
+.monaco-editor .inline-chat .previewDiff,
+.monaco-editor .inline-chat .previewCreate {
 	display: inherit;
-	padding: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
-	border-top: none;
-	border-bottom-left-radius: 2px;
-	border-bottom-right-radius: 2px;
-	margin: 0 2px 6px 2px;
+	border-radius: 2px;
+	margin: 6px 0px;
 }
 
 .monaco-editor .inline-chat .previewCreateTitle {
 	padding-top: 6px;
-}
-
-.monaco-editor .inline-chat .previewCreate {
-	display: inherit;
-	padding: 6px;
-	border: 1px solid var(--vscode-inlineChat-border);
-	border-radius: 2px;
-	margin: 0 2px 6px 2px;
 }
 
 .monaco-editor .inline-chat .previewDiff.hidden,
