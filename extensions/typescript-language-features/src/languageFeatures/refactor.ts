@@ -352,6 +352,9 @@ class InlinedCodeAction extends vscode.CodeAction {
 		const title = copilotRename ? action.description + ' and suggest a name with Copilot.' : action.description;
 		super(title, InlinedCodeAction.getKind(action));
 
+		if (copilotRename) {
+			this.isAI = true;
+		}
 		if (action.notApplicableReason) {
 			this.disabled = { reason: action.notApplicableReason };
 		}
