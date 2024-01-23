@@ -635,11 +635,13 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (action.name === 'Move to file') {
 			codeActions.push(new MoveToFileCodeAction(document, action, rangeOrSelection));
 		} else {
-			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiCodeActions')) {
-				if (Extract_Constant.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractConstant')
-					|| Extract_Function.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractFunction')
-					|| Extract_Type.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractType')
-					|| Extract_Interface.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractInterface')
+			codeActions.push(new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, undefined));
+			const copilot = vscode.extensions.getExtension('github.copilot');
+			if (copilot?.isActive) {
+				if (Extract_Constant.matches(action)
+					|| Extract_Function.matches(action)
+					|| Extract_Type.matches(action)
+					|| Extract_Interface.matches(action)
 				) {
 					const newName = Extract_Constant.matches(action) ? 'newLocal'
 						: Extract_Function.matches(action) ? 'newFunction'
@@ -665,7 +667,6 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 					codeActions.push(new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, copilotRename));
 				}
 			}
-			codeActions.push(new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, undefined));
 		}
 		for (const codeAction of codeActions) {
 			codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
