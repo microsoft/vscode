@@ -852,7 +852,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 						localize('voice.keywordActivation.inlineChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor."),
 						localize('voice.keywordActivation.chatInContext', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor or view depending on keyboard focus.")
 					],
-					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be speech recognized to start a voice chat session."),
+					'description': localize('voice.keywordActivation', "Controls whether the keyword phrase 'Hey Code' is recognized to start a voice chat session. Enabling this will start recording from the microphone but the audio is processed locally and never sent to a server."),
 					'default': 'off',
 					'tags': ['accessibility', 'FeatureInsight']
 				}
