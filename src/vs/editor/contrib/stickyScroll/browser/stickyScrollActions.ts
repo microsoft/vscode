@@ -21,9 +21,9 @@ export class ToggleStickyScroll extends Action2 {
 		super({
 			id: 'editor.action.toggleStickyScroll',
 			title: {
-				value: localize('toggleStickyScroll', "Toggle Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Sticky Scroll"),
-				original: 'Toggle Sticky Scroll',
+				value: localize('toggleEditorStickyScroll', "Toggle Editor Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Editor Sticky Scroll"),
+				original: 'Toggle Editor Sticky Scroll',
 			},
 			category: Categories.View,
 			toggled: {

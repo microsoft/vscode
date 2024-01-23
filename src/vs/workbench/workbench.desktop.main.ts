@@ -65,10 +65,7 @@ import 'vs/workbench/services/localization/electron-sandbox/localeService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
 import 'vs/workbench/services/timer/electron-sandbox/timerService';
 import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
@@ -174,6 +171,8 @@ import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribu
 
 // Chat
 import 'vs/workbench/contrib/chat/electron-sandbox/chat.contribution';
+import 'vs/workbench/contrib/inlineChat/electron-sandbox/inlineChat.contribution';
+
 
 //#endregion
 

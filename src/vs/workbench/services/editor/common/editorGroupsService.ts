@@ -411,16 +411,6 @@ export interface IEditorGroupsContainer {
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
-	 * Access the options of the editor part.
-	 */
-	readonly partOptions: IEditorPartOptions;
-
-	/**
-	 * An event that notifies when editor part options change.
-	 */
-	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
-
-	/**
 	 * Allows to register a drag and drop target for editors
 	 * on the provided `container`.
 	 */
@@ -442,6 +432,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * An event for when the editor part is scrolled.
 	 */
 	readonly onDidScroll: Event<void>;
+
+	/**
+	 * The identifier of the window the editor part is contained in.
+	 */
+	readonly windowId: number;
 
 	/**
 	 * The size of the editor part.
@@ -470,11 +465,6 @@ export interface IEditorPart extends IEditorGroupsContainer {
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
-
-	/**
-	 * The identifier of the window the auxiliary editor part is contained in.
-	 */
-	readonly windowId: number;
 
 	/**
 	 * Close this auxiliary editor part after moving all
@@ -525,6 +515,16 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Get the editor part that is rooted in the provided container.
 	 */
 	getPart(container: unknown /* HTMLElement */): IEditorPart;
+
+	/**
+	 * Access the options of the editor part.
+	 */
+	readonly partOptions: IEditorPartOptions;
+
+	/**
+	 * An event that notifies when editor part options change.
+	 */
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Opens a new window with a full editor part instantiated
@@ -588,6 +588,11 @@ export interface IEditorGroup {
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
+
+	/**
+	 * The identifier of the window this editor group is part of.
+	 */
+	readonly windowId: number;
 
 	/**
 	 * A number that indicates the position of this group in the visual

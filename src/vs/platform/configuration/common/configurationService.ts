@@ -159,18 +159,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	private trigger(configurationChange: IConfigurationChange, previous: IConfigurationData, source: ConfigurationTarget): void {
 		const event = new ConfigurationChangeEvent(configurationChange, { data: previous }, this.configuration);
 		event.source = source;
-		event.sourceConfig = this.getTargetConfiguration(source);
 		this._onDidChangeConfiguration.fire(event);
-	}
-
-	private getTargetConfiguration(target: ConfigurationTarget): any {
-		switch (target) {
-			case ConfigurationTarget.DEFAULT:
-				return this.configuration.defaults.contents;
-			case ConfigurationTarget.USER:
-				return this.configuration.localUserConfiguration.contents;
-		}
-		return {};
 	}
 }
 

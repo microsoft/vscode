@@ -405,6 +405,7 @@ export interface IMouseTargetMarginData {
 	readonly isAfterLines: boolean;
 	readonly glyphMarginLeft: number;
 	readonly glyphMarginWidth: number;
+	readonly glyphMarginLane?: GlyphMarginLane;
 	readonly lineNumbersWidth: number;
 	readonly offsetX: number;
 }
@@ -598,6 +599,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent>;
+	/**
+	 * An event emitted when the model of this editor is about to change (e.g. from `editor.setModel()`).
+	 * @event
+	 */
+	readonly onWillChangeModel: Event<editorCommon.IModelChangedEvent>;
 	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event

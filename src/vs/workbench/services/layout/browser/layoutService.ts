@@ -37,7 +37,9 @@ export const enum ZenModeSettings {
 export const enum LayoutSettings {
 	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
+	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 }
 
 export const enum ActivityBarPosition {
@@ -50,6 +52,12 @@ export const enum EditorTabsMode {
 	MULTIPLE = 'multiple',
 	SINGLE = 'single',
 	NONE = 'none'
+}
+
+export const enum EditorActionsLocation {
+	DEFAULT = 'default',
+	TITLEBAR = 'titleBar',
+	HIDDEN = 'hidden'
 }
 
 export const enum Position {

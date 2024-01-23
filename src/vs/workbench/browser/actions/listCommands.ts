@@ -19,6 +19,9 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 import { isActiveElement } from 'vs/base/browser/dom';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize } from 'vs/nls';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -902,5 +905,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		focused.scrollLeft += 10;
+	}
+});
+
+registerAction2(class ToggleStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'tree.toggleStickyScroll',
+			title: {
+				value: localize('toggleTreeStickyScroll', "Toggle Tree Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleTreeStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Tree Sticky Scroll"),
+				original: 'Toggle Tree Sticky Scroll',
+			},
+			category: 'View',
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue<boolean>('workbench.tree.enableStickyScroll');
+		configurationService.updateValue('workbench.tree.enableStickyScroll', newValue);
 	}
 });

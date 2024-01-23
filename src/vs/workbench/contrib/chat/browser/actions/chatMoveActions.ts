@@ -9,7 +9,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -29,8 +29,8 @@ enum MoveToNewLocation {
 const getMoveToChatActionDescriptorForViewTitle = (viewId: string, providerId: string, moveTo: MoveToNewLocation): Readonly<IAction2Options> & { viewId: string } => ({
 	id: `workbench.action.chat.${providerId}.openIn${moveTo}`,
 	title: {
-		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Session in Editor") : localize('chat.openInNewWindow.label', "Open Session in New Window"),
-		original: moveTo === MoveToNewLocation.Editor ? 'Open Session in Editor' : 'Open Session in New Window',
+		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Chat in Editor") : localize('chat.openInNewWindow.label', "Open Chat in New Window"),
+		original: moveTo === MoveToNewLocation.Editor ? 'Open Chat in Editor' : 'Open Chat in New Window',
 	},
 	category: CHAT_CATEGORY,
 	precondition: CONTEXT_PROVIDER_EXISTS,
@@ -78,8 +78,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInEditor`,
 				title: {
-					value: localize('interactiveSession.openInEditor.label', "Open Session in Editor"),
-					original: 'Open Session in Editor'
+					value: localize('interactiveSession.openInEditor.label', "Open Chat in Editor"),
+					original: 'Open Chat in Editor'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -98,8 +98,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
 				title: {
-					value: localize('interactiveSession.openInNewWindow.label', "Open Session in New Window"),
-					original: 'Open Session In New Window'
+					value: localize('interactiveSession.openInNewWindow.label', "Open Chat in New Window"),
+					original: 'Open Chat In New Window'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -117,8 +117,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInSidebar`,
 				title: {
-					value: localize('interactiveSession.openInSidebar.label', "Open Session in Side Bar"),
-					original: 'Open Session in Side Bar'
+					value: localize('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
+					original: 'Open Chat in Side Bar'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,

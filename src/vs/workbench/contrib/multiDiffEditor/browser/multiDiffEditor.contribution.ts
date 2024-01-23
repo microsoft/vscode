@@ -17,6 +17,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { CollapseAllAction, ExpandAllAction, GoToFileAction } from './actions';
 import { IMultiDiffSourceResolverService, MultiDiffSourceResolverService } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { OpenScmGroupAction, ScmMultiDiffSourceResolverContribution } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 
 registerAction2(GoToFileAction);
 registerAction2(CollapseAllAction);
@@ -27,7 +28,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		properties: {
 			'multiDiffEditor.experimental.enabled': {
 				type: 'boolean',
-				default: false,
+				default: true,
 				description: 'Enable experimental multi diff editor.',
 			},
 		}
@@ -47,3 +48,8 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 	.registerEditorSerializer(MultiDiffEditorInput.ID, MultiDiffEditorSerializer);
+
+// SCM integration
+registerAction2(OpenScmGroupAction);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(ScmMultiDiffSourceResolverContribution, LifecyclePhase.Starting);

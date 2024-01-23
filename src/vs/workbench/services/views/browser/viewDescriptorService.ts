@@ -795,7 +795,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							}, {
 								id: MenuId.ViewTitleContext,
 								when: ContextKeyExpr.and(
-									viewContainerModel.visibleViewDescriptors.length > 1 ? ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id))) : ContextKeyExpr.false()
+									ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id)))
 								),
 								order: index,
 								group: '2_toggleVisibility'

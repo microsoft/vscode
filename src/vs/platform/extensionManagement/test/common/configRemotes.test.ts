@@ -9,6 +9,8 @@ import { getDomainsOfRemotes, getRemotes } from 'vs/platform/extensionManagement
 
 suite('Config Remotes', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const allowedDomains = [
 		'github.com',
 		'github2.com',
@@ -129,5 +131,4 @@ suite('Config Remotes', () => {
 `;
 	}
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

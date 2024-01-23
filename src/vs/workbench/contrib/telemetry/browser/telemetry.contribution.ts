@@ -15,7 +15,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { configurationTelemetry, TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
@@ -125,9 +125,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 		// Error Telemetry
 		this._register(new ErrorTelemetry(telemetryService));
-
-		// Configuration Telemetry
-		this._register(configurationTelemetry(telemetryService, configurationService));
 
 		//  Files Telemetry
 		this._register(textFileService.files.onDidResolve(e => this.onTextFileModelResolved(e)));
