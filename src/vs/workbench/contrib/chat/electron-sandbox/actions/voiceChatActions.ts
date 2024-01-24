@@ -798,7 +798,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
 
@@ -812,6 +813,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 			this.updateConfiguration();
 			this.handleKeywordActivation();
 		}));
+
+		this._register(this.chatService.onDidRegisterProvider(() => this.updateConfiguration()));
 
 		this._register(this.speechService.onDidStartSpeechToTextSession(() => this.handleKeywordActivation()));
 		this._register(this.speechService.onDidEndSpeechToTextSession(() => this.handleKeywordActivation()));
@@ -828,8 +831,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private updateConfiguration(): void {
-		if (!this.speechService.hasSpeechProvider) {
-			return; // these settings require a speech provider
+		if (!this.speechService.hasSpeechProvider || this.chatService.getProviderInfos().length === 0) {
+			return; // these settings require a speech and chat provider
 		}
 
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
