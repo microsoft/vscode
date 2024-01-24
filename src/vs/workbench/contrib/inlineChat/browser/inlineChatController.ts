@@ -815,12 +815,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async[State.PAUSE]() {
-		assertType(this._session);
-		assertType(this._strategy);
 
 		this._resetWidget();
 
-		this._strategy.pause?.();
+		this._strategy?.pause?.();
 		this._session = undefined;
 	}
 
