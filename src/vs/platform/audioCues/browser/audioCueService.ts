@@ -59,7 +59,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		const alertMessage = cue.alertMessage;
 		if (this.isAlertEnabled(cue, options.userGesture) && alertMessage) {
-			this.accessibilityService.alert(alertMessage);
+			this.accessibilityService.status(alertMessage);
 		}
 
 		if (this.isCueEnabled(cue, options.userGesture)) {
@@ -75,7 +75,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
 		const alerts = cueArray.filter(cue => this.isAlertEnabled(cue)).map(c => c.alertMessage);
 		if (alerts.length) {
-			this.accessibilityService.alert(alerts.join(', '));
+			this.accessibilityService.status(alerts.join(', '));
 		}
 
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
