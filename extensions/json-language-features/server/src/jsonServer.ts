@@ -323,6 +323,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		const languageSettings = {
 			validate: validateEnabled,
 			allowComments: true,
+			allowTrailingCommas: true,
 			schemas: new Array<SchemaConfiguration>()
 		};
 		if (schemaAssociations) {
