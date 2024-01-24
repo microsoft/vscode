@@ -1995,7 +1995,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
 	}
 
-	async showStash(index: number): Promise<string[] | undefined> {
+	async showStash(index: number): Promise<Change[] | undefined> {
 		return await this.run(Operation.Stash, () => this.repository.showStash(index));
 	}
 

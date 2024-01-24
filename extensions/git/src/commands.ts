@@ -3708,19 +3708,26 @@ export class CommandCenter {
 			return;
 		}
 
-		const stashFiles = await repository.showStash(stash.index);
+		const stashChanges = await repository.showStash(stash.index);
 
-		if (!stashFiles || stashFiles.length === 0) {
+		if (!stashChanges || stashChanges.length === 0) {
 			return;
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
 
-		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
-		for (const file of stashFiles) {
-			const fileUri = Uri.file(path.join(repository.root, file));
-			resources.push({ originalUri: fileUri, modifiedUri: toGitUri(fileUri, `stash@{${stash.index}}`) });
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of stashChanges) {
+			if (change.status === Status.INDEX_ADDED) {
+				resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, `stash@{${stash.index}}`) });
+			} else if (change.status === Status.DELETED) {
+				resources.push({ originalUri: change.uri, modifiedUri: undefined });
+			} else if (change.status === Status.INDEX_RENAMED) {
+				resources.push({ originalUri: change.originalUri, modifiedUri: toGitUri(change.uri, `stash@{${stash.index}}`) });
+			} else {
+				resources.push({ originalUri: change.uri, modifiedUri: toGitUri(change.uri, `stash@{${stash.index}}`) });
+			}
 		}
 
 		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });

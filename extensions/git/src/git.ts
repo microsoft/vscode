@@ -997,6 +997,70 @@ function parseGitStashes(raw: string): Stash[] {
 	return result;
 }
 
+// TODO@lszomoru - adopt in diffFiles()
+function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
+	let index = 0;
+	const result: Change[] = [];
+	const segments = raw.trim()
+		.split('\x00')
+		.filter(s => s);
+
+	segmentsLoop:
+	while (index < segments.length - 1) {
+		const change = segments[index++];
+		const resourcePath = segments[index++];
+
+		if (!change || !resourcePath) {
+			break;
+		}
+
+		const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(repositoryRoot, resourcePath));
+
+		let uri = originalUri;
+		let renameUri = originalUri;
+		let status = Status.UNTRACKED;
+
+		// Copy or Rename status comes with a number (ex: 'R100').
+		// We don't need the number, we use only first character of the status.
+		switch (change[0]) {
+			case 'A':
+				status = Status.INDEX_ADDED;
+				break;
+
+			case 'M':
+				status = Status.MODIFIED;
+				break;
+
+			case 'D':
+				status = Status.DELETED;
+				break;
+
+			// Rename contains two paths, the second one is what the file is renamed/copied to.
+			case 'R': {
+				if (index >= segments.length) {
+					break;
+				}
+
+				const newPath = segments[index++];
+				if (!newPath) {
+					break;
+				}
+
+				status = Status.INDEX_RENAMED;
+				uri = renameUri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(repositoryRoot, newPath));
+				break;
+			}
+			default:
+				// Unknown status
+				break segmentsLoop;
+		}
+
+		result.push({ status, uri, originalUri, renameUri });
+	}
+
+	return result;
+}
+
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
@@ -2147,15 +2211,16 @@ export class Repository {
 		}
 	}
 
-	async showStash(index: number): Promise<string[] | undefined> {
-		const args = ['stash', 'show', `stash@{${index}}`, '--name-only'];
+	async showStash(index: number): Promise<Change[] | undefined> {
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-status', '-z'];
 
 		try {
 			const result = await this.exec(args);
+			if (result.exitCode) {
+				return [];
+			}
 
-			return result.stdout.trim()
-				.split('\n')
-				.filter(line => !!line);
+			return parseGitChanges(this.repositoryRoot, result.stdout.trim());
 		} catch (err) {
 			if (/No stash found/.test(err.stderr || '')) {
 				return undefined;
