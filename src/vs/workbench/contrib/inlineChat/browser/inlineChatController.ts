@@ -716,7 +716,7 @@ export class InlineChatController implements IEditorContribution {
 			return State.PAUSE;
 		} else if (message & Message.ACCEPT_SESSION) {
 			return State.ACCEPT;
-		} else if (message & Message.ACCEPT_INPUT) {
+		} else if (message & (Message.ACCEPT_INPUT | Message.RERUN_INPUT)) {
 			return State.MAKE_REQUEST;
 		} else {
 			return State.APPLY_RESPONSE;
