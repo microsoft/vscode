@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { createSingleCallFunction } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -1456,14 +1456,17 @@ export class EventMultiplexer<T> implements IDisposable {
 	}
 
 	private unhook(e: { event: Event<T>; listener: IDisposable | null }): void {
-		if (e.listener) {
-			e.listener.dispose();
-		}
+		e.listener?.dispose();
 		e.listener = null;
 	}
 
 	dispose(): void {
 		this.emitter.dispose();
+
+		for (const e of this.events) {
+			e.listener?.dispose();
+		}
+		this.events = [];
 	}
 }
 
