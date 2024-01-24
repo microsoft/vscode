@@ -245,7 +245,7 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				],
 				'default': isLinux ? 'never' : 'auto',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown."),
+				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in none full screen mode with `never` when `#window.titleBarStyle#` is set to `native`."),
 			},
 			'window.dialogStyle': {
 				'type': 'string',
