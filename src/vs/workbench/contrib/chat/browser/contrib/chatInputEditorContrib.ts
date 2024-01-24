@@ -662,8 +662,8 @@ class ChatTokenDeleter extends Disposable {
 			const change = e.changes[0];
 
 			// If this was a simple delete, try to find out whether it was inside a token
-			if (!change.text) {
-				parser.parseChatRequest(this.widget.viewModel!.sessionId, previousInputValue).then(previousParsedValue => {
+			if (!change.text && this.widget.viewModel) {
+				parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue).then(previousParsedValue => {
 					// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 					const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart);
 					deletableTokens.forEach(token => {

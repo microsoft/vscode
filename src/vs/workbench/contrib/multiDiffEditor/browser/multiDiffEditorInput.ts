@@ -18,8 +18,6 @@ import { URI } from 'vs/base/common/uri';
 import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
@@ -85,7 +83,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IModelService private readonly _modelService: IModelService,
 		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
@@ -142,9 +139,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 		const documentsWithPromises = mapObservableArrayCached(undefined, source.resources, async (r, store) => {
 			/** @description documentsWithPromises */
-			let originalTextModel: ITextModel;
-			let modifiedTextModel: ITextModel;
-			let modifiedRef: IReference<IResolvedTextEditorModel> | undefined;
+			let original: IReference<IResolvedTextEditorModel> | undefined;
+			let modified: IReference<IResolvedTextEditorModel> | undefined;
 			const store2 = new DisposableStore();
 			store.add(toDisposable(() => {
 				// Mark the text model references as garbage when they get stale (don't dispose them yet)
@@ -152,14 +148,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			}));
 
 			try {
-				[originalTextModel, modifiedTextModel] = await Promise.all([
-					r.original
-						? store2.add(await this._textModelService.createModelReference(r.original)).object.textEditorModel
-						: store2.add(this._modelService.createModel('', null)),
-					r.modified
-						? store2.add(modifiedRef = await this._textModelService.createModelReference(r.modified)).object.textEditorModel
-						: store2.add(this._modelService.createModel('', null)),
+				[original, modified] = await Promise.all([
+					r.original ? this._textModelService.createModelReference(r.original) : undefined,
+					r.modified ? this._textModelService.createModelReference(r.modified) : undefined,
 				]);
+				if (original) { store.add(original); }
+				if (modified) { store.add(modified); }
 			} catch (e) {
 				// e.g. "File seems to be binary and cannot be opened as text"
 				console.error(e);
@@ -169,11 +163,11 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 			const uri = (r.modified ?? r.original)!;
 			return new ConstLazyPromise<IDocumentDiffItem>({
-				original: originalTextModel,
-				modified: modifiedTextModel,
+				original: original?.object.textEditorModel,
+				modified: modified?.object.textEditorModel,
 				get options() {
 					return {
-						...getReadonlyConfiguration(modifiedRef?.object.isReadonly() ?? true),
+						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),
 						...computeOptions(textResourceConfigurationService.getValue(uri)),
 					} satisfies IDiffEditorOptions;
 				},

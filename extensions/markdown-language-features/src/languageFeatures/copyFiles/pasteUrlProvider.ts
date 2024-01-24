@@ -7,7 +7,8 @@ import * as vscode from 'vscode';
 import { IMdParser } from '../../markdownEngine';
 import { ITextDocument } from '../../types/textDocument';
 import { Mime } from '../../util/mimes';
-import { createInsertUriListEdit, externalUriSchemes } from './shared';
+import { createInsertUriListEdit } from './shared';
+import { Schemes } from '../../util/schemes';
 
 export enum PasteUrlAsMarkdownLink {
 	Always = 'always',
@@ -170,6 +171,14 @@ async function shouldSmartPasteForSelection(
 	return true;
 }
 
+
+const externalUriSchemes: ReadonlySet<string> = new Set([
+	Schemes.http,
+	Schemes.https,
+	Schemes.mailto,
+	Schemes.file,
+]);
+
 export function findValidUriInText(text: string): string | undefined {
 	const trimmedUrlList = text.trim();
 
@@ -186,7 +195,7 @@ export function findValidUriInText(text: string): string | undefined {
 		return;
 	}
 
-	if (!externalUriSchemes.includes(uri.scheme.toLowerCase()) || uri.authority.length <= 1) {
+	if (!externalUriSchemes.has(uri.scheme.toLowerCase()) || uri.authority.length <= 1) {
 		return;
 	}
 

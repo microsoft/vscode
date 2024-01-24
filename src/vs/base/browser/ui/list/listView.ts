@@ -1221,7 +1221,7 @@ export class ListView<T> implements IListView<T> {
 		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort((a, b) => a - b);
 		feedback = feedback[0] === -1 ? [-1] : feedback;
 
-		const dragOverEffectPosition = typeof result !== 'boolean' && result.effect && result.effect.position ? result.effect.position : ListDragOverEffectPosition.Over;
+		let dragOverEffectPosition = typeof result !== 'boolean' && result.effect && result.effect.position ? result.effect.position : ListDragOverEffectPosition.Over;
 
 		if (equalsDragFeedback(this.currentDragFeedback, feedback) && this.currentDragFeedbackPosition === dragOverEffectPosition) {
 			return true;
@@ -1242,6 +1242,15 @@ export class ListView<T> implements IListView<T> {
 
 			if (feedback.length > 1 && dragOverEffectPosition !== ListDragOverEffectPosition.Over) {
 				throw new Error('Can\'t use multiple feedbacks with position different than \'over\'');
+			}
+
+			// Make sure there is no flicker when moving between two items
+			// Always use the before feedback if possible
+			if (dragOverEffectPosition === ListDragOverEffectPosition.After) {
+				if (feedback[0] < this.length - 1) {
+					feedback[0] += 1;
+					dragOverEffectPosition = ListDragOverEffectPosition.Before;
+				}
 			}
 
 			for (const index of feedback) {

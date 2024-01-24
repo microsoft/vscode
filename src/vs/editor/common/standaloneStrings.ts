@@ -27,6 +27,10 @@ export namespace AccessibilityHelpNLS {
 	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
 	export const listAudioCues = nls.localize("listAudioCuesCommand", "Run the command: List Audio Cues for an overview of all audio cues and their current status.");
 	export const listAlerts = nls.localize("listAlertsCommand", "Run the command: List Alerts for an overview of alerts and their current status.");
+	export const quickChat = nls.localize("quickChatCommand", "Toggle quick chat ({0}) to open or close a chat session.");
+	export const quickChatNoKb = nls.localize("quickChatCommandNoKb", "Toggle quick chat is not currently triggerable by a keybinding.");
+	export const startInlineChat = nls.localize("startInlineChatCommand", "Start inline chat ({0}) to create an in editor chat session.");
+	export const startInlineChatNoKb = nls.localize("startInlineChatCommandNoKb", "The command: Start inline chat is not currentlyt riggerable by a keybinding.");
 }
 
 export namespace InspectTokensNLS {

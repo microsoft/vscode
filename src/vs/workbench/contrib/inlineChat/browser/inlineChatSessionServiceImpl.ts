@@ -16,9 +16,13 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { raceCancellation } from 'vs/base/common/async';
-import { Recording, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService';
-import { HunkData, Session, SessionWholeRange, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent } from './inlineChatSessionService';
+import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { generateUuid } from 'vs/base/common/uuid';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -33,11 +37,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
 
-	private readonly _onDidMoveSession = new Emitter<{ session: Session; editor: ICodeEditor }>();
-	readonly onDidMoveSession: Event<{ session: Session; editor: ICodeEditor }> = this._onDidMoveSession.event;
+	private readonly _onDidMoveSession = new Emitter<IInlineChatSessionEvent>();
+	readonly onDidMoveSession: Event<IInlineChatSessionEvent> = this._onDidMoveSession.event;
 
-	private readonly _onDidEndSession = new Emitter<{ editor: ICodeEditor; session: Session }>();
-	readonly onDidEndSession: Event<{ editor: ICodeEditor; session: Session }> = this._onDidEndSession.event;
+	private readonly _onDidEndSession = new Emitter<IInlineChatSessionEvent>();
+	readonly onDidEndSession: Event<IInlineChatSessionEvent> = this._onDidEndSession.event;
+
+	private readonly _onDidStashSession = new Emitter<IInlineChatSessionEvent>();
+	readonly onDidStashSession: Event<IInlineChatSessionEvent> = this._onDidStashSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
@@ -49,7 +56,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) { }
 
 	dispose() {
@@ -71,9 +79,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		let raw: IInlineChatSession | undefined | null;
+		let rawSession: IInlineChatSession | undefined | null;
 		try {
-			raw = await raceCancellation(
+			rawSession = await raceCancellation(
 				Promise.resolve(provider.prepareInlineChatSession(textModel, selection, token)),
 				token
 			);
@@ -82,7 +90,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			this._logService.error(error);
 			return undefined;
 		}
-		if (!raw) {
+		if (!rawSession) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return undefined;
 		}
@@ -91,35 +99,47 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()},  ${provider.debugName}`);
 		const store = new DisposableStore();
 
-		// create: keep a reference to prevent disposal of the "actual" model
-		const refTextModelN = await this._textModelService.createModelReference(textModel.uri);
-		store.add(refTextModelN);
+		const id = generateUuid();
+		const targetUri = textModel.uri;
+
+		let textModelN: ITextModel;
+		if (options.editMode === EditMode.Preview) {
+			// AI edits happen in a copy
+			textModelN = store.add(this._modelService.createModel(
+				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
+				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
+				targetUri.with({ scheme: Schemas.inMemory, query: new URLSearchParams({ id, 'inline-chat-textModelN': '' }).toString() }), true
+			));
+		} else {
+			// AI edits happen in the actual model, keep a reference but make no copy
+			store.add((await this._textModelService.createModelReference(textModel.uri)));
+			textModelN = textModel;
+		}
 
 		// create: keep a snapshot of the "actual" model
-		const textModel0 = this._modelService.createModel(
+		const textModel0 = store.add(this._modelService.createModel(
 			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
 			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-			undefined, true
-		);
-		store.add(textModel0);
+			targetUri.with({ scheme: Schemas.inMemory, query: new URLSearchParams({ id, 'inline-chat-textModel0': '' }).toString() }), true
+		));
 
 		let wholeRange = options.wholeRange;
 		if (!wholeRange) {
-			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
+			wholeRange = rawSession.wholeRange ? Range.lift(rawSession.wholeRange) : editor.getSelection();
 		}
 
-
-		// install managed-marker for the decoration range
-		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);
-		store.add(wholeRangeMgr);
-
-		const hunkData = new HunkData(this._editorWorkerService, textModel0, textModel);
-		store.add(hunkData);
-
-		const session = new Session(options.editMode, textModel0, textModel, provider, raw, wholeRangeMgr, hunkData);
+		const session = new Session(
+			options.editMode,
+			targetUri,
+			textModel0,
+			textModelN,
+			provider, rawSession,
+			store.add(new SessionWholeRange(textModelN, wholeRange)),
+			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN))
+		);
 
 		// store: key -> session
-		const key = this._key(editor, textModel.uri);
+		const key = this._key(editor, session.targetUri);
 		if (this._sessions.has(key)) {
 			store.dispose();
 			throw new Error(`Session already stored for ${key}`);
@@ -129,7 +149,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	moveSession(session: Session, target: ICodeEditor): void {
-		const newKey = this._key(target, session.textModelN.uri);
+		const newKey = this._key(target, session.targetUri);
 		const existing = this._sessions.get(newKey);
 		if (existing) {
 			if (existing.session !== session) {
@@ -176,16 +196,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			return;
 		}
 
-		// keep recording
-		const newLen = this._recordings.unshift(session.asRecording());
-		if (newLen > 5) {
-			this._recordings.pop();
-		}
-
-		// send telemetry
+		this._keepRecording(session);
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 
 		this._onDidEndSession.fire({ editor: data.editor, session });
+	}
+
+	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession {
+		this._keepRecording(session);
+		const result = this._instaService.createInstance(StashedSession, editor, session, undoCancelEdits);
+		this._onDidStashSession.fire({ editor, session });
+		this._logService.trace(`[IE] did STASH session for ${editor.getId()}, ${session.provider.debugName}`);
+		return result;
 	}
 
 	getCodeEditor(session: Session): ICodeEditor {
@@ -216,6 +238,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	// --- debug
+
+	private _keepRecording(session: Session) {
+		const newLen = this._recordings.unshift(session.asRecording());
+		if (newLen > 5) {
+			this._recordings.pop();
+		}
+	}
+
 	recordings(): readonly Recording[] {
 		return this._recordings;
 	}

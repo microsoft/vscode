@@ -83,12 +83,12 @@ declare module 'vscode' {
 		readonly kind: ChatAgentResultFeedbackKind;
 	}
 
-	export interface ChatAgentSlashCommand {
+	export interface ChatAgentSubCommand {
 		/**
 		 * A short name by which this command is referred to in the UI, e.g. `fix` or
 		 * `explain` for commands that fix an issue or explain code.
 		 *
-		 * **Note**: The name should be unique among the slash commands provided by this agent.
+		 * **Note**: The name should be unique among the subCommands provided by this agent.
 		 */
 		readonly name: string;
 
@@ -98,39 +98,39 @@ declare module 'vscode' {
 		readonly description: string;
 
 		/**
-		 * When the user clicks this slash command in `/help`, this text will be submitted to this slash command
+		 * When the user clicks this subCommand in `/help`, this text will be submitted to this subCommand
 		 */
 		readonly sampleRequest?: string;
 
 		/**
 		 * Whether executing the command puts the
 		 * chat into a persistent mode, where the
-		 * slash command is prepended to the chat input.
+		 * subCommand is prepended to the chat input.
 		 */
 		readonly shouldRepopulate?: boolean;
 
 		/**
 		 * Placeholder text to render in the chat input
-		 * when the slash command has been repopulated.
+		 * when the subCommand has been repopulated.
 		 * Has no effect if `shouldRepopulate` is `false`.
 		 */
 		// TODO@API merge this with shouldRepopulate? so that invalid state cannot be represented?
 		readonly followupPlaceholder?: string;
 	}
 
-	export interface ChatAgentSlashCommandProvider {
+	export interface ChatAgentSubCommandProvider {
 
 		/**
-		 * Returns a list of slash commands that its agent is capable of handling. A slash command
+		 * Returns a list of subCommands that its agent is capable of handling. A subCommand
 		 * can be selected by the user and will then be passed to the {@link ChatAgentHandler handler}
-		 * via the {@link ChatAgentRequest.slashCommand slashCommand} property.
+		 * via the {@link ChatAgentRequest.subCommand subCommand} property.
 		 *
 		 *
 		 * @param token A cancellation token.
-		 * @returns A list of slash commands. The lack of a result can be signaled by returning `undefined`, `null`, or
+		 * @returns A list of subCommands. The lack of a result can be signaled by returning `undefined`, `null`, or
 		 * an empty array.
 		 */
-		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
+		provideSubCommands(token: CancellationToken): ProviderResult<ChatAgentSubCommand[]>;
 	}
 
 	// TODO@API This should become a progress type, and use vscode.Command
@@ -208,9 +208,9 @@ declare module 'vscode' {
 		} | ThemeIcon;
 
 		/**
-		 * This provider will be called to retrieve the agent's slash commands.
+		 * This provider will be called to retrieve the agent's subCommands.
 		 */
-		slashCommandProvider?: ChatAgentSlashCommandProvider;
+		subCommandProvider?: ChatAgentSubCommandProvider;
 
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
@@ -218,7 +218,7 @@ declare module 'vscode' {
 		followupProvider?: FollowupProvider<TResult>;
 
 		/**
-		 * When the user clicks this agent in `/help`, this text will be submitted to this slash command
+		 * When the user clicks this agent in `/help`, this text will be submitted to this subCommand
 		 */
 		sampleRequest?: string;
 
@@ -240,10 +240,10 @@ declare module 'vscode' {
 	export interface ChatAgentRequest {
 
 		/**
-		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentSlashCommand.name slash command}
+		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentSubCommand.name subCommand}
 		 * are not part of the prompt.
 		 *
-		 * @see {@link ChatAgentRequest.slashCommand}
+		 * @see {@link ChatAgentRequest.subCommand}
 		 */
 		prompt: string;
 
@@ -253,14 +253,14 @@ declare module 'vscode' {
 		agentId: string;
 
 		/**
-		 * The {@link ChatAgentSlashCommand slash command} that was selected for this request. It is guaranteed that the passed slash
-		 * command is an instance that was previously returned from the {@link ChatAgentSlashCommandProvider.provideSlashCommands slash command provider}.
+		 * The {@link ChatAgentSubCommand subCommand} that was selected for this request. It is guaranteed that the passed subCommand
+		 * is an instance that was previously returned from the {@link ChatAgentSubCommandProvider.provideSubCommands subCommand provider}.
 		 * @deprecated this will be replaced by `subCommand`
 		 */
-		slashCommand?: ChatAgentSlashCommand;
+		slashCommand?: ChatAgentSubCommand;
 
 		/**
-		 * The name of the {@link ChatAgentSlashCommand slash command} that was selected for this request.
+		 * The name of the {@link ChatAgentSubCommand subCommand} that was selected for this request.
 		 */
 		subCommand?: string;
 
@@ -270,8 +270,7 @@ declare module 'vscode' {
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
-		| ChatAgentInlineContentReference
-		| ChatAgentTask;
+		| ChatAgentInlineContentReference;
 
 	export type ChatAgentMetadataProgress =
 		| ChatAgentUsedContext
@@ -320,24 +319,6 @@ declare module 'vscode' {
 		 * The content as a string of markdown source.
 		 */
 		content: string;
-	}
-
-	/**
-	 * Represents a piece of the chat response's content that is resolved asynchronously. It is rendered immediately with a placeholder,
-	 * which is replaced once the full content is available.
-	 */
-	export interface ChatAgentTask {
-		/**
-		 * The markdown string to be rendered immediately.
-		 */
-		placeholder: string;
-
-		/**
-		 * A Thenable resolving to the real content. The placeholder will be replaced with this content once it's available.
-		 */
-		// TODO@API Should this be an async iterable or progress instance instead
-		// TODO@API Should this include more inline-renderable items like `ChatAgentInlineContentReference`
-		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
 	}
 
 	/**

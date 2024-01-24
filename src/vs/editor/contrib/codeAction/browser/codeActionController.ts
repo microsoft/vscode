@@ -279,13 +279,20 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				return { canPreview: !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				if (action && action.action.diagnostics) {
+				// If provider contributes ranges, then highlight contributed range over diagnostic range.
+				if (action && action.action.ranges) {
+					currentDecorations.clear();
+					const decorations: IModelDeltaDecoration[] = action.action.ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+					currentDecorations.set(decorations);
+				} else if (action && action.action.diagnostics) {
 					currentDecorations.clear();
 					const decorations: IModelDeltaDecoration[] = action.action.diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
 					currentDecorations.set(decorations);
 					const diagnostic = action.action.diagnostics[0];
-					const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
-					aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
+					if (diagnostic.startLineNumber && diagnostic.startColumn) {
+						const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
+						aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
+					}
 				} else {
 					currentDecorations.clear();
 				}

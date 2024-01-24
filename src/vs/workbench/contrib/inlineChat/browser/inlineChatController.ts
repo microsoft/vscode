@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
@@ -46,6 +46,8 @@ import { EditModeStrategy, IEditObserver, LivePreviewStrategy, LiveStrategy, Pre
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { StashedSession } from './inlineChatSession';
+import { IValidEditOperation } from 'vs/editor/common/model';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -106,6 +108,7 @@ export class InlineChatController implements IEditorContribution {
 	private _historyCandidate: string = '';
 	private _historyUpdate: (prompt: string) => void;
 
+	private _isDisposed: boolean = false;
 	private readonly _store = new DisposableStore();
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
@@ -123,8 +126,8 @@ export class InlineChatController implements IEditorContribution {
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
-	private readonly _sessionStore: DisposableStore = this._store.add(new DisposableStore());
-
+	private readonly _sessionStore = this._store.add(new DisposableStore());
+	private readonly _stashedSession = this._store.add(new MutableDisposable<StashedSession>());
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 
@@ -190,11 +193,14 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		if (this._session) {
-			this._inlineChatSessionService.releaseSession(this._session);
+		if (this._currentRun) {
+			this._messages.fire((this._session?.lastExchange
+				? Message.PAUSE_SESSION
+				: Message.CANCEL_SESSION)
+			);
 		}
-		this._strategy?.dispose();
 		this._store.dispose();
+		this._isDisposed = true;
 		this._log('DISPOSED controller');
 	}
 
@@ -241,6 +247,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 			this._historyOffset = -1;
 			this._historyCandidate = '';
+			this._stashedSession.clear();
 			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
@@ -262,7 +269,7 @@ export class InlineChatController implements IEditorContribution {
 
 	protected async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
 		let nextState: State | void = state;
-		while (nextState) {
+		while (nextState && !this._isDisposed) {
 			this._log('setState to ', nextState);
 			nextState = await this[nextState](options);
 		}
@@ -330,7 +337,7 @@ export class InlineChatController implements IEditorContribution {
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._editor, this._zone.value);
 				break;
 			case EditMode.LivePreview:
 			default:
@@ -389,7 +396,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
-			if (!this._session?.hunkData.ignoreTextModelNChanges && this._strategy?.hasFocus()) {
+			if (!this._session?.hunkData.ignoreTextModelNChanges) {
 				this._ctxUserDidEdit.set(altVersionNow !== this._editor.getModel()?.getAlternativeVersionId());
 			}
 
@@ -457,18 +464,18 @@ export class InlineChatController implements IEditorContribution {
 			store.dispose();
 		}
 
-		this._zone.value.widget.selectAll(false);
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
 			return State.CANCEL;
 		}
 
-		if (message & Message.ACCEPT_SESSION) {
-			return State.ACCEPT;
-		}
-
 		if (message & Message.PAUSE_SESSION) {
 			return State.PAUSE;
+		}
+
+		if (message & Message.ACCEPT_SESSION) {
+			this._zone.value.widget.selectAll(false);
+			return State.ACCEPT;
 		}
 
 		if (message & Message.RERUN_INPUT && this._session.lastExchange) {
@@ -709,7 +716,7 @@ export class InlineChatController implements IEditorContribution {
 			return State.PAUSE;
 		} else if (message & Message.ACCEPT_SESSION) {
 			return State.ACCEPT;
-		} else if (message & Message.ACCEPT_INPUT) {
+		} else if (message & (Message.ACCEPT_INPUT | Message.RERUN_INPUT)) {
 			return State.MAKE_REQUEST;
 		} else {
 			return State.APPLY_RESPONSE;
@@ -809,12 +816,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async[State.PAUSE]() {
-		assertType(this._session);
-		assertType(this._strategy);
 
 		this._resetWidget();
 
-		this._strategy.pause?.();
+		this._strategy?.dispose?.();
 		this._session = undefined;
 	}
 
@@ -846,14 +851,23 @@ export class InlineChatController implements IEditorContribution {
 			assertType(this._strategy);
 			this._sessionStore.clear();
 
+			// only stash sessions that were not unstashed, not "empty", and not interacted with
+			const shouldStash = !this._session.isUnstashed && !!this._session.lastExchange && this._session.hunkData.size === this._session.hunkData.pending;
+			let undoCancelEdits: IValidEditOperation[] = [];
 			try {
-				await this._strategy.cancel();
+				undoCancelEdits = this._strategy.cancel();
 			} catch (err) {
 				this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
 				this._log('FAILED to discard changes');
 				this._log(err);
 			}
-			this._inlineChatSessionService.releaseSession(this._session);
+
+			this._stashedSession.clear();
+			if (shouldStash) {
+				this._stashedSession.value = this._inlineChatSessionService.stashSession(this._session, this._editor, undoCancelEdits);
+			} else {
+				this._inlineChatSessionService.releaseSession(this._session);
+			}
 		}
 
 		this._resetWidget();
@@ -1128,60 +1142,17 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	unstashLastSession(): Session | undefined {
-		return undefined;
+		const result = this._stashedSession.value?.unstash();
+		if (result) {
+			this._inlineChatSavingService.markChanged(result);
+		}
+		return result;
 	}
 
 	joinCurrentRun(): Promise<void> | undefined {
 		return this._currentRun;
 	}
 }
-
-// class StashedSession {
-
-// 	private readonly _listener: IDisposable;
-// 	private readonly _ctxHasStashedSession: IContextKey<boolean>;
-// 	private _session: Session | undefined;
-
-// 	constructor(
-// 		editor: ICodeEditor,
-// 		session: Session,
-// 		@IContextKeyService contextKeyService: IContextKeyService,
-// 		@IInlineChatSessionService private readonly _sessionService: IInlineChatSessionService,
-// 		@ILogService private readonly _logService: ILogService,
-// 	) {
-// 		this._ctxHasStashedSession = CTX_INLINE_CHAT_HAS_STASHED_SESSION.bindTo(contextKeyService);
-
-// 		// keep session for a little bit, only release when user continues to work (type, move cursor, etc.)
-// 		this._session = session;
-// 		this._ctxHasStashedSession.set(true);
-// 		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel))(() => {
-// 			this._session = undefined;
-// 			this._sessionService.releaseSession(session);
-// 			this._ctxHasStashedSession.reset();
-// 		});
-// 	}
-
-// 	dispose() {
-// 		this._listener.dispose();
-// 		this._ctxHasStashedSession.reset();
-// 		if (this._session) {
-// 			this._sessionService.releaseSession(this._session);
-// 		}
-// 	}
-
-// 	unstash(): Session | undefined {
-// 		if (!this._session) {
-// 			return undefined;
-// 		}
-// 		this._listener.dispose();
-// 		const result = this._session;
-// 		result.markUnstashed();
-// 		this._session = undefined;
-// 		this._logService.debug('[IE] Unstashed session');
-// 		return result;
-// 	}
-
-// }
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	const chatService = accessor.get(IChatService);

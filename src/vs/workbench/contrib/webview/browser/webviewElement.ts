@@ -180,8 +180,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._element = this._createElement(initInfo.options, initInfo.contentOptions);
 
-
-		const subscription = this._register(addDisposableListener(getActiveWindow(), 'message', (e: MessageEvent) => {
+		const subscription = this._register(addDisposableListener(initInfo.codeWindow ?? getActiveWindow(), 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}

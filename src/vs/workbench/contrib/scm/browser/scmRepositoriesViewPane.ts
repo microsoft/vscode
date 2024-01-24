@@ -151,10 +151,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const actions = collectContextMenuActions(menu);
 
 		const actionRunner = this._register(new RepositoryActionRunner(() => {
-			const focusedRepositories = this.list.getFocusedElements();
-			const selectedRepositories = this.list.getSelectedElements();
-
-			return Array.from(new Set<ISCMRepository>([...focusedRepositories, ...selectedRepositories]));
+			return this.list.getSelectedElements();
 		}));
 		actionRunner.onWillRun(() => this.list.domFocus());
 

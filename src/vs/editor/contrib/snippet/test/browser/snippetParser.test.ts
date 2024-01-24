@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('SnippetParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Scanner', () => {
 

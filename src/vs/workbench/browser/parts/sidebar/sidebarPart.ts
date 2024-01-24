@@ -31,7 +31,6 @@ import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/comm
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
 import { localize } from 'vs/nls';
-import { mainWindow } from 'vs/base/browser/window';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -195,7 +194,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
 	private shouldShowActivityBar(): boolean {

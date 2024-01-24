@@ -288,6 +288,8 @@ steps:
     - script:  |
         set -e
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Prepare deb package
 
     - script:  |

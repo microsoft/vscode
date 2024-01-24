@@ -10,6 +10,13 @@ ARCH=$(uname -m)
 found_required_glibc=0
 found_required_glibcxx=0
 
+# Extract the ID value from /etc/os-release
+OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed 's/ID=//')"
+if [ "$OS_ID" = "nixos" ]; then
+  echo "Warning: NixOS detected, skipping GLIBC check"
+  exit 0
+fi
+
 # Based on https://github.com/bminor/glibc/blob/520b1df08de68a3de328b65a25b86300a7ddf512/elf/cache.c#L162-L245
 case $ARCH in
 	x86_64) LDCONFIG_ARCH="x86-64";;
@@ -32,7 +39,7 @@ elif [ -f /usr/lib/libstdc++.so.6 ]; then
 	libstdcpp_path='/usr/lib/libstdc++.so.6'
 elif [ -f /sbin/ldconfig ]; then
     # Look up path
-    libstdcpp_paths=$(ldconfig -p | grep 'libstdc++.so.6')
+    libstdcpp_paths=$(/sbin/ldconfig -p | grep 'libstdc++.so.6')
 
     if [ "$(echo "$libstdcpp_paths" | wc -l)" -gt 1 ]; then
         libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
@@ -66,7 +73,7 @@ if [ -n "$(ldd --version | grep -v musl)" ]; then
         libc_path='/usr/lib/libc.so.6'
     elif [ -f /sbin/ldconfig ]; then
         # Look up path
-        libc_paths=$(ldconfig -p | grep 'libc.so.6')
+        libc_paths=$(/sbin/ldconfig -p | grep 'libc.so.6')
 
         if [ "$(echo "$libc_paths" | wc -l)" -gt 1 ]; then
             libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')

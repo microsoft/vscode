@@ -42,6 +42,7 @@
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-list-background",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-foreground",
@@ -683,6 +684,8 @@
 		"--vscode-terminalStickyScroll-background",
 		"--vscode-terminalStickyScrollHover-background",
 		"--vscode-testing-coverage-lineHeight",
+		"--vscode-testing-coverCountBadgeBackground",
+		"--vscode-testing-coverCountBadgeForeground",
 		"--vscode-testing-coveredBackground",
 		"--vscode-testing-coveredBorder",
 		"--vscode-testing-coveredGutterBackground",
@@ -778,6 +781,8 @@
 		"--vscode-hover-whiteSpace",
 		"--vscode-inline-chat-cropped",
 		"--vscode-inline-chat-expanded",
+		"--vscode-inline-chat-quick-voice-height",
+		"--vscode-inline-chat-quick-voice-width",
 		"--vscode-interactive-session-foreground",
 		"--vscode-interactive-result-editor-background-color",
 		"--vscode-repl-font-family",
@@ -807,7 +812,6 @@
 		"--z-index-notebook-progress-bar",
 		"--z-index-notebook-scrollbar",
 		"--z-index-run-button-container",
-		"--z-index-notebook-sticky-scroll",
 		"--zoom-factor",
 		"--test-bar-width"
 	]
