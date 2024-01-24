@@ -22,6 +22,7 @@ export interface IAudioCueService {
 	isCueEnabled(cue: AudioCue): boolean;
 	isAlertEnabled(cue: AudioCue): boolean;
 	onEnabledChanged(cue: AudioCue): Event<void>;
+	onAlertEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable;
@@ -234,6 +235,10 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
 		return Event.fromObservableLight(this.isCueEnabledCache.get({ cue }));
+	}
+
+	public onAlertEnabledChanged(cue: AudioCue): Event<void> {
+		return Event.fromObservableLight(this.isAlertEnabledCache.get({ cue }));
 	}
 }
 
