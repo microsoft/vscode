@@ -293,7 +293,11 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 					MenuId.SCMOutgoingChangesHistoryItemContext;
 			}
 
-			result = this.menuService.createMenu(menuId, this.contextKeyService);
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['scmHistoryItemFileCount', historyItem.statistics?.files ?? 0],
+			]);
+
+			result = this.menuService.createMenu(menuId, contextKeyService);
 			this.historyItemMenus.set(historyItem, result);
 		}
 
