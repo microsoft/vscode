@@ -21,11 +21,10 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, IEditorSerializer, IResourceMultiDiffEditorInput, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
 import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { ObservableLazyStatefulPromise } from 'vs/workbench/contrib/multiDiffEditor/browser/utils';
@@ -242,29 +241,31 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	override readonly onDidChangeDirty = Event.fromObservableLight(this._isDirtyObservable);
 	override isDirty() { return this._isDirtyObservable.get(); }
 
-	override async save(group: number, options?: ISaveOptions | undefined): Promise<EditorInput | IUntypedEditorInput | undefined> {
+	override async save(group: number, options?: ISaveOptions | undefined): Promise<EditorInput> {
+		await this.doSaveOrRevert('save', group, options);
+		return this;
+	}
+
+	override  revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		return this.doSaveOrRevert('revert', group, options);
+	}
+
+	private async doSaveOrRevert(mode: 'save', group: GroupIdentifier, options?: ISaveOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'revert', group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'save' | 'revert', group: GroupIdentifier, options?: ISaveOptions | IRevertOptions): Promise<void> {
 		const items = this._viewModel.currentValue?.items.get();
 		if (items) {
 			await Promise.all(items.map(async item => {
 				const model = item.diffEditorViewModel.model;
 
 				await Promise.all([
-					this._textFileService.save(model.original.uri, options),
-					this._textFileService.save(model.modified.uri, options),
+					mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options),
+					mode === 'save' ? this._textFileService.save(model.modified.uri, options) : this._textFileService.revert(model.modified.uri, options),
 				]);
 			}));
 		}
 		return undefined;
 	}
-
-	override readonly closeHandler: IEditorCloseHandler = {
-		async confirm() {
-			return ConfirmResult.DONT_SAVE;
-		},
-		showConfirm() {
-			return false;
-		}
-	};
 }
 
 function isUriDirty(textFileService: ITextFileService, uri: URI) {
