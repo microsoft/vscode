@@ -4348,9 +4348,4 @@ export enum InlineEditTriggerKind {
 	Automatic = 1,
 }
 
-export enum InlineEditRejectionReason {
-	Explicit = 0,
-	Implicit = 1,
-}
-
 //#endregion

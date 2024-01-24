@@ -16,7 +16,7 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInlineEdit, InlineEditRejectionReason, InlineEditTriggerKind } from 'vs/editor/common/languages';
+import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
@@ -218,7 +218,7 @@ export class InlineEditController extends Disposable {
 			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), text)]);
 		}
 		if (data.accepted) {
-			this._commandService.executeCommand(data.accepted.id, ...data.accepted.arguments ?? []);
+			this._commandService.executeCommand(data.accepted.id, ...data.accepted.arguments || []);
 		}
 		this._currentEdit.set(undefined, undefined);
 	}
@@ -240,10 +240,9 @@ export class InlineEditController extends Disposable {
 	}
 
 	public clear(explcit: boolean) {
-		const rejectReason = explcit ? InlineEditRejectionReason.Explicit : InlineEditRejectionReason.Implicit;
 		const edit = this._currentEdit.get()?.edit;
 		if (edit && edit?.rejected && !this._isAccepting) {
-			this._commandService.executeCommand(edit.rejected.id, rejectReason, ...edit.rejected.arguments ?? []);
+			this._commandService.executeCommand(edit.rejected.id, ...edit.rejected.arguments || []);
 		}
 		this._currentEdit.set(undefined, undefined);
 	}

@@ -1684,7 +1684,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
-			InlineEditRejectionReason: extHostTypes.InlineEditRejectionReason,
 		};
 	};
 }

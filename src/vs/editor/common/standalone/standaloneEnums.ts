@@ -416,11 +416,6 @@ export enum InlineCompletionTriggerKind {
 	Explicit = 1
 }
 
-export enum InlineEditRejectionReason {
-	Explicit = 0,
-	Implicit = 1
-}
-
 export enum InlineEditTriggerKind {
 	Invoke = 0,
 	Automatic = 1
