@@ -819,7 +819,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._resetWidget();
 
-		this._strategy?.pause?.();
+		this._strategy?.dispose?.();
 		this._session = undefined;
 	}
 
