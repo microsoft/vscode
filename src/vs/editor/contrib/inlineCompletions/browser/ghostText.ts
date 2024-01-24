@@ -111,14 +111,6 @@ export class GhostTextReplacement {
 		}
 	}
 
-	getFullInsertText(lineText: string): string {
-		return this.newLines.join('\n');
-	}
-
-	getPartialInsertText(lineText: string): string {
-		return this.newLines.join('\n');
-	}
-
 	get lineCount(): number {
 		return this.newLines.length;
 	}
