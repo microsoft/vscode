@@ -25,7 +25,7 @@ import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu
 import { LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
-import { ActionList, IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
+import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,7 +38,6 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 
 interface IActionShowOptions {
@@ -280,20 +279,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				return { canPreview: !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				// If provider contributes ranges, then highlight contributed range over diagnostic range.
-				// if (action && action.action.ranges && action.action.ranges.length > 0) {
-				// 	currentDecorations.clear();
-				// 	const decorations: IModelDeltaDecoration[] = action.action.ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
-				// 	currentDecorations.set(decorations);
-				// } else if (action && action.action.diagnostics && action.action.diagnostics.length > 0) {
-				// 	currentDecorations.clear();
-				// 	const decorations: IModelDeltaDecoration[] = action.action.diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
-				// 	currentDecorations.set(decorations);
-				// 	const diagnostic = action.action.diagnostics[0];
-				// 	if (diagnostic.startLineNumber && diagnostic.startColumn) {
-				// 		const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
-				// 		aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
-				// 	}
 				if (action && action.action) {
 					const ranges = action.action.ranges;
 					const diagnostics = action.action.diagnostics;
