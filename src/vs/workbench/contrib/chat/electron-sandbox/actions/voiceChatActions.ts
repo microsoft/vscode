@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
@@ -771,14 +771,12 @@ function supportsKeywordActivation(configurationService: IConfigurationService, 
 		return false;
 	}
 
-	const value = configurationService.getValue(KeywordActivationContribution.SETTINGS_ID);
+	const value = configurationService.getValue(KEYWORD_ACTIVIATION_SETTING_ID);
 
 	return typeof value === 'string' && value !== KeywordActivationContribution.SETTINGS_VALUE.OFF;
 }
 
 export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
-
-	static SETTINGS_ID = 'accessibility.voice.keywordActivation';
 
 	static SETTINGS_VALUE = {
 		OFF: 'off',
@@ -817,7 +815,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		this._register(this.speechService.onDidEndSpeechToTextSession(() => this.handleKeywordActivation()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(KeywordActivationContribution.SETTINGS_ID)) {
+			if (e.affectsConfiguration(KEYWORD_ACTIVIATION_SETTING_ID)) {
 				this.handleKeywordActivation();
 			}
 		}));
@@ -836,7 +834,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		registry.registerConfiguration({
 			...accessibilityConfigurationNodeBase,
 			properties: {
-				[KeywordActivationContribution.SETTINGS_ID]: {
+				[KEYWORD_ACTIVIATION_SETTING_ID]: {
 					'type': 'string',
 					'enum': [
 						KeywordActivationContribution.SETTINGS_VALUE.OFF,
@@ -854,7 +852,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 					],
 					'description': localize('voice.keywordActivation', "Controls whether the keyword phrase 'Hey Code' is recognized to start a voice chat session. Enabling this will start recording from the microphone but the audio is processed locally and never sent to a server."),
 					'default': 'off',
-					'tags': ['accessibility', 'FeatureInsight']
+					'tags': ['accessibility']
 				}
 			}
 		});
@@ -905,7 +903,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private getKeywordCommand(): string {
-		const setting = this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID);
+		const setting = this.configurationService.getValue(KEYWORD_ACTIVIATION_SETTING_ID);
 		switch (setting) {
 			case KeywordActivationContribution.SETTINGS_VALUE.INLINE_CHAT:
 				return InlineVoiceChatAction.ID;
@@ -949,7 +947,7 @@ class KeywordActivationStatusEntry extends Disposable {
 	) {
 		super();
 
-		CommandsRegistry.registerCommand(KeywordActivationStatusEntry.STATUS_COMMAND, () => this.commandService.executeCommand('workbench.action.openSettings', KeywordActivationContribution.SETTINGS_ID));
+		CommandsRegistry.registerCommand(KeywordActivationStatusEntry.STATUS_COMMAND, () => this.commandService.executeCommand('workbench.action.openSettings', KEYWORD_ACTIVIATION_SETTING_ID));
 
 		this.registerListeners();
 		this.updateStatusEntry();
@@ -959,7 +957,7 @@ class KeywordActivationStatusEntry extends Disposable {
 		this._register(this.speechService.onDidStartKeywordRecognition(() => this.updateStatusEntry()));
 		this._register(this.speechService.onDidEndKeywordRecognition(() => this.updateStatusEntry()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(KeywordActivationContribution.SETTINGS_ID)) {
+			if (e.affectsConfiguration(KEYWORD_ACTIVIATION_SETTING_ID)) {
 				this.updateStatusEntry();
 			}
 		}));
