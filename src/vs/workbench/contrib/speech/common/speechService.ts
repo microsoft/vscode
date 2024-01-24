@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
 export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'string', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
-export const SpeechInProgress = new RawContextKey<boolean>('speechInProgress', false, { type: 'string', description: localize('speechInProgress', "A speech session is in progress.") });
+export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'string', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
 
 export interface ISpeechProviderMetadata {
 	readonly extension: ExtensionIdentifier;
@@ -110,21 +110,12 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private readonly providers = new Map<string, ISpeechProvider>();
 
 	private readonly hasSpeechProviderContext = HasSpeechProvider.bindTo(this.contextKeyService);
-	private readonly speechInProgress = SpeechInProgress.bindTo(this.contextKeyService);
-
-	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
-	readonly onDidStartSpeechToTextSession = this._onDidStartSpeechToTextSession.event;
-
-	private readonly _onDidEndSpeechToTextSession = this._register(new Emitter<void>());
-	readonly onDidEndSpeechToTextSession = this._onDidEndSpeechToTextSession.event;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-		this._register(this.onDidStartSpeechToTextSession(() => this.speechInProgress.set(true)));
-		this._register(this.onDidEndSpeechToTextSession(() => this.speechInProgress.reset()));
 	}
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable {
@@ -147,9 +138,16 @@ export class SpeechService extends Disposable implements ISpeechService {
 		});
 	}
 
+	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
+	readonly onDidStartSpeechToTextSession = this._onDidStartSpeechToTextSession.event;
+
+	private readonly _onDidEndSpeechToTextSession = this._register(new Emitter<void>());
+	readonly onDidEndSpeechToTextSession = this._onDidEndSpeechToTextSession.event;
 
 	private _activeSpeechToTextSession: ISpeechToTextSession | undefined = undefined;
 	get hasActiveSpeechToTextSession() { return !!this._activeSpeechToTextSession; }
+
+	private readonly speechToTextInProgress = SpeechToTextInProgress.bindTo(this.contextKeyService);
 
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
@@ -166,6 +164,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		const onSessionStoppedOrCanceled = () => {
 			if (session === this._activeSpeechToTextSession) {
 				this._activeSpeechToTextSession = undefined;
+				this.speechToTextInProgress.reset();
 				this._onDidEndSpeechToTextSession.fire();
 			}
 
@@ -181,6 +180,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
 					if (session === this._activeSpeechToTextSession) {
+						this.speechToTextInProgress.set(true);
 						this._onDidStartSpeechToTextSession.fire();
 					}
 					break;
