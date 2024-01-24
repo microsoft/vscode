@@ -247,6 +247,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 			this._historyOffset = -1;
 			this._historyCandidate = '';
+			this._stashedSession.clear();
 			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
@@ -815,12 +816,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async[State.PAUSE]() {
-		assertType(this._session);
-		assertType(this._strategy);
 
 		this._resetWidget();
 
-		this._strategy.pause?.();
+		this._strategy?.pause?.();
 		this._session = undefined;
 	}
 
