@@ -17,20 +17,10 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CONTEXT_KEY_HAS_COMMENTS, CONTEXT_KEY_SOME_COMMENTS_EXPANDED, CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { Codicon } from 'vs/base/common/codicons';
-
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.focusCommentsPanel',
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		viewsService.openView(COMMENTS_VIEW_ID, true);
-	}
-});
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
 	constructor() {
