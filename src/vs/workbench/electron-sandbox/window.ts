@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/window';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindowId, getWindows } from 'vs/base/browser/dom';
-import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
+import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { setFullscreen, getZoomLevel, onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { setFullscreen, getZoomLevel, onDidChangeZoomLevel, getZoomFactor } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -73,7 +74,9 @@ import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sand
 import { mainWindow } from 'vs/base/browser/window';
 import { BaseWindow } from 'vs/workbench/browser/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class NativeWindow extends BaseWindow {
 
@@ -329,7 +332,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Window Zoom
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.zoomLevel')) {
+			if (e.affectsConfiguration('window.zoomLevel') || (e.affectsConfiguration('window.zoomPerWindow') && this.configurationService.getValue('window.zoomPerWindow') === false)) {
 				this.onDidChangeConfiguredWindowZoomLevel();
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
@@ -339,7 +342,7 @@ export class NativeWindow extends BaseWindow {
 		this._register(onDidChangeZoomLevel(targetWindowId => this.handleOnDidChangeZoomLevel(targetWindowId)));
 
 		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables, part }) => {
-			this.createResetWindowZoomStatusEntry(instantiationService, part.windowId, disposables);
+			this.createWindowZoomStatusEntry(instantiationService, part.windowId, disposables);
 		}));
 
 		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
@@ -374,7 +377,7 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
+		if (isMacintosh && !hasNativeTitlebar(this.configurationService)) {
 			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 				const targetWindow = getWindow(container);
 				const targetWindowId = targetWindow.vscodeWindowId;
@@ -391,7 +394,7 @@ export class NativeWindow extends BaseWindow {
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
@@ -608,7 +611,7 @@ export class NativeWindow extends BaseWindow {
 		this.customTitleContextMenuDisposable.clear();
 
 		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || getTitleBarStyle(this.configurationService) !== 'custom') {
+		if (!filePath || !hasNativeTitlebar(this.configurationService)) {
 			return;
 		}
 
@@ -657,7 +660,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Zoom status
 		for (const { window, disposables } of getWindows()) {
-			this.createResetWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
+			this.createWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
 		}
 
 		// Smoke Test Driver
@@ -1027,7 +1030,7 @@ export class NativeWindow extends BaseWindow {
 
 	//#region Window Zoom
 
-	private readonly mapWindowIdToResetZoomStatusEntry = new Map<number, ResetZoomStatusEntry>();
+	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
 	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
 
@@ -1040,7 +1043,7 @@ export class NativeWindow extends BaseWindow {
 	private handleOnDidChangeZoomLevel(targetWindowId: number): void {
 
 		// Zoom status entry
-		this.updateResetWindowZoomStatusEntry(targetWindowId);
+		this.updateWindowZoomStatusEntry(targetWindowId);
 
 		// Notify main process about a custom zoom level
 		if (targetWindowId === mainWindow.vscodeWindowId) {
@@ -1055,18 +1058,27 @@ export class NativeWindow extends BaseWindow {
 		}
 	}
 
-	private createResetWindowZoomStatusEntry(instantiationService: IInstantiationService, targetWindowId: number, disposables: DisposableStore): void {
-		this.mapWindowIdToResetZoomStatusEntry.set(targetWindowId, disposables.add(instantiationService.createInstance(ResetZoomStatusEntry)));
-		disposables.add(toDisposable(() => this.mapWindowIdToResetZoomStatusEntry.delete(targetWindowId)));
+	private createWindowZoomStatusEntry(instantiationService: IInstantiationService, targetWindowId: number, disposables: DisposableStore): void {
+		this.mapWindowIdToZoomStatusEntry.set(targetWindowId, disposables.add(instantiationService.createInstance(ZoomStatusEntry)));
+		disposables.add(toDisposable(() => this.mapWindowIdToZoomStatusEntry.delete(targetWindowId)));
 
-		this.updateResetWindowZoomStatusEntry(targetWindowId);
+		this.updateWindowZoomStatusEntry(targetWindowId);
 	}
 
-	private updateResetWindowZoomStatusEntry(targetWindowId: number): void {
+	private updateWindowZoomStatusEntry(targetWindowId: number): void {
 		const targetWindow = getWindowById(targetWindowId);
-		const entry = this.mapWindowIdToResetZoomStatusEntry.get(targetWindowId);
+		const entry = this.mapWindowIdToZoomStatusEntry.get(targetWindowId);
 		if (entry && targetWindow) {
-			entry.updateResetZoomEntry(getZoomLevel(targetWindow.window) !== this.configuredWindowZoomLevel);
+			const currentZoomLevel = getZoomLevel(targetWindow.window);
+
+			let text: string | undefined = undefined;
+			if (currentZoomLevel < this.configuredWindowZoomLevel) {
+				text = localize('zoomedOut', "$(zoom-out)");
+			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
+				text = localize('zoomedIn', "$(zoom-in)");
+			}
+
+			entry.updateZoomEntry(text ?? false, targetWindowId);
 		}
 	}
 
@@ -1085,8 +1097,8 @@ export class NativeWindow extends BaseWindow {
 			applyZoom(this.configuredWindowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
 		}
 
-		for (const [windowId] of this.mapWindowIdToResetZoomStatusEntry) {
-			this.updateResetWindowZoomStatusEntry(windowId);
+		for (const [windowId] of this.mapWindowIdToZoomStatusEntry) {
+			this.updateWindowZoomStatusEntry(windowId);
 		}
 	}
 
@@ -1095,34 +1107,92 @@ export class NativeWindow extends BaseWindow {
 	override dispose(): void {
 		super.dispose();
 
-		for (const [, entry] of this.mapWindowIdToResetZoomStatusEntry) {
+		for (const [, entry] of this.mapWindowIdToZoomStatusEntry) {
 			entry.dispose();
 		}
 	}
 }
 
-class ResetZoomStatusEntry extends Disposable {
+class ZoomStatusEntry extends Disposable {
 
-	private readonly resetZoomStatusEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly disposable = this._register(new MutableDisposable<DisposableStore>());
 
-	constructor(@IStatusbarService private readonly statusbarService: IStatusbarService) {
+	private zoomLevelLabel: Action | undefined = undefined;
+
+	constructor(
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
+	) {
 		super();
 	}
 
-	updateResetZoomEntry(visible: boolean): void {
-		if (visible) {
-			if (!this.resetZoomStatusEntry.value) {
-				const text = localize('resetZoom', "Reset Zoom");
-				this.resetZoomStatusEntry.value = this.statusbarService.addEntry({
-					name: localize('status.resetWindowZoom', "Reset Window Zoom"),
-					text,
-					ariaLabel: text,
-					command: 'workbench.action.zoomReset',
-					kind: 'prominent'
-				}, 'status.resetWindowZoom', StatusbarAlignment.RIGHT, 102);
+	updateZoomEntry(visibleOrText: false | string, targetWindowId: number): void {
+		if (typeof visibleOrText === 'string') {
+			if (!this.disposable.value) {
+				this.createZoomEntry(targetWindowId, visibleOrText);
 			}
+
+			this.updateZoomLevelLabel(targetWindowId);
 		} else {
-			this.resetZoomStatusEntry.clear();
+			this.disposable.clear();
+		}
+	}
+
+	private createZoomEntry(targetWindowId: number, visibleOrText: string) {
+		const disposables = new DisposableStore();
+		this.disposable.value = disposables;
+
+		const container = document.createElement('div');
+		container.classList.add('zoom-status');
+
+		const left = document.createElement('div');
+		left.classList.add('zoom-status-left');
+		container.appendChild(left);
+
+		const zoomOutAction: Action = disposables.add(new Action('workbench.action.zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand(zoomOutAction.id)));
+		const zoomInAction: Action = disposables.add(new Action('workbench.action.zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand(zoomInAction.id)));
+		const zoomResetAction: Action = disposables.add(new Action('workbench.action.zoomReset', localize('zoomReset', "Reset"), undefined, true, () => this.commandService.executeCommand(zoomResetAction.id)));
+		zoomResetAction.tooltip = localize('zoomResetLabel', "{0} ({1})", zoomResetAction.label, this.keybindingService.lookupKeybinding(zoomResetAction.id)?.getLabel());
+		const zoomSettingsAction: Action = disposables.add(new Action('workbench.action.openSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand(zoomSettingsAction.id, 'window.zoom')));
+		const zoomLevelLabel = disposables.add(new Action('zoomLabel', undefined, undefined, false));
+
+		this.zoomLevelLabel = zoomLevelLabel;
+		disposables.add(toDisposable(() => this.zoomLevelLabel = undefined));
+
+		const actionBarLeft = disposables.add(new ActionBar(left));
+		actionBarLeft.push(zoomOutAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomOutAction.id)?.getLabel() });
+		actionBarLeft.push(this.zoomLevelLabel, { icon: false, label: true });
+		actionBarLeft.push(zoomInAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomInAction.id)?.getLabel() });
+
+		const right = document.createElement('div');
+		right.classList.add('zoom-status-right');
+		container.appendChild(right);
+
+		const actionBarRight = disposables.add(new ActionBar(right));
+
+		actionBarRight.push(zoomResetAction, { icon: false, label: true });
+		actionBarRight.push(zoomSettingsAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomSettingsAction.id)?.getLabel() });
+
+		const name = localize('status.windowZoom', "Window Zoom");
+		disposables.add(this.statusbarService.addEntry({
+			name,
+			text: visibleOrText,
+			tooltip: container,
+			ariaLabel: name,
+			command: ShowTooltipCommand,
+			kind: 'prominent'
+		}, 'status.windowZoom', StatusbarAlignment.RIGHT, 102));
+	}
+
+	private updateZoomLevelLabel(targetWindowId: number): void {
+		if (this.zoomLevelLabel) {
+			const targetWindow = getWindowById(targetWindowId)?.window ?? mainWindow;
+			const zoomFactor = Math.round(getZoomFactor(targetWindow) * 100);
+			const zoomLevel = getZoomLevel(targetWindow);
+
+			this.zoomLevelLabel.label = `${zoomLevel}`;
+			this.zoomLevelLabel.tooltip = localize('zoomNumber', "Zoom Level: {0} ({1}%)", zoomLevel, zoomFactor);
 		}
 	}
 }

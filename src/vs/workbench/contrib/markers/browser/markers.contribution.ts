@@ -35,6 +35,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -91,10 +92,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // configuration
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'problems',
-	'order': 101,
-	'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
-	'type': 'object',
+	...problemsConfigurationNodeBase,
 	'properties': {
 		'problems.autoReveal': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
@@ -122,12 +120,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
-		'problems.visibility': {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
-			description: localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
-		}
 	}
 });
 

@@ -936,6 +936,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				update = true;
 				webExtension.location = migratedLocation;
 			}
+			if (isUndefined(webExtension.metadata?.hasPreReleaseVersion) && webExtension.metadata?.preRelease) {
+				update = true;
+				webExtension.metadata.hasPreReleaseVersion = true;
+			}
 			return webExtension;
 		}));
 		if (update) {

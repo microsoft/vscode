@@ -1211,6 +1211,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get stackFrameFocus() {
 				return extHostDebugService.stackFrameFocus;
 			},
+			registerDebugVisualizationProvider(id, provider) {
+				checkProposedApiEnabled(extension, 'debugVisualization');
+				return extHostDebugService.registerDebugVisualizationProvider(extension, id, provider);
+			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostDebugService.onDidStartDebugSession)(listener, thisArg, disposables);
 			},
@@ -1384,7 +1388,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostChatProvider.requestChatResponseProvider(extension.identifier, id);
 			},
 			registerVariable(name: string, description: string, resolver: vscode.ChatVariableResolver) {
-				checkProposedApiEnabled(extension, 'chatVariables');
+				checkProposedApiEnabled(extension, 'chatAgents2');
 				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
 			},
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
@@ -1465,6 +1469,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DebugAdapterServer: extHostTypes.DebugAdapterServer,
 			DebugConfigurationProviderTriggerKind: DebugConfigurationProviderTriggerKind,
 			DebugConsoleMode: extHostTypes.DebugConsoleMode,
+			DebugVisualization: extHostTypes.DebugVisualization,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
@@ -1627,7 +1632,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,
 			RelatedInformationType: extHostTypes.RelatedInformationType,
-			SpeechToTextStatus: extHostTypes.SpeechToTextStatus
+			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
+			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus
 		};
 	};
 }

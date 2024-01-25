@@ -5,8 +5,11 @@
 import * as assert from 'assert';
 import * as arrays from 'vs/base/common/arrays';
 import * as arraysFind from 'vs/base/common/arraysFind';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Arrays', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('removeFastWithoutKeepingOrder', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];

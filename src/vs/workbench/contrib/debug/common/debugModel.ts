@@ -305,6 +305,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 		this.type = type;
 	}
 
+	getThreadId() {
+		return this.threadId;
+	}
+
 	async setVariable(value: string, stackFrame: IStackFrame): Promise<any> {
 		if (!this.session) {
 			return;
@@ -354,7 +358,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 export class Scope extends ExpressionContainer implements IScope {
 
 	constructor(
-		stackFrame: IStackFrame,
+		public readonly stackFrame: IStackFrame,
 		id: number,
 		public readonly name: string,
 		reference: number,

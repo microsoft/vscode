@@ -228,7 +228,7 @@
 	pointer-events: none; /* prevents cursor flickering (fixes https://github.com/microsoft/vscode/issues/38753) */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
 	flex-direction: row-reverse;
 	padding-left: 0;
 	padding-right: 10px;

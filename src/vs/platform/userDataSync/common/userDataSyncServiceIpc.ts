@@ -25,7 +25,7 @@ function reviewSyncResourceHandle(syncResourceHandle: ISyncResourceHandle): ISyn
 	return { created: syncResourceHandle.created, uri: URI.revive(syncResourceHandle.uri) };
 }
 
-export class UserDataSyncChannel implements IServerChannel {
+export class UserDataSyncServiceChannel implements IServerChannel {
 
 	private readonly manualSyncTasks = new Map<string, IUserDataManualSyncTask>();
 	private readonly onManualSynchronizeResources = new Emitter<ManualSyncTaskEvent<[SyncResource, URI[]][]>>();
@@ -119,7 +119,7 @@ export class UserDataSyncChannel implements IServerChannel {
 
 }
 
-export class UserDataSyncChannelClient extends Disposable implements IUserDataSyncService {
+export class UserDataSyncServiceChannelClient extends Disposable implements IUserDataSyncService {
 
 	declare readonly _serviceBrand: undefined;
 

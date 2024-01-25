@@ -60,6 +60,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -80,6 +81,7 @@ class InputEditorDecorations extends Disposable {
 				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand.name));
 			}
 		}));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 
 		this.registerViewModelListeners();
 	}
@@ -534,7 +536,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return null;
 				}
 
-				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.endColumn + 'file:'.length);
+				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
 				return <CompletionList>{
 					suggestions: [
 						<CompletionItem>{
@@ -660,9 +662,10 @@ class ChatTokenDeleter extends Disposable {
 			const change = e.changes[0];
 
 			// If this was a simple delete, try to find out whether it was inside a token
-			if (!change.text) {
-				parser.parseChatRequest(this.widget.viewModel!.sessionId, previousInputValue).then(previousParsedValue => {
-					const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart);
+			if (!change.text && this.widget.viewModel) {
+				parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue).then(previousParsedValue => {
+					// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
+					const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart);
 					deletableTokens.forEach(token => {
 						const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
 						// Part of this token was deleted, and the deletion range doesn't go off the front of the token, for simpler math

@@ -451,9 +451,11 @@ export const enum TerminalCommandId {
 	ScrollDownLine = 'workbench.action.terminal.scrollDown',
 	ScrollDownPage = 'workbench.action.terminal.scrollDownPage',
 	ScrollToBottom = 'workbench.action.terminal.scrollToBottom',
+	ScrollToBottomAccessibleView = 'workbench.action.terminal.scrollToBottomAccessibleView',
 	ScrollUpLine = 'workbench.action.terminal.scrollUp',
 	ScrollUpPage = 'workbench.action.terminal.scrollUpPage',
 	ScrollToTop = 'workbench.action.terminal.scrollToTop',
+	ScrollToTopAccessibleView = 'workbench.action.terminal.scrollToTopAccessibleView',
 	Clear = 'workbench.action.terminal.clear',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
@@ -493,6 +495,8 @@ export const enum TerminalCommandId {
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
+	StartVoice = 'workbench.action.startTerminalVoice',
+	StopVoice = 'workbench.action.stopTerminalVoice',
 
 	// Developer commands
 

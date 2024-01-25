@@ -33,21 +33,24 @@
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container {
 	display: flex;
 	align-items: center;
-	flex-direction: row;
 	gap: 10px;
+	flex-grow: 1;
+	width: 0;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .monaco-button {
 	padding-left: 8px;
 	padding-right: 8px;
 	line-height: 14px;
+	flex-grow: 0;
+	width: initial;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .select-box-container {
 	display: flex;
 	justify-content: center;
 	flex-direction: column;
-	flex-shrink: 0;
+	width: 300px;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container:after {

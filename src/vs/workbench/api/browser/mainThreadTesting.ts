@@ -19,7 +19,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
@@ -49,18 +49,12 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		}));
 
 		this._register(Event.debounce(testProfiles.onDidChange, (_last, e) => e)(() => {
-			const defaults = new Set([
-				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Run),
-				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Debug),
-				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Coverage),
-			]);
-
 			const obj: Record</* controller id */string, /* profile id */ number[]> = {};
 			for (const { controller, profiles } of this.testProfiles.all()) {
-				obj[controller.id] = profiles.filter(p => defaults.has(p)).map(p => p.profileId);
+				obj[controller.id] = profiles.filter(p => p.isDefault).map(p => p.profileId);
 			}
 
-			this.proxy.$setActiveRunProfiles(obj);
+			this.proxy.$setDefaultRunProfiles(obj);
 		}));
 
 		this._register(resultService.onResultsChanged(evt => {

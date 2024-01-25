@@ -80,7 +80,7 @@ export class Margin extends ViewPart {
 	public render(ctx: RestrictedRenderingContext): void {
 		this._domNode.setLayerHinting(this._canUseLayerHinting);
 		this._domNode.setContain('strict');
-		const adjustedScrollTop = ctx.scrollTop;
+		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
 		this._domNode.setTop(-adjustedScrollTop);
 
 		const height = Math.min(ctx.scrollHeight, 1000000);

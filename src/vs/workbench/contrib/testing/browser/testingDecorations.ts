@@ -25,7 +25,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -56,6 +56,7 @@ import { TestUriType, buildTestUri, parseTestUri } from 'vs/workbench/contrib/te
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 const MAX_TESTS_IN_SUBMENU = 30;
+const GLYPH_MARGIN_LANE = GlyphMarginLane.Center;
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -586,6 +587,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 				return hoverMessage;
 			},
+			glyphMargin: { position: GLYPH_MARGIN_LANE },
 			glyphMarginClassName,
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			zIndex: 10000,
@@ -741,6 +743,7 @@ abstract class RunTestDecoration {
 	/** @inheritdoc */
 	public click(e: IEditorMouseEvent): boolean {
 		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			|| e.target.detail.glyphMarginLane !== GLYPH_MARGIN_LANE
 			// handled by editor gutter context menu
 			|| e.event.rightButton
 			|| isMacintosh && e.event.leftButton && e.event.ctrlKey

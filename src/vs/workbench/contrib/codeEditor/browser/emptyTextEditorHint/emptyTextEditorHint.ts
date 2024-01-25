@@ -21,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
@@ -93,8 +93,8 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.textHintContentWidget?.dispose();
 			}
 		}));
-		this.toDispose.push(inlineChatSessionService.onDidEndSession(editor => {
-			if (this.editor === editor) {
+		this.toDispose.push(inlineChatSessionService.onDidEndSession(e => {
+			if (this.editor === e.editor) {
 				this.update();
 			}
 		}));

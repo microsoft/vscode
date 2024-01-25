@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
-import { RefCountedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -104,7 +104,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 }
 
 
-export class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
+export class SuggestInlineCompletions extends Disposable implements InlineCompletionsProvider<InlineCompletionResults> {
 
 	private _lastResult?: InlineCompletionResults;
 
@@ -113,7 +113,10 @@ export class SuggestInlineCompletions implements InlineCompletionsProvider<Inlin
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ISuggestMemoryService private readonly _suggestMemoryService: ISuggestMemoryService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-	) { }
+	) {
+		super();
+		this._store.add(_languageFeatureService.inlineCompletionsProvider.register('*', this));
+	}
 
 	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletionResults | undefined> {
 
