@@ -262,7 +262,7 @@ class VoiceChatSessions {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	async start(controller: IVoiceChatSessionController): Promise<void> {
+	async start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): Promise<void> {
 		this.stop();
 
 		const sessionId = ++this.voiceChatSessionIds;
@@ -304,7 +304,7 @@ class VoiceChatSessions {
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
 						session.controller.updateInput([inputValue, text].join(' '));
-						if (voiceChatTimeout > 0) {
+						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true) {
 							acceptTranscriptionScheduler.cancel();
 						}
 					}
@@ -313,7 +313,7 @@ class VoiceChatSessions {
 					if (text) {
 						inputValue = [inputValue, text].join(' ');
 						session.controller.updateInput(inputValue);
-						if (voiceChatTimeout > 0) {
+						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true) {
 							acceptTranscriptionScheduler.schedule();
 						}
 					}
@@ -408,12 +408,12 @@ export class VoiceChatInChatViewAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'view');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		}
 	}
 }
@@ -435,12 +435,12 @@ export class InlineVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'inline');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		}
 	}
 }
@@ -462,12 +462,12 @@ export class QuickVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'quick');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		}
 	}
 }
@@ -500,11 +500,11 @@ export class StartVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
 
-		const widget = (context as IChatExecuteActionContext)?.widget;
+		const widget = context?.widget;
 		if (widget) {
 			// if we already get a context when the action is executed
 			// from a toolbar within the chat widget, then make sure
@@ -518,10 +518,10 @@ export class StartVoiceChatAction extends Action2 {
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		} else {
 			// fallback to Quick Voice Chat command
-			commandService.executeCommand(QuickVoiceChatAction.ID);
+			commandService.executeCommand(QuickVoiceChatAction.ID, context);
 		}
 	}
 }
