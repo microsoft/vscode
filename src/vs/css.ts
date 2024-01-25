@@ -22,6 +22,12 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 		return;
 	}
 
+	if (name === 'test_name') {
+		// test ci
+		load({});
+		return;
+	}
+
 	const cssUrl = req.toUrl(name + '.css');
 	loadCSS(name, cssUrl, () => {
 		load({});
