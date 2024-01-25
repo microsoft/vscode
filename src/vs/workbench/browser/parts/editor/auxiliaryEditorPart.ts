@@ -5,6 +5,7 @@
 
 import { isFullscreen, onDidChangeFullscreen, onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { hide, show } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -14,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { hasCustomTitlebar } from 'vs/platform/window/common/window';
+import { CustomTitleBarVisibility, TitleBarSetting, hasCustomTitlebar } from 'vs/platform/window/common/window';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart, IEditorPartUIState } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -23,7 +24,7 @@ import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workben
 import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
@@ -50,7 +51,8 @@ export class AuxiliaryEditorPart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ITitleService private readonly titleService: ITitleService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 	}
 
@@ -59,25 +61,43 @@ export class AuxiliaryEditorPart {
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
 
-			if (statusBarVisible) {
+			if (statusbarVisible) {
 				editorPartHeightOffset += statusbarPart.height;
 			}
 
-			if (titlebarPart && titlebarPartVisible) {
+			if (titlebarPart && titlebarVisible) {
 				editorPartHeightOffset += titlebarPart.height;
 			}
 
 			return editorPartHeightOffset;
 		}
 
-		function updateStatusbarVisibility(fromEvent: boolean): void {
-			if (statusBarVisible) {
+		function updateStatusbarVisibility(fromEvent: boolean, updateEditor = true): void {
+			if (statusbarVisible) {
 				show(statusbarPart.container);
 			} else {
 				hide(statusbarPart.container);
 			}
 
-			updateEditorPartHeight(fromEvent);
+			if (updateEditor) {
+				updateEditorPartHeight(fromEvent);
+			}
+		}
+
+		function updateTitlebarVisibility(fromEvent: boolean, updateEditor = true): void {
+			if (!titlebarPart) {
+				return;
+			}
+
+			if (titlebarVisible) {
+				show(titlebarPart.container);
+			} else {
+				hide(titlebarPart.container);
+			}
+
+			if (updateEditor) {
+				updateEditorPartHeight(fromEvent);
+			}
 		}
 
 		function updateEditorPartHeight(fromEvent: boolean): void {
@@ -106,15 +126,15 @@ export class AuxiliaryEditorPart {
 
 		// Titlebar
 		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
-		let titlebarPartVisible = false;
+		let titlebarVisible = false;
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
-			titlebarPartVisible = true;
+			titlebarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
 
 			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
 			disposables.add(onDidChangeZoomLevel(targetWindowId => {
-				if (auxiliaryWindow.window.vscodeWindowId === targetWindowId && titlebarPartVisible) {
+				if (auxiliaryWindow.window.vscodeWindowId === targetWindowId && titlebarVisible) {
 
 					// This is a workaround for https://github.com/microsoft/vscode/issues/202377
 					// The title bar part prevents zooming in certain cases and when doing so,
@@ -135,30 +155,52 @@ export class AuxiliaryEditorPart {
 				// fullscren mode and show it when we lave it.
 
 				const fullscreen = isFullscreen(auxiliaryWindow.window);
-				const oldTitlebarPartVisible = titlebarPartVisible;
-				titlebarPartVisible = !fullscreen;
-				if (titlebarPart && oldTitlebarPartVisible !== titlebarPartVisible) {
-					titlebarPart.container.style.display = titlebarPartVisible ? '' : 'none';
-
-					updateEditorPartHeight(true);
+				const titleBarHiddenInFullScreen = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.WINDOWED;
+				const oldTitlebarPartVisible = titlebarVisible;
+				titlebarVisible = !fullscreen || !titleBarHiddenInFullScreen;
+				if (oldTitlebarPartVisible !== titlebarVisible) {
+					updateTitlebarVisibility(true);
 				}
 			}));
+
+			disposables.add(this.layoutService.onDidChangePartVisibility(e => {
+
+				// We track the main window custom title bar visibility to
+				// decide if we should show our custom title bar or not.
+
+				const oldTitlebarPartVisible = titlebarVisible;
+				titlebarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
+				if (oldTitlebarPartVisible !== titlebarVisible) {
+					updateTitlebarVisibility(true);
+				}
+			}));
+
+			disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) && isFullscreen(auxiliaryWindow.window)) {
+					titlebarVisible = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) !== CustomTitleBarVisibility.WINDOWED;
+					updateTitlebarVisibility(true);
+				}
+			}));
+
+			updateTitlebarVisibility(false, false);
 		} else {
 			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 		}
 
 		// Statusbar
 		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
-		let statusBarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+		let statusbarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY)) {
-				statusBarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+				statusbarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 
 				updateStatusbarVisibility(true);
 			}
 		}));
 
-		updateStatusbarVisibility(false);
+		updateStatusbarVisibility(false, false);
+
+		updateEditorPartHeight(false);
 
 		// Lifecycle
 		const editorCloseListener = disposables.add(Event.once(editorPart.onWillClose)(() => auxiliaryWindow.window.close()));
