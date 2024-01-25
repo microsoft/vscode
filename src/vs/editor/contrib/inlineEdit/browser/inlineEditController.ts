@@ -110,10 +110,11 @@ export class InlineEditController extends Disposable {
 				return;
 			}
 			const pos = e.position;
-			if (gt.replaceRange && gt.replaceRange.startLineNumber === pos.lineNumber && gt.replaceRange.startColumn === pos.column) {
+
+			if (gt.replaceRange && Range.containsPosition(gt.replaceRange, pos)) {
 				this._isCursorAtInlineEditContext.set(true);
 			}
-			else if (gt.replaceRange === undefined && pos.lineNumber === gt.position.lineNumber && pos.column === gt.position.column) {
+			else if (gt.replaceRange === undefined && Position.equals(gt.position, pos)) {
 				this._isCursorAtInlineEditContext.set(true);
 			} else {
 				this._isCursorAtInlineEditContext.set(false);
