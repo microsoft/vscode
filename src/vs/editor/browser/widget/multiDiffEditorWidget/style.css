@@ -6,6 +6,7 @@
 .monaco-component.multiDiffEditor {
 	background: var(--vscode-multiDiffEditor-background);
 	overflow-y: hidden;
+	padding: 8px;
 }
 
 .monaco-component .multiDiffEntry {
@@ -13,8 +14,8 @@
 	flex-direction: column;
 	flex: 1;
 	overflow: hidden;
-
-	border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+	border: 1px solid var(--vscode-multiDiffEditor-border);
+	border-radius: 2px;
 }
 
 .monaco-component .multiDiffEntry .collapse-button {
@@ -31,12 +32,8 @@
 	align-items: center;
 	padding: 8px 5px;
 	color: var(--vscode-foreground);
-	background: var(--vscode-editor-background);
-
+	background: var(--vscode-multiDiffEditor-headerBackground);
 	z-index: 1000;
-
-	border-top: 1px solid var(--vscode-multiDiffEditor-border);
-
 	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
 }
 
