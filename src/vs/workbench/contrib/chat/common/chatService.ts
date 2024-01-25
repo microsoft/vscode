@@ -313,3 +313,5 @@ export interface IChatService {
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }
+
+export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

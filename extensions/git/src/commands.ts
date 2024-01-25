@@ -3598,8 +3598,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.popStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.popStash(result.stash.index);
 	}
 
 	@command('git.stashApply', { repository: true })
@@ -3633,8 +3633,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.applyStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.applyStash(result.stash.index);
 	}
 
 	@command('git.stashDrop', { repository: true })
@@ -3708,19 +3708,27 @@ export class CommandCenter {
 			return;
 		}
 
-		const stashFiles = await repository.showStash(stash.index);
+		const stashChanges = await repository.showStash(stash.index);
+		const stashParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
 
-		if (!stashFiles || stashFiles.length === 0) {
+		if (!stashChanges || stashChanges.length === 0) {
 			return;
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
 
-		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
-		for (const file of stashFiles) {
-			const fileUri = Uri.file(path.join(repository.root, file));
-			resources.push({ originalUri: fileUri, modifiedUri: toGitUri(fileUri, `stash@{${stash.index}}`) });
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of stashChanges) {
+			if (change.status === Status.INDEX_ADDED) {
+				resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, stash.hash) });
+			} else if (change.status === Status.DELETED) {
+				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: undefined });
+			} else if (change.status === Status.INDEX_RENAMED) {
+				resources.push({ originalUri: toGitUri(change.originalUri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
+			} else {
+				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
+			}
 		}
 
 		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });

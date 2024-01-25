@@ -272,7 +272,7 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 		}
 
 		if (equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
-			additional.push(new SequenceDiff(w1, w2));
+			additional.push(w);
 		}
 
 		lastPoint = w.getEndExclusives();

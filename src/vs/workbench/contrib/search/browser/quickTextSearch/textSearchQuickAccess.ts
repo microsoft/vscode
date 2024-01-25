@@ -54,7 +54,6 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		results: [],
 		messages: []
 	});
-	private storedOriginalLocation = false;
 	private readonly editorViewState = new EditorViewState(
 		this._editorService
 	);
@@ -102,6 +101,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		}
 		picker.customButton = true;
 		picker.customLabel = '$(link-external)';
+		this.editorViewState.reset();
 		disposables.add(picker.onDidCustom(() => {
 			if (this.searchModel.searchResult.count() > 0) {
 				this.moveToSearchViewlet(undefined);
@@ -114,12 +114,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			const [item] = picker.activeItems;
 
 			if (item?.match) {
-				// only store location once, or else it will store new state every time we change active pick
-				if (!this.storedOriginalLocation) {
-					// we must remember our curret view state to be able to restore
-					this.editorViewState.set();
-					this.storedOriginalLocation = true;
-				}
+				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
+				this.editorViewState.set();
 				// open it
 				this._editorService.openEditor({
 					resource: item.match.parent().resource,
@@ -176,6 +172,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		const content: IPatternInfo = {
 			pattern: contentPattern,
 		};
+		this.searchModel.searchResult.toggleHighlights(false);
 		const charsPerLine = content.isRegExp ? 10000 : 1000; // from https://github.com/microsoft/vscode/blob/e7ad5651ac26fa00a40aa1e4010e81b92f655569/src/vs/workbench/contrib/search/browser/searchView.ts#L1508
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));

@@ -24,6 +24,7 @@ import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browse
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CTX_QUICK_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inlineChat.quickChatInProgress', false);
 
@@ -34,7 +35,7 @@ export class StartAction extends EditorAction2 {
 			id: 'inlineChat.quickVoice.start',
 			title: localize2('start', "Start Inline Voice Chat"),
 			category: AbstractInlineChatAction.category,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS.toNegated()),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS.toNegated(), EditorContextKeys.focus),
 			f1: true,
 			keybinding: {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI),

@@ -53,6 +53,7 @@ import { Schemas } from 'vs/base/common/network';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
+import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 
 const $ = dom.$;
 
@@ -727,7 +728,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		switch (targetSector) {
 			case ListViewTargetSector.TOP:
 			case ListViewTargetSector.CENTER_TOP:
-				dropEffectPosition = ListDragOverEffectPosition.Before; break;
+				dropEffectPosition = (_targetIndex === 0 && _targetElement instanceof EditorGroupView) ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before; break;
 			case ListViewTargetSector.CENTER_BOTTOM:
 			case ListViewTargetSector.BOTTOM:
 				dropEffectPosition = ListDragOverEffectPosition.After; break;
@@ -737,19 +738,29 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 	}
 
 	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
-		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
+		let group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
 		let targetEditorIndex = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
 
 		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
+				if (targetElement instanceof EditorGroupView && group.index !== 0) {
+					group = this.editorGroupService.groups[group.index - 1];
+					targetEditorIndex = group.count;
+				}
+				break;
 			case ListViewTargetSector.BOTTOM:
 			case ListViewTargetSector.CENTER_BOTTOM:
-				targetEditorIndex++; break;
+				if (targetElement instanceof OpenEditor) {
+					targetEditorIndex++;
+				}
+				break;
 		}
 
 		if (data instanceof ElementsDragAndDropData) {
 			for (const oe of data.elements) {
 				const sourceEditorIndex = oe.group.getIndexOfEditor(oe.editor);
-				if (sourceEditorIndex < targetEditorIndex) {
+				if (oe.group === group && sourceEditorIndex < targetEditorIndex) {
 					targetEditorIndex--;
 				}
 				oe.group.moveEditor(oe.editor, group, { index: targetEditorIndex, preserveFocus: true });

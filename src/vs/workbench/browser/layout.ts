@@ -354,6 +354,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				TitleBarSetting.TITLE_BAR_STYLE,
 				TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
 			].some(setting => e.affectsConfiguration(setting))) {
+				// Show Custom TitleBar if actions moved to the titlebar
+				const activityBarMovedToTop = e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) && this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+				const editorActionsMovedToTitlebar = e.affectsConfiguration(LayoutSettings.EDITOR_ACTIONS_LOCATION) && this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION) === EditorActionsLocation.TITLEBAR;
+				if (activityBarMovedToTop || editorActionsMovedToTitlebar) {
+					if (this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.NEVER) {
+						this.configurationService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
+					}
+				}
+
 				this.doUpdateLayoutConfiguration();
 			}
 		}));
@@ -691,13 +700,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
 			}
-		}
-
-		// Activity bar cannot be hidden
-		// This check must be called after state is set
-		// because canActivityBarBeHidden calls isVisible
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
-			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
 		}
 
 		// Window border
@@ -1237,7 +1239,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		if (!this.isTitleBarEmpty(nativeTitleBarEnabled)) {
+		if (!this.isTitleBarEmpty()) {
 			return true;
 		}
 
@@ -1277,7 +1279,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private isTitleBarEmpty(nativeTitleBarEnabled: boolean): boolean {
+	private isTitleBarEmpty(): boolean {
 		// with the command center enabled, we should always show
 		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
 			return false;
@@ -1295,8 +1297,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		// Layout don't show with native title bar
-		if (!nativeTitleBarEnabled && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
+		// with the layout actions on top, we should always show
+		if (this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
 			return false;
 		}
 
@@ -1733,16 +1735,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (hidden && !this.canActivityBarBeHidden()) {
-			return;
-		}
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
-	}
-
-	private canActivityBarBeHidden(): boolean {
-		return !(this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP && !this.isVisible(Parts.TITLEBAR_PART, mainWindow));
 	}
 
 	private setBannerHidden(hidden: boolean): void {

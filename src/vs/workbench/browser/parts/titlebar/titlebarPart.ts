@@ -487,15 +487,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Text Title
 		if (!this.isCommandCenterVisible) {
-			// Don't show title in custom titlebar when native title is shown
-			if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
-
+			this.title.innerText = this.windowTitle.value;
+			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
 				this.title.innerText = this.windowTitle.value;
-				this.titleDisposables.add(this.windowTitle.onDidChange(() => {
-					this.title.innerText = this.windowTitle.value;
-				}));
-
-			}
+			}));
 		}
 
 		// Menu Title
@@ -700,7 +695,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get layoutControlEnabled(): boolean {
-		return !this.isAuxiliary && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS) !== false && !hasNativeTitlebar(this.configurationService, this.titleBarStyle);
+		return !this.isAuxiliary && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS) !== false;
 	}
 
 	protected get isCommandCenterVisible() {

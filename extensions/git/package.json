@@ -1851,14 +1851,14 @@
       "scm/incomingChanges/allChanges/context": [
         {
           "command": "git.viewAllChanges",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
       "scm/incomingChanges/historyItem/context": [
         {
           "command": "git.viewCommit",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
@@ -1872,14 +1872,14 @@
       "scm/outgoingChanges/allChanges/context": [
         {
           "command": "git.viewAllChanges",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
       "scm/outgoingChanges/historyItem/context": [
         {
           "command": "git.viewCommit",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],

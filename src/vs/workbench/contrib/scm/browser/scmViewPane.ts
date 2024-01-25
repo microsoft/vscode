@@ -1171,28 +1171,16 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return 1;
 		}
 
-		if (isSCMViewSeparator(one)) {
-			if (!isSCMHistoryItemGroupTreeElement(other) && !isSCMResourceGroup(other)) {
-				throw new Error('Invalid comparison');
-			}
-
-			return 0;
+		if (isSCMResourceGroup(one)) {
+			return isSCMResourceGroup(other) ? 0 : -1;
 		}
 
-		if (isSCMResourceGroup(one)) {
-			if (!isSCMResourceGroup(other)) {
-				throw new Error('Invalid comparison');
-			}
-
-			return 0;
+		if (isSCMViewSeparator(one)) {
+			return isSCMResourceGroup(other) ? 1 : -1;
 		}
 
 		if (isSCMHistoryItemGroupTreeElement(one)) {
-			if (!isSCMHistoryItemGroupTreeElement(other) && !isSCMResourceGroup(other) && !isSCMViewSeparator(other)) {
-				throw new Error('Invalid comparison');
-			}
-
-			return 0;
+			return isSCMHistoryItemGroupTreeElement(other) ? 0 : 1;
 		}
 
 		if (isSCMHistoryItemTreeElement(one)) {
@@ -2027,7 +2015,7 @@ class SCMInputWidgetEditorOptions {
 
 		// editor.wordWrap
 		const wordWrapConfig = this.configurationService.inspect('editor.wordWrap', { overrideIdentifier: 'scminput' });
-		const wordWrap = wordWrapConfig.overrideIdentifiers?.includes('scminput') ? EditorOptions.wordWrap.validate(wordWrapConfig) : 'on';
+		const wordWrap = wordWrapConfig.overrideIdentifiers?.includes('scminput') ? EditorOptions.wordWrap.validate(wordWrapConfig.value) : 'on';
 
 		return { rulers, wordWrap };
 	}

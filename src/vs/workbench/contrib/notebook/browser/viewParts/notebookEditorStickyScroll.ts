@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -14,12 +15,17 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Delayer } from 'vs/base/common/async';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -54,31 +60,81 @@ export class ToggleNotebookStickyScroll extends Action2 {
 export class NotebookStickyLine extends Disposable {
 	constructor(
 		public readonly element: HTMLElement,
+		public readonly foldingIcon: StickyFoldingIcon,
+		public readonly header: HTMLElement,
 		public readonly entry: OutlineEntry,
 		public readonly notebookEditor: INotebookEditor,
 	) {
 		super();
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, () => {
+		// click the header to focus the cell
+		this._register(DOM.addDisposableListener(this.header, DOM.EventType.CLICK || TouchEventType.Tap, () => {
 			this.focusCell();
 		}));
+
+		// click the folding icon to fold the range covered by the header
+		this._register(DOM.addDisposableListener(this.foldingIcon.domNode, DOM.EventType.CLICK || TouchEventType.Tap, () => {
+			if (this.entry.cell.cellKind === CellKind.Markup) {
+				const currentFoldingState = (this.entry.cell as MarkupCellViewModel).foldingState;
+				this.toggleFoldRange(currentFoldingState);
+			}
+		}));
+
+		// folding icon hovers
+		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OVER, () => {
+		// 	this.foldingIcon.setVisible(true);
+		// }));
+		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OUT, () => {
+		// 	this.foldingIcon.setVisible(false);
+		// }));
+
+	}
+
+	private toggleFoldRange(currentState: CellFoldingState) {
+		const foldingController = this.notebookEditor.getContribution<FoldingController>(FoldingController.id);
+
+		const index = this.entry.index;
+		const headerLevel = this.entry.level;
+		const newFoldingState = (currentState === CellFoldingState.Collapsed) ? CellFoldingState.Expanded : CellFoldingState.Collapsed;
+
+		foldingController.setFoldingStateUp(index, newFoldingState, headerLevel);
+		this.focusCell();
 	}
 
 	private focusCell() {
 		this.notebookEditor.focusNotebookCell(this.entry.cell, 'container');
 		const cellScrollTop = this.notebookEditor.getAbsoluteTopOfElement(this.entry.cell);
-		const parentCount = this.getParentCount();
+		const parentCount = NotebookStickyLine.getParentCount(this.entry);
 		// 1.1 addresses visible cell padding, to make sure we don't focus md cell and also render its sticky line
 		this.notebookEditor.setScrollTop(cellScrollTop - (parentCount + 1.1) * 22);
 	}
 
-	private getParentCount() {
+	static getParentCount(entry: OutlineEntry) {
 		let count = 0;
-		let entry = this.entry;
 		while (entry.parent) {
 			count++;
 			entry = entry.parent;
 		}
 		return count;
+	}
+}
+
+class StickyFoldingIcon {
+
+	public domNode: HTMLElement;
+
+	constructor(
+		public isCollapsed: boolean,
+		public dimension: number
+	) {
+		this.domNode = document.createElement('div');
+		this.domNode.style.width = `${dimension}px`;
+		this.domNode.style.height = `${dimension}px`;
+		this.domNode.className = ThemeIcon.asClassName(isCollapsed ? foldingCollapsedIcon : foldingExpandedIcon);
+	}
+
+	public setVisible(visible: boolean) {
+		this.domNode.style.cursor = visible ? 'pointer' : 'default';
+		this.domNode.style.opacity = visible ? '1' : '0';
 	}
 }
 
@@ -133,13 +189,13 @@ export class NotebookStickyScroll extends Disposable {
 	) {
 		super();
 
-		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScroll) {
+		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
 			this.init();
 		}
 
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
-			if (e.stickyScroll) {
-				this.updateConfig();
+			if (e.stickyScrollEnabled || e.stickyScrollMode) {
+				this.updateConfig(e);
 			}
 		}));
 
@@ -156,20 +212,26 @@ export class NotebookStickyScroll extends Disposable {
 		});
 	}
 
-	private updateConfig() {
-		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScroll) {
-			this.init();
-		} else {
-			this._disposables.clear();
-			this.disposeCurrentStickyLines();
-			DOM.clearNode(this.domNode);
-			this.updateDisplay();
+	private updateConfig(e: NotebookOptionsChangeEvent) {
+		if (e.stickyScrollEnabled) {
+			if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
+				this.init();
+			} else {
+				this._disposables.clear();
+				this.notebookOutline.dispose();
+				this.disposeCurrentStickyLines();
+				DOM.clearNode(this.domNode);
+				this.updateDisplay();
+			}
+		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
 		}
 	}
 
 	private init() {
 		this.notebookOutline.init();
 		this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
+		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
 
 		this._disposables.add(this.notebookOutline.onDidChange(() => {
 			this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
@@ -302,9 +364,28 @@ export class NotebookStickyScroll extends Disposable {
 
 	static createStickyElement(entry: OutlineEntry, notebookEditor: INotebookEditor) {
 		const stickyElement = document.createElement('div');
-		stickyElement.classList.add('notebook-sticky-scroll-line');
-		stickyElement.innerText = '#'.repeat(entry.level) + ' ' + entry.label;
-		return new NotebookStickyLine(stickyElement, entry, notebookEditor);
+		stickyElement.classList.add('notebook-sticky-scroll-element');
+
+		const indentMode = notebookEditor.notebookOptions.getLayoutConfiguration().stickyScrollMode;
+		if (indentMode === 'indented') {
+			stickyElement.style.paddingLeft = NotebookStickyLine.getParentCount(entry) * 10 + 'px';
+		}
+
+		let isCollapsed = false;
+		if (entry.cell.cellKind === CellKind.Markup) {
+			isCollapsed = (entry.cell as MarkupCellViewModel).foldingState === CellFoldingState.Collapsed;
+		}
+
+		const stickyFoldingIcon = new StickyFoldingIcon(isCollapsed, 16);
+		stickyFoldingIcon.domNode.classList.add('notebook-sticky-scroll-folding-icon');
+		stickyFoldingIcon.setVisible(true);
+
+		const stickyHeader = document.createElement('div');
+		stickyHeader.classList.add('notebook-sticky-scroll-header');
+		stickyHeader.innerText = entry.label;
+
+		stickyElement.append(stickyFoldingIcon.domNode, stickyHeader);
+		return new NotebookStickyLine(stickyElement, stickyFoldingIcon, stickyHeader, entry, notebookEditor);
 	}
 
 	private disposeCurrentStickyLines() {
@@ -316,6 +397,7 @@ export class NotebookStickyScroll extends Disposable {
 	override dispose() {
 		this._disposables.dispose();
 		this.disposeCurrentStickyLines();
+		this.notebookOutline.dispose();
 		super.dispose();
 	}
 }

@@ -546,11 +546,11 @@ export class ChatModel extends Disposable implements IChatModel {
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
-						request.response.applyReference(raw.usedContext);
+						request.response.applyReference(revive(raw.usedContext));
 					}
 
 					if (raw.contentReferences) {
-						raw.contentReferences.forEach(r => request.response!.applyReference(r));
+						raw.contentReferences.forEach(r => request.response!.applyReference(revive(r)));
 					}
 				}
 				return request;

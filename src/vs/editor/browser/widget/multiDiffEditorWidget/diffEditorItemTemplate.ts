@@ -60,14 +60,18 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	private readonly _elements = h('div.multiDiffEntry', [
 		h('div.header@header', [
 			h('div.collapse-button@collapseButton'),
-			h('div.title.show-file-icons@title', [] as any),
+			h('div.file-path', [
+				h('div.title.modified.show-file-icons@primaryPath', [] as any),
+				h('div.status.deleted@status', ['R']),
+				h('div.title.original.show-file-icons@secondaryPath', [] as any),
+			]),
 			h('div.actions@actions'),
 		]),
 
 		h('div.editorParent', [
 			h('div.editorContainer@editor'),
 		])
-	]);
+	]) as Record<string, HTMLElement>;
 
 	public readonly editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
 		overflowWidgetsDomNode: this._overflowWidgetsDomNode,
@@ -78,7 +82,11 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	public readonly isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
 
 	private readonly _resourceLabel = this._workbenchUIElementFactory.createResourceLabel
-		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.title))
+		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath))
+		: undefined;
+
+	private readonly _resourceLabel2 = this._workbenchUIElementFactory.createResourceLabel
+		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath))
 		: undefined;
 
 	private readonly _outerEditorHeight: number;
@@ -132,7 +140,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._outerEditorHeight = 38;
 
 		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
-			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.diffEditorViewModel?.model.modified.uri))),
+			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri))),
 			menuOptions: {
 				shouldForwardArgs: true,
 			},
@@ -178,7 +186,29 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			}));
 		}
 		globalTransaction(tx => {
-			this._resourceLabel?.setUri(data.viewModel.diffEditorViewModel.model.modified.uri);
+			this._resourceLabel?.setUri(data.viewModel.modifiedUri ?? data.viewModel.originalUri!, { strikethrough: data.viewModel.modifiedUri === undefined });
+
+			let isRenamed = false;
+			let isDeleted = false;
+			let isAdded = false;
+			let flag = '';
+			if (data.viewModel.modifiedUri && data.viewModel.originalUri && data.viewModel.modifiedUri.path !== data.viewModel.originalUri.path) {
+				flag = 'R';
+				isRenamed = true;
+			} else if (!data.viewModel.modifiedUri) {
+				flag = 'D';
+				isDeleted = true;
+			} else if (!data.viewModel.originalUri) {
+				flag = 'A';
+				isAdded = true;
+			}
+			this._elements.status.classList.toggle('renamed', isRenamed);
+			this._elements.status.classList.toggle('deleted', isDeleted);
+			this._elements.status.classList.toggle('added', isAdded);
+			this._elements.status.innerText = flag;
+
+			this._resourceLabel2?.setUri(isRenamed ? data.viewModel.originalUri : undefined, { strikethrough: true });
+
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);
 			this.editor.setModel(data.viewModel.diffEditorViewModel, tx);

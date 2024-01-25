@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
@@ -262,7 +262,7 @@ class VoiceChatSessions {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	async start(controller: IVoiceChatSessionController): Promise<void> {
+	async start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): Promise<void> {
 		this.stop();
 
 		const sessionId = ++this.voiceChatSessionIds;
@@ -304,7 +304,7 @@ class VoiceChatSessions {
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
 						session.controller.updateInput([inputValue, text].join(' '));
-						if (voiceChatTimeout > 0) {
+						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true) {
 							acceptTranscriptionScheduler.cancel();
 						}
 					}
@@ -313,7 +313,7 @@ class VoiceChatSessions {
 					if (text) {
 						inputValue = [inputValue, text].join(' ');
 						session.controller.updateInput(inputValue);
-						if (voiceChatTimeout > 0) {
+						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true) {
 							acceptTranscriptionScheduler.schedule();
 						}
 					}
@@ -408,12 +408,12 @@ export class VoiceChatInChatViewAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'view');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		}
 	}
 }
@@ -435,12 +435,12 @@ export class InlineVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'inline');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		}
 	}
 }
@@ -462,12 +462,12 @@ export class QuickVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'quick');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		}
 	}
 }
@@ -500,11 +500,11 @@ export class StartVoiceChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
 
-		const widget = (context as IChatExecuteActionContext)?.widget;
+		const widget = context?.widget;
 		if (widget) {
 			// if we already get a context when the action is executed
 			// from a toolbar within the chat widget, then make sure
@@ -518,10 +518,10 @@ export class StartVoiceChatAction extends Action2 {
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
 		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller);
+			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 		} else {
 			// fallback to Quick Voice Chat command
-			commandService.executeCommand(QuickVoiceChatAction.ID);
+			commandService.executeCommand(QuickVoiceChatAction.ID, context);
 		}
 	}
 }
@@ -771,14 +771,12 @@ function supportsKeywordActivation(configurationService: IConfigurationService, 
 		return false;
 	}
 
-	const value = configurationService.getValue(KeywordActivationContribution.SETTINGS_ID);
+	const value = configurationService.getValue(KEYWORD_ACTIVIATION_SETTING_ID);
 
 	return typeof value === 'string' && value !== KeywordActivationContribution.SETTINGS_VALUE.OFF;
 }
 
 export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
-
-	static SETTINGS_ID = 'accessibility.voice.keywordActivation';
 
 	static SETTINGS_VALUE = {
 		OFF: 'off',
@@ -798,7 +796,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
 
@@ -813,11 +812,13 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 			this.handleKeywordActivation();
 		}));
 
+		this._register(this.chatService.onDidRegisterProvider(() => this.updateConfiguration()));
+
 		this._register(this.speechService.onDidStartSpeechToTextSession(() => this.handleKeywordActivation()));
 		this._register(this.speechService.onDidEndSpeechToTextSession(() => this.handleKeywordActivation()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(KeywordActivationContribution.SETTINGS_ID)) {
+			if (e.affectsConfiguration(KEYWORD_ACTIVIATION_SETTING_ID)) {
 				this.handleKeywordActivation();
 			}
 		}));
@@ -828,15 +829,15 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private updateConfiguration(): void {
-		if (!this.speechService.hasSpeechProvider) {
-			return; // these settings require a speech provider
+		if (!this.speechService.hasSpeechProvider || this.chatService.getProviderInfos().length === 0) {
+			return; // these settings require a speech and chat provider
 		}
 
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		registry.registerConfiguration({
 			...accessibilityConfigurationNodeBase,
 			properties: {
-				[KeywordActivationContribution.SETTINGS_ID]: {
+				[KEYWORD_ACTIVIATION_SETTING_ID]: {
 					'type': 'string',
 					'enum': [
 						KeywordActivationContribution.SETTINGS_VALUE.OFF,
@@ -852,7 +853,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 						localize('voice.keywordActivation.inlineChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor."),
 						localize('voice.keywordActivation.chatInContext', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor or view depending on keyboard focus.")
 					],
-					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be speech recognized to start a voice chat session."),
+					'description': localize('voice.keywordActivation', "Controls whether the keyword phrase 'Hey Code' is recognized to start a voice chat session. Enabling this will start recording from the microphone but the audio is processed locally and never sent to a server."),
 					'default': 'off',
 					'tags': ['accessibility']
 				}
@@ -905,7 +906,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private getKeywordCommand(): string {
-		const setting = this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID);
+		const setting = this.configurationService.getValue(KEYWORD_ACTIVIATION_SETTING_ID);
 		switch (setting) {
 			case KeywordActivationContribution.SETTINGS_VALUE.INLINE_CHAT:
 				return InlineVoiceChatAction.ID;
@@ -949,7 +950,7 @@ class KeywordActivationStatusEntry extends Disposable {
 	) {
 		super();
 
-		CommandsRegistry.registerCommand(KeywordActivationStatusEntry.STATUS_COMMAND, () => this.commandService.executeCommand('workbench.action.openSettings', KeywordActivationContribution.SETTINGS_ID));
+		CommandsRegistry.registerCommand(KeywordActivationStatusEntry.STATUS_COMMAND, () => this.commandService.executeCommand('workbench.action.openSettings', KEYWORD_ACTIVIATION_SETTING_ID));
 
 		this.registerListeners();
 		this.updateStatusEntry();
@@ -959,7 +960,7 @@ class KeywordActivationStatusEntry extends Disposable {
 		this._register(this.speechService.onDidStartKeywordRecognition(() => this.updateStatusEntry()));
 		this._register(this.speechService.onDidEndKeywordRecognition(() => this.updateStatusEntry()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(KeywordActivationContribution.SETTINGS_ID)) {
+			if (e.affectsConfiguration(KEYWORD_ACTIVIATION_SETTING_ID)) {
 				this.updateStatusEntry();
 			}
 		}));
