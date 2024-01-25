@@ -974,6 +974,10 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- controller API
 
+	showSaveHint(): void {
+		const status = localize('savehint', "Accept or discard changes to continue saving");
+		this._zone.value.widget.updateStatus(status, { classes: ['warn'] });
+	}
 
 	setPlaceholder(text: string): void {
 		this._forcedPlaceholder = text;
