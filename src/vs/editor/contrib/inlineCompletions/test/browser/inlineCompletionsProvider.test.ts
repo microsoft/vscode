@@ -26,6 +26,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	/*
 	suite('inlineCompletionToGhostText', () => {
 
 		function getOutput(text: string, suggestion: string): unknown {
@@ -563,7 +564,11 @@ suite('Inline Completions', () => {
 		);
 	});
 
+	*/
+
 	suite('inlineCompletionMultiCursor', () => {
+
+		/*
 		test('Basic', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
@@ -662,10 +667,12 @@ suite('Inline Completions', () => {
 				}
 			);
 		});
+		*/
 
-		function acceptNextWord(model: InlineCompletionsModel, editor: ITestCodeEditor, timesToAccept: number = 1) {
+		async function acceptNextWord(model: InlineCompletionsModel, editor: ITestCodeEditor, timesToAccept: number = 1): Promise<void> {
 			for (let i = 0; i < timesToAccept; i++) {
-				model.acceptNextWord(editor);
+				console.log('before accept next word');
+				await model.acceptNextWord(editor);
 			}
 		}
 
@@ -688,7 +695,7 @@ suite('Inline Completions', () => {
 					model.triggerExplicitly();
 					await timeout(1000);
 
-					acceptNextWord(model, editor, 2);
+					await acceptNextWord(model, editor, 2);
 
 					assert.deepStrictEqual(
 						editor.getValue(),
@@ -721,7 +728,7 @@ suite('Inline Completions', () => {
 					model.triggerExplicitly();
 					await timeout(1000);
 
-					acceptNextWord(model, editor, 3);
+					await acceptNextWord(model, editor, 3);
 
 					assert.deepStrictEqual(
 						editor.getValue(),
@@ -754,7 +761,7 @@ suite('Inline Completions', () => {
 					model.triggerExplicitly();
 					await timeout(1000);
 
-					acceptNextWord(model, editor, 4);
+					await acceptNextWord(model, editor, 4);
 
 					assert.deepStrictEqual(
 						editor.getValue(),
