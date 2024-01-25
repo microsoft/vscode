@@ -23,6 +23,7 @@ import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -58,6 +59,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 	) { }
 
 	dispose() {
@@ -122,6 +124,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
 			targetUri.with({ scheme: Schemas.inMemory, query: new URLSearchParams({ id, 'inline-chat-textModel0': '' }).toString() }), true
 		));
+
+		// untitled documents are special
+		if (targetUri.scheme === Schemas.untitled) {
+			const untitledTextModel = this._textFileService.untitled.get(targetUri);
+			if (untitledTextModel) {
+				store.add(untitledTextModel.onDidChangeDirty(() => {
+					if (!untitledTextModel.isDirty()) {
+						this.releaseSession(session);
+					}
+				}));
+			}
+		}
 
 		let wholeRange = options.wholeRange;
 		if (!wholeRange) {
