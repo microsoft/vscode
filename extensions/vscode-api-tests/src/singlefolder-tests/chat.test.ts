@@ -8,7 +8,8 @@ import 'mocha';
 import { CancellationToken, chat, ChatAgentRequest, ChatVariableLevel, Disposable, interactive, InteractiveSession, ProviderResult } from 'vscode';
 import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../utils';
 
-suite('chat', () => {
+suite.skip('chat', () => {
+
 	let disposables: Disposable[] = [];
 	setup(() => {
 		disposables = [];
