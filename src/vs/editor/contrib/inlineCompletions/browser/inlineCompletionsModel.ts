@@ -284,10 +284,6 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public async accept(editor: ICodeEditor): Promise<void> {
-
-		return this._acceptCombined(editor);
-		/** cut off */
-		/*
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -354,12 +350,10 @@ export class InlineCompletionsModel extends Disposable {
 				.then(undefined, onUnexpectedExternalError);
 			completion.source.removeRef();
 		}
-		*/
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
 		await this._acceptNext(editor, (pos, text) => {
-			console.log('accept next result : ', JSON.stringify(pos), ' and ', text);
 			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
 			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
 			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
@@ -385,8 +379,6 @@ export class InlineCompletionsModel extends Disposable {
 			}
 			return acceptUntilIndexExclusive;
 		});
-		console.log('before return');
-		return;
 	}
 
 	public async acceptNextLine(editor: ICodeEditor): Promise<void> {
@@ -400,11 +392,6 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number): Promise<void> {
-		console.log('inside of _acceptNext');
-		await this._acceptCombined(editor, getAcceptUntilIndex);
-		return;
-		/** cut off */
-		/*
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -426,9 +413,6 @@ export class InlineCompletionsModel extends Disposable {
 		const position = new Position(ghostText.lineNumber, firstPart.column);
 		const line = firstPart.lines.join('\n');
 		const acceptUntilIndexExclusive = getAcceptUntilIndex(position, line);
-		console.log('position : ', JSON.stringify(position));
-		console.log('line : ', line);
-		console.log('acceptUntilIndexExclusive : ', acceptUntilIndexExclusive);
 
 		if (acceptUntilIndexExclusive === line.length && ghostText.parts.length === 1) {
 			this.accept(editor);
@@ -436,7 +420,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const partialText = line.substring(0, acceptUntilIndexExclusive);
-		console.log('partialText : ', partialText);
 
 		// Executing the edit might free the completion, so we have to hold a reference on it.
 		completion.source.addRef();
@@ -451,17 +434,12 @@ export class InlineCompletionsModel extends Disposable {
 				const replacedTextAfterPrimaryCursor = textModel
 					.getLineContent(primaryPosition.lineNumber)
 					.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-				console.log('replacedTextAfterPrimaryCursor : ', replacedTextAfterPrimaryCursor);
 				const secondaryPartialText = completion.insertText.substring(primaryPosition.column - completion.range.startColumn, firstPart.column + acceptUntilIndexExclusive - 1);
-				console.log('secondaryPartialText : ', secondaryPartialText);
 				const length = lengthOfText(partialText);
 				const partialLength = lengthOfText(secondaryPartialText);
 				const completionRangeStart = completion.range.getStartPosition();
-
 				const primaryRange = Range.fromPositions(completionRangeStart, position);
 				const primaryText = completion.insertText.substring(0, position.column - 1) + partialText;
-				console.log('primaryRange : ', JSON.stringify(primaryRange));
-				console.log('primaryText : ', primaryText);
 
 				editor.executeEdits('inlineSuggestion.accept', [
 					EditOperation.replace(primaryRange, primaryText),
@@ -469,22 +447,15 @@ export class InlineCompletionsModel extends Disposable {
 						const textAfterSecondaryCursor = this.textModel
 							.getLineContent(pos.lineNumber)
 							.substring(pos.column - 1);
-						console.log('textAfterSecondaryCursor : ', textAfterSecondaryCursor);
 						const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-						console.log('l : ', l);
 						const range = Range.fromPositions(pos, pos.delta(0, l));
-						console.log('range : ', JSON.stringify(range));
 						return EditOperation.replaceMove(range, secondaryPartialText);
 					}),
 				]);
-				const textModelAfterEdits = editor.getValue();
-				console.log('textModelAfterEdits : ', textModelAfterEdits);
-
 				const editorSelections = [
 					Selection.fromPositions(addPositions(position, length)),
 					...secondaryPositions.map(pos => Selection.fromPositions(addPositions(pos, partialLength)))
 				];
-				console.log('editorSelections : ', JSON.stringify(editorSelections));
 				editor.setSelections(editorSelections, 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
@@ -503,7 +474,6 @@ export class InlineCompletionsModel extends Disposable {
 		} finally {
 			completion.source.removeRef();
 		}
-		*/
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
@@ -519,19 +489,14 @@ export class InlineCompletionsModel extends Disposable {
 		);
 	}
 
+	/** combination of the two _accept methods above
 	private async _acceptCombined(editor: ICodeEditor, getAcceptUntilIndex?: (position: Position, text: string) => number): Promise<void> {
-		console.log('inside of _acceptCombined');
 		if (editor.getModel() !== this.textModel) {
-			console.log('throwing error');
 			throw new BugIndicatingError();
 		}
 
 		const state = this.state.get();
-		console.log('state:', state);
-		console.log('state.ghostText.isEmpty() : ', state?.ghostText.isEmpty());
-
 		if (!state || state.ghostText.isEmpty() || !state.inlineCompletion) {
-			console.log('early return');
 			return;
 		}
 		const completion = state.inlineCompletion.toInlineCompletion(undefined);
@@ -549,11 +514,7 @@ export class InlineCompletionsModel extends Disposable {
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		}
 
-		console.log('!!getAcceptUntilIndex : ', !!getAcceptUntilIndex);
-		console.log('(completion.filterText !== completion.insertText) : ', (completion.filterText !== completion.insertText));
 		const isPartial = !!getAcceptUntilIndex && (completion.filterText === completion.insertText);
-		console.log('isPartial : ', isPartial);
-
 		let acceptUntilIndexExclusive: number | undefined;
 		let editRange: Range;
 
@@ -563,16 +524,11 @@ export class InlineCompletionsModel extends Disposable {
 			editRange = Range.fromPositions(completion.range.getStartPosition(), new Position(ghostText.lineNumber, firstPart.column));
 			const line = firstPart.lines.join('\n');
 			acceptUntilIndexExclusive = firstPart.column + getAcceptUntilIndex(editRange.getEndPosition(), line) - 1;
-			console.log('editRange : ', JSON.stringify(editRange));
-			console.log('line : ', line);
-			console.log('acceptUntilIndexExclusive : ', acceptUntilIndexExclusive);
 		} else {
 			acceptUntilIndexExclusive = undefined;
 			editRange = completion.range;
 		}
-
 		const editText = completion.insertText.substring(0, acceptUntilIndexExclusive); // maybe incorrect index
-		console.log('editText : ', editText);
 
 		if (isPartial) {
 			// Executing the edit might free the completion, so we have to hold a reference on it.
@@ -590,12 +546,8 @@ export class InlineCompletionsModel extends Disposable {
 				const replacedTextAfterPrimaryCursor = textModel
 					.getLineContent(primaryPosition.lineNumber)
 					.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-				console.log('replacedTextAfterPrimaryCursor : ', replacedTextAfterPrimaryCursor);
 				const secondaryEditText = completion.insertText.substring(primaryPosition.column - completion.range.startColumn, acceptUntilIndexExclusive);
-				console.log('secondaryEditText : ', secondaryEditText);
 				const additionalTextEdits = isPartial ? [] : completion.additionalTextEdits;
-				console.log('primaryRange : ', JSON.stringify(editRange));
-				console.log('editText : ', editText);
 
 				editor.executeEdits('inlineSuggestion.accept', [
 					EditOperation.replaceMove(editRange, editText), // maybe should be replace instead?
@@ -603,20 +555,12 @@ export class InlineCompletionsModel extends Disposable {
 						const textAfterSecondaryCursor = this.textModel
 							.getLineContent(pos.lineNumber)
 							.substring(pos.column - 1);
-						console.log('textAfterSecondaryCursor : ', textAfterSecondaryCursor);
 						const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-						console.log('l : ', l);
 						const range = Range.fromPositions(pos, pos.delta(0, l));
-						console.log('range : ', JSON.stringify(range));
 						return EditOperation.replaceMove(range, secondaryEditText);
 					}),
 					...additionalTextEdits
 				]);
-				const textModelAfterEdits = editor.getValue();
-				console.log('textModelAfterEdits : ', textModelAfterEdits);
-
-				const state = this.state.get();
-				console.log('state:', state);
 
 				if (isPartial) {
 					const length = lengthOfText(editText);
@@ -625,7 +569,6 @@ export class InlineCompletionsModel extends Disposable {
 						Selection.fromPositions(addPositions(editRange.getEndPosition(), length)),
 						...secondaryPositions.map(pos => Selection.fromPositions(addPositions(pos, partialLength)))
 					];
-					console.log('editorSelections : ', JSON.stringify(editorSelections));
 					editor.setSelections(editorSelections, 'inlineCompletionPartialAccept');
 				}
 			} finally {
@@ -644,8 +587,6 @@ export class InlineCompletionsModel extends Disposable {
 					text.length,
 				);
 
-				const state = this.state.get();
-				console.log('state:', state);
 			} else {
 				if (completion.command) {
 					// Make sure the completion list will not be disposed.
@@ -670,10 +611,8 @@ export class InlineCompletionsModel extends Disposable {
 		} finally {
 			if (isPartial) {
 				completion.source.removeRef();
-
-				const state = this.state.get();
-				console.log('state:', state);
 			}
 		}
 	}
+	*/
 }

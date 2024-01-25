@@ -26,7 +26,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	/*
 	suite('inlineCompletionToGhostText', () => {
 
 		function getOutput(text: string, suggestion: string): unknown {
@@ -564,11 +563,8 @@ suite('Inline Completions', () => {
 		);
 	});
 
-	*/
-
 	suite('inlineCompletionMultiCursor', () => {
 
-		/*
 		test('Basic', async function () {
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
@@ -667,11 +663,9 @@ suite('Inline Completions', () => {
 				}
 			);
 		});
-		*/
 
 		async function acceptNextWord(model: InlineCompletionsModel, editor: ITestCodeEditor, timesToAccept: number = 1): Promise<void> {
 			for (let i = 0; i < timesToAccept; i++) {
-				console.log('before accept next word');
 				await model.acceptNextWord(editor);
 			}
 		}
