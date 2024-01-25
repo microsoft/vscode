@@ -155,7 +155,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 		const tunnelFeatures = information.tunnelFeatures ? {
 			elevation: !!information.tunnelFeatures?.elevation,
-			privacyOptions: information.tunnelFeatures?.privacyOptions
+			privacyOptions: information.tunnelFeatures?.privacyOptions,
+			protocol: information.tunnelFeatures.protocol === undefined ? true : information.tunnelFeatures.protocol,
 		} : undefined;
 
 		this._proxy.$setTunnelProvider(tunnelFeatures);
@@ -206,7 +207,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const tunnelFeatures = provider.tunnelFeatures ? {
 					elevation: !!provider.tunnelFeatures?.elevation,
 					public: !!provider.tunnelFeatures?.public,
-					privacyOptions
+					privacyOptions,
+					protocol: true
 				} : undefined;
 
 				this._proxy.$setTunnelProvider(tunnelFeatures);

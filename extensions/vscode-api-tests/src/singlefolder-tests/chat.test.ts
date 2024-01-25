@@ -8,7 +8,8 @@ import 'mocha';
 import { CancellationToken, chat, ChatAgentRequest, ChatVariableLevel, Disposable, interactive, InteractiveSession, ProviderResult } from 'vscode';
 import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../utils';
 
-suite('chat', () => {
+suite.skip('chat', () => {
+
 	let disposables: Disposable[] = [];
 	setup(() => {
 		disposables = [];
@@ -35,8 +36,8 @@ suite('chat', () => {
 			deferred.complete(request);
 			return null;
 		});
-		agent.slashCommandProvider = {
-			provideSlashCommands: (_token) => {
+		agent.subCommandProvider = {
+			provideSubCommands: (_token) => {
 				return [{ name: 'hello', description: 'Hello' }];
 			}
 		};

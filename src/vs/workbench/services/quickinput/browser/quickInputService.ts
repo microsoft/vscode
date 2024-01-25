@@ -14,24 +14,22 @@ import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinp
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class QuickInputService extends BaseQuickInputService {
 
-	private readonly hoverDelegate = new QuickInputHoverDelegate(this.configurationService, this.hoverService);
 	private readonly inQuickInputContext = InQuickPickContextKey.bindTo(this.contextKeyService);
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@ILayoutService layoutService: ILayoutService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService hoverService: IHoverService
 	) {
-		super(instantiationService, contextKeyService, themeService, layoutService);
+		super(instantiationService, contextKeyService, themeService, layoutService, configurationService, hoverService);
 
 		this.registerListeners();
 	}
@@ -45,51 +43,7 @@ export class QuickInputService extends BaseQuickInputService {
 		return super.createController(this.layoutService, {
 			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
-			hoverDelegate: this.hoverDelegate
 		});
-	}
-}
-
-class QuickInputHoverDelegate implements IHoverDelegate {
-	private lastHoverHideTime = 0;
-	readonly placement = 'element';
-
-	get delay() {
-		if (Date.now() - this.lastHoverHideTime < 200) {
-			return 0; // show instantly when a hover was recently shown
-		}
-
-		return this.configurationService.getValue<number>('workbench.hover.delay');
-	}
-
-	constructor(
-		private readonly configurationService: IConfigurationService,
-		private readonly hoverService: IHoverService
-	) { }
-
-	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
-		// Only show the hover hint if the content is of a decent size
-		const showHoverHint = (
-			options.content instanceof HTMLElement
-				? options.content.textContent ?? ''
-				: typeof options.content === 'string'
-					? options.content
-					: options.content.value
-		).length > 20;
-		return this.hoverService.showHover({
-			...options,
-			persistence: {
-				hideOnKeyDown: false,
-			},
-			appearance: {
-				showHoverHint,
-				skipFadeInAnimation: true,
-			},
-		}, focus);
-	}
-
-	onDidHideHover(): void {
-		this.lastHoverHideTime = Date.now();
 	}
 }
 

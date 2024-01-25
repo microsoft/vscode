@@ -30,7 +30,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export function getRealAndSyntheticDocumentFormattersOrdered(
 	documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>,
@@ -135,7 +135,7 @@ export async function formatDocumentRangesWithProvider(
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
 	const logService = accessor.get(ILogService);
-	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
+	const audioCueService = accessor.get(IAudioCueService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -279,7 +279,7 @@ export async function formatDocumentRangesWithProvider(
 			return null;
 		});
 	}
-	accessibleNotificationService.notify(AccessibleNotificationEvent.Format, userGesture);
+	audioCueService.playAudioCue(AudioCue.format, { userGesture });
 	return true;
 }
 
@@ -312,7 +312,7 @@ export async function formatDocumentWithProvider(
 	userGesture?: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
-	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
+	const audioCueService = accessor.get(IAudioCueService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -373,7 +373,7 @@ export async function formatDocumentWithProvider(
 			return null;
 		});
 	}
-	accessibleNotificationService.notify(AccessibleNotificationEvent.Format, userGesture);
+	audioCueService.playAudioCue(AudioCue.format, { userGesture });
 	return true;
 }
 

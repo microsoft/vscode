@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -195,7 +195,7 @@ registerAction2(class extends BaseNavigationAction {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateLeft',
-			title: { value: localize('navigateLeft', "Navigate to the View on the Left"), original: 'Navigate to the View on the Left' },
+			title: localize2('navigateLeft', 'Navigate to the View on the Left'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Left);
@@ -207,7 +207,7 @@ registerAction2(class extends BaseNavigationAction {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateRight',
-			title: { value: localize('navigateRight', "Navigate to the View on the Right"), original: 'Navigate to the View on the Right' },
+			title: localize2('navigateRight', 'Navigate to the View on the Right'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Right);
@@ -219,7 +219,7 @@ registerAction2(class extends BaseNavigationAction {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateUp',
-			title: { value: localize('navigateUp', "Navigate to the View Above"), original: 'Navigate to the View Above' },
+			title: localize2('navigateUp', 'Navigate to the View Above'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Up);
@@ -231,7 +231,7 @@ registerAction2(class extends BaseNavigationAction {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateDown',
-			title: { value: localize('navigateDown', "Navigate to the View Below"), original: 'Navigate to the View Below' },
+			title: localize2('navigateDown', 'Navigate to the View Below'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Down);
@@ -319,7 +319,7 @@ registerAction2(class extends BaseFocusAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusNextPart',
-			title: { value: localize('focusNextPart', "Focus Next Part"), original: 'Focus Next Part' },
+			title: localize2('focusNextPart', 'Focus Next Part'),
 			category: Categories.View,
 			f1: true,
 			keybinding: {
@@ -335,7 +335,7 @@ registerAction2(class extends BaseFocusAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusPreviousPart',
-			title: { value: localize('focusPreviousPart', "Focus Previous Part"), original: 'Focus Previous Part' },
+			title: localize2('focusPreviousPart', 'Focus Previous Part'),
 			category: Categories.View,
 			f1: true,
 			keybinding: {

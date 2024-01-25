@@ -272,7 +272,7 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 		}
 
 		if (equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
-			additional.push(new SequenceDiff(w1, w2));
+			additional.push(w);
 		}
 
 		lastPoint = w.getEndExclusives();
@@ -456,7 +456,11 @@ export function removeVeryShortMatchingTextBetweenLongDiffs(sequence1: LinesSlic
 			next ? next.getStarts() : OffsetPair.max,
 		);
 		const result = newDiff.intersect(availableSpace)!;
-		newDiffs.push(result);
+		if (newDiffs.length > 0 && result.getStarts().equals(newDiffs[newDiffs.length - 1].getEndExclusives())) {
+			newDiffs[newDiffs.length - 1] = newDiffs[newDiffs.length - 1].join(result);
+		} else {
+			newDiffs.push(result);
+		}
 	});
 
 	return newDiffs;

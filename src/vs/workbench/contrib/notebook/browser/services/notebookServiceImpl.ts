@@ -14,6 +14,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -43,6 +44,7 @@ import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/e
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { INotebookDocument, INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -414,14 +416,19 @@ export class NotebookOutputRendererInfoStore {
 	}
 }
 
-class ModelData implements IDisposable {
+class ModelData implements IDisposable, INotebookDocument {
 	private readonly _modelEventListeners = new DisposableStore();
+	get uri() { return this.model.uri; }
 
 	constructor(
 		readonly model: NotebookTextModel,
 		onWillDispose: (model: INotebookTextModel) => void
 	) {
 		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
+	}
+
+	getCellIndex(cellUri: URI): number | undefined {
+		return this.model.cells.findIndex(cell => isEqual(cell.uri, cellUri));
 	}
 
 	dispose(): void {
@@ -485,6 +492,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@INotebookDocumentService private readonly _notebookDocumentService: INotebookDocumentService
 	) {
 		super();
 
@@ -752,7 +760,9 @@ export class NotebookService extends Disposable implements INotebookService {
 			throw new Error(`notebook for ${uri} already exists`);
 		}
 		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
-		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
+		const modelData = new ModelData(notebookModel, this._onWillDisposeDocument.bind(this));
+		this._models.set(uri, modelData);
+		this._notebookDocumentService.addNotebookDocument(modelData);
 		this._onWillAddNotebookDocument.fire(notebookModel);
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		this._postDocumentOpenActivation(viewType);
@@ -776,6 +786,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		if (modelData) {
 			this._onWillRemoveNotebookDocument.fire(modelData.model);
 			this._models.delete(model.uri);
+			this._notebookDocumentService.removeNotebookDocument(modelData);
 			modelData.dispose();
 			this._onDidRemoveNotebookDocument.fire(modelData.model);
 		}

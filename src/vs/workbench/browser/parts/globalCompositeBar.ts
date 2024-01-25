@@ -35,7 +35,7 @@ import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSessionAccount, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
@@ -584,17 +584,18 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 			return;
 		}
 
+		if (this.userDataProfileService.currentProfile.icon && this.userDataProfileService.currentProfile.icon !== DEFAULT_ICON.id) {
+			return;
+		}
+
 		if ((this.action as CompositeBarAction).activity) {
 			return;
 		}
 
-		if (!this.userDataProfileService.currentProfile.icon || this.userDataProfileService.currentProfile.icon === DEFAULT_ICON.id) {
-			this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
-			this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
-			this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
-		}
-
 		show(this.profileBadge);
+		this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
+		this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 
 	protected override updateActivity(): void {

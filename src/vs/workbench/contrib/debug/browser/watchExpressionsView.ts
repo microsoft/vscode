@@ -15,12 +15,12 @@ import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpres
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
@@ -383,13 +383,34 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 
 	constructor(private debugService: IDebugService) { }
 
-	onDragOver(data: IDragAndDropData): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: IExpression | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		if (!(data instanceof ElementsDragAndDropData)) {
 			return false;
 		}
 
 		const expressions = (data as ElementsDragAndDropData<IExpression>).elements;
-		return expressions.length > 0 && expressions[0] instanceof Expression;
+		if (!(expressions.length > 0 && expressions[0] instanceof Expression)) {
+			return false;
+		}
+
+		let dropEffectPosition: ListDragOverEffectPosition | undefined = undefined;
+		if (targetIndex === undefined) {
+			// Hovering over the list
+			dropEffectPosition = ListDragOverEffectPosition.After;
+			targetIndex = -1;
+		} else {
+			// Hovering over an element
+			switch (targetSector) {
+				case ListViewTargetSector.TOP:
+				case ListViewTargetSector.CENTER_TOP:
+					dropEffectPosition = ListDragOverEffectPosition.Before; break;
+				case ListViewTargetSector.CENTER_BOTTOM:
+				case ListViewTargetSector.BOTTOM:
+					dropEffectPosition = ListDragOverEffectPosition.After; break;
+			}
+		}
+
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [targetIndex] } as ITreeDragOverReaction;
 	}
 
 	getDragURI(element: IExpression): string | null {
@@ -408,15 +429,37 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 		return undefined;
 	}
 
-	drop(data: IDragAndDropData, targetElement: IExpression): void {
+	drop(data: IDragAndDropData, targetElement: IExpression, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
 		if (!(data instanceof ElementsDragAndDropData)) {
 			return;
 		}
 
 		const draggedElement = (data as ElementsDragAndDropData<IExpression>).elements[0];
+		if (!(draggedElement instanceof Expression)) {
+			throw new Error('Invalid dragged element');
+		}
+
 		const watches = this.debugService.getModel().getWatchExpressions();
-		const position = targetElement instanceof Expression ? watches.indexOf(targetElement) : watches.length - 1;
-		this.debugService.moveWatchExpression(draggedElement.getId(), position);
+		const sourcePosition = watches.indexOf(draggedElement);
+
+		let targetPosition;
+		if (targetElement instanceof Expression) {
+			targetPosition = watches.indexOf(targetElement);
+
+			switch (targetSector) {
+				case ListViewTargetSector.BOTTOM:
+				case ListViewTargetSector.CENTER_BOTTOM:
+					targetPosition++; break;
+			}
+
+			if (sourcePosition < targetPosition) {
+				targetPosition--;
+			}
+		} else {
+			targetPosition = watches.length - 1;
+		}
+
+		this.debugService.moveWatchExpression(draggedElement.getId(), targetPosition);
 	}
 
 	dispose(): void { }

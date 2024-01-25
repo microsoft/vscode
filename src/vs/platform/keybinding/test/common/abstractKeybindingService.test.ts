@@ -95,6 +95,10 @@ suite('AbstractKeybindingService', () => {
 		public registerSchemaContribution() {
 			// noop
 		}
+
+		public enableKeybindingHoldMode() {
+			return undefined;
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;

@@ -697,7 +697,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
 			count: reaction.count,
 			hasReacted: reaction.authorHasReacted,
-			reactors: reaction.reactors
+			reactors: ((reaction.reactors && (reaction.reactors.length > 0) && (typeof reaction.reactors[0] !== 'string')) ? (reaction.reactors as languages.CommentAuthorInformation[]).map(reactor => reactor.name) : reaction.reactors) as string[]
 		};
 	}
 
@@ -707,7 +707,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			count: reaction.count || 0,
 			iconPath: reaction.iconPath ? URI.revive(reaction.iconPath) : '',
 			authorHasReacted: reaction.hasReacted || false,
-			reactors: reaction.reactors
+			reactors: reaction.reactors?.map(reactor => ({ name: reactor }))
 		};
 	}
 
