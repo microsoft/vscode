@@ -203,6 +203,23 @@ suite('createEditAddingLinksForUriList', () => {
 				false);
 		});
 
+		test('Smart should be disabled in html blocks where paste creates the block', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('<p>\n\n</p>'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(1, 0, 1, 0)], noopToken),
+				false,
+				'Between two html tags should be treated as html block');
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('<p>\n\ntext'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(1, 0, 1, 0)], noopToken),
+				false,
+				'Between opening html tag and text should be treated as html block');
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('<p>\n\n\n</p>'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(1, 0, 1, 0)], noopToken),
+				true,
+				'Extra new line after paste should not be treated as html block');
+		});
+
 		test('Smart should be disabled in Markdown links', async () => {
 			assert.strictEqual(
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('[a](bcdef)'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 4, 0, 6)], noopToken),
@@ -266,7 +283,5 @@ suite('createEditAddingLinksForUriList', () => {
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('   \r\n\r\n'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 7)], noopToken),
 				false);
 		});
-
-
 	});
 });
