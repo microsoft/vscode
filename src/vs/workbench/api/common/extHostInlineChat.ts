@@ -84,7 +84,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
-					initialSelection: v.initialSelection ? typeConvert.Selection.from(v.initialSelection) : undefined,
+					initialSelection: extHostTypes.Selection.isSelection(v.initialSelection) ? typeConvert.Selection.from(v.initialSelection) : undefined,
 					message: v.message,
 					autoSend: v.autoSend,
 					position: v.position ? typeConvert.Position.from(v.position) : undefined,
