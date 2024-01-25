@@ -2341,9 +2341,11 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-export function copyAttributes(from: Element, to: Element): void {
+export function copyAttributes(from: Element, to: Element, filter?: string[]): void {
 	for (const { name, value } of from.attributes) {
-		to.setAttribute(name, value);
+		if (!filter || filter.includes(name)) {
+			to.setAttribute(name, value);
+		}
 	}
 }
 
@@ -2357,7 +2359,7 @@ function copyAttribute(from: Element, to: Element, name: string): void {
 }
 
 export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
-	copyAttributes(from, to);
+	copyAttributes(from, to, filter);
 
 	const disposables = new DisposableStore();
 
