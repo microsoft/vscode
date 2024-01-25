@@ -35,9 +35,11 @@ export interface IFileStatus {
 }
 
 export interface Stash {
-	index: number;
-	description: string;
-	branchName?: string;
+	readonly hash: string;
+	readonly parents: string[];
+	readonly index: number;
+	readonly description: string;
+	readonly branchName?: string;
 }
 
 interface MutableRemote extends Remote {
@@ -353,6 +355,7 @@ function sanitizePath(path: string): string {
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
+const STASH_FORMAT = '%H%n%P%n%gd%n%gs';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -965,34 +968,28 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
+
 function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
-	const regex = /^stash@{(\d+)}:(.+)$/;
-	const descriptionRegex = /(WIP\s)*on([^:]+):(.*)$/i;
 
-	for (const stash of raw.split('\n').filter(s => !!s)) {
-		// Extract index and description
-		const match = regex.exec(stash);
-		if (!match) {
-			continue;
+	let match, hash, parents, index, wip, branchName, description;
+
+	do {
+		match = stashRegex.exec(raw);
+		if (match === null) {
+			break;
 		}
 
-		const [, index, description] = match;
-
-		// Extract branch name from description
-		const descriptionMatch = descriptionRegex.exec(description);
-		if (!descriptionMatch) {
-			result.push({ index: parseInt(index), description: description.trim() });
-			continue;
-		}
-
-		const [, wip, branchName, message] = descriptionMatch;
+		[, hash, parents, index, wip, branchName, description] = match;
 		result.push({
+			hash,
+			parents: parents.split(' '),
 			index: parseInt(index),
-			description: wip ? `WIP (${message.trim()})` : message.trim(),
-			branchName: branchName.trim()
+			branchName: branchName.trim(),
+			description: wip ? `WIP (${description.trim()})` : description.trim()
 		});
-	}
+	} while (true);
 
 	return result;
 }
@@ -2212,7 +2209,7 @@ export class Repository {
 	}
 
 	async showStash(index: number): Promise<Change[] | undefined> {
-		const args = ['stash', 'show', `stash@{${index}}`, '--name-status', '-z'];
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-status', '-z', '-u'];
 
 		try {
 			const result = await this.exec(args);
@@ -2500,7 +2497,7 @@ export class Repository {
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		const result = await this.exec(['stash', 'list']);
+		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
 	}
 

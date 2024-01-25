@@ -3598,8 +3598,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.popStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.popStash(result.stash.index);
 	}
 
 	@command('git.stashApply', { repository: true })
@@ -3633,8 +3633,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.applyStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.applyStash(result.stash.index);
 	}
 
 	@command('git.stashDrop', { repository: true })
@@ -3709,6 +3709,7 @@ export class CommandCenter {
 		}
 
 		const stashChanges = await repository.showStash(stash.index);
+		const stashParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
 
 		if (!stashChanges || stashChanges.length === 0) {
 			return;
@@ -3720,13 +3721,13 @@ export class CommandCenter {
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {
 			if (change.status === Status.INDEX_ADDED) {
-				resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, `stash@{${stash.index}}`) });
+				resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, stash.hash) });
 			} else if (change.status === Status.DELETED) {
-				resources.push({ originalUri: change.uri, modifiedUri: undefined });
+				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: undefined });
 			} else if (change.status === Status.INDEX_RENAMED) {
-				resources.push({ originalUri: change.originalUri, modifiedUri: toGitUri(change.uri, `stash@{${stash.index}}`) });
+				resources.push({ originalUri: toGitUri(change.originalUri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
 			} else {
-				resources.push({ originalUri: change.uri, modifiedUri: toGitUri(change.uri, `stash@{${stash.index}}`) });
+				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
 			}
 		}
 
