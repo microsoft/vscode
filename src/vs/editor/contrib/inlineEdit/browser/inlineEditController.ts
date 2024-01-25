@@ -9,13 +9,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { GhostTextWidget } from 'vs/editor/contrib/inlineEdit/browser/ghostTextWidget';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Color } from 'vs/base/common/color';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -44,10 +40,6 @@ export class InlineEditController extends Disposable {
 	}
 
 	private _currentEdit: ISettableObservable<InlineEditWidget | undefined> = disposableObservableValue(this, undefined);
-
-	private readonly _rulerDecorations: IEditorDecorationsCollection;
-	private readonly _rulerDecoration: ModelDecorationOptions;
-
 	private _currentRequestCts: CancellationTokenSource | undefined;
 
 	private _jumpBackPosition: Position | undefined;
@@ -61,21 +53,6 @@ export class InlineEditController extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
-
-		//Ruler decorations for the inline edits
-		const opts: IModelDecorationOptions = {
-			description: 'multi-ghost-text-decoration',
-			overviewRuler: {
-				color: Color.cyan.toString(),
-				position: OverviewRulerLane.Full
-			},
-			minimap: {
-				color: Color.cyan.toString(),
-				position: MinimapPosition.Inline
-			},
-		};
-		this._rulerDecoration = ModelDecorationOptions.createDynamic(opts);
-		this._rulerDecorations = editor.createDecorationsCollection();
 
 		//Automatically request inline edit when the content was changed
 		//Cancel the previous request if there is one
@@ -128,12 +105,10 @@ export class InlineEditController extends Disposable {
 			if (!currentEdit) {
 				this._isVisibleContext.set(false);
 				this._isCursorAtInlineEditContext.set(false);
-				this.showRulerDecoration(undefined);
 				return;
 			}
 			this._isVisibleContext.set(true);
 			this._isCursorAtInlineEditContext.set(false);
-			this.showRulerDecoration(currentEdit.edit);
 		}));
 	}
 
@@ -169,25 +144,6 @@ export class InlineEditController extends Disposable {
 			return;
 		}
 		return edit;
-	}
-
-	private showRulerDecoration(ghostText: IInlineEdit | undefined) {
-		if (!ghostText) {
-			this._rulerDecorations.set([]);
-			return;
-		}
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-		const col = model.getLineMaxColumn(ghostText.position.lineNumber);
-		const range = new Range(ghostText.position.lineNumber, 0, ghostText.position.lineNumber, col);
-		const decoration =
-		{
-			range: range,
-			options: this._rulerDecoration
-		};
-		this._rulerDecorations.set([decoration]);
 	}
 
 	public async jumpBack() {
