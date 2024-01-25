@@ -21,10 +21,11 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
+import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
 import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { ObservableLazyStatefulPromise } from 'vs/workbench/contrib/multiDiffEditor/browser/utils';
@@ -266,6 +267,20 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		}
 		return undefined;
 	}
+
+	override readonly closeHandler: IEditorCloseHandler = {
+
+		// TODO@bpasero TODO@hediet this is a workaround for
+		// not having a better way to figure out if the
+		// editors this input wraps around are opened or not
+
+		async confirm() {
+			return ConfirmResult.DONT_SAVE;
+		},
+		showConfirm() {
+			return false;
+		}
+	};
 }
 
 function isUriDirty(textFileService: ITextFileService, uri: URI) {
