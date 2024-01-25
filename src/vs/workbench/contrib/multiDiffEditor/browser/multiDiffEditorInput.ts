@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
+import { Schemas } from 'vs/base/common/network';
 import { deepClone } from 'vs/base/common/objects';
 import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { constObservable, mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
@@ -258,9 +259,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		if (items) {
 			await Promise.all(items.map(async item => {
 				const model = item.diffEditorViewModel.model;
+				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
 
 				await Promise.all([
-					mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options),
+					handleOriginal ? mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options) : Promise.resolve(),
 					mode === 'save' ? this._textFileService.save(model.modified.uri, options) : this._textFileService.revert(model.modified.uri, options),
 				]);
 			}));
