@@ -72,19 +72,19 @@ export class AuxiliaryEditorPart {
 			return editorPartHeightOffset;
 		}
 
-		function updateStatusbarVisibility(fromEvent: boolean, updateEditor = true): void {
+		function updateStatusbarVisibility(fromEvent: boolean, updateEditorPart = true): void {
 			if (statusbarVisible) {
 				show(statusbarPart.container);
 			} else {
 				hide(statusbarPart.container);
 			}
 
-			if (updateEditor) {
+			if (updateEditorPart) {
 				updateEditorPartHeight(fromEvent);
 			}
 		}
 
-		function updateTitlebarVisibility(fromEvent: boolean, updateEditor = true): void {
+		function updateTitlebarVisibility(fromEvent: boolean, updateEditorPart = true): void {
 			if (!titlebarPart) {
 				return;
 			}
@@ -95,7 +95,7 @@ export class AuxiliaryEditorPart {
 				hide(titlebarPart.container);
 			}
 
-			if (updateEditor) {
+			if (updateEditorPart) {
 				updateEditorPartHeight(fromEvent);
 			}
 		}
@@ -130,7 +130,7 @@ export class AuxiliaryEditorPart {
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
-			titlebarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
+			titlebarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow); // follow main window visibility of title bar part
 
 			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
 			disposables.add(onDidChangeZoomLevel(targetWindowId => {
@@ -146,6 +146,18 @@ export class AuxiliaryEditorPart {
 				}
 			}));
 
+			let titleBarHiddenInFullScreen = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.WINDOWED;
+			disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY)) {
+					titleBarHiddenInFullScreen = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.WINDOWED;
+
+					if (isFullscreen(auxiliaryWindow.window)) {
+						titlebarVisible = !titleBarHiddenInFullScreen;
+						updateTitlebarVisibility(true);
+					}
+				}
+			}));
+
 			disposables.add(onDidChangeFullscreen(windowId => {
 				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
 					return; // ignore all but our window
@@ -154,16 +166,14 @@ export class AuxiliaryEditorPart {
 				// Make sure to hide the custom title when we enter
 				// fullscren mode and show it when we lave it.
 
-				const fullscreen = isFullscreen(auxiliaryWindow.window);
-				const titleBarHiddenInFullScreen = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.WINDOWED;
 				const oldTitlebarPartVisible = titlebarVisible;
-				titlebarVisible = !fullscreen || !titleBarHiddenInFullScreen;
+				titlebarVisible = !isFullscreen(auxiliaryWindow.window) || !titleBarHiddenInFullScreen;
 				if (oldTitlebarPartVisible !== titlebarVisible) {
 					updateTitlebarVisibility(true);
 				}
 			}));
 
-			disposables.add(this.layoutService.onDidChangePartVisibility(e => {
+			disposables.add(this.layoutService.onDidChangePartVisibility(() => {
 
 				// We track the main window custom title bar visibility to
 				// decide if we should show our custom title bar or not.
@@ -171,13 +181,6 @@ export class AuxiliaryEditorPart {
 				const oldTitlebarPartVisible = titlebarVisible;
 				titlebarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
 				if (oldTitlebarPartVisible !== titlebarVisible) {
-					updateTitlebarVisibility(true);
-				}
-			}));
-
-			disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) && isFullscreen(auxiliaryWindow.window)) {
-					titlebarVisible = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) !== CustomTitleBarVisibility.WINDOWED;
 					updateTitlebarVisibility(true);
 				}
 			}));
