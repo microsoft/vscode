@@ -7,14 +7,16 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { commonPrefixLength } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
@@ -24,6 +26,7 @@ import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { InlineCompletionItem } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
 
 export enum VersionIdChangeReason {
 	Undo,
@@ -304,10 +307,11 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
+			const primaryEdit = EditOperation.replace(completion.range, completion.insertText);
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					EditOperation.replaceMove(completion.range, completion.insertText),
+					...this._getEdits(editor, completion, primaryEdit).edits,
 					...completion.additionalTextEdits
 				]
 			);
@@ -409,11 +413,12 @@ export class InlineCompletionsModel extends Disposable {
 			this._isAcceptingPartially = true;
 			try {
 				editor.pushUndoStop();
-				editor.executeEdits('inlineSuggestion.accept', [
-					EditOperation.replace(Range.fromPositions(position), partialText),
-				]);
-				const length = lengthOfText(partialText);
-				editor.setPosition(addPositions(position, length), 'inlineCompletionPartialAccept');
+				const primaryEditRange = Range.fromPositions(completion.range.getStartPosition(), position);
+				const primaryEditText = completion.insertText.substring(0, firstPart.column + acceptUntilIndexExclusive - 1);
+				const primaryEdit = EditOperation.replace(primaryEditRange, primaryEditText);
+				const edits = this._getEdits(editor, completion, primaryEdit, firstPart.column + acceptUntilIndexExclusive - 1);
+				editor.executeEdits('inlineSuggestion.accept', edits.edits);
+				editor.setSelections(edits.editorSelections, 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
 			}
@@ -431,6 +436,44 @@ export class InlineCompletionsModel extends Disposable {
 		} finally {
 			completion.source.removeRef();
 		}
+	}
+
+	private _getEdits(editor: ICodeEditor, completion: InlineCompletionItem, primaryEdit: ISingleEditOperation, acceptInsertTextUntilIndexExclusive?: number): { edits: IIdentifiedSingleEditOperation[]; editorSelections: ISelection[] } {
+
+		const selections = editor.getSelections() ?? [];
+		const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
+		const primaryPosition = selections[0].getPosition();
+		const textModel = editor.getModel()!;
+		const replacedTextAfterPrimaryCursor = textModel
+			.getLineContent(primaryPosition.lineNumber)
+			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
+		const secondaryEditText = completion.insertText.substring(primaryPosition.column - completion.range.startColumn, acceptInsertTextUntilIndexExclusive);
+		const edits = [
+			primaryEdit,
+			...secondaryPositions.map(pos => {
+				const textAfterSecondaryCursor = this.textModel
+					.getLineContent(pos.lineNumber)
+					.substring(pos.column - 1);
+				const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+				const range = Range.fromPositions(pos, pos.delta(0, l));
+				return EditOperation.replaceMove(range, secondaryEditText);
+			})
+		];
+
+		let editorSelections: ISelection[] = [];
+		if (acceptInsertTextUntilIndexExclusive !== undefined) {
+			const primaryEditLength = lengthOfText(primaryEdit.text ?? '');
+			const secondaryEditLength = lengthOfText(secondaryEditText);
+			editorSelections = [
+				Selection.fromPositions(addPositions(new Position(primaryEdit.range.startLineNumber, primaryEdit.range.startColumn), primaryEditLength)),
+				...secondaryPositions.map(pos => Selection.fromPositions(addPositions(pos, secondaryEditLength)))
+			];
+		}
+
+		return {
+			edits,
+			editorSelections
+		};
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
