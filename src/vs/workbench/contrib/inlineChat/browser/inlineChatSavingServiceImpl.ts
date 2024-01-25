@@ -29,6 +29,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 interface SessionData {
 	readonly resourceUri: URI;
@@ -241,6 +242,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 					break;
 				}
 				this._inlineChatSessionService.moveSession(data.session, editor);
+				InlineChatController.get(editor)?.showSaveHint();
 				this._logService.info('WAIT for session to end', editor.getId(), data.session.targetUri.toString());
 				await this._whenSessionsEnded(Iterable.single(data), token);
 			}
