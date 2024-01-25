@@ -150,7 +150,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, serverBasePath?: string): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -165,6 +165,10 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	};
 
 	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+
+	if (serverBasePath !== undefined) {
+		serverArgs.push('--route-base-url-path', serverBasePath);
+	}
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
@@ -220,9 +224,20 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	});
 }
 
-launchServer(args.browser).then(async ({ endpoint, server }) => {
-	return runTestsInBrowser(args.browser, endpoint, server);
-}, error => {
-	console.error(error);
-	process.exit(1);
-});
+function testServer(browserType: BrowserType, serverBasePath?: string) {
+	return launchServer(browserType, serverBasePath).then(async ({ endpoint, server }) => {
+		return runTestsInBrowser(browserType, endpoint, server);
+	}, error => {
+		console.error(error);
+		process.exit(1);
+	});
+}
+
+function testServerWithBasePaths(browserType: BrowserType, serverBasePaths: (string | undefined)[]) {
+	for (const serverBasePath of serverBasePaths) {
+		console.log(`Starting test with server base path: ${serverBasePath}`);
+		testServer(args.browser, serverBasePath);
+	}
+}
+
+testServerWithBasePaths(args.browser, [undefined, 'test-route-base-url-path']);
