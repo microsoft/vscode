@@ -379,11 +379,12 @@ export class NotebookCellChatController extends Disposable {
 					const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, replyResponse.raw, followupCts.token);
 					if (followups && this._widget) {
 						const widget = this._widget;
-						widget.updateFollowUps(followups, followup => {
+						widget.updateFollowUps(followups, async followup => {
 							if (followup.kind === 'reply') {
 								widget.value = followup.message;
 								this.acceptInput();
 							} else {
+								await this.acceptSession();
 								this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
 							}
 						});

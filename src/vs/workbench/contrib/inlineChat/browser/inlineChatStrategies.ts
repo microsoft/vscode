@@ -61,7 +61,6 @@ export abstract class EditModeStrategy {
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
 
 	toggleDiff?: () => any;
-	pause?: () => any;
 
 	constructor(
 		protected readonly _session: Session,
@@ -465,10 +464,6 @@ export class LiveStrategy extends EditModeStrategy {
 			data.remove();
 		}
 	}
-
-	override pause = () => {
-		this._ctxCurrentChangeShowsDiff.reset();
-	};
 
 	async apply() {
 		this._resetDiff();

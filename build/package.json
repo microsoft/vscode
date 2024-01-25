@@ -6,7 +6,7 @@
     "@azure/cosmos": "^3",
     "@azure/identity": "^3.4.1",
     "@azure/storage-blob": "^12.17.0",
-    "@electron/get": "^1.12.4",
+    "@electron/get": "^2.0.0",
     "@types/ansi-colors": "^3.2.0",
     "@types/byline": "^4.2.32",
     "@types/cssnano": "^4.0.0",
