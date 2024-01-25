@@ -236,7 +236,7 @@ function testServer(browserType: BrowserType, serverBasePath?: string) {
 function testServerWithBasePaths(browserType: BrowserType, serverBasePaths: (string | undefined)[]) {
 	for (const serverBasePath of serverBasePaths) {
 		console.log(`Starting test with server base path: ${serverBasePath}`);
-		testServer(args.browser, serverBasePath);
+		testServer(browserType, serverBasePath);
 	}
 }
 
