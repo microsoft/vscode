@@ -721,7 +721,7 @@ export class Mangler {
 			result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
 		}
 
-		this.log(`Done: ${savedBytes / 1000}kb saved`);
+		this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(process.memoryUsage())}`);
 		return result;
 	}
 }
