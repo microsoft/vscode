@@ -18,7 +18,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -419,6 +419,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _decoInsertedTextRange = ModelDecorationOptions.register({
 		description: 'inline-chat-inserted-range-linehighlight',
 		className: 'inline-chat-inserted-range',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	});
 
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
