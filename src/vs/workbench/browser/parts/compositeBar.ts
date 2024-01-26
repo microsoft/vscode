@@ -21,6 +21,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
+import { DndBetweenIndicator } from 'vs/workbench/browser/parts/dndIndicator';
 
 export interface ICompositeBarItem {
 
@@ -200,6 +201,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
+
+		const dndIndicator = new DndBetweenIndicator(actionBarDiv, this.dimension?.height || 35, 25);
+
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
 			actionViewItemProvider: action => {
 				if (action instanceof CompositeOverflowActivityAction) {
@@ -215,6 +219,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					compositeId => this.options.getContextMenuActionsForComposite(compositeId),
 					() => this.getContextMenuActions(),
 					this.options.dndHandler,
+					dndIndicator,
 					this
 				);
 			},

@@ -1,0 +1,54 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .dnd-indicator-right,
+.monaco-workbench .dnd-indicator-left {
+	pointer-events: none;
+	position: absolute;
+	z-index: 1000;
+	display: none;
+}
+
+.monaco-workbench .dnd-indicator-bar {
+	position: absolute;
+	top: 0;
+	width: 1px;
+}
+
+.monaco-workbench .dnd-indicator-right .dnd-indicator-bar {
+	left: 0;
+}
+
+.monaco-workbench .dnd-indicator-left .dnd-indicator-bar {
+	right: 0;
+}
+
+.monaco-workbench .dnd-indicator-top {
+	position: absolute;
+	top: 0;
+	width: 0;
+	height: 0;
+	border-top: 2px solid;
+}
+
+.monaco-workbench .dnd-indicator-bottom {
+	position: absolute;
+	width: 0;
+	height: 0;
+	bottom: 0;
+	border-bottom: 2px solid;
+}
+
+.monaco-workbench .dnd-indicator-right .dnd-indicator-bottom,
+.monaco-workbench .dnd-indicator-right .dnd-indicator-top {
+	left: 1px;
+	border-right: 4px solid transparent;
+}
+
+.monaco-workbench .dnd-indicator-left .dnd-indicator-bottom,
+.monaco-workbench .dnd-indicator-left .dnd-indicator-top {
+	right: 1px;
+	border-left: 4px solid transparent;
+}

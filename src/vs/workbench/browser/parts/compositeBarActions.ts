@@ -27,6 +27,7 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { DndBetweenIndicator } from 'vs/workbench/browser/parts/dndIndicator';
 
 export interface ICompositeBar {
 
@@ -541,6 +542,7 @@ export class CompositeActionViewItem extends CompoisteBarActionViewItem {
 		private readonly compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
 		private readonly contextMenuActionsProvider: () => IAction[],
 		private readonly dndHandler: ICompositeDragAndDrop,
+		private readonly dndIndicator: DndBetweenIndicator,
 		private readonly compositeBar: ICompositeBar,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -644,13 +646,22 @@ export class CompositeActionViewItem extends CompoisteBarActionViewItem {
 		const left = forceLeft || (preferLeft && !lastClasses.horizontal) || (!forceRight && lastClasses.horizontal === 'left');
 		const right = forceRight || (!preferLeft && !lastClasses.horizontal) || (!forceLeft && lastClasses.horizontal === 'right');
 
-		element.classList.toggle('top', showFeedback && top);
+		/* element.classList.toggle('top', showFeedback && top);
 		element.classList.toggle('bottom', showFeedback && bottom);
 		element.classList.toggle('left', showFeedback && left);
-		element.classList.toggle('right', showFeedback && right);
+		element.classList.toggle('right', showFeedback && right); */
 
 		if (!showFeedback) {
+			this.dndIndicator.hide();
 			return undefined;
+		}
+
+		if (left || top) {
+			const isFirstElement = element.parentElement!.firstElementChild === element;
+			this.dndIndicator.setBefore(element, isFirstElement);
+		} else if (bottom || right) {
+			const isLastElement = element.parentElement!.lastElementChild === element;
+			this.dndIndicator.setAfter(element, isLastElement);
 		}
 
 		return { verticallyBefore: top, horizontallyBefore: left };
