@@ -5,16 +5,40 @@
 
 .monaco-workbench .zoom-status {
 	display: flex;
-	padding: 2px 8px;
-	vertical-align: middle;
+	padding-top: 2px;
+	padding-bottom: 2px;
+	padding-left: 5px;
+	padding-right: 5px;
 }
 
-.monaco-workbench .zoom-status > .left {
-	margin-top: auto;
-	margin-bottom: auto;
-	margin-right: 20px;
+.monaco-workbench .zoom-status .monaco-action-bar .action-label.codicon::before {
+	/*
+	 * the hover sets font-size: inherit which makes actions
+	 * have a size of 13px. but codicons have a size of 16px
+	 * so we want to ensure the icon is still centered
+	 */
+	margin: auto;
 }
 
-.monaco-workbench .zoom-status > .right {
-	margin: auto 0;
+.monaco-workbench .zoom-status > .zoom-status-left {
+	display: flex;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-left .monaco-action-bar .action-label.disabled,
+.monaco-workbench .zoom-status > .zoom-status-left .monaco-action-bar .action-label.disabled:hover {
+	/*
+	 * we use a disabled action as label for the zoom level
+	 * so we override the style to not show it disabled
+	 */
+	opacity: 1;
+	color: unset;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-right {
+	display: flex;
+	margin-left: 10px;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-right .monaco-action-bar .action-label {
+	color: unset;
 }

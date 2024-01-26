@@ -117,22 +117,21 @@ export class StatusbarEntryItem extends Disposable {
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
 			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
-			const entryOpensTooltip = entry.command === ShowTooltipCommand;
 			if (this.hover) {
-				this.hover.update(hoverContents, { disableHideOnMouseDown: entryOpensTooltip });
+				this.hover.update(hoverContents);
 			} else {
-				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents, { disableHideOnMouseDown: entryOpensTooltip }));
+				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
-			this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, (e) => {
-				EventHelper.stop(e);
-				this.hover?.show(false);
-			});
-			this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, (e) => {
-				EventHelper.stop(e);
-				if (!entryOpensTooltip) {
+			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
+				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
+					EventHelper.stop(e);
+					this.hover?.show(false);
+				});
+				this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, e => {
+					EventHelper.stop(e);
 					this.hover?.hide();
-				}
-			});
+				});
+			}
 		}
 
 		// Update: Command

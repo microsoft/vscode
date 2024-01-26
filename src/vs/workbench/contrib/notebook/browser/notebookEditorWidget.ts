@@ -17,11 +17,11 @@ import 'vs/css!./media/notebookCellOutput';
 import 'vs/css!./media/notebookEditorStickyScroll';
 import 'vs/css!./media/notebookKernelActionViewItem';
 import 'vs/css!./media/notebookOutline';
-
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, SequencerByKey } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -1070,6 +1070,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _registerNotebookStickyScroll() {
 		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
+
+		const localDisposableStore = this._register(new DisposableStore());
+
+		this._register(this._notebookStickyScroll.onDidChangeNotebookStickyScroll((sizeDelta) => {
+			const d = localDisposableStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
+				if (this.isDisposed) {
+					return;
+				}
+
+				if (this._dimension && this._isVisible) {
+					if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
+						this.layout(this._dimension);
+						this.setScrollTop(this.scrollTop + sizeDelta);
+					} else if (sizeDelta < 0) { // delta < 0 ==> sticky is shrinking, cell list growing
+						this.setScrollTop(this.scrollTop + sizeDelta);
+						this.layout(this._dimension);
+					}
+				}
+				localDisposableStore.delete(d);
+			}));
+		}));
 	}
 
 	private _updateOutputRenderers() {
@@ -1353,7 +1374,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				throw new Error('Notebook output webview object is not created successfully.');
 			}
 
-			await this._webview.createWebview();
+			await this._webview.createWebview(this.creationOptions.codeWindow ?? mainWindow);
 			if (!this._webview.webview) {
 				throw new Error('Notebook output webview element was not created successfully.');
 			}
@@ -1823,7 +1844,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._dimension = dimension;
 		this._position = position;
-		const newBodyHeight = this.getBodyHeight(dimension.height);
+		const newBodyHeight = this.getBodyHeight(dimension.height) - this.getLayoutInfo().stickyHeight;
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
 		const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
@@ -2248,6 +2269,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			if (!this.viewModel?.hasCell(cell)) {
 				// Cell removed in the meantime?
+				return;
+			}
+
+			if (this._list.getViewIndex(cell) === undefined) {
+				// Cell can be hidden
 				return;
 			}
 
@@ -3147,7 +3173,6 @@ registerZIndex(ZIndex.Base, 28, 'notebook-cell-bottom-toolbar-container');
 registerZIndex(ZIndex.Base, 29, 'notebook-run-button-container');
 registerZIndex(ZIndex.Base, 29, 'notebook-input-collapse-condicon');
 registerZIndex(ZIndex.Base, 30, 'notebook-cell-output-toolbar');
-registerZIndex(ZIndex.Base, 31, 'notebook-sticky-scroll');
 registerZIndex(ZIndex.Sash, 1, 'notebook-cell-expand-part-button');
 registerZIndex(ZIndex.Sash, 2, 'notebook-cell-toolbar');
 registerZIndex(ZIndex.Sash, 3, 'notebook-cell-toolbar-dropdown-active');

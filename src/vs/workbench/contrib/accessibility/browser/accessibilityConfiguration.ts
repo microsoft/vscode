@@ -9,6 +9,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { AccessibilityAlertSettingId } from 'vs/platform/audioCues/browser/audioCueService';
+import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Event } from 'vs/base/common/event';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -34,11 +38,6 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Minimum = 0.2,
 	Maximum = 1
 }
-
-export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout',
-}
-export const SpeechTimeoutDefault = 1200;
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -77,10 +76,14 @@ const baseProperty: object = {
 	tags: ['accessibility']
 };
 
-const configuration: IConfigurationNode = {
+export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	id: 'accessibility',
 	title: localize('accessibilityConfigurationTitle', "Accessibility"),
-	type: 'object',
+	type: 'object'
+});
+
+const configuration: IConfigurationNode = {
+	...accessibilityConfigurationNodeBase,
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
@@ -156,25 +159,25 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Breakpoint]: {
-			'markdownDescription': localize('alert.breakpoint', "Alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.breakpoint#`'),
+			'markdownDescription': localize('alert.breakpoint', "Alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.onDebugBreak#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Error]: {
-			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.error#`'),
+			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.lineHasError#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Warning]: {
-			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.warning#`'),
+			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.lineHasWarning#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.FoldedArea]: {
-			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.foldedArea#`'),
+			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.lineHasFoldedArea#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
@@ -186,7 +189,7 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.TerminalBell]: {
-			'markdownDescription': localize('alert.terminalBell', "Alerts when the terminal bell is activated. Also see {0}.", '`#audioCues.terminalBell#`'),
+			'markdownDescription': localize('alert.terminalBell', "Alerts when the terminal bell is activated."),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
@@ -251,13 +254,6 @@ const configuration: IConfigurationNode = {
 			'default': true,
 			tags: ['accessibility']
 		},
-		[AccessibilityVoiceSettingId.SpeechTimeout]: {
-			'markdownDescription': localize('voice.speechTimeout', "The duration in milliseconds that voice speech recognition remains active after you stop speaking. For example in a chat session, the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
-			'type': 'number',
-			'default': SpeechTimeoutDefault,
-			'minimum': 0,
-			'tags': ['accessibility']
-		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
 			type: 'boolean',
@@ -297,4 +293,40 @@ export function registerAccessibilityConfiguration() {
 			}
 		}
 	});
+}
+
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout'
+}
+export const SpeechTimeoutDefault = 1200;
+
+export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@ISpeechService private readonly speechService: ISpeechService
+	) {
+		super();
+
+		this._register(Event.runAndSubscribe(speechService.onDidRegisterSpeechProvider, () => this.updateConfiguration()));
+	}
+
+	private updateConfiguration(): void {
+		if (!this.speechService.hasSpeechProvider) {
+			return; // these settings require a speech provider
+		}
+
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		registry.registerConfiguration({
+			...accessibilityConfigurationNodeBase,
+			properties: {
+				[AccessibilityVoiceSettingId.SpeechTimeout]: {
+					'markdownDescription': localize('voice.speechTimeout', "The duration in milliseconds that voice speech recognition remains active after you stop speaking. For example in a chat session, the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
+					'type': 'number',
+					'default': SpeechTimeoutDefault,
+					'minimum': 0,
+					'tags': ['accessibility']
+				}
+			}
+		});
+	}
 }

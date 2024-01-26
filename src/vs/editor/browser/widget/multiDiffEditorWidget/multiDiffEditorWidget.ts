@@ -15,6 +15,9 @@ import './colors';
 import { DiffEditorItemTemplate } from 'vs/editor/browser/widget/multiDiffEditorWidget/diffEditorItemTemplate';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
@@ -67,5 +70,9 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public setViewState(viewState: IMultiDiffEditorViewState): void {
 		this._widgetImpl.get().setViewState(viewState);
+	}
+
+	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		return this._widgetImpl.get().tryGetCodeEditor(resource);
 	}
 }

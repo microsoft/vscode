@@ -25,6 +25,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -105,6 +107,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
 		return (input as MultiDiffEditorInput).resource;
 	}
+
+	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		return this._multiDiffEditorWidget!.tryGetCodeEditor(resource);
+	}
 }
 
 
@@ -116,8 +122,12 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	createResourceLabel(element: HTMLElement): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
 		return {
-			setUri(uri) {
-				label.element.setFile(uri, {});
+			setUri(uri, options = {}) {
+				if (!uri) {
+					label.element.clear();
+				} else {
+					label.element.setFile(uri, { strikethrough: options.strikethrough });
+				}
 			},
 			dispose() {
 				label.dispose();

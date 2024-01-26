@@ -622,27 +622,6 @@ export namespace Event {
 		return event(e => handler(e));
 	}
 
-	/**
-	 * Adds a listener to an event and calls the listener immediately with undefined as the event object. A new
-	 * {@link DisposableStore} is passed to the listener which is disposed when the returned disposable is disposed.
-	 */
-	export function runAndSubscribeWithStore<T>(event: Event<T>, handler: (e: T | undefined, disposableStore: DisposableStore) => any): IDisposable {
-		let store: DisposableStore | null = null;
-
-		function run(e: T | undefined) {
-			store?.dispose();
-			store = new DisposableStore();
-			handler(e, store);
-		}
-
-		run(undefined);
-		const disposable = event(e => run(e));
-		return toDisposable(() => {
-			disposable.dispose();
-			store?.dispose();
-		});
-	}
-
 	class EmitterObserver<T> implements IObserver {
 
 		readonly emitter: Emitter<T>;
