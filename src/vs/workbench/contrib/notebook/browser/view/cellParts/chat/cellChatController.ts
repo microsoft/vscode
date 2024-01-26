@@ -307,6 +307,7 @@ export class NotebookCellChatController extends Disposable {
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			live: true,
+			previewDocument: editor.getModel().uri,
 			withIntentDetection: true, // TODO: don't hard code but allow in corresponding UI to run without intent detection?
 		};
 

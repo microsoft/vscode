@@ -18,7 +18,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -192,7 +192,9 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
-		return this._makeChanges(edits, obs, opts, undefined);
+		await this._makeChanges(edits, obs, opts, new Progress<any>(() => {
+			this._zone.widget.showEditsPreview(this._session.hunkData, this._session.textModel0, this._session.textModelN);
+		}));
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
@@ -202,7 +204,7 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	override async renderChanges(response: ReplyResponse): Promise<undefined> {
 		if (response.allLocalEdits.length > 0) {
-			await this._zone.widget.showEditsPreview(this._session.textModel0, this._session.textModelN);
+			this._zone.widget.showEditsPreview(this._session.hunkData, this._session.textModel0, this._session.textModelN);
 		} else {
 			this._zone.widget.hideEditsPreview();
 		}
@@ -417,6 +419,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _decoInsertedTextRange = ModelDecorationOptions.register({
 		description: 'inline-chat-inserted-range-linehighlight',
 		className: 'inline-chat-inserted-range',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	});
 
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
