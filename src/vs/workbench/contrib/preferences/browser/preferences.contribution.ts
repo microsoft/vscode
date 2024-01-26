@@ -1226,6 +1226,7 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 		this.registerSettingsEditorTitleActions();
 	}
 
+	// test comment here
 	private registerSettingsEditorTitleActions() {
 		const registerOpenUserSettingsEditorFromJsonActionDisposables = this._register(new MutableDisposable());
 		const openUserSettingsEditorWhen = ContextKeyExpr.and(
@@ -1261,6 +1262,7 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 			registerOpenUserSettingsEditorFromJsonAction();
 		}));
 
+		console.log('another line here');
 		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
 		registerAction2(class extends Action2 {
 			constructor() {
