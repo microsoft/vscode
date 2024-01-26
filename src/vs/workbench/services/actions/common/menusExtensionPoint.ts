@@ -125,6 +125,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
+		key: 'scm/sourceControl/title',
+		id: MenuId.SCMSourceControlTitle,
+		description: localize('menus.scmSourceControlTitle', "The Source Control title menu"),
+		proposed: 'contribSourceControlTitleMenu'
+	},
+	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
 		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
