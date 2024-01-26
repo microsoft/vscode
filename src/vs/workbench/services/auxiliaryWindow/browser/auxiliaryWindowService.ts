@@ -417,6 +417,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
+		container.setAttribute('role', 'application');
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes
