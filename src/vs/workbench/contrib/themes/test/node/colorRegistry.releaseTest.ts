@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
+import { IColorRegistry, Extensions, ColorContribution, asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
 import { asTextOrError } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
@@ -33,9 +33,59 @@ interface DescriptionDiff {
 
 export const experimental: string[] = []; // 'settings.modifiedItemForeground', 'editorUnnecessary.foreground' ];
 
+
+const knwonVariablesFileName = 'vscode-known-variables.json';
+
 suite('Color Registry', function () {
 
-	test('all colors documented in theme-color.md', async function () {
+	test(`update colors in ${knwonVariablesFileName}`, async function () {
+		const varFilePath = FileAccess.asFileUri(`vs/../../build/lib/stylelint/${knwonVariablesFileName}`).fsPath;
+		const content = (await pfs.Promises.readFile(varFilePath)).toString();
+
+		const variablesInfo = JSON.parse(content);
+
+		const colorsArray = variablesInfo.colors as string[];
+
+		assert.ok(colorsArray && colorsArray.length > 0, '${knwonVariablesFileName} contains no color descriptions');
+
+		const colors = new Set(colorsArray);
+
+		const updatedColors = [];
+		const missing = [];
+		const themingRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
+		for (const color of themingRegistry.getColors()) {
+			const id = asCssVariableName(color.id);
+
+			if (!colors.has(id)) {
+				if (!color.deprecationMessage) {
+					missing.push(id);
+				}
+			} else {
+				colors.delete(id);
+			}
+			updatedColors.push(id);
+		}
+
+		const superfluousKeys = [...colors.keys()];
+
+		let errorText = '';
+		if (missing.length > 0) {
+			errorText += `\n\Adding the following colors:\n\n${JSON.stringify(missing, undefined, '\t')}\n`;
+		}
+		if (superfluousKeys.length > 0) {
+			errorText += `\n\Removing the following colors:\n\n${superfluousKeys.join('\n')}\n`;
+		}
+
+		if (errorText.length > 0) {
+			updatedColors.sort();
+			variablesInfo.colors = updatedColors;
+			await pfs.Promises.writeFile(varFilePath, JSON.stringify(variablesInfo, undefined, '\t'));
+
+			assert.fail(`\n\Updating ${path.normalize(varFilePath)}.\nPlease verify and commit.\n\n${errorText}\n`);
+		}
+	});
+
+	test('all colors listed in theme-color.md', async function () {
 		// avoid importing the TestEnvironmentService as it brings in a duplicate registration of the file editor input factory.
 		const environmentService = new class extends mock<INativeEnvironmentService>() { override args = { _: [] }; };
 

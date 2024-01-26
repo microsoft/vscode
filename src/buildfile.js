@@ -5,7 +5,7 @@
 
 /**
  * @param {string} name
- * @param {string[]} exclude
+ * @param {string[]=} exclude
  */
 function createModuleDescription(name, exclude) {
 
@@ -47,14 +47,13 @@ exports.base = [
 
 exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker')];
 exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
-exports.workerSharedProcess = [createEditorWorkerModuleDescription('vs/platform/sharedProcess/electron-browser/sharedProcessWorkerMain')];
 exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
 exports.workerLocalFileSearch = [createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch')];
 exports.workerProfileAnalysis = [createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker')];
 
 exports.workbenchDesktop = [
 	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/worker/textMate.worker'),
+	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -63,7 +62,7 @@ exports.workbenchDesktop = [
 
 exports.workbenchWeb = [
 	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/worker/textMate.worker'),
+	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 ];
 

@@ -571,6 +571,8 @@ flakySuite('IPC, create handle', () => {
 
 suite('WebSocketNodeSocket', () => {
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toUint8Array(data: number[]): Uint8Array {
 		const result = new Uint8Array(data.length);
 		for (let i = 0; i < data.length; i++) {
@@ -603,11 +605,17 @@ suite('WebSocketNodeSocket', () => {
 		private readonly _onClose = new Emitter<SocketCloseEvent>();
 		public readonly onClose = this._onClose.event;
 
+		public writtenData: VSBuffer[] = [];
+
 		public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		}
 
 		constructor() {
 			super();
+		}
+
+		public write(data: VSBuffer): void {
+			this.writtenData.push(data);
 		}
 
 		public fireData(data: number[]): void {
@@ -718,15 +726,15 @@ suite('WebSocketNodeSocket', () => {
 			server.close();
 
 			const webSocketNodeSocket = new WebSocketNodeSocket(new NodeSocket(socket), true, null, false);
-			webSocketNodeSocket.onData((data) => {
+			ds.add(webSocketNodeSocket.onData((data) => {
 				receivingSideOnDataCallCount++;
 				receivingSideTotalBytes += data.byteLength;
-			});
+			}));
 
-			webSocketNodeSocket.onClose(() => {
+			ds.add(webSocketNodeSocket.onClose(() => {
 				webSocketNodeSocket.dispose();
 				receivingSideSocketClosedBarrier.open();
-			});
+			}));
 		});
 
 		const socket = connect({
@@ -744,6 +752,40 @@ suite('WebSocketNodeSocket', () => {
 
 		assert.strictEqual(receivingSideTotalBytes, buff.byteLength);
 		assert.strictEqual(receivingSideOnDataCallCount, 4);
+	});
+
+	test('issue #194284: ping/pong opcodes are supported', async () => {
+
+		const disposables = new DisposableStore();
+		const socket = new FakeNodeSocket();
+		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, false, null, false));
+
+		let receivedData: string = '';
+		disposables.add(webSocket.onData((buff) => {
+			receivedData += fromCharCodeArray(fromUint8Array(buff.buffer));
+		}));
+
+		// A single-frame non-compressed text message that contains "Hello"
+		socket.fireData([0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+
+		// A ping message that contains "data"
+		socket.fireData([0x89, 0x04, 0x64, 0x61, 0x74, 0x61]);
+
+		// Another single-frame non-compressed text message that contains "Hello"
+		socket.fireData([0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+
+		assert.strictEqual(receivedData, 'HelloHello');
+		assert.deepStrictEqual(
+			socket.writtenData.map(x => fromUint8Array(x.buffer)),
+			[
+				// A pong message that contains "data"
+				[0x8A, 0x04, 0x64, 0x61, 0x74, 0x61]
+			]
+		);
+
+		disposables.dispose();
+
+		return receivedData;
 	});
 
 	function generateRandomBuffer(size: number): VSBuffer {

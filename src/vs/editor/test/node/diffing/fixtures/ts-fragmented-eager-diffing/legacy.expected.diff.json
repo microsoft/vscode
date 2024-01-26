@@ -1,0 +1,79 @@
+{
+	"original": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport { IHistoryNavigationWidget } from 'vs/base/browser/history';\nimport { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';\nimport { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';\nimport { IReplaceInputOptions, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';\nimport { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';\nimport { KeyCode, KeyMod } from 'vs/base/common/keyCodes';\nimport { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';\nimport { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';\nimport { localize } from 'vs/nls';\nimport { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';\n\nexport const historyNavigationVisible = new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', \"Whether suggestion are visible\"));\n\nconst HistoryNavigationWidgetFocusContext = 'historyNavigationWidgetFocus';\nconst HistoryNavigationForwardsEnablementContext = 'historyNavigationForwardsEnabled';\nconst HistoryNavigationBackwardsEnablementContext = 'historyNavigationBackwardsEnabled';\n\nexport interface IHistoryNavigationContext extends IDisposable {\n\tscopedContextKeyService: IContextKeyService;\n\thistoryNavigationForwardsEnablement: IContextKey<boolean>;\n\thistoryNavigationBackwardsEnablement: IContextKey<boolean>;\n}\n\nlet lastFocusedWidget: IHistoryNavigationWidget | undefined = undefined;\nconst widgets: IHistoryNavigationWidget[] = [];\n\nexport function registerAndCreateHistoryNavigationContext(contextKeyService: IContextKeyService, widget: IHistoryNavigationWidget): IHistoryNavigationContext {\n\tif (widgets.includes(widget)) {\n\t\tthrow new Error('Cannot register the same widget multiple times');\n\t}\n\n\twidgets.push(widget);\n\tconst disposableStore = new DisposableStore();\n\tconst scopedContextKeyService = disposableStore.add(contextKeyService.createScoped(widget.element));\n\tconst historyNavigationWidgetFocus = new RawContextKey<boolean>(HistoryNavigationWidgetFocusContext, false).bindTo(scopedContextKeyService);\n\tconst historyNavigationForwardsEnablement = new RawContextKey<boolean>(HistoryNavigationForwardsEnablementContext, true).bindTo(scopedContextKeyService);\n\tconst historyNavigationBackwardsEnablement = new RawContextKey<boolean>(HistoryNavigationBackwardsEnablementContext, true).bindTo(scopedContextKeyService);\n\n\tconst onDidFocus = () => {\n\t\thistoryNavigationWidgetFocus.set(true);\n\t\tlastFocusedWidget = widget;\n\t};\n\n\tconst onDidBlur = () => {\n\t\thistoryNavigationWidgetFocus.set(false);\n\t\tif (lastFocusedWidget === widget) {\n\t\t\tlastFocusedWidget = undefined;\n\t\t}\n\t};\n\n\t// Check for currently being focused\n\tif (widget.element === document.activeElement) {\n\t\tonDidFocus();\n\t}\n\n\tdisposableStore.add(widget.onDidFocus(() => onDidFocus()));\n\tdisposableStore.add(widget.onDidBlur(() => onDidBlur()));\n\tdisposableStore.add(toDisposable(() => {\n\t\twidgets.splice(widgets.indexOf(widget), 1);\n\t\tonDidBlur();\n\t}));\n\n\treturn {\n\t\tscopedContextKeyService,\n\t\thistoryNavigationForwardsEnablement,\n\t\thistoryNavigationBackwardsEnablement,\n\t\tdispose() {\n\t\t\tdisposableStore.dispose();\n\t\t}\n\t};\n}\n\nexport class ContextScopedHistoryInputBox extends HistoryInputBox {\n\n\tconstructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions,\n\t\t@IContextKeyService contextKeyService: IContextKeyService\n\t) {\n\t\tsuper(container, contextViewProvider, options);\n\t\tthis._register(registerAndCreateHistoryNavigationContext(contextKeyService, this));\n\t}\n\n}\n\nexport class ContextScopedFindInput extends FindInput {\n\n\tconstructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider, options: IFindInputOptions,\n\t\t@IContextKeyService contextKeyService: IContextKeyService\n\t) {\n\t\tsuper(container, contextViewProvider, options);\n\t\tthis._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));\n\t}\n}\n\nexport class ContextScopedReplaceInput extends ReplaceInput {\n\n\tconstructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IReplaceInputOptions,\n\t\t@IContextKeyService contextKeyService: IContextKeyService, showReplaceOptions: boolean = false\n\t) {\n\t\tsuper(container, contextViewProvider, showReplaceOptions, options);\n\t\tthis._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));\n\t}\n\n}\n\nKeybindingsRegistry.registerCommandAndKeybindingRule({\n\tid: 'history.showPrevious',\n\tweight: KeybindingWeight.WorkbenchContrib,\n\twhen: ContextKeyExpr.and(\n\t\tContextKeyExpr.has(HistoryNavigationWidgetFocusContext),\n\t\tContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true),\n\t\thistoryNavigationVisible.isEqualTo(false),\n\t),\n\tprimary: KeyCode.UpArrow,\n\tsecondary: [KeyMod.Alt | KeyCode.UpArrow],\n\thandler: (accessor) => {\n\t\tlastFocusedWidget?.showPreviousValue();\n\t}\n});\n\nKeybindingsRegistry.registerCommandAndKeybindingRule({\n\tid: 'history.showNext',\n\tweight: KeybindingWeight.WorkbenchContrib,\n\twhen: ContextKeyExpr.and(\n\t\tContextKeyExpr.has(HistoryNavigationWidgetFocusContext),\n\t\tContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true),\n\t\thistoryNavigationVisible.isEqualTo(false),\n\t),\n\tprimary: KeyCode.DownArrow,\n\tsecondary: [KeyMod.Alt | KeyCode.DownArrow],\n\thandler: (accessor) => {\n\t\tlastFocusedWidget?.showNextValue();\n\t}\n});\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport { IHistoryNavigationWidget } from 'vs/base/browser/history';\nimport { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';\nimport { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';\nimport { IReplaceInputOptions, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';\nimport { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';\nimport { KeyCode, KeyMod } from 'vs/base/common/keyCodes';\nimport { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';\nimport { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';\nimport { localize } from 'vs/nls';\nimport { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';\n\nexport const historyNavigationVisible = new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', \"Whether suggestion are visible\"));\n\nconst HistoryNavigationWidgetFocusContext = 'historyNavigationWidgetFocus';\nconst HistoryNavigationForwardsEnablementContext = 'historyNavigationForwardsEnabled';\nconst HistoryNavigationBackwardsEnablementContext = 'historyNavigationBackwardsEnabled';\n\nexport interface IHistoryNavigationContext extends IDisposable {\n\thistoryNavigationForwardsEnablement: IContextKey<boolean>;\n\thistoryNavigationBackwardsEnablement: IContextKey<boolean>;\n}\n\nlet lastFocusedWidget: IHistoryNavigationWidget | undefined = undefined;\nconst widgets: IHistoryNavigationWidget[] = [];\n\nexport function registerAndCreateHistoryNavigationContext(scopedContextKeyService: IContextKeyService, widget: IHistoryNavigationWidget): IHistoryNavigationContext {\n\tif (widgets.includes(widget)) {\n\t\tthrow new Error('Cannot register the same widget multiple times');\n\t}\n\n\twidgets.push(widget);\n\tconst disposableStore = new DisposableStore();\n\tconst historyNavigationWidgetFocus = new RawContextKey<boolean>(HistoryNavigationWidgetFocusContext, false).bindTo(scopedContextKeyService);\n\tconst historyNavigationForwardsEnablement = new RawContextKey<boolean>(HistoryNavigationForwardsEnablementContext, true).bindTo(scopedContextKeyService);\n\tconst historyNavigationBackwardsEnablement = new RawContextKey<boolean>(HistoryNavigationBackwardsEnablementContext, true).bindTo(scopedContextKeyService);\n\n\tconst onDidFocus = () => {\n\t\thistoryNavigationWidgetFocus.set(true);\n\t\tlastFocusedWidget = widget;\n\t};\n\n\tconst onDidBlur = () => {\n\t\thistoryNavigationWidgetFocus.set(false);\n\t\tif (lastFocusedWidget === widget) {\n\t\t\tlastFocusedWidget = undefined;\n\t\t}\n\t};\n\n\t// Check for currently being focused\n\tif (widget.element === document.activeElement) {\n\t\tonDidFocus();\n\t}\n\n\tdisposableStore.add(widget.onDidFocus(() => onDidFocus()));\n\tdisposableStore.add(widget.onDidBlur(() => onDidBlur()));\n\tdisposableStore.add(toDisposable(() => {\n\t\twidgets.splice(widgets.indexOf(widget), 1);\n\t\tonDidBlur();\n\t}));\n\n\treturn {\n\t\thistoryNavigationForwardsEnablement,\n\t\thistoryNavigationBackwardsEnablement,\n\t\tdispose() {\n\t\t\tdisposableStore.dispose();\n\t\t}\n\t};\n}\n\nexport class ContextScopedHistoryInputBox extends HistoryInputBox {\n\n\tconstructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions,\n\t\t@IContextKeyService contextKeyService: IContextKeyService\n\t) {\n\t\tsuper(container, contextViewProvider, options);\n\t\tconst scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));\n\t\tthis._register(registerAndCreateHistoryNavigationContext(scopedContextKeyService, this));\n\t}\n\n}\n\nexport class ContextScopedFindInput extends FindInput {\n\n\tconstructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider, options: IFindInputOptions,\n\t\t@IContextKeyService contextKeyService: IContextKeyService\n\t) {\n\t\tsuper(container, contextViewProvider, options);\n\t\tconst scopedContextKeyService = this._register(contextKeyService.createScoped(this.inputBox.element));\n\t\tthis._register(registerAndCreateHistoryNavigationContext(scopedContextKeyService, this.inputBox));\n\t}\n}\n\nexport class ContextScopedReplaceInput extends ReplaceInput {\n\n\tconstructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IReplaceInputOptions,\n\t\t@IContextKeyService contextKeyService: IContextKeyService, showReplaceOptions: boolean = false\n\t) {\n\t\tsuper(container, contextViewProvider, showReplaceOptions, options);\n\t\tconst scopedContextKeyService = this._register(contextKeyService.createScoped(this.inputBox.element));\n\t\tthis._register(registerAndCreateHistoryNavigationContext(scopedContextKeyService, this.inputBox));\n\t}\n\n}\n\nKeybindingsRegistry.registerCommandAndKeybindingRule({\n\tid: 'history.showPrevious',\n\tweight: KeybindingWeight.WorkbenchContrib,\n\twhen: ContextKeyExpr.and(\n\t\tContextKeyExpr.has(HistoryNavigationWidgetFocusContext),\n\t\tContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true),\n\t\thistoryNavigationVisible.isEqualTo(false),\n\t),\n\tprimary: KeyCode.UpArrow,\n\tsecondary: [KeyMod.Alt | KeyCode.UpArrow],\n\thandler: (accessor) => {\n\t\tlastFocusedWidget?.showPreviousValue();\n\t}\n});\n\nKeybindingsRegistry.registerCommandAndKeybindingRule({\n\tid: 'history.showNext',\n\tweight: KeybindingWeight.WorkbenchContrib,\n\twhen: ContextKeyExpr.and(\n\t\tContextKeyExpr.has(HistoryNavigationWidgetFocusContext),\n\t\tContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true),\n\t\thistoryNavigationVisible.isEqualTo(false),\n\t),\n\tprimary: KeyCode.DownArrow,\n\tsecondary: [KeyMod.Alt | KeyCode.DownArrow],\n\thandler: (accessor) => {\n\t\tlastFocusedWidget?.showNextValue();\n\t}\n});\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[24,25)",
+			"modifiedRange": "[24,24)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[32,33)",
+			"modifiedRange": "[31,32)",
+			"innerChanges": [
+				{
+					"originalRange": "[32,59 -> 32,61]",
+					"modifiedRange": "[31,59 -> 31,67]"
+				}
+			]
+		},
+		{
+			"originalRange": "[39,40)",
+			"modifiedRange": "[38,38)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[69,70)",
+			"modifiedRange": "[67,67)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[84,85)",
+			"modifiedRange": "[81,83)",
+			"innerChanges": [
+				{
+					"originalRange": "[84,1 -> 84,1]",
+					"modifiedRange": "[81,1 -> 82,1]"
+				},
+				{
+					"originalRange": "[84,60 -> 84,62]",
+					"modifiedRange": "[82,60 -> 82,68]"
+				}
+			]
+		},
+		{
+			"originalRange": "[95,96)",
+			"modifiedRange": "[93,95)",
+			"innerChanges": [
+				{
+					"originalRange": "[95,1 -> 95,1]",
+					"modifiedRange": "[93,1 -> 94,1]"
+				},
+				{
+					"originalRange": "[95,60 -> 95,62]",
+					"modifiedRange": "[94,60 -> 94,68]"
+				}
+			]
+		},
+		{
+			"originalRange": "[105,106)",
+			"modifiedRange": "[104,106)",
+			"innerChanges": [
+				{
+					"originalRange": "[105,1 -> 105,1]",
+					"modifiedRange": "[104,1 -> 105,1]"
+				},
+				{
+					"originalRange": "[105,60 -> 105,62]",
+					"modifiedRange": "[105,60 -> 105,68]"
+				}
+			]
+		}
+	]
+}

@@ -60,6 +60,14 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 		this.loggerService.setVisibility(URI.revive(resource), visible);
 	}
 
+	$flush(file: UriComponents): void {
+		const logger = this.loggerService.getLogger(URI.revive(file));
+		if (!logger) {
+			throw new Error('Create the logger before flushing');
+		}
+		logger.flush();
+	}
+
 	dispose(): void {
 		this.disposables.dispose();
 	}

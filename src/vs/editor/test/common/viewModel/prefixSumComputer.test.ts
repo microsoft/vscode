@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { toUint32 } from 'vs/base/common/uint';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/model/prefixSumComputer';
 
 function toUint32Array(arr: number[]): Uint32Array {
@@ -17,6 +18,8 @@ function toUint32Array(arr: number[]): Uint32Array {
 }
 
 suite('Editor ViewModel - PrefixSumComputer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('PrefixSumComputer', () => {
 		let indexOfResult: PrefixSumIndexOfResult;

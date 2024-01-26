@@ -59,6 +59,11 @@ export class DocumentSemanticTokensFeature extends Disposable {
 				}
 			}
 		};
+		modelService.getModels().forEach(model => {
+			if (isSemanticColoringEnabled(model, themeService, configurationService)) {
+				register(model);
+			}
+		});
 		this._register(modelService.onModelAdded((model) => {
 			if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 				register(model);
@@ -126,6 +131,11 @@ class ModelSemanticColoring extends Disposable {
 				this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
 			}
 		}));
+		this._register(this._model.onDidChangeAttached(() => {
+			if (!this._fetchDocumentSemanticTokens.isScheduled()) {
+				this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
+			}
+		}));
 		this._register(this._model.onDidChangeLanguage(() => {
 			// clear any outstanding state
 			if (this._currentDocumentResponse) {
@@ -180,6 +190,8 @@ class ModelSemanticColoring extends Disposable {
 			this._currentDocumentRequestCancellationTokenSource.cancel();
 			this._currentDocumentRequestCancellationTokenSource = null;
 		}
+		dispose(this._documentProvidersChangeListeners);
+		this._documentProvidersChangeListeners = [];
 		this._setDocumentSemanticTokens(null, null, null, []);
 		this._isDisposed = true;
 
@@ -198,6 +210,11 @@ class ModelSemanticColoring extends Disposable {
 				// there are semantic tokens set
 				this._model.tokenization.setSemanticTokens(null, false);
 			}
+			return;
+		}
+
+		if (!this._model.isAttachedToEditor()) {
+			// this document is not visible, there is no need to fetch semantic tokens for it
 			return;
 		}
 

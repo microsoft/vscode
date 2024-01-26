@@ -13,6 +13,7 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
 import { isWindows } from 'vs/base/common/platform';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface Params {
 	setup(): Promise<{
@@ -40,6 +41,7 @@ export default function createSuite(params: Params) {
 	let service: ITextFileService;
 	let testDir = '';
 	const { exists, stat, readFile, detectEncodingByBOM } = params;
+	const disposables = new DisposableStore();
 
 	setup(async () => {
 		const result = await params.setup();
@@ -49,6 +51,7 @@ export default function createSuite(params: Params) {
 
 	teardown(async () => {
 		await params.teardown();
+		disposables.clear();
 	});
 
 	test('create - no encoding - content empty', async () => {
@@ -165,9 +168,9 @@ export default function createSuite(params: Params) {
 	});
 
 	function createTextModelSnapshot(text: string, preserveBOM?: boolean): ITextSnapshot {
-		const textModel = createTextModel(text);
+		const textModel = disposables.add(createTextModel(text));
 		const snapshot = textModel.createSnapshot(preserveBOM);
-		textModel.dispose();
+
 		return snapshot;
 	}
 
@@ -224,7 +227,8 @@ export default function createSuite(params: Params) {
 		const resolved = await service.readStream(resource);
 		assert.strictEqual(resolved.encoding, encoding);
 
-		assert.strictEqual(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false)), expectedContent);
+		const textBuffer = disposables.add(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer);
+		assert.strictEqual(snapshotToString(textBuffer.createSnapshot(false)), expectedContent);
 	}
 
 	test('write - use encoding (cp1252)', async () => {
@@ -252,18 +256,21 @@ export default function createSuite(params: Params) {
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
 		let resolved = await service.readStream(resource, { encoding });
-		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer = disposables.add(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer);
+		const content = snapshotToString(textBuffer.createSnapshot(false));
 		assert.strictEqual(content, expected);
 
 		await service.write(resource, content, { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		const textBuffer2 = disposables.add(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer);
+		assert.strictEqual(snapshotToString(textBuffer2.createSnapshot(false)), content);
 
 		await service.write(resource, createTextModelSnapshot(content), { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		const textBuffer3 = disposables.add(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer);
+		assert.strictEqual(snapshotToString(textBuffer3.createSnapshot(false)), content);
 	}
 
 	test('write - no encoding - content as string', async () => {
@@ -340,7 +347,7 @@ export default function createSuite(params: Params) {
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, null);
 
-		const model = createTextModel((await readFile(resource.fsPath)).toString() + 'updates');
+		const model = disposables.add(createTextModel((await readFile(resource.fsPath)).toString() + 'updates'));
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8_with_bom });
 
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
@@ -360,8 +367,6 @@ export default function createSuite(params: Params) {
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8 });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, null);
-
-		model.dispose();
 	});
 
 	test('write - preserve UTF8 BOM - content as string', async () => {
@@ -412,8 +417,9 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.size, (await stat(resource.fsPath)).size);
 
 		const content = (await readFile(resource.fsPath)).toString();
+		const textBuffer = disposables.add(result.value.create(DefaultEndOfLine.LF).textBuffer);
 		assert.strictEqual(
-			snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false)),
+			snapshotToString(textBuffer.createSnapshot(false)),
 			snapshotToString(createTextModelSnapshot(content, false)));
 	}
 
@@ -541,7 +547,8 @@ export default function createSuite(params: Params) {
 		const result = await service.readStream(resource, { encoding });
 		assert.strictEqual(result.encoding, encoding);
 
-		let contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer = disposables.add(result.value.create(DefaultEndOfLine.LF).textBuffer);
+		let contents = snapshotToString(textBuffer.createSnapshot(false));
 
 		assert.strictEqual(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);
@@ -557,7 +564,8 @@ export default function createSuite(params: Params) {
 
 		const factory = await createTextBufferFactoryFromStream(await service.getDecodedStream(resource, bufferToStream(rawFileVSBuffer), { encoding }));
 
-		contents = snapshotToString(factory.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer2 = disposables.add(factory.create(DefaultEndOfLine.LF).textBuffer);
+		contents = snapshotToString(textBuffer2.createSnapshot(false));
 
 		assert.strictEqual(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);

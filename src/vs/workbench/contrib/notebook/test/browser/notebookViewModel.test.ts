@@ -28,8 +28,11 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IBaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookViewModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let textModelService: ITextModelService;
@@ -37,6 +40,7 @@ suite('NotebookViewModel', () => {
 	let undoRedoService: IUndoRedoService;
 	let modelService: IModelService;
 	let languageService: ILanguageService;
+	let notebookExecutionStateService: INotebookExecutionStateService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
@@ -46,6 +50,7 @@ suite('NotebookViewModel', () => {
 		undoRedoService = instantiationService.get(IUndoRedoService);
 		modelService = instantiationService.get(IModelService);
 		languageService = instantiationService.get(ILanguageService);
+		notebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
@@ -56,9 +61,16 @@ suite('NotebookViewModel', () => {
 	test('ctor', function () {
 		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService);
 		const model = new NotebookEditorTestModel(notebook);
-		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService)), new NotebookEventDispatcher(), () => ({} as IBaseCellEditorOptions));
-		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService);
+		const options = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false);
+		const eventDispatcher = new NotebookEventDispatcher();
+		const viewContext = new ViewContext(options, eventDispatcher, () => ({} as IBaseCellEditorOptions));
+		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService, notebookExecutionStateService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
+		notebook.dispose();
+		model.dispose();
+		options.dispose();
+		eventDispatcher.dispose();
+		viewModel.dispose();
 	});
 
 	test('insert/delete', async function () {
@@ -77,6 +89,9 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
 				assert.strictEqual(viewModel.getCellIndex(cell), -1);
+
+				cell.dispose();
+				cell.model.dispose();
 			}
 		);
 	});
@@ -103,6 +118,11 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
+
+				cell.dispose();
+				cell.model.dispose();
+				cell2.dispose();
+				cell2.model.dispose();
 			}
 		);
 	});
@@ -134,6 +154,8 @@ function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 }
 
 suite('NotebookViewModel Decorations', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('tracking range', async function () {
 		await withTestNotebook(
 			[
@@ -151,7 +173,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2,
 				});
 
-				insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true, true);
+				const cell1 = insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 2,
 
@@ -165,7 +187,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2
 				});
 
-				insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true, true);
+				const cell2 = insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -185,6 +207,11 @@ suite('NotebookViewModel Decorations', () => {
 
 					end: 1
 				});
+
+				cell1.dispose();
+				cell1.model.dispose();
+				cell2.dispose();
+				cell2.model.dispose();
 			}
 		);
 	});
@@ -266,13 +293,11 @@ suite('NotebookViewModel Decorations', () => {
 			return original.indexOf(a) >= 0;
 		}), [{ start: 1, deleteCount: 1, toInsert: [2, 6] }]);
 	});
-
-	test('hidden ranges', async function () {
-
-	});
 });
 
 suite('NotebookViewModel API', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('#115432, get nearest code cell', async function () {
 		await withTestNotebook(
 			[

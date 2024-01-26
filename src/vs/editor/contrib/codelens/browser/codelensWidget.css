@@ -16,24 +16,24 @@
 	font-family: var(--vscode-editorCodeLens-fontFamily), var(--vscode-editorCodeLens-fontFamilyDefault);
 }
 
-.monaco-editor .codelens-decoration>span,
-.monaco-editor .codelens-decoration>a {
+.monaco-editor .codelens-decoration > span,
+.monaco-editor .codelens-decoration > a {
 	user-select: none;
 	-webkit-user-select: none;
 	white-space: nowrap;
 	vertical-align: sub;
 }
 
-.monaco-editor .codelens-decoration>a {
+.monaco-editor .codelens-decoration > a {
 	text-decoration: none;
 }
 
-.monaco-editor .codelens-decoration>a:hover {
+.monaco-editor .codelens-decoration > a:hover {
 	cursor: pointer;
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
-.monaco-editor .codelens-decoration>a:hover .codicon {
+.monaco-editor .codelens-decoration > a:hover .codicon {
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
@@ -45,7 +45,7 @@
 	font-size: var(--vscode-editorCodeLens-fontSize);
 }
 
-.monaco-editor .codelens-decoration>a:hover .codicon::before {
+.monaco-editor .codelens-decoration > a:hover .codicon::before {
 	cursor: pointer;
 }
 

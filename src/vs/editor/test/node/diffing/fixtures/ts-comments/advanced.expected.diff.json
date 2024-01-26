@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "interface Test {\n    /**\n     * Render +/- indicators for added/deleted changes.\n     * Defaults to true.\n     */\n    renderIndicators?: boolean;\n    /**\n     * Original model should be editable?\n     * Defaults to false.\n     */\n    originalEditable?: boolean;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "interface Test {\n    /**\n     * Render +/- indicators for added/deleted changes.\n     * Defaults to true.\n     */\n    renderIndicators?: boolean;\n    /**\n     * Shows icons in the glyph margin to revert changes.\n     * Default to true.\n     */\n    renderMarginRevertIcon?: boolean;\n    /**\n     * Original model should be editable?\n     * Defaults to false.\n     */\n    originalEditable?: boolean;\n}",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[7,7)",
+			"modifiedRange": "[7,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[7,1 -> 7,1]",
+					"modifiedRange": "[7,1 -> 12,1]"
+				}
+			]
+		}
+	]
+}

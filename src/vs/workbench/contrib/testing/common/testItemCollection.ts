@@ -555,7 +555,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			console.error(`Unhandled error in resolveHandler of test controller "${this.options.controllerId}"`, err);
 		};
 
-		let r: Thenable<void> | void;
+		let r: Thenable<void> | undefined | void;
 		try {
 			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {

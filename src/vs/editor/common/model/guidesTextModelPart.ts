@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import * as strings from 'vs/base/common/strings';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -13,6 +13,7 @@ import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { BracketGuideOptions, HorizontalGuidesState, IActiveIndentGuideInfo, IGuidesTextModelPart, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 export class GuidesTextModelPart extends TextModelPart implements IGuidesTextModelPart {
 	constructor(
@@ -46,7 +47,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 		const lineCount = this.textModel.getLineCount();
 
 		if (lineNumber < 1 || lineNumber > lineCount) {
-			throw new Error('Illegal value for lineNumber');
+			throw new BugIndicatingError('Illegal value for lineNumber');
 		}
 
 		const foldingRules = this.getLanguageConfiguration(

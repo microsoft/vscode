@@ -73,7 +73,7 @@ export function registerValidateSupport(
 	const emptyDiagnosticsResponse = Object.freeze({ kind: 'full', items: [] });
 
 	connection.languages.diagnostics.on(async (params, token): Promise<FullDocumentDiagnosticReport | UnchangedDocumentDiagnosticReport> => {
-		logger.log(md.LogLevel.Trace, 'Server: connection.languages.diagnostics.on', params.textDocument.uri);
+		logger.log(md.LogLevel.Debug, 'connection.languages.diagnostics.on', { document: params.textDocument.uri });
 
 		if (!config.getSettings()?.markdown.validate.enabled) {
 			return emptyDiagnosticsResponse;

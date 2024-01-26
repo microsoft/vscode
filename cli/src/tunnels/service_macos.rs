@@ -9,7 +9,6 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use super::shutdown_signal::ShutdownSignal;
 use async_trait::async_trait;
 
 use crate::{
@@ -18,7 +17,7 @@ use crate::{
 	state::LauncherPaths,
 	util::{
 		command::capture_command_and_check_status,
-		errors::{wrap, AnyError, MissingHomeDirectory},
+		errors::{wrap, AnyError, CodeError, MissingHomeDirectory},
 	},
 };
 
@@ -73,8 +72,12 @@ impl ServiceManager for LaunchdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let rx = ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC]);
-		handle.run_service(self.log, launcher_paths, rx).await
+		handle.run_service(self.log, launcher_paths).await
+	}
+
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let cmd = capture_command_and_check_status("launchctl", &["list"]).await?;
+		Ok(String::from_utf8_lossy(&cmd.stdout).contains(&get_service_label()))
 	}
 
 	async fn unregister(&self) -> Result<(), crate::util::errors::AnyError> {
@@ -83,8 +86,8 @@ impl ServiceManager for LaunchdService {
 		match capture_command_and_check_status("launchctl", &["stop", &get_service_label()]).await {
 			Ok(_) => {}
 			// status 3 == "no such process"
-			Err(AnyError::CommandFailed(e)) if e.output.status.code() == Some(3) => {}
-			Err(e) => return Err(e),
+			Err(CodeError::CommandFailed { code, .. }) if code == 3 => {}
+			Err(e) => return Err(wrap(e, "error stopping service").into()),
 		};
 
 		info!(self.log, "Successfully stopped service...");

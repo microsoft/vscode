@@ -68,7 +68,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			this._configuredExtensionWorkspaceTrustRequestMap.set(id, configuredExtensionWorkspaceTrustRequests[id]);
 		}
 
-		// Workspace trust request type (products.json)
+		// Workspace trust request type (product.json)
 		this._productExtensionWorkspaceTrustRequestMap = new Map<string, ExtensionUntrustedWorkspaceSupport>();
 		if (productService.extensionUntrustedWorkspaceSupport) {
 			for (const id of Object.keys(productService.extensionUntrustedWorkspaceSupport)) {

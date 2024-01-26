@@ -16,6 +16,9 @@ import { createModelServices, createTextModel } from 'vs/editor/test/common/test
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from '../../browser/outlineModel';
+import { mock } from 'vs/base/test/common/mock';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('OutlineModel', function () {
 
@@ -26,11 +29,17 @@ suite('OutlineModel', function () {
 		disposables.clear();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('OutlineModel#create, cached', async function () {
 
 		const insta = createModelServices(disposables);
 		const modelService = insta.get(IModelService);
-		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService()), modelService);
+		const envService = new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		};
+		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService(), envService), modelService);
 
 		const model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let count = 0;
@@ -55,22 +64,28 @@ suite('OutlineModel', function () {
 
 		reg.dispose();
 		model.dispose();
+		service.dispose();
 	});
 
 	test('OutlineModel#create, cached/cancel', async function () {
 
 		const insta = createModelServices(disposables);
 		const modelService = insta.get(IModelService);
-		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService()), modelService);
+		const envService = new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		};
+		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService(), envService), modelService);
 		const model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let isCancelled = false;
 
 		const reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
 			provideDocumentSymbols(d, token) {
 				return new Promise(resolve => {
-					token.onCancellationRequested(_ => {
+					const l = token.onCancellationRequested(_ => {
 						isCancelled = true;
 						resolve(null);
+						l.dispose();
 					});
 				});
 			}
@@ -90,6 +105,8 @@ suite('OutlineModel', function () {
 
 		reg.dispose();
 		model.dispose();
+		service.dispose();
+
 	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {

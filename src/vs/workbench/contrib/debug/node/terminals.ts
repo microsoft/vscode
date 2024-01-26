@@ -30,7 +30,7 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-			const windowsProcessTree = await import('windows-process-tree');
+			const windowsProcessTree = await import('@vscode/windows-process-tree');
 			return new Promise<boolean>(resolve => {
 				windowsProcessTree.getProcessTree(processId, processTree => {
 					resolve(!!processTree && processTree.children.length > 0);

@@ -5,6 +5,7 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { CodeWindow } from 'vs/base/browser/window';
 import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -77,6 +78,7 @@ export interface WebviewInitInfo {
 	readonly contentOptions: WebviewContentOptions;
 
 	readonly extension: WebviewExtensionDescription | undefined;
+	readonly codeWindow?: CodeWindow;
 }
 
 export const enum WebviewContentPurpose {
@@ -94,6 +96,12 @@ export interface WebviewOptions {
 	readonly purpose?: WebviewContentPurpose;
 	readonly customClasses?: string;
 	readonly enableFindWidget?: boolean;
+
+	/**
+	 * Disable the service worker used for loading local resources in the webview.
+	 */
+	readonly disableServiceWorker?: boolean;
+
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
@@ -215,15 +223,26 @@ export interface IWebview extends IDisposable {
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
+
+	/**
+	 * Fired when the webview is disposed of.
+	 */
 	readonly onDidDispose: Event<void>;
 
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ readonly scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
+
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onDidReload: Event<void>;
-	readonly onMessage: Event<WebviewMessageReceivedEvent>;
+
+	/**
+	 * Fired when the webview cannot be loaded or is now in a non-functional state.
+	 */
+	readonly onFatalError: Event<{ readonly message: string }>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
+
+	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 
 	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 

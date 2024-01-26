@@ -8,7 +8,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
@@ -29,7 +30,6 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { category, getElementsToOperateOn, getSearchView, openSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
@@ -173,7 +173,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
 				original: 'Find in Files'
 			},
-			description: {
+			metadata: {
 				description: nls.localize('findInFiles.description', "Open a workspace search"),
 				args: [
 					{
@@ -355,6 +355,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
 	const viewsService = accessor.get(IViewsService);
+	const commandService = accessor.get(ICommandService);
 	const args: IFindInFilesArgs = {};
 	if (Object.keys(_args).length !== 0) {
 		// resolve variables in the same way as in
@@ -362,8 +363,9 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
 		const historyService = accessor.get(IHistoryService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
+		const filteredActiveWorkspaceRootUri = activeWorkspaceRootUri?.scheme === Schemas.file || activeWorkspaceRootUri?.scheme === Schemas.vscodeRemote ? activeWorkspaceRootUri : undefined;
+		const lastActiveWorkspaceRoot = filteredActiveWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(filteredActiveWorkspaceRootUri) ?? undefined : undefined;
 
 		for (const entry of Object.entries(_args)) {
 			const name = entry[0];
@@ -381,11 +383,11 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
 				let updatedText = false;
-				if (typeof args.query === 'string') {
-					openedView.setSearchParameters(args);
-				} else {
+				if (typeof args.query !== 'string') {
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
+				openedView.setSearchParameters(args);
+
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
 		});
@@ -402,7 +404,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 			onlyOpenEditors: args.onlyOpenEditors,
 			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
 		});
-		accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
+		commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
 	}
 }
 //#endregion

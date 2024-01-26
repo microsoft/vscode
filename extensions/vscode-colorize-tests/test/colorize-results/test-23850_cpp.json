@@ -8,9 +8,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -22,9 +22,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -36,9 +36,9 @@
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "meta.preprocessor: #569CD6",
-			"dark_plus_experimental": "meta.preprocessor: #569CD6",
+			"dark_modern": "meta.preprocessor: #569CD6",
 			"hc_light": "meta.preprocessor: #0F4A85",
-			"light_plus_experimental": "meta.preprocessor: #0000FF"
+			"light_modern": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -50,9 +50,9 @@
 			"dark_vs": "entity.name.function.preprocessor: #569CD6",
 			"light_vs": "entity.name.function.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function.preprocessor: #569CD6",
+			"dark_modern": "entity.name.function.preprocessor: #569CD6",
 			"hc_light": "entity.name.function.preprocessor: #0F4A85",
-			"light_plus_experimental": "entity.name.function.preprocessor: #0000FF"
+			"light_modern": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -64,9 +64,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -78,9 +78,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -92,9 +92,9 @@
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "meta.preprocessor: #569CD6",
-			"dark_plus_experimental": "meta.preprocessor: #569CD6",
+			"dark_modern": "meta.preprocessor: #569CD6",
 			"hc_light": "meta.preprocessor: #0F4A85",
-			"light_plus_experimental": "meta.preprocessor: #0000FF"
+			"light_modern": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -106,9 +106,9 @@
 			"dark_vs": "entity.name.function.preprocessor: #569CD6",
 			"light_vs": "entity.name.function.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function.preprocessor: #569CD6",
+			"dark_modern": "entity.name.function.preprocessor: #569CD6",
 			"hc_light": "entity.name.function.preprocessor: #0F4A85",
-			"light_plus_experimental": "entity.name.function.preprocessor: #0000FF"
+			"light_modern": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -120,9 +120,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -134,9 +134,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB"
 		}
 	}
 ]

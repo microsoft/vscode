@@ -1,0 +1,15 @@
+{
+  newText: "some code content with vuln after",
+  vulnerabilities: [
+    {
+      title: "title",
+      description: "vuln",
+      range: {
+        startLineNumber: 1,
+        startColumn: 11,
+        endLineNumber: 1,
+        endColumn: 28
+      }
+    }
+  ]
+}

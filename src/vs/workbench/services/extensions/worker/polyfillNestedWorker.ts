@@ -38,7 +38,7 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 		});
 
 		port.addEventListener('message', msg => {
-			globalThis.dispatchEvent(new MessageEvent('message', { data: msg.data }));
+			globalThis.dispatchEvent(new MessageEvent('message', { data: msg.data, ports: msg.ports ? [...msg.ports] : undefined }));
 		});
 
 		port.start();

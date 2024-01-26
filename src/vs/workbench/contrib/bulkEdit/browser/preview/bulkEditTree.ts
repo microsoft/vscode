@@ -246,7 +246,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map((edit, idx) => {
-				const range = Range.lift(edit.textEdit.textEdit.range);
+				const range = textModel.validateRange(edit.textEdit.textEdit.range);
 
 				//prefix-math
 				const startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);

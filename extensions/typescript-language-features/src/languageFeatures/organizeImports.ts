@@ -5,16 +5,16 @@
 
 import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
-import { OrganizeImportsMode } from '../protocol.const';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { TelemetryReporter } from '../logging/telemetry';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { OrganizeImportsMode } from '../tsServer/protocol/protocol.const';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 
 interface OrganizeImportsCommandMetadata {
@@ -133,7 +133,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 			return [];
 		}
 
-		if (!context.only || !context.only.contains(this.commandMetadata.kind)) {
+		if (!context.only?.contains(this.commandMetadata.kind)) {
 			return [];
 		}
 

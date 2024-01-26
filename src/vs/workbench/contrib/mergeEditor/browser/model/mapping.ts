@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, findLast, lastOrDefault, numberComparator } from 'vs/base/common/arrays';
+import { compareBy, lastOrDefault, numberComparator } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
@@ -237,24 +238,6 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 		super(inputRange, outputRange);
 
 		this.rangeMappings = rangeMappings || [new RangeMapping(this.inputRange.toRange(), this.outputRange.toRange())];
-
-		assertFn(() => {
-			for (const map of this.rangeMappings) {
-				const inputRangesValid =
-					inputRange.startLineNumber <= map.inputRange.startLineNumber
-					&& map.inputRange.endLineNumber <= inputRange.endLineNumberExclusive
-					&& (map.inputRange.endLineNumber !== inputRange.endLineNumberExclusive || map.inputRange.endColumn === 1);
-
-				const outputRangesValid = outputRange.startLineNumber <= map.outputRange.startLineNumber
-					&& map.outputRange.endLineNumber <= outputRange.endLineNumberExclusive
-					&& (map.outputRange.endLineNumber !== outputRange.endLineNumberExclusive || map.outputRange.endColumn === 1);
-
-				if (!inputRangesValid || !outputRangesValid) {
-					return false;
-				}
-			}
-			return true;
-		});
 	}
 
 	public override addOutputLineDelta(delta: number): DetailedLineRangeMapping {

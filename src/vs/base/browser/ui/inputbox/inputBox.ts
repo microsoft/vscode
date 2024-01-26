@@ -16,6 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
+import { equals } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
@@ -165,9 +166,9 @@ export class InputBox extends Widget {
 			// from ScrollableElement to DOM
 			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
 
-			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
+			const onSelectionChange = this._register(new DomEmitter(container.ownerDocument, 'selectionchange'));
 			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
-				const selection = document.getSelection();
+				const selection = container.ownerDocument.getSelection();
 				return selection?.anchorNode === wrapper;
 			});
 
@@ -286,7 +287,7 @@ export class InputBox extends Widget {
 	}
 
 	public hasFocus(): boolean {
-		return document.activeElement === this.input;
+		return dom.isActiveElement(this.input);
 	}
 
 	public select(range: IRange | null = null): void {
@@ -368,6 +369,11 @@ export class InputBox extends Widget {
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
+		if (this.state === 'open' && equals(this.message, message)) {
+			// Already showing
+			return;
+		}
+
 		this.message = message;
 
 		this.element.classList.remove('idle');
@@ -611,18 +617,24 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	readonly onDidBlur = this._onDidBlur.event;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
-		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = ` (\u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS = nls.localize({
+			key: 'history.inputbox.hint.suffix.noparens',
+			comment: ['Text is the suffix of an input field placeholder coming after the action the input field performs, this will be used when the input field ends in a closing parenthesis ")", for example "Filter (e.g. text, !exclude)". The character inserted into the final string is \u21C5 to represent the up and down arrow keys.']
+		}, ' or {0} for history', `\u21C5`);
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = nls.localize({
+			key: 'history.inputbox.hint.suffix.inparens',
+			comment: ['Text is the suffix of an input field placeholder coming after the action the input field performs, this will be used when the input field does NOT end in a closing parenthesis (eg. "Find"). The character inserted into the final string is \u21C5 to represent the up and down arrow keys.']
+		}, ' ({0} for history)', `\u21C5`);
+
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {
-			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
-				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
+			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
+				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
 				const suffixedPlaceholder = this.placeholder + suffix;
-				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {
+				if (options.showPlaceholderOnFocus && !dom.isActiveElement(this.input)) {
 					this.placeholder = suffixedPlaceholder;
 				}
 				else {
@@ -660,7 +672,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 				}
 			};
 			if (!resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS)) {
-				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
+				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS);
 			}
 		});
 	}
@@ -677,6 +689,19 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		if (this.value && (always || this.value !== this.getCurrentValue())) {
 			this.history.add(this.value);
 		}
+	}
+
+	public prependHistory(restoredHistory: string[]): void {
+		const newHistory = this.getHistory();
+		this.clearHistory();
+
+		restoredHistory.forEach((item) => {
+			this.history.add(item);
+		});
+
+		newHistory.forEach(item => {
+			this.history.add(item);
+		});
 	}
 
 	public getHistory(): string[] {
@@ -705,10 +730,8 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			next = next === this.value ? this.getNextValue() : next;
 		}
 
-		if (next) {
-			this.value = next;
-			aria.status(this.value);
-		}
+		this.value = next ?? '';
+		aria.status(this.value ? this.value : nls.localize('clearedInput', "Cleared Input"));
 	}
 
 	public showPreviousValue(): void {
@@ -729,6 +752,11 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	public clearHistory(): void {
 		this.history.clear();
+	}
+
+	public override setPlaceHolder(placeHolder: string): void {
+		super.setPlaceHolder(placeHolder);
+		this.setTooltip(placeHolder);
 	}
 
 	protected override onBlur(): void {
@@ -755,6 +783,6 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+		return this.history.next();
 	}
 }

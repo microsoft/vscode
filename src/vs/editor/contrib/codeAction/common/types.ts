@@ -20,6 +20,7 @@ export class CodeActionKind {
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorMove = CodeActionKind.Refactor.append('move');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+	public static readonly Notebook = new CodeActionKind('notebook');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
@@ -146,7 +147,6 @@ export interface CodeActionTrigger {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
 	};
-	readonly preview?: boolean;
 }
 
 export class CodeActionCommandArgs {
@@ -193,6 +193,7 @@ export class CodeActionItem {
 	constructor(
 		public readonly action: languages.CodeAction,
 		public readonly provider: languages.CodeActionProvider | undefined,
+		public highlightRange?: boolean,
 	) { }
 
 	async resolve(token: CancellationToken): Promise<this> {
@@ -215,10 +216,5 @@ export interface CodeActionSet extends ActionSet<CodeActionItem> {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
 
-	readonly documentation: readonly {
-		id: string;
-		title: string;
-		tooltip?: string;
-		commandArguments?: any[];
-	}[];
+	readonly documentation: readonly languages.Command[];
 }

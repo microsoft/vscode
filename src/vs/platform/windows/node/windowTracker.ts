@@ -14,15 +14,15 @@ export class ActiveWindowManager extends Disposable {
 
 	private activeWindowId: number | undefined;
 
-	constructor({ onDidOpenWindow, onDidFocusWindow, getActiveWindowId }: {
-		onDidOpenWindow: Event<number>;
-		onDidFocusWindow: Event<number>;
+	constructor({ onDidOpenMainWindow, onDidFocusMainWindow, getActiveWindowId }: {
+		onDidOpenMainWindow: Event<number>;
+		onDidFocusMainWindow: Event<number>;
 		getActiveWindowId(): Promise<number | undefined>;
 	}) {
 		super();
 
 		// remember last active window id upon events
-		const onActiveWindowChange = Event.latch(Event.any(onDidOpenWindow, onDidFocusWindow));
+		const onActiveWindowChange = Event.latch(Event.any(onDidOpenMainWindow, onDidFocusMainWindow));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
 		// resolve current active window

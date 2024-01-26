@@ -15,9 +15,9 @@ suite('Context Key Scanner', () => {
 			case TokenType.Neg:
 				return '!';
 			case TokenType.Eq:
-				return '==';
+				return token.isTripleEq ? '===' : '==';
 			case TokenType.NotEq:
-				return '!=';
+				return token.isTripleEq ? '!==' : '!=';
 			case TokenType.Lt:
 				return '<';
 			case TokenType.LtEq:
@@ -53,6 +53,7 @@ suite('Context Key Scanner', () => {
 		}
 
 	}
+
 	function scan(input: string) {
 		return (new Scanner()).reset(input).scan().map((token: Token) => {
 			return 'lexeme' in token
@@ -77,6 +78,16 @@ suite('Context Key Scanner', () => {
 		test('!foo', () => {
 			const input = '!foo';
 			assert.deepStrictEqual(scan(input), ([{ type: "!", offset: 0 }, { type: "Str", lexeme: "foo", offset: 1 }, { type: "EOF", offset: 4 }]));
+		});
+
+		test('foo === bar', () => {
+			const input = 'foo === bar';
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "===", offset: 4 }, { type: "Str", offset: 8, lexeme: "bar" }, { type: "EOF", offset: 11 }]));
+		});
+
+		test('foo  !== bar', () => {
+			const input = 'foo  !== bar';
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "!==", offset: 5 }, { type: "Str", offset: 9, lexeme: "bar" }, { type: "EOF", offset: 12 }]));
 		});
 
 		test('!(foo && bar)', () => {
@@ -181,21 +192,21 @@ suite('Context Key Scanner', () => {
 		});
 	});
 
+	test(`foo === bar'`, () => {
+		const input = `foo === bar'`;
+		assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "===", offset: 4 }, { type: "Str", offset: 8, lexeme: "bar" }, { type: "ErrorToken", offset: 11, lexeme: "'" }, { type: "EOF", offset: 12 }]));
+	});
+
 	suite('handling lexical errors', () => {
 
 		test(`foo === '`, () => {
 			const input = `foo === '`;
-			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "==", offset: 4 }, { type: "ErrorToken", offset: 6, lexeme: "=" }, { type: "ErrorToken", offset: 8, lexeme: "'" }, { type: "EOF", offset: 9 }]));
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "===", offset: 4 }, { type: "ErrorToken", offset: 8, lexeme: "'" }, { type: "EOF", offset: 9 }]));
 		});
 
 		test(`foo && 'bar - unterminated single quote`, () => {
 			const input = `foo && 'bar`;
 			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "foo", offset: 0 }, { type: "&&", offset: 4 }, { type: "ErrorToken", offset: 7, lexeme: "'bar" }, { type: "EOF", offset: 11 }]));
-		});
-
-		test(`foo === bar'`, () => {
-			const input = `foo === bar'`;
-			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "==", offset: 4 }, { type: "ErrorToken", offset: 6, lexeme: "=" }, { type: "Str", offset: 8, lexeme: "bar" }, { type: "ErrorToken", offset: 11, lexeme: "'" }, { type: "EOF", offset: 12 }]));
 		});
 
 		test('vim<c-r> == 1 && vim<2 <= 3', () => {

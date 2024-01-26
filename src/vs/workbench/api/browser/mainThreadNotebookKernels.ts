@@ -15,11 +15,12 @@ import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
@@ -34,9 +35,9 @@ abstract class MainThreadKernel implements INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
-	kind?: string;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
+	hasVariableProvider: boolean;
 	localResourceRoot: URI;
 
 	public get preloadUris() {
@@ -44,7 +45,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 	}
 
 	public get preloadProvides() {
-		return this.preloads.map(p => p.provides).flat();
+		return this.preloads.flatMap(p => p.provides);
 	}
 
 	constructor(data: INotebookKernelDto2, private _languageService: ILanguageService) {
@@ -56,9 +57,9 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.label = data.label;
 		this.description = data.description;
 		this.detail = data.detail;
-		this.kind = data.kind;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
+		this.hasVariableProvider = data.hasVariableProvider ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
 	}
@@ -79,10 +80,6 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.detail = data.detail;
 			event.detail = true;
 		}
-		if (data.kind !== undefined) {
-			this.kind = data.kind;
-			event.kind = true;
-		}
 		if (data.supportedLanguages !== undefined) {
 			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._languageService.getRegisteredLanguageIds();
 			event.supportedLanguages = true;
@@ -95,11 +92,16 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.implementsInterrupt = data.supportsInterrupt;
 			event.hasInterruptHandler = true;
 		}
+		if (data.hasVariableProvider !== undefined) {
+			this.hasVariableProvider = data.hasVariableProvider;
+			event.hasVariableProvider = true;
+		}
 		this._onDidChange.fire(event);
 	}
 
 	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	abstract cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+	abstract provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
 }
 
 class MainThreadKernelDetectionTask implements INotebookKernelDetectionTask {
@@ -120,6 +122,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
 	private readonly _executions = new Map<number, INotebookCellExecution>();
+	private readonly _notebookExecutions = new Map<number, INotebookExecution>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -140,10 +143,13 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			this._executions.forEach(e => {
 				e.complete({});
 			});
+			this._notebookExecutions.forEach(e => e.complete());
 		}));
 
-		this._disposables.add(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
-			this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
+		this._disposables.add(this._notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === NotebookExecutionType.cell) {
+				this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
+			}
 		}));
 	}
 
@@ -216,6 +222,15 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		return didSend;
 	}
 
+	private variableRequestIndex = 0;
+	private variableRequestMap = new Map<string, AsyncIterableSource<VariablesResult>>();
+	$receiveVariable(requestId: string, variable: VariablesResult) {
+		const source = this.variableRequestMap.get(requestId);
+		if (source) {
+			source.emitOne(variable);
+		}
+	}
+
 	// --- kernel adding/updating/removal
 
 	async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
@@ -226,6 +241,24 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
 				await that._proxy.$cancelCells(handle, uri, handles);
+			}
+			provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+				const requestId = `${handle}variables${that.variableRequestIndex++}`;
+				if (that.variableRequestMap.has(requestId)) {
+					return that.variableRequestMap.get(requestId)!.asyncIterable;
+				}
+
+				const source = new AsyncIterableSource<VariablesResult>();
+				that.variableRequestMap.set(requestId, source);
+				that._proxy.$provideVariables(handle, requestId, notebookUri, parentId, kind, start, token).then(() => {
+					source.resolve();
+					that.variableRequestMap.delete(requestId);
+				}).catch((err) => {
+					source.reject(err);
+					that.variableRequestMap.delete(requestId);
+				});
+
+				return source.asyncIterable;
 			}
 		}(data, this._languageService);
 
@@ -263,7 +296,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		}
 	}
 
-	// --- execution
+	// --- Cell execution
 
 	$createExecution(handle: number, controllerId: string, rawUri: UriComponents, cellHandle: number): void {
 		const uri = URI.revive(rawUri);
@@ -299,6 +332,44 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			onUnexpectedError(e);
 		} finally {
 			this._executions.delete(handle);
+		}
+	}
+
+	// --- Notebook execution
+
+	$createNotebookExecution(handle: number, controllerId: string, rawUri: UriComponents): void {
+		const uri = URI.revive(rawUri);
+		const notebook = this._notebookService.getNotebookTextModel(uri);
+		if (!notebook) {
+			throw new Error(`Notebook not found: ${uri.toString()}`);
+		}
+
+		const kernel = this._notebookKernelService.getMatchingKernel(notebook);
+		if (!kernel.selected || kernel.selected.id !== controllerId) {
+			throw new Error(`Kernel is not selected: ${kernel.selected?.id} !== ${controllerId}`);
+		}
+		const execution = this._notebookExecutionStateService.createExecution(uri);
+		execution.confirm();
+		this._notebookExecutions.set(handle, execution);
+	}
+
+	$beginNotebookExecution(handle: number): void {
+		try {
+			const execution = this._notebookExecutions.get(handle);
+			execution?.begin();
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+	}
+
+	$completeNotebookExecution(handle: number): void {
+		try {
+			const execution = this._notebookExecutions.get(handle);
+			execution?.complete();
+		} catch (e) {
+			onUnexpectedError(e);
+		} finally {
+			this._notebookExecutions.delete(handle);
 		}
 	}
 
@@ -368,5 +439,9 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		if (emitter instanceof Emitter) {
 			emitter.fire(undefined);
 		}
+	}
+
+	$variablesUpdated(notebookUri: UriComponents): void {
+		this._notebookKernelService.notifyVariablesChange(URI.revive(notebookUri));
 	}
 }

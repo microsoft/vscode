@@ -129,6 +129,10 @@ export function getShellIntegrationInjection(
 		'VSCODE_INJECTION': '1'
 	};
 
+	if (options.shellIntegration.nonce) {
+		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
+	}
+
 	// Windows
 	if (isWindows) {
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
@@ -172,7 +176,7 @@ export function getShellIntegrationInjection(
 			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
 			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
 			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/fish_xdg_data');
 			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
 			addEnvMixinPathPrefix(options, envMixin);
 			return { newArgs: undefined, envMixin };
@@ -259,7 +263,7 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
 
 		// Get all prepend PATH entries
-		const pathEntry = merged.map.get('PATH');
+		const pathEntry = merged.getVariableMap({ workspaceFolder: options.workspaceFolder }).get('PATH');
 		const prependToPath: string[] = [];
 		if (pathEntry) {
 			for (const mutator of pathEntry) {

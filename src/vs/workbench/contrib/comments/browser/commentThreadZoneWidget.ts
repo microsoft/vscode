@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -19,15 +18,17 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 
 function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
-	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
+	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
@@ -111,6 +112,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return this._commentThread;
 	}
 
+	public get expanded(): boolean | undefined {
+		return this._isExpanded;
+	}
+
 	private _commentOptions: languages.CommentOptions | undefined;
 
 	constructor(
@@ -122,9 +127,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(editor, { keepEditorSelection: true });
+		super(editor, { keepEditorSelection: true, isAccessible: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
@@ -136,8 +142,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions = controller.options;
 		}
 
-		this._initialCollapsibleState = _commentThread.initialCollapsibleState;
-		this._isExpanded = _commentThread.initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
+		this._initialCollapsibleState = _pendingComment ? languages.CommentThreadCollapsibleState.Expanded : _commentThread.initialCollapsibleState;
+		_commentThread.initialCollapsibleState = this._initialCollapsibleState;
+		this._isExpanded = this._initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -165,7 +172,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		if (this._commentGlyph) {
-			return withNullAsUndefined(this._commentGlyph.getPosition().position);
+			return this._commentGlyph.getPosition().position ?? undefined;
 		}
 		return undefined;
 	}
@@ -183,15 +190,21 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			const height = this.editor.getLayoutInfo().height;
 			const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
 			if (coords) {
-				const commentThreadCoords = coords.thread;
-				const commentCoords = coords.comment;
-
-				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
+				let scrollTop: number = 1;
+				if (this._commentThread.range) {
+					const commentThreadCoords = coords.thread;
+					const commentCoords = coords.comment;
+					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
+				}
+				this.editor.setScrollTop(scrollTop);
+				if (focus) {
+					this._commentThreadWidget.focus();
+				}
 				return;
 			}
 		}
 
-		this.editor.revealRangeInCenter(this._commentThread.range);
+		this.editor.revealRangeInCenter(this._commentThread.range ?? new Range(1, 1, 1, 1));
 		if (focus) {
 			this._commentThreadWidget.focus();
 		}
@@ -204,11 +217,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		};
 	}
 
+	public setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this.expand();
+		this._commentThreadWidget.setPendingComment(comment);
+	}
+
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
 		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
 			CommentThreadWidget,
 			container,
+			this.editor,
 			this._owner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
@@ -216,25 +236,29 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
 			this._pendingEdits,
-			{ editor: this.editor, codeBlockFontSize: '' },
+			{ editor: this.editor, codeBlockFontSize: '', codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily },
 			this._commentOptions,
 			{
-				actionRunner: () => {
+				actionRunner: async () => {
 					if (!this._commentThread.comments || !this._commentThread.comments.length) {
 						const newPosition = this.getPosition();
 
 						if (newPosition) {
-							let range: Range;
 							const originalRange = this._commentThread.range;
+							if (!originalRange) {
+								return;
+							}
+							let range: Range;
+
 							if (newPosition.lineNumber !== originalRange.endLineNumber) {
 								// The widget could have moved as a result of editor changes.
 								// We need to try to calculate the new, more correct, range for the comment.
-								const distance = newPosition.lineNumber - this._commentThread.range.endLineNumber;
+								const distance = newPosition.lineNumber - originalRange.endLineNumber;
 								range = new Range(originalRange.startLineNumber + distance, originalRange.startColumn, originalRange.endLineNumber + distance, originalRange.endColumn);
 							} else {
 								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
 							}
-							this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
+							await this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
 						}
 					}
 				},
@@ -247,7 +271,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(this._commentThreadWidget);
 	}
 
-	private arrowPosition(range: IRange): IPosition {
+	private arrowPosition(range: IRange | undefined): IPosition | undefined {
+		if (!range) {
+			return undefined;
+		}
 		// Arrow on top edge of zone widget will be at the start of the line if range is multi-line, else at midpoint of range (rounding rightwards)
 		return { lineNumber: range.endLineNumber, column: range.endLineNumber === range.startLineNumber ? (range.startColumn + range.endColumn + 1) / 2 : 1 };
 	}
@@ -257,22 +284,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.commentService.disposeCommentThread(this.owner, this._commentThread.threadId);
 	}
 
-	public collapse(): Promise<void> {
+	public collapse() {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
-		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
-			this.deleteCommentThread();
-			return Promise.resolve();
-		}
-
-		this.hide();
-		return Promise.resolve();
 	}
 
-	public expand(): Promise<void> {
+	public expand() {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
-
-		this.show(this.arrowPosition(this._commentThread.range), 2);
-		return Promise.resolve();
 	}
 
 	public getGlyphPosition(): number {
@@ -285,10 +302,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	toggleExpand() {
 		if (this._isExpanded) {
 			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
-			this.hide();
-			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this.deleteCommentThread();
-			}
 		} else {
 			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		}
@@ -305,7 +318,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
-		const lineNumber = this._commentThread.range.endLineNumber;
+		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
 		let shouldMoveWidget = false;
 		if (this._commentGlyph) {
 			this._commentGlyph.setThreadState(commentThread.state);
@@ -315,13 +328,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
-		if (shouldMoveWidget && this._isExpanded) {
+		if ((shouldMoveWidget && this._isExpanded) || (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded)) {
 			this.show(this.arrowPosition(this._commentThread.range), 2);
-		}
-
-		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
-			this.show(this.arrowPosition(this._commentThread.range), 2);
-		} else {
+		} else if (this._commentThread.collapsibleState !== languages.CommentThreadCollapsibleState.Expanded) {
 			this.hide();
 		}
 	}
@@ -334,15 +343,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.layout(widthInPixel);
 	}
 
-	display(range: IRange) {
-		this._commentGlyph = new CommentGlyphWidget(this.editor, range.endLineNumber);
-		this._commentGlyph.setThreadState(this._commentThread.state);
+	display(range: IRange | undefined) {
+		if (range) {
+			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
+			this._commentGlyph.setThreadState(this._commentThread.state);
+		}
 
 		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));
-		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
+		if ((this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) || (range === undefined)) {
 			this.show(this.arrowPosition(range), 2);
 		}
 
@@ -361,7 +372,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeRange(range => {
 			// Move comment glyph widget and show position if the line has changed.
-			const lineNumber = this._commentThread.range.startLineNumber;
+			const lineNumber = this._commentThread.range?.startLineNumber ?? 1;
 			let shouldMoveWidget = false;
 			if (this._commentGlyph) {
 				if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
@@ -389,8 +400,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		if (this._initialCollapsibleState === undefined) {
 			const onDidChangeInitialCollapsibleState = this._commentThread.onDidChangeInitialCollapsibleState(state => {
+				// File comments always start expanded
 				this._initialCollapsibleState = state;
-				this._commentThread.collapsibleState = state;
+				this._commentThread.collapsibleState = this._initialCollapsibleState;
 				onDidChangeInitialCollapsibleState.dispose();
 			});
 			this._commentThreadDisposables.push(onDidChangeInitialCollapsibleState);
@@ -410,11 +422,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	async submitComment(): Promise<void> {
-		this._commentThreadWidget.submitComment();
+		return this._commentThreadWidget.submitComment();
 	}
 
-	_refresh(dimensions?: dom.Dimension) {
-		if (this._isExpanded && dimensions) {
+	_refresh(dimensions: dom.Dimension) {
+		if (dimensions.height === 0 && dimensions.width === 0) {
+			this.commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
+			return;
+		}
+		if (this._isExpanded) {
 			this._commentThreadWidget.layout();
 
 			const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
@@ -430,7 +446,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 			const currentPosition = this.getPosition();
 
-			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
+			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber && this._viewZone.afterLineNumber !== 0) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;
 			}
 
@@ -438,7 +454,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				this._commentThreadWidget.focusCommentEditor();
 			}
 
+			const capture = StableEditorScrollState.capture(this.editor);
 			this._relayout(computedLinesNumber);
+			capture.restore(this.editor);
 		}
 	}
 
@@ -454,9 +472,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.applyTheme(theme, fontInfo);
 	}
 
-	override show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {
+		const glyphPosition = this._commentGlyph?.getPosition();
+		let range = Range.isIRange(rangeOrPos) ? rangeOrPos : (rangeOrPos ? Range.fromPositions(rangeOrPos) : undefined);
+		if (glyphPosition?.position && range && glyphPosition.position.lineNumber !== range.endLineNumber) {
+			// The widget could have moved as a result of editor changes.
+			// We need to try to calculate the new, more correct, range for the comment.
+			const distance = glyphPosition.position.lineNumber - range.endLineNumber;
+			range = new Range(range.startLineNumber + distance, range.startColumn, range.endLineNumber + distance, range.endColumn);
+		}
+
 		this._isExpanded = true;
-		super.show(rangeOrPos, heightInLines);
+		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
 	}
@@ -467,6 +494,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			// Focus the container so that the comment editor will be blurred before it is hidden
 			if (this.editor.hasWidgetFocus()) {
 				this.editor.focus();
+			}
+
+			if (!this._commentThread.comments || !this._commentThread.comments.length) {
+				this.deleteCommentThread();
 			}
 		}
 		super.hide();

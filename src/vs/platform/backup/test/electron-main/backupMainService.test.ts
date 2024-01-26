@@ -26,6 +26,7 @@ import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { InMemoryTestStateMainService } from 'vs/platform/test/electron-main/workbenchTestServices';
 import { LogService } from 'vs/platform/log/common/logService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 flakySuite('BackupMainService', () => {
 
@@ -613,4 +614,6 @@ flakySuite('BackupMainService', () => {
 			assert.strictEqual(found, 2);
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

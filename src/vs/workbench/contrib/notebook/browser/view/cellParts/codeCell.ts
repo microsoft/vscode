@@ -27,8 +27,10 @@ import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/ce
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
 import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { CodeCellViewModel, outputDisplayLimit } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -55,8 +57,8 @@ export class CodeCell extends Disposable {
 		super();
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
-		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
-		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: outputDisplayLimit });
+		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer], DOM.getWindow(notebookEditor.getDomNode())));
 
 		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
@@ -68,10 +70,8 @@ export class CodeCell extends Disposable {
 		this.registerDecorations();
 		this.registerMouseListener();
 
-		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this.viewCell.uri)) {
-				this.cellParts.updateForExecutionState(this.viewCell, e);
-			}
+		this._register(Event.any(this.viewCell.onDidStartExecution, this.viewCell.onDidStopExecution)((e) => {
+			this.cellParts.updateForExecutionState(this.viewCell, e);
 		}));
 
 		this._register(this.viewCell.onDidChangeState(e => {
@@ -99,7 +99,7 @@ export class CodeCell extends Disposable {
 			}
 
 			if (e.focusModeChanged) {
-				this.updateEditorForFocusModeChange();
+				this.updateEditorForFocusModeChange(true);
 			}
 		}));
 
@@ -110,7 +110,7 @@ export class CodeCell extends Disposable {
 		}));
 
 		this.updateEditorOptions();
-		this.updateEditorForFocusModeChange();
+		this.updateEditorForFocusModeChange(false);
 		this.updateForOutputHover();
 		this.updateForOutputFocus();
 
@@ -144,7 +144,7 @@ export class CodeCell extends Disposable {
 
 	private updateForLayout(): void {
 		this._pendingLayout?.dispose();
-		this._pendingLayout = DOM.modify(() => {
+		this._pendingLayout = DOM.modify(DOM.getWindow(this.notebookEditor.getDomNode()), () => {
 			this.cellParts.updateInternalLayoutNow(this.viewCell);
 		});
 	}
@@ -191,7 +191,7 @@ export class CodeCell extends Disposable {
 					if (
 						this.notebookEditor.getActiveCell() === this.viewCell &&
 						this.viewCell.focusMode === CellFocusMode.Editor &&
-						(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
+						(this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
 					{
 						this.templateData.editor?.focus();
 					}
@@ -209,11 +209,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private updateForOutputs(): void {
-		if (this.viewCell.outputsViewModels.length) {
-			DOM.show(this.templateData.focusSinkElement);
-		} else {
-			DOM.hide(this.templateData.focusSinkElement);
-		}
+		DOM.setVisibility(this.viewCell.outputsViewModels.length > 0, this.templateData.focusSinkElement);
 	}
 
 	private updateEditorOptions() {
@@ -268,6 +264,15 @@ export class CodeCell extends Disposable {
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
+		}));
+
+		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
+			WordHighlighterContribution.get(this.templateData.editor)?.stopHighlighting();
+			CodeActionController.get(this.templateData.editor)?.hideCodeActions();
+			CodeActionController.get(this.templateData.editor)?.hideLightBulbWidget();
+		}));
+		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
+			WordHighlighterContribution.get(this.templateData.editor)?.restoreViewState(true);
 		}));
 	}
 
@@ -333,18 +338,23 @@ export class CodeCell extends Disposable {
 		// the document active element is inside the notebook editor or the document body (cell editor being disposed previously)
 		return this.notebookEditor.getActiveCell() === this.viewCell
 			&& this.viewCell.focusMode === CellFocusMode.Editor
-			&& (this.notebookEditor.hasEditorFocus() || document.activeElement === document.body);
+			&& (this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body);
 	}
 
-	private updateEditorForFocusModeChange() {
+	private updateEditorForFocusModeChange(sync: boolean) {
 		if (this.shouldUpdateDOMFocus()) {
-			this.templateData.editor?.focus();
+			if (sync) {
+				this.templateData.editor?.focus();
+			} else {
+				this._register(DOM.runAtThisOrScheduleAtNextAnimationFrame(DOM.getWindow(this.templateData.container), () => {
+					this.templateData.editor?.focus();
+				}));
+			}
 		}
 
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
 		this.templateData.container.classList.toggle('cell-output-focus', this.viewCell.focusMode === CellFocusMode.Output);
 	}
-
 	private updateForCollapseState(): boolean {
 		if (this.viewCell.isOutputCollapsed === this._renderedOutputCollapseState &&
 			this.viewCell.isInputCollapsed === this._renderedInputCollapseState) {
@@ -452,11 +462,7 @@ export class CodeCell extends Disposable {
 		const children = this.templateData.outputContainer.domNode.children;
 		for (let i = 0; i < children.length; i++) {
 			if (children[i].classList.contains('output-inner-container')) {
-				if (hide) {
-					DOM.hide(children[i] as HTMLElement);
-				} else {
-					DOM.show(children[i] as HTMLElement);
-				}
+				DOM.setVisibility(!hide, children[i] as HTMLElement);
 			}
 		}
 	}
@@ -484,7 +490,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private layoutEditor(dimension: IDimension): void {
-		this.templateData.editor?.layout(dimension);
+		this.templateData.editor?.layout(dimension, true);
 	}
 
 	private onCellWidthChange(): void {

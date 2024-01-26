@@ -35,6 +35,7 @@ import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewE
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -69,8 +70,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super();
 
@@ -199,6 +201,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
+						active: webviewInput === this._editorService.activeEditor,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
@@ -376,6 +379,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IPathService private readonly _pathService: IPathService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(MainThreadCustomEditorModel.toWorkingCopyResource(_viewType, _editorResource), fileService);
 
@@ -383,6 +387,21 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
+
+			this._register(extensionService.onWillStop(e => {
+				if (!this.isDirty()) {
+					return;
+				}
+
+				e.veto((async () => {
+					const didSave = await this.save();
+					if (!didSave) {
+						// Veto
+						return true;
+					}
+					return false; // Don't veto
+				})(), localize('vetoExtHostRestart', "Custom editor '{0}' could not be saved.", this.name));
+			}));
 		}
 
 		// Normally means we're re-opening an untitled file

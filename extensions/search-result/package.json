@@ -9,12 +9,11 @@
   "engines": {
     "vscode": "^1.39.0"
   },
-  "categories": [
-    "Programming Languages"
-  ],
   "main": "./out/extension.js",
   "browser": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:search-result"
+  ],
   "scripts": {
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"

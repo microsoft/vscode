@@ -26,6 +26,11 @@ function stackToString(stack: string[] | string | undefined): string | undefined
 
 function detectSystemErrorMessage(exception: any): string {
 
+	// Custom node.js error from us
+	if (exception.code === 'ERR_UNC_HOST_NOT_ALLOWED') {
+		return `${exception.message}. Please update the 'security.allowedUNCHosts' setting if you want to allow this host.`;
+	}
+
 	// See https://nodejs.org/api/errors.html#errors_class_system_error
 	if (typeof exception.code === 'string' && typeof exception.errno === 'number' && typeof exception.syscall === 'string') {
 		return nls.localize('nodeExceptionMessage', "A system error occurred ({0})", exception.message);

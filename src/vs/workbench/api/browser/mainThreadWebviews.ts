@@ -53,17 +53,21 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public $setHtml(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.getWebview(handle);
-		webview.setHtml(value);
+		this.tryGetWebview(handle)?.setHtml(value);
 	}
 
 	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewContentOptions): void {
-		const webview = this.getWebview(handle);
-		webview.contentOptions = reviveWebviewContentOptions(options);
+		const webview = this.tryGetWebview(handle);
+		if (webview) {
+			webview.contentOptions = reviveWebviewContentOptions(options);
+		}
 	}
 
 	public async $postMessage(handle: extHostProtocol.WebviewHandle, jsonMessage: string, ...buffers: VSBuffer[]): Promise<boolean> {
-		const webview = this.getWebview(handle);
+		const webview = this.tryGetWebview(handle);
+		if (!webview) {
+			return false;
+		}
 		const { message, arrayBuffers } = deserializeWebviewMessage(jsonMessage, buffers);
 		return webview.postMessage(message, arrayBuffers);
 	}
@@ -113,8 +117,12 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		return false;
 	}
 
+	private tryGetWebview(handle: extHostProtocol.WebviewHandle): IWebview | undefined {
+		return this._webviews.get(handle);
+	}
+
 	private getWebview(handle: extHostProtocol.WebviewHandle): IWebview {
-		const webview = this._webviews.get(handle);
+		const webview = this.tryGetWebview(handle);
 		if (!webview) {
 			throw new Error(`Unknown webview handle:${handle}`);
 		}

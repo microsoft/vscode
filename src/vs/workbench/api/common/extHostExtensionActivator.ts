@@ -193,6 +193,14 @@ export class ExtensionsActivator implements IDisposable {
 		}
 	}
 
+	public async waitForActivatingExtensions(): Promise<void> {
+		const res: Promise<boolean>[] = [];
+		for (const [_, op] of this._operations) {
+			res.push(op.wait());
+		}
+		await Promise.all(res);
+	}
+
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
 		const op = this._operations.get(extensionId);
 		return Boolean(op && op.value);

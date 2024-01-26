@@ -55,7 +55,7 @@ const vscodeWebResources = [
 	...vscodeWebResourceIncludes,
 
 	// Excludes
-	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
+	'!out-build/vs/**/{node,electron-sandbox,electron-main}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!**/test/**'
@@ -83,7 +83,7 @@ const buildDate = new Date().toISOString();
  */
 const createVSCodeWebProductConfigurationPatcher = (product) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
@@ -108,7 +108,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
  */
 const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
@@ -128,7 +128,7 @@ const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
  */
 const combineContentPatchers = (...patchers) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
@@ -233,7 +233,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build', task.series(
 	task.define('clean-web-extensions-build', util.rimraf('.build/web/extensions')),
-	task.define('bundle-web-extensions-build', () => extensions.packageLocalExtensionsStream(true).pipe(gulp.dest('.build/web'))),
+	task.define('bundle-web-extensions-build', () => extensions.packageLocalExtensionsStream(true, false).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
 ));

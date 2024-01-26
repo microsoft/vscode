@@ -7,7 +7,6 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -15,12 +14,14 @@ import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/l
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { activeContrastBorder, asCssVariable, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { QuickInputController, IQuickInputControllerHost, IQuickInputOptions, IQuickInputStyles } from './quickInput';
-
+import { IQuickInputOptions, IQuickInputStyles, QuickInputHoverDelegate } from './quickInput';
+import { QuickInputController, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInputController';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class QuickInputService extends Themable implements IQuickInputService {
 
@@ -60,8 +61,9 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILayoutService protected readonly layoutService: ILayoutService
+		@ILayoutService protected readonly layoutService: ILayoutService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(themeService);
 	}
@@ -69,9 +71,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	protected createController(host: IQuickInputControllerHost = this.layoutService, options?: Partial<IQuickInputOptions>): QuickInputController {
 		const defaultOptions: IQuickInputOptions = {
 			idPrefix: 'quickInput_',
-			container: host.container,
+			container: host.activeContainer,
 			ignoreFocusOut: () => false,
-			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
 			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
 			linkOpenerDelegate: (content) => {
@@ -89,24 +90,29 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				renderers: IListRenderer<T, any>[],
 				options: IWorkbenchListOptions<T>
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
-			hoverDelegate: {
-				showHover(options, focus) {
-					return undefined;
-				},
-				delay: 200
-			},
-			styles: this.computeStyles()
+			styles: this.computeStyles(),
+			hoverDelegate: new QuickInputHoverDelegate(this.configurationService, this.hoverService)
 		};
 
 		const controller = this._register(new QuickInputController({
 			...defaultOptions,
 			...options
-		}));
+		},
+			this.themeService,
+			this.layoutService
+		));
 
-		controller.layout(host.dimension, host.offset.quickPickTop);
+		controller.layout(host.activeContainerDimension, host.activeContainerOffset.quickPickTop);
 
 		// Layout changes
-		this._register(host.onDidLayout(dimension => controller.layout(dimension, host.offset.quickPickTop)));
+		this._register(host.onDidLayoutActiveContainer(dimension => controller.layout(dimension, host.activeContainerOffset.quickPickTop)));
+		this._register(host.onDidChangeActiveContainer(() => {
+			if (controller.isVisible()) {
+				return;
+			}
+
+			controller.layout(host.activeContainerDimension, host.activeContainerOffset.quickPickTop);
+		}));
 
 		// Context keys
 		this._register(controller.onShow(() => {
@@ -163,6 +169,10 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	createInputBox(): IInputBox {
 		return this.controller.createInputBox();
+	}
+
+	createQuickWidget(): IQuickWidget {
+		return this.controller.createQuickWidget();
 	}
 
 	focus() {

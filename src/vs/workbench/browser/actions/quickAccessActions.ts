@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -14,6 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
+import { Codicon } from 'vs/base/common/codicons';
 
 //#region Quick access management commands and keys
 
@@ -125,7 +126,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 				value: localize('quickOpen', "Go to File..."),
 				original: 'Go to File...'
 			},
-			description: {
+			metadata: {
 				description: `Quick access`,
 				args: [{
 					name: 'prefix',
@@ -155,8 +156,9 @@ registerAction2(class QuickAccessAction extends Action2 {
 		super({
 			id: 'workbench.action.quickOpenWithModes',
 			title: localize('quickOpenWithModes', "Quick Open"),
+			icon: Codicon.search,
 			menu: {
-				id: MenuId.CommandCenter,
+				id: MenuId.CommandCenterCenter,
 				order: 100
 			}
 		});
@@ -210,14 +212,14 @@ class BaseQuickAccessNavigateAction extends Action2 {
 class QuickAccessNavigateNextAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigateNext', { value: localize('quickNavigateNext', "Navigate Next in Quick Open"), original: 'Navigate Next in Quick Open' }, true, true);
+		super('workbench.action.quickOpenNavigateNext', localize2('quickNavigateNext', 'Navigate Next in Quick Open'), true, true);
 	}
 }
 
 class QuickAccessNavigatePreviousAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigatePrevious', { value: localize('quickNavigatePrevious', "Navigate Previous in Quick Open"), original: 'Navigate Previous in Quick Open' }, false, true);
+		super('workbench.action.quickOpenNavigatePrevious', localize2('quickNavigatePrevious', 'Navigate Previous in Quick Open'), false, true);
 	}
 }
 
@@ -226,7 +228,7 @@ class QuickAccessSelectNextAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectNext',
-			{ value: localize('quickSelectNext', "Select Next in Quick Open"), original: 'Select Next in Quick Open' },
+			localize2('quickSelectNext', 'Select Next in Quick Open'),
 			true,
 			false,
 			{
@@ -244,7 +246,7 @@ class QuickAccessSelectPreviousAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectPrevious',
-			{ value: localize('quickSelectPrevious', "Select Previous in Quick Open"), original: 'Select Previous in Quick Open' },
+			localize2('quickSelectPrevious', 'Select Previous in Quick Open'),
 			false,
 			false,
 			{

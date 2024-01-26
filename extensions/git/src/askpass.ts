@@ -18,6 +18,8 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
+	readonly featureDescription = 'git auth provider';
+
 	constructor(private ipc?: IIPCServer) {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('askpass', this);
@@ -28,7 +30,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			GIT_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
 			// VSCODE_GIT_ASKPASS
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
-			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
+			VSCODE_GIT_ASKPASS_EXTRA_ARGS: '',
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
 		};
 
@@ -100,7 +102,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			const options: InputBoxOptions = {
 				password: true,
 				placeHolder: l10n.t('Passphrase'),
-				prompt: `SSH Key: ${file}`,
+				prompt: file ? `SSH Key: ${file}` : undefined,
 				ignoreFocusOut: true
 			};
 

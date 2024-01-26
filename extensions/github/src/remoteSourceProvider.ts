@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace } from 'vscode';
-import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
+import { Uri, env, l10n, workspace } from 'vscode';
+import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
 import { getRepositoryFromQuery, getRepositoryFromUrl } from './util';
+import { getBranchLink, getVscodeDevHost } from './links';
 
 function asRemoteSource(raw: any): RemoteSource {
 	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
@@ -111,5 +112,28 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		const defaultBranch = repo.data.default_branch;
 
 		return branches.sort((a, b) => a === defaultBranch ? -1 : b === defaultBranch ? 1 : 0);
+	}
+
+	async getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]> {
+		const repository = getRepositoryFromUrl(url);
+		if (!repository) {
+			return [];
+		}
+
+		return [{
+			label: l10n.t('Open on GitHub'),
+			icon: 'github',
+			run(branch: string) {
+				const link = getBranchLink(url, branch);
+				env.openExternal(Uri.parse(link));
+			}
+		}, {
+			label: l10n.t('Checkout on vscode.dev'),
+			icon: 'globe',
+			run(branch: string) {
+				const link = getBranchLink(url, branch, getVscodeDevHost());
+				env.openExternal(Uri.parse(link));
+			}
+		}];
 	}
 }

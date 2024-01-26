@@ -7,10 +7,10 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IWorkspacesService, IWorkspaceFolderCreationData, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, IStoredWorkspace, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isTemporaryWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -49,16 +49,10 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	private registerListeners(): void {
 
 		// Storage
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, BrowserWorkspacesService.RECENTLY_OPENED_KEY, this._register(new DisposableStore()))(() => this._onRecentlyOpenedChange.fire()));
 
 		// Workspace
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
-	}
-
-	private onDidChangeStorage(e: IStorageValueChangeEvent): void {
-		if (e.key === BrowserWorkspacesService.RECENTLY_OPENED_KEY && e.scope === StorageScope.APPLICATION) {
-			this._onRecentlyOpenedChange.fire();
-		}
 	}
 
 	private onDidChangeWorkspaceFolders(e: IWorkspaceFoldersChangeEvent): void {

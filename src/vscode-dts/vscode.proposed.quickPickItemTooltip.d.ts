@@ -5,11 +5,11 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/73904
+	// https://github.com/microsoft/vscode/issues/175662
 
 	export interface QuickPickItem {
 		/**
-		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
+		 * A tooltip that is rendered when hovering over the item.
 		 */
 		tooltip?: string | MarkdownString;
 	}

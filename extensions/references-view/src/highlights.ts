@@ -23,7 +23,11 @@ export class EditorHighlights<T> {
 			vscode.workspace.onDidChangeTextDocument(e => this._ignore.add(e.document.uri.toString())),
 			vscode.window.onDidChangeActiveTextEditor(() => _view.visible && this.update()),
 			_view.onDidChangeVisibility(e => e.visible ? this._show() : this._hide()),
-			_view.onDidChangeSelection(() => _view.visible && this.update())
+			_view.onDidChangeSelection(() => {
+				if (_view.visible) {
+					this.update();
+				}
+			})
 		);
 		this._show();
 	}

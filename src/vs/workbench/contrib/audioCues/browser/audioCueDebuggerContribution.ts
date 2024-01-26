@@ -21,9 +21,10 @@ export class AudioCueLineDebuggerContribution
 
 		const isEnabled = observableFromEvent(
 			audioCueService.onEnabledChanged(AudioCue.onDebugBreak),
-			() => audioCueService.isEnabled(AudioCue.onDebugBreak)
+			() => audioCueService.isCueEnabled(AudioCue.onDebugBreak)
 		);
 		this._register(autorunWithStore((reader, store) => {
+			/** @description subscribe to debug sessions */
 			if (!isEnabled.read(reader)) {
 				return;
 			}
@@ -40,7 +41,7 @@ export class AudioCueLineDebuggerContribution
 				)
 			);
 
-			store.add(debugService.onDidEndSession(session => {
+			store.add(debugService.onDidEndSession(({ session }) => {
 				sessionDisposables.get(session)?.dispose();
 				sessionDisposables.delete(session);
 			}));
@@ -51,8 +52,7 @@ export class AudioCueLineDebuggerContribution
 				.forEach((session) =>
 					sessionDisposables.set(session, this.handleSession(session))
 				);
-
-		}, 'subscribe to debug sessions'));
+		}));
 	}
 
 	private handleSession(session: IDebugSession): IDisposable {

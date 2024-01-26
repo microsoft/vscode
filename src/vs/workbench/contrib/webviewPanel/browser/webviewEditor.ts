@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,7 +22,6 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -50,26 +50,25 @@ export class WebviewEditor extends EditorPane {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public override get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
-		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@IHostService private readonly _hostService: IHostService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 
 		this._register(Event.any(
-			editorGroupsService.onDidScroll,
-			editorGroupsService.onDidAddGroup,
-			editorGroupsService.onDidRemoveGroup,
-			editorGroupsService.onDidMoveGroup,
+			_editorGroupsService.activePart.onDidScroll,
+			_editorGroupsService.activePart.onDidAddGroup,
+			_editorGroupsService.activePart.onDidRemoveGroup,
+			_editorGroupsService.activePart.onDidMoveGroup,
 		)(() => {
 			if (this.webview && this._visible) {
 				this.synchronizeWebviewContainerDimensions(this.webview);
@@ -186,7 +185,7 @@ export class WebviewEditor extends EditorPane {
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
-		this._webviewVisibleDisposables.add(this._editorDropService.createEditorDropTarget(input.webview.container, {
+		this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
 			containsGroup: (group) => this.group?.id === group.id
 		}));
 
@@ -200,7 +199,7 @@ export class WebviewEditor extends EditorPane {
 		if (!this._element?.isConnected) {
 			return;
 		}
-		const rootContainer = this._workbenchLayoutService.getContainer(Parts.EDITOR_PART);
+		const rootContainer = this._workbenchLayoutService.getContainer($window, Parts.EDITOR_PART);
 		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
 	}
 

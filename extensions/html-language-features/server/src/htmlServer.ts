@@ -120,8 +120,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			let promise = documentSettings[textDocument.uri];
 			if (!promise) {
 				const scopeUri = textDocument.uri;
-				const configRequestParam: ConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
-				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2] }));
+				const sections = ['css', 'html', 'javascript', 'js/ts'];
+				const configRequestParam: ConfigurationParams = { items: sections.map(section => ({ scopeUri, section })) };
+				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2], 'js/ts': s[3] }));
 				documentSettings[textDocument.uri] = promise;
 			}
 			return promise;
