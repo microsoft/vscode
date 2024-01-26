@@ -28,7 +28,7 @@ export function convertParsedRequestToMarkdown(accessor: ServicesAccessor, parse
 			const labelService = accessor.get(ILabelService);
 			const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
 				|| undefined;
-			const title = uri ? labelService.getUriLabel(uri, { relative: true }) : '';
+			const title = uri ? encodeURIComponent(labelService.getUriLabel(uri, { relative: true })) : '';
 
 			result += `[${part.text}](${variableRefUrl}${title})`;
 		}
@@ -44,7 +44,7 @@ export function walkTreeAndAnnotateReferenceLinks(accessor: ServicesAccessor, el
 		const href = a.getAttribute('data-href');
 		if (href) {
 			if (href.startsWith(variableRefUrl)) {
-				const title = href.slice(variableRefUrl.length);
+				const title = decodeURIComponent(href.slice(variableRefUrl.length));
 				a.parentElement!.replaceChild(
 					renderResourceWidget(a.textContent!, title),
 					a);
