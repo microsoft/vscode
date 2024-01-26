@@ -10,7 +10,7 @@ import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChan
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -26,7 +26,6 @@ import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InlineCompletionItem } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
 
 export enum VersionIdChangeReason {
 	Undo,
@@ -307,14 +306,15 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
-			const primaryEdit = EditOperation.replace(completion.range, completion.insertText);
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					...this._getEdits(editor, completion, primaryEdit).edits,
+					...this._getEdits(editor, completion.toSingleTextEdit()).edits,
 					...completion.additionalTextEdits
 				]
 			);
+
+			// set the selections after
 		}
 
 		if (completion.command) {
@@ -413,10 +413,13 @@ export class InlineCompletionsModel extends Disposable {
 			this._isAcceptingPartially = true;
 			try {
 				editor.pushUndoStop();
-				const primaryEditRange = Range.fromPositions(completion.range.getStartPosition(), position);
-				const primaryEditText = completion.insertText.substring(0, firstPart.column + acceptUntilIndexExclusive - 1);
-				const primaryEdit = EditOperation.replace(primaryEditRange, primaryEditText);
-				const edits = this._getEdits(editor, completion, primaryEdit, firstPart.column + acceptUntilIndexExclusive - 1);
+				const replaceRange = Range.fromPositions(completion.range.getStartPosition(), position);
+				const newText = completion.insertText.substring(
+					0,
+					firstPart.column - completion.range.startColumn + acceptUntilIndexExclusive
+				);
+				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
+				const edits = this._getEdits(editor, singleTextEdit);
 				editor.executeEdits('inlineSuggestion.accept', edits.edits);
 				editor.setSelections(edits.editorSelections, 'inlineCompletionPartialAccept');
 			} finally {
@@ -438,7 +441,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	private _getEdits(editor: ICodeEditor, completion: InlineCompletionItem, primaryEdit: ISingleEditOperation, acceptInsertTextUntilIndexExclusive?: number): { edits: IIdentifiedSingleEditOperation[]; editorSelections: ISelection[] } {
+	private _getEdits(editor: ICodeEditor, completion: SingleTextEdit): { edits: IIdentifiedSingleEditOperation[]; editorSelections: ISelection[] } {
 
 		const selections = editor.getSelections() ?? [];
 		const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
@@ -447,9 +450,11 @@ export class InlineCompletionsModel extends Disposable {
 		const replacedTextAfterPrimaryCursor = textModel
 			.getLineContent(primaryPosition.lineNumber)
 			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-		const secondaryEditText = completion.insertText.substring(primaryPosition.column - completion.range.startColumn, acceptInsertTextUntilIndexExclusive);
+		console.log('completion : ', JSON.stringify(completion));
+		const secondaryEditText = completion.text.substring(primaryPosition.column - completion.range.startColumn);
+		console.log('secondaryEditText : ', secondaryEditText);
 		const edits = [
-			primaryEdit,
+			EditOperation.replaceMove(completion.range, completion.text),
 			...secondaryPositions.map(pos => {
 				const textAfterSecondaryCursor = this.textModel
 					.getLineContent(pos.lineNumber)
@@ -460,15 +465,15 @@ export class InlineCompletionsModel extends Disposable {
 			})
 		];
 
+		// 1. need to figure out the new selections using the information at hand
+		// 2. polish and clean the code, should be able to simplify the below
 		let editorSelections: ISelection[] = [];
-		if (acceptInsertTextUntilIndexExclusive !== undefined) {
-			const primaryEditLength = lengthOfText(primaryEdit.text ?? '');
-			const secondaryEditLength = lengthOfText(secondaryEditText);
-			editorSelections = [
-				Selection.fromPositions(addPositions(new Position(primaryEdit.range.startLineNumber, primaryEdit.range.startColumn), primaryEditLength)),
-				...secondaryPositions.map(pos => Selection.fromPositions(addPositions(pos, secondaryEditLength)))
-			];
-		}
+		const primaryEditLength = lengthOfText(completion.text ?? '');
+		const secondaryEditLength = lengthOfText(secondaryEditText);
+		editorSelections = [
+			Selection.fromPositions(addPositions(new Position(completion.range.startLineNumber, completion.range.startColumn), primaryEditLength)),
+			...secondaryPositions.map(pos => Selection.fromPositions(addPositions(pos, secondaryEditLength)))
+		];
 
 		return {
 			edits,
