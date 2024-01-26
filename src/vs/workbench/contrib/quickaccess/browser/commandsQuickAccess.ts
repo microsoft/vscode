@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
@@ -265,7 +265,7 @@ export class ShowAllCommandsAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowAllCommandsAction.ID,
-			title: { value: localize('showTriggerActions', "Show All Commands"), original: 'Show All Commands' },
+			title: localize2('showTriggerActions', 'Show All Commands'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: undefined,
@@ -286,7 +286,7 @@ export class ClearCommandHistoryAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.clearCommandHistory',
-			title: { value: localize('clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
+			title: localize2('clearCommandHistory', 'Clear Command History'),
 			f1: true
 		});
 	}

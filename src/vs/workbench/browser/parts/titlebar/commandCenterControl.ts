@@ -182,7 +182,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
 								label = that._windowTitle.fileName ?? label;
 							}
-
 							if (!label) {
 								label = localize('label.dfl', "Search");
 							}
@@ -192,7 +191,8 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							if (suffix) {
 								label = localize('label2', "{0} {1}", label, suffix);
 							}
-							return label;
+
+							return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
 						}
 					});
 				}

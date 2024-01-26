@@ -14,7 +14,7 @@ import { ITaskEvent, TaskEventKind, ITaskIdentifier, Task } from 'vs/workbench/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';

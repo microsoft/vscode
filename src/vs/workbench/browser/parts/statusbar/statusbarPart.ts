@@ -27,7 +27,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { hash } from 'vs/base/common/hash';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
@@ -161,7 +161,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			return this.hoverService.showHover({
 				...options,
 				persistence: {
-					hideOnKeyDown: true
+					hideOnKeyDown: true,
+					sticky: focus
 				}
 			}, focus);
 		}

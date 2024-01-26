@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/20730dff3c367cb40a7edd278fdaf0239ea50833",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/ffa06ae9d52ea5464d3047cdbdc6bb970a665d23",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -255,12 +255,22 @@
 				{
 					"comment": "documentation comments",
 					"name": "comment.line.documentation.rust",
-					"match": "^\\s*///.*"
+					"match": "(///).*$",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.comment.rust"
+						}
+					}
 				},
 				{
 					"comment": "line comments",
 					"name": "comment.line.double-slash.rust",
-					"match": "\\s*//.*"
+					"match": "(//).*$",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.comment.rust"
+						}
+					}
 				}
 			]
 		},

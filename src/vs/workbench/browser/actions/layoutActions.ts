@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts, Position, ZenModeSettings, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
+import { EditorActionsLocation, EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts, Position, ZenModeSettings, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -29,6 +30,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { TitlebarStyle } from 'vs/platform/window/common/window';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -58,7 +60,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeSidebar',
-			title: { value: localize('closeSidebar', "Close Primary Side Bar"), original: 'Close Primary Side Bar' },
+			title: localize2('closeSidebar', 'Close Primary Side Bar'),
 			category: Categories.View,
 			f1: true
 		});
@@ -164,7 +166,7 @@ export class ToggleSidebarPositionAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSidebarPositionAction.ID,
-			title: { value: localize('toggleSidebarPosition', "Toggle Primary Side Bar Position"), original: 'Toggle Primary Side Bar Position' },
+			title: localize2('toggleSidebarPosition', "Toggle Primary Side Bar Position"),
 			category: Categories.View,
 			f1: true
 		});
@@ -322,7 +324,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
-			title: { value: localize('toggleSidebar', "Toggle Primary Side Bar Visibility"), original: 'Toggle Primary Side Bar Visibility' },
+			title: localize2('toggleSidebar', 'Toggle Primary Side Bar Visibility'),
 			toggled: {
 				condition: SideBarVisibleContext,
 				title: localize('primary sidebar', "Primary Side Bar"),
@@ -478,7 +480,7 @@ export class HideEditorTabsAction extends AbstractSetShowTabsAction {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(), InEditorZenModeContext.negate())!;
-		const title = { value: localize('hideEditorTabs', "Hide Editor Tabs"), original: 'Hide Editor Tabs' };
+		const title = localize2('hideEditorTabs', 'Hide Editor Tabs');
 		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.NONE, title, HideEditorTabsAction.ID, precondition);
 	}
 }
@@ -489,7 +491,7 @@ export class ZenHideEditorTabsAction extends AbstractSetShowTabsAction {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.NONE).negate(), InEditorZenModeContext)!;
-		const title = { value: localize('hideEditorTabsZenMode', "Hide Editor Tabs in Zen Mode"), original: 'Hide Editor Tabs in Zen Mode' };
+		const title = localize2('hideEditorTabsZenMode', 'Hide Editor Tabs in Zen Mode');
 		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.NONE, title, ZenHideEditorTabsAction.ID, precondition);
 	}
 }
@@ -502,7 +504,7 @@ export class ShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.MULTIPLE).negate(), InEditorZenModeContext.negate())!;
-		const title = { value: localize('showMultipleEditorTabs', "Show Multiple Editor Tabs"), original: 'Show Multiple Editor Tabs' };
+		const title = localize2('showMultipleEditorTabs', 'Show Multiple Editor Tabs');
 
 		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.MULTIPLE, title, ShowMultipleEditorTabsAction.ID, precondition);
 	}
@@ -514,7 +516,7 @@ export class ZenShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.MULTIPLE).negate(), InEditorZenModeContext)!;
-		const title = { value: localize('showMultipleEditorTabsZenMode', "Show Multiple Editor Tabs in Zen Mode"), original: 'Show Multiple Editor Tabs in Zen Mode' };
+		const title = localize2('showMultipleEditorTabsZenMode', 'Show Multiple Editor Tabs in Zen Mode');
 
 		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.MULTIPLE, title, ZenShowMultipleEditorTabsAction.ID, precondition);
 	}
@@ -528,7 +530,7 @@ export class ShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.SINGLE).negate(), InEditorZenModeContext.negate())!;
-		const title = { value: localize('showSingleEditorTab', "Show Single Editor Tab"), original: 'Show Single Editor Tab' };
+		const title = localize2('showSingleEditorTab', 'Show Single Editor Tab');
 
 		super(LayoutSettings.EDITOR_TABS_MODE, EditorTabsMode.SINGLE, title, ShowSingleEditorTabAction.ID, precondition);
 	}
@@ -540,7 +542,7 @@ export class ZenShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ZenModeSettings.SHOW_TABS}`, EditorTabsMode.SINGLE).negate(), InEditorZenModeContext)!;
-		const title = { value: localize('showSingleEditorTabZenMode', "Show Single Editor Tab in Zen Mode"), original: 'Show Single Editor Tab in Zen Mode' };
+		const title = localize2('showSingleEditorTabZenMode', 'Show Single Editor Tab in Zen Mode');
 
 		super(ZenModeSettings.SHOW_TABS, EditorTabsMode.SINGLE, title, ZenShowSingleEditorTabAction.ID, precondition);
 	}
@@ -585,17 +587,14 @@ export class EditorActionsTitleBarAction extends Action2 {
 				original: 'Move Editor Actions to Title Bar'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'titleBar').negate(),
-				ContextKeyExpr.equals('config.window.style', 'native').negate(),
-			),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR).negate(),
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'titleBar');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.TITLEBAR);
 	}
 }
 registerAction2(EditorActionsTitleBarAction);
@@ -615,8 +614,8 @@ export class EditorActionsDefaultAction extends Action2 {
 			},
 			category: Categories.View,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'default').negate(),
-				ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(),
+				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.DEFAULT).negate(),
+				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(),
 			),
 			f1: true
 		});
@@ -624,7 +623,7 @@ export class EditorActionsDefaultAction extends Action2 {
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'default');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.DEFAULT);
 	}
 }
 registerAction2(EditorActionsDefaultAction);
@@ -643,14 +642,14 @@ export class HideEditorActionsAction extends Action2 {
 				original: 'Hide Editor Actions'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden').negate(),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN).negate(),
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'hidden');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.HIDDEN);
 	}
 }
 registerAction2(HideEditorActionsAction);
@@ -669,14 +668,14 @@ export class ShowEditorActionsAction extends Action2 {
 				original: 'Show Editor Actions'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden'),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN),
 			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'default');
+		return configurationService.updateValue(LayoutSettings.EDITOR_ACTIONS_LOCATION, EditorActionsLocation.DEFAULT);
 	}
 }
 registerAction2(ShowEditorActionsAction);
@@ -702,7 +701,7 @@ registerAction2(class extends Action2 {
 				original: 'Separate Pinned Editor Tabs'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple'),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.MULTIPLE),
 			f1: true
 		});
 	}
@@ -801,8 +800,8 @@ if (isWindows || isLinux || isWeb) {
 				title: localize('miMenuBarNoMnemonic', "Menu Bar"),
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 			},
-			when: IsAuxiliaryWindowFocusedContext.toNegated(),
-			group: menuId === MenuId.TitleBarTitleContext ? '2_config' : undefined,
+			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext.negate()),
+			group: '2_config',
 			order: 0
 		});
 	}
@@ -1217,7 +1216,7 @@ class IncreaseViewSizeAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewSize',
-			title: { value: localize('increaseViewSize', "Increase Current View Size"), original: 'Increase Current View Size' },
+			title: localize2('increaseViewSize', 'Increase Current View Size'),
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
@@ -1233,7 +1232,7 @@ class IncreaseViewWidthAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewWidth',
-			title: { value: localize('increaseEditorWidth', "Increase Editor Width"), original: 'Increase Editor Width' },
+			title: localize2('increaseEditorWidth', 'Increase Editor Width'),
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
@@ -1249,7 +1248,7 @@ class IncreaseViewHeightAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewHeight',
-			title: { value: localize('increaseEditorHeight', "Increase Editor Height"), original: 'Increase Editor Height' },
+			title: localize2('increaseEditorHeight', 'Increase Editor Height'),
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
@@ -1265,7 +1264,7 @@ class DecreaseViewSizeAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewSize',
-			title: { value: localize('decreaseViewSize', "Decrease Current View Size"), original: 'Decrease Current View Size' },
+			title: localize2('decreaseViewSize', 'Decrease Current View Size'),
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
@@ -1280,7 +1279,7 @@ class DecreaseViewWidthAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewWidth',
-			title: { value: localize('decreaseEditorWidth', "Decrease Editor Width"), original: 'Decrease Editor Width' },
+			title: localize2('decreaseEditorWidth', 'Decrease Editor Width'),
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
@@ -1296,7 +1295,7 @@ class DecreaseViewHeightAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewHeight',
-			title: { value: localize('decreaseEditorHeight', "Decrease Editor Height"), original: 'Decrease Editor Height' },
+			title: localize2('decreaseEditorHeight', 'Decrease Editor Height'),
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});

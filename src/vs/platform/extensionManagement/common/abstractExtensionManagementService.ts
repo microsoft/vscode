@@ -16,7 +16,7 @@ import * as nls from 'vs/nls';
 import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
-	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT
+	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT, ExtensionGalleryError
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -108,7 +108,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			if (result?.error) {
 				throw result.error;
 			}
-			throw toExtensionManagementError(new Error(`Unknown error while installing extension ${extension.identifier.id}`));
+			throw new ExtensionManagementError(`Unknown error while installing extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Unknown);
 		} catch (error) {
 			throw toExtensionManagementError(error);
 		}
@@ -116,7 +116,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	async installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]> {
 		if (!this.galleryService.isEnabled()) {
-			throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
+			throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.NotAllowed);
 		}
 
 		const results: InstallExtensionResult[] = [];
@@ -351,15 +351,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
 					} catch (error) {
-						if (!URI.isUri(task.source)) {
-							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', {
-								extensionData: getGalleryExtensionTelemetryData(task.source),
-								verificationStatus: task.verificationStatus,
-								duration: new Date().getTime() - startTime,
-								error
-							});
-						}
-						this.logService.error('Error while installing the extension:', task.identifier.id);
+						this.logService.error('Error while installing the extension', task.identifier.id, getErrorMessage(error));
 						throw error;
 					} finally { extensionsToInstallMap.delete(task.identifier.id.toLowerCase()); }
 				}));
@@ -528,7 +520,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			if (!compatibleExtension) {
 				/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 				if (!installPreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
-					throw new ExtensionManagementError(nls.localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);
+					throw new ExtensionManagementError(nls.localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.displayName ?? extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);
 				}
 				throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 			}
@@ -787,13 +779,18 @@ export function toExtensionManagementError(error: Error): ExtensionManagementErr
 	if (error instanceof ExtensionManagementError) {
 		return error;
 	}
+	if (error instanceof ExtensionGalleryError) {
+		const e = new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Gallery);
+		e.stack = error.stack;
+		return e;
+	}
 	const e = new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Internal);
 	e.stack = error.stack;
 	return e;
 }
 
 function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
-	let errorcode: ExtensionManagementErrorCode | undefined;
+	let errorcode: string | undefined;
 	let errorcodeDetail: string | undefined;
 
 	if (isDefined(verificationStatus)) {
@@ -809,7 +806,7 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 	}
 
 	if (error) {
-		if (error instanceof ExtensionManagementError) {
+		if (error instanceof ExtensionManagementError || error instanceof ExtensionGalleryError) {
 			errorcode = error.code;
 			if (error.code === ExtensionManagementErrorCode.Signature) {
 				errorcodeDetail = error.message;

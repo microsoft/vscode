@@ -6,7 +6,7 @@ import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';

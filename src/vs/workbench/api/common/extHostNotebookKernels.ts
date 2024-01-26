@@ -25,6 +25,7 @@ import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/no
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as vscode from 'vscode';
+import { variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier;
@@ -415,7 +416,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
+	private id = 0;
+	private variableStore: Record<string, vscode.Variable> = {};
+
+	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			return;
@@ -427,14 +431,41 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			return;
 		}
 
-		const parent = parentName ? { name: parentName, value: '' } : undefined;
+		let parent: vscode.Variable | undefined = undefined;
+		if (parentId !== undefined) {
+			parent = this.variableStore[parentId];
+			if (!parent) {
+				// request for unknown parent
+				return;
+			}
+		} else {
+			// root request, clear store
+			this.variableStore = {};
+		}
+
+
 		const requestKind = kind === 'named' ? NotebookVariablesRequestKind.Named : NotebookVariablesRequestKind.Indexed;
-		const variables = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
-		for await (const variable of variables) {
+		const variableResults = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
+
+		let resultCount = 0;
+		for await (const result of variableResults) {
 			if (token.isCancellationRequested) {
 				return;
 			}
+			const variable = {
+				id: this.id++,
+				name: result.variable.name,
+				value: result.variable.value,
+				type: result.variable.type,
+				hasNamedChildren: result.hasNamedChildren,
+				indexedChildrenCount: result.indexedChildrenCount
+			};
+			this.variableStore[variable.id] = result.variable;
 			this._proxy.$receiveVariable(requestId, variable);
+
+			if (resultCount++ >= variablePageSize) {
+				return;
+			}
 		}
 	}
 

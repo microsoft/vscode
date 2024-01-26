@@ -5,6 +5,7 @@
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -12,6 +13,8 @@ import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ConfigurationModelParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -87,6 +90,8 @@ suite('ConfigurationModelParser', () => {
 });
 
 suite('ConfigurationModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('setValue for a key that has no sections and not defined', () => {
 		const testObject = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
@@ -403,6 +408,8 @@ suite('ConfigurationModel', () => {
 
 suite('CustomConfigurationModel', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('simple merge using models', () => {
 		const base = new ConfigurationModelParser('base');
 		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
@@ -510,6 +517,8 @@ suite('CustomConfigurationModel', () => {
 });
 
 suite('Configuration', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Test inspect for overrideIdentifiers', () => {
 		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
@@ -671,6 +680,8 @@ suite('Configuration', () => {
 });
 
 suite('ConfigurationChangeEvent', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('changeEvent affecting keys with new configuration', () => {
 		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
