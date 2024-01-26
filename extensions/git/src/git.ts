@@ -937,7 +937,7 @@ function parseGitDiffShortStat(data: string): CommitShortStat {
 	return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
 }
 
-interface LsTreeElement {
+export interface LsTreeElement {
 	mode: string;
 	type: string;
 	object: string;
@@ -1294,8 +1294,13 @@ export class Repository {
 		return { mode, object, size: parseInt(size) };
 	}
 
-	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.exec(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
+	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
+		const args = ['ls-tree', '-l', treeish];
+		if (path) {
+			args.push('--', sanitizePath(path));
+		}
+
+		const { stdout } = await this.exec(args);
 		return parseLsTree(stdout);
 	}
 

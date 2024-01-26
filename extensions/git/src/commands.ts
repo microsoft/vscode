@@ -3709,10 +3709,21 @@ export class CommandCenter {
 		}
 
 		const stashChanges = await repository.showStash(stash.index);
-		const stashParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
-
 		if (!stashChanges || stashChanges.length === 0) {
 			return;
+		}
+
+		// A stash commit can have up to 3 parents:
+		// 1. The first parent is the commit that was HEAD when the stash was created.
+		// 2. The second parent is the commit that represents the index when the stash was created.
+		// 3. The third parent (when present) represents the untracked files when the stash was created.
+		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
+		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
+		const stashUntrackedFiles: string[] = [];
+
+		if (stashUntrackedFilesParentCommit) {
+			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
+			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
@@ -3720,14 +3731,22 @@ export class CommandCenter {
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {
-			if (change.status === Status.INDEX_ADDED) {
-				resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, stash.hash) });
-			} else if (change.status === Status.DELETED) {
-				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: undefined });
-			} else if (change.status === Status.INDEX_RENAMED) {
-				resources.push({ originalUri: toGitUri(change.originalUri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
-			} else {
-				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
+			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
+			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
+
+			switch (change.status) {
+				case Status.INDEX_ADDED:
+					resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, modifiedUriRef) });
+					break;
+				case Status.DELETED:
+					resources.push({ originalUri: toGitUri(change.uri, stashFirstParentCommit), modifiedUri: undefined });
+					break;
+				case Status.INDEX_RENAMED:
+					resources.push({ originalUri: toGitUri(change.originalUri, stashFirstParentCommit), modifiedUri: toGitUri(change.uri, modifiedUriRef) });
+					break;
+				default:
+					resources.push({ originalUri: toGitUri(change.uri, stashFirstParentCommit), modifiedUri: toGitUri(change.uri, modifiedUriRef) });
+					break;
 			}
 		}
 
