@@ -28,6 +28,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -126,6 +127,8 @@ export class StartupPageContribution implements IWorkbenchContribution {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted();
+				} else if (startupEditorSetting.value === 'terminal') {
+					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
 			}
 		}
@@ -213,5 +216,6 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 
 	return startupEditor.value === 'welcomePage'
 		|| startupEditor.value === 'readme' && (startupEditor.userValue === 'readme' || startupEditor.defaultValue === 'readme')
-		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench');
+		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench')
+		|| startupEditor.value === 'terminal';
 }
