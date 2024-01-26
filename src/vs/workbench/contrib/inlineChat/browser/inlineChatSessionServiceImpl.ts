@@ -110,7 +110,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			textModelN = store.add(this._modelService.createModel(
 				createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
 				{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-				targetUri.with({ scheme: Schemas.inMemory, query: new URLSearchParams({ id, 'inline-chat-textModelN': '' }).toString() }), true
+				targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModelN': '' }).toString() })
 			));
 		} else {
 			// AI edits happen in the actual model, keep a reference but make no copy
@@ -122,7 +122,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const textModel0 = store.add(this._modelService.createModel(
 			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
 			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-			targetUri.with({ scheme: Schemas.inMemory, query: new URLSearchParams({ id, 'inline-chat-textModel0': '' }).toString() }), true
+			targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModel0': '' }).toString() }), true
 		));
 
 		// untitled documents are special

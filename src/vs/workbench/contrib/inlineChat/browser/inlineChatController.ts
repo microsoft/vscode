@@ -559,6 +559,7 @@ export class InlineChatController implements IEditorContribution {
 			selection: this._editor.getSelection(),
 			wholeRange: this._session.wholeRange.trackedInitialRange,
 			live: this._session.editMode !== EditMode.Preview, // TODO@jrieken let extension know what document is used for previewing
+			previewDocument: this._session.textModelN.uri,
 			withIntentDetection: options.withIntentDetection ?? true /* use intent detection by default */,
 		};
 
