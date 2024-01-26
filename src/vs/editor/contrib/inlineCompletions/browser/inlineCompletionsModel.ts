@@ -391,15 +391,15 @@ export class InlineCompletionsModel extends Disposable {
 
 		const firstPart = ghostText.parts[0];
 		const position = new Position(ghostText.lineNumber, firstPart.column);
-		const line = firstPart.lines.join('\n');
-		const acceptUntilIndexExclusive = getAcceptUntilIndex(position, line);
+		const text = firstPart.text;
+		const acceptUntilIndexExclusive = getAcceptUntilIndex(position, text);
 
-		if (acceptUntilIndexExclusive === line.length && ghostText.parts.length === 1) {
+		if (acceptUntilIndexExclusive === text.length && ghostText.parts.length === 1) {
 			this.accept(editor);
 			return;
 		}
 
-		const partialText = line.substring(0, acceptUntilIndexExclusive);
+		const partialText = text.substring(0, acceptUntilIndexExclusive);
 
 		// Executing the edit might free the completion, so we have to hold a reference on it.
 		completion.source.addRef();
