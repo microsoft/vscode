@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
 import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { RangesCollector, computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
@@ -15,7 +16,7 @@ const markers: FoldingMarkers = {
 };
 
 suite('FoldingRanges', () => {
-
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const foldRange = (from: number, to: number, collapsed: boolean | undefined = undefined, source: FoldSource = FoldSource.provider, type: string | undefined = undefined) =>
 		<FoldRange>{
 			startLineNumber: from,

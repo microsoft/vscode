@@ -19,7 +19,7 @@ import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } fro
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { raceCancellation } from 'vs/base/common/async';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 
 class ProviderWrapper {
 
@@ -84,7 +84,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
-					initialSelection: v.initialSelection ? typeConvert.Selection.from(v.initialSelection) : undefined,
+					initialSelection: extHostTypes.Selection.isSelection(v.initialSelection) ? typeConvert.Selection.from(v.initialSelection) : undefined,
 					message: v.message,
 					autoSend: v.autoSend,
 					position: v.position ? typeConvert.Position.from(v.position) : undefined,
@@ -151,6 +151,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			wholeRange: typeConvert.Range.to(request.wholeRange),
 			attempt: request.attempt,
 			live: request.live,
+			withIntentDetection: request.withIntentDetection,
 		};
 
 
@@ -194,44 +195,46 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			placeholder: res.placeholder,
 		};
 
-		if (ExtHostInteractiveEditor._isEditResponse(res)) {
-			const { edits, contents } = res;
-			const message = contents !== undefined ? typeConvert.MarkdownString.from(contents) : undefined;
-			if (edits instanceof extHostTypes.WorkspaceEdit) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.BulkEdit,
-					edits: typeConvert.WorkspaceEdit.from(edits),
-					message
-				};
-
-			} else {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.EditorEdit,
-					edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
-					message
-				};
-			}
+		if (!ExtHostInteractiveEditor._isEditResponse(res)) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				message: typeConvert.MarkdownString.from(res.contents),
+				edits: []
+			};
 		}
-		return {
-			...stub,
-			id,
-			type: InlineChatResponseType.Message,
-			message: typeConvert.MarkdownString.from(res.contents),
-		};
+
+		const { edits, contents } = res;
+		const message = contents !== undefined ? typeConvert.MarkdownString.from(contents) : undefined;
+		if (edits instanceof extHostTypes.WorkspaceEdit) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.BulkEdit,
+				edits: typeConvert.WorkspaceEdit.from(edits),
+				message
+			};
+
+		} else {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
+				message
+			};
+		}
 	}
 
-	async $provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
+	async $provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined> {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
 		if (entry && response && entry.provider.provideFollowups) {
 			const task = Promise.resolve(entry.provider.provideFollowups(sessionData.session, response, token));
 			const followups = await raceCancellation(task, token);
-			return followups?.map(typeConvert.ChatReplyFollowup.from);
+			return followups?.map(typeConvert.ChatFollowup.from);
 		}
 		return undefined;
 	}

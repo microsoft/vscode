@@ -19,6 +19,10 @@ export const testingRunAllIcon = registerIcon('testing-run-all-icon', Codicon.ru
 // todo: https://github.com/microsoft/vscode-codicons/issues/72
 export const testingDebugAllIcon = registerIcon('testing-debug-all-icon', Codicon.debugAltSmall, localize('testingDebugAllIcon', 'Icon of the "debug all tests" action.'));
 export const testingDebugIcon = registerIcon('testing-debug-icon', Codicon.debugAltSmall, localize('testingDebugIcon', 'Icon of the "debug test" action.'));
+// todo: https://github.com/microsoft/vscode-codicons/issues/205
+export const testingCoverageIcon = registerIcon('testing-coverage-icon', Codicon.heartFilled, localize('testingCoverageIcon', 'Icon of the "run test with coverage" action.'));
+// todo: https://github.com/microsoft/vscode-codicons/issues/205
+export const testingCoverageAllIcon = registerIcon('testing-coverage-all-icon', Codicon.heartFilled, localize('testingRunAllWithCoverageIcon', 'Icon of the "run all tests with coverage" action.'));
 export const testingCancelIcon = registerIcon('testing-cancel-icon', Codicon.debugStop, localize('testingCancelIcon', 'Icon to cancel ongoing test runs.'));
 export const testingFilterIcon = registerIcon('testing-filter', Codicon.filter, localize('filterIcon', 'Icon for the \'Filter\' action in the testing view.'));
 export const testingHiddenIcon = registerIcon('testing-hidden', Codicon.eyeClosed, localize('hiddenIcon', 'Icon shown beside hidden tests, when they\'ve been shown.'));
@@ -33,7 +37,9 @@ export const testingTurnContinuousRunOff = registerIcon('testing-turn-continuous
 export const testingContinuousIsOn = registerIcon('testing-continuous-is-on', Codicon.eye, localize('testingTurnContinuousRunIsOn', 'Icon when continuous run is on for a test ite,.'));
 export const testingCancelRefreshTests = registerIcon('testing-cancel-refresh-tests', Codicon.stop, localize('testingCancelRefreshTests', 'Icon on the button to cancel refreshing tests.'));
 
-export const testingCoverage = registerIcon('testing-coverage', Codicon.lightBulb, localize('testingCoverage', 'Icon representing test coverage'));
+export const testingCoverageReport = registerIcon('testing-coverage', Codicon.lightBulb, localize('testingCoverage', 'Icon representing test coverage'));
+export const testingWasCovered = registerIcon('testing-was-covered', Codicon.check, localize('testingWasCovered', 'Icon representing that an element was covered'));
+export const testingCoverageMissingBranch = registerIcon('testing-missing-branch', Codicon.question, localize('testingMissingBranch', 'Icon representing a uncovered block without a range'));
 
 export const testingStatesToIcons = new Map<TestResultState, ThemeIcon>([
 	[TestResultState.Errored, registerIcon('testing-error-icon', Codicon.issues, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],

@@ -29,7 +29,7 @@ steps:
         displayName: Set product.json path
 
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:
-    - script: rustup component add clippy && cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+    - script: cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
       displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
       workingDirectory: $(Build.SourcesDirectory)/cli
       env:

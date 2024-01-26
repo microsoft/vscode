@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from 'vs/platform/files/common/files';
@@ -36,12 +36,40 @@ export interface IAutoSaveConfiguration {
 	autoSaveWhenNoErrors?: boolean;
 }
 
+interface ICachedAutoSaveConfiguration extends IAutoSaveConfiguration {
+
+	// Some extra state that we cache to reduce the amount
+	// of lookup we have to do since auto save methods
+	// are being called very often, e.g. when content changes
+
+	isOutOfWorkspace?: boolean;
+	isShortAutoSaveDelay?: boolean;
+}
+
 export const enum AutoSaveMode {
 	OFF,
 	AFTER_SHORT_DELAY,
 	AFTER_LONG_DELAY,
 	ON_FOCUS_CHANGE,
 	ON_WINDOW_CHANGE
+}
+
+export const enum AutoSaveDisabledReason {
+	SETTINGS = 1,
+	OUT_OF_WORKSPACE,
+	ERRORS,
+	DISABLED
+}
+
+export type IAutoSaveMode = IEnabledAutoSaveMode | IDisabledAutoSaveMode;
+
+export interface IEnabledAutoSaveMode {
+	readonly mode: AutoSaveMode.AFTER_SHORT_DELAY | AutoSaveMode.AFTER_LONG_DELAY | AutoSaveMode.ON_FOCUS_CHANGE | AutoSaveMode.ON_WINDOW_CHANGE;
+}
+
+export interface IDisabledAutoSaveMode {
+	readonly mode: AutoSaveMode.OFF;
+	readonly reason: AutoSaveDisabledReason;
 }
 
 export const IFilesConfigurationService = createDecorator<IFilesConfigurationService>('filesConfigurationService');
@@ -54,13 +82,17 @@ export interface IFilesConfigurationService {
 
 	readonly onDidChangeAutoSaveConfiguration: Event<void>;
 
+	readonly onDidChangeAutoSaveDisabled: Event<URI>;
+
 	getAutoSaveConfiguration(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveConfiguration;
 
-	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean;
+	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean;
 
-	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): AutoSaveMode;
+	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveMode;
 
 	toggleAutoSave(): Promise<void>;
+
+	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable;
 
 	//#endregion
 
@@ -101,6 +133,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly _onDidChangeAutoSaveConfiguration = this._register(new Emitter<void>());
 	readonly onDidChangeAutoSaveConfiguration = this._onDidChangeAutoSaveConfiguration.event;
 
+	private readonly _onDidChangeAutoSaveDisabled = this._register(new Emitter<URI>());
+	readonly onDidChangeAutoSaveDisabled = this._onDidChangeAutoSaveDisabled.event;
+
 	private readonly _onDidChangeFilesAssociation = this._register(new Emitter<void>());
 	readonly onDidChangeFilesAssociation = this._onDidChangeFilesAssociation.event;
 
@@ -111,7 +146,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private currentFilesAssociationConfiguration: IStringDictionary<string>;
 	private currentHotExitConfiguration: string;
 
-	private readonly autoSaveConfigurationCache = new LRUCache<URI, IAutoSaveConfiguration>(1000);
+	private readonly autoSaveConfigurationCache = new LRUCache<URI, ICachedAutoSaveConfiguration>(1000);
+	private readonly autoSaveDisabledOverrides = new ResourceMap<number /* counter */>();
 
 	private readonly autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(this.contextKeyService);
 
@@ -135,7 +171,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
 
-		this.currentGlobalAutoSaveConfiguration = this.computeAutoSaveConfiguration(configuration.files);
+		this.currentGlobalAutoSaveConfiguration = this.computeAutoSaveConfiguration(undefined, configuration.files);
 		this.currentFilesAssociationConfiguration = configuration?.files?.associations;
 		this.currentHotExitConfiguration = configuration?.files?.hotExit || HotExitConfiguration.ON_EXIT;
 
@@ -227,24 +263,14 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>(), true);
 			}
 		}));
-
-		// Marker changes (only relevant when `files.autoSaveWhenNoErrors` is enabled)
-		this._register(this.markerService.onMarkerChanged(e => {
-			for (const uri of e) {
-				const autoSaveConfiguration = this.autoSaveConfigurationCache.get(uri);
-				if (autoSaveConfiguration?.autoSaveWhenNoErrors) {
-					this.autoSaveConfigurationCache.delete(uri);
-				}
-			}
-		}));
 	}
 
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration, fromEvent: boolean): void {
 
 		// Auto Save
-		this.currentGlobalAutoSaveConfiguration = this.computeAutoSaveConfiguration(configuration.files);
+		this.currentGlobalAutoSaveConfiguration = this.computeAutoSaveConfiguration(undefined, configuration.files);
 		this.autoSaveConfigurationCache.clear();
-		this.autoSaveAfterShortDelayContext.set(this.getAutoSaveMode(undefined) === AutoSaveMode.AFTER_SHORT_DELAY);
+		this.autoSaveAfterShortDelayContext.set(this.getAutoSaveMode(undefined).mode === AutoSaveMode.AFTER_SHORT_DELAY);
 		if (fromEvent) {
 			this._onDidChangeAutoSaveConfiguration.fire();
 		}
@@ -276,12 +302,12 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 	}
 
-	getAutoSaveConfiguration(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveConfiguration {
+	getAutoSaveConfiguration(resourceOrEditor: EditorInput | URI | undefined): ICachedAutoSaveConfiguration {
 		const resource = this.toResource(resourceOrEditor);
 		if (resource) {
 			let resourceAutoSaveConfiguration = this.autoSaveConfigurationCache.get(resource);
 			if (!resourceAutoSaveConfiguration) {
-				resourceAutoSaveConfiguration = this.computeAutoSaveConfiguration(this.textResourceConfigurationService.getValue<IFilesConfigurationNode>(resource, 'files'));
+				resourceAutoSaveConfiguration = this.computeAutoSaveConfiguration(resource, this.textResourceConfigurationService.getValue<IFilesConfigurationNode>(resource, 'files'));
 				this.autoSaveConfigurationCache.set(resource, resourceAutoSaveConfiguration);
 			}
 
@@ -291,16 +317,20 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.currentGlobalAutoSaveConfiguration;
 	}
 
-	private computeAutoSaveConfiguration(filesConfiguration: IFilesConfigurationNode): IAutoSaveConfiguration {
+	private computeAutoSaveConfiguration(resource: URI | undefined, filesConfiguration: IFilesConfigurationNode): ICachedAutoSaveConfiguration {
 		let autoSave: 'afterDelay' | 'onFocusChange' | 'onWindowChange' | undefined;
 		let autoSaveDelay: number | undefined;
 		let autoSaveWorkspaceFilesOnly: boolean | undefined;
 		let autoSaveWhenNoErrors: boolean | undefined;
 
+		let isOutOfWorkspace: boolean | undefined;
+		let isShortAutoSaveDelay: boolean | undefined;
+
 		switch (filesConfiguration.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
 			case AutoSaveConfiguration.AFTER_DELAY: {
 				autoSave = 'afterDelay';
 				autoSaveDelay = typeof filesConfiguration.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
+				isShortAutoSaveDelay = autoSaveDelay <= FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
 				break;
 			}
 
@@ -315,17 +345,25 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 		if (filesConfiguration.autoSaveWorkspaceFilesOnly === true) {
 			autoSaveWorkspaceFilesOnly = true;
+
+			if (resource && !this.contextService.isInsideWorkspace(resource)) {
+				isOutOfWorkspace = true;
+				isShortAutoSaveDelay = undefined; // out of workspace file are not auto saved with this configuration
+			}
 		}
 
 		if (filesConfiguration.autoSaveWhenNoErrors === true) {
 			autoSaveWhenNoErrors = true;
+			isShortAutoSaveDelay = undefined; // this configuration disables short auto save delay
 		}
 
 		return {
 			autoSave,
 			autoSaveDelay,
 			autoSaveWorkspaceFilesOnly,
-			autoSaveWhenNoErrors
+			autoSaveWhenNoErrors,
+			isOutOfWorkspace,
+			isShortAutoSaveDelay
 		};
 	}
 
@@ -337,40 +375,33 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return resourceOrEditor;
 	}
 
-	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean {
-		const autoSaveConfiguration = this.getAutoSaveConfiguration(resourceOrEditor);
-		if (
-			autoSaveConfiguration.autoSave !== 'afterDelay' ||
-			typeof autoSaveConfiguration.autoSaveDelay !== 'number' ||
-			autoSaveConfiguration.autoSaveDelay > FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY ||
-			autoSaveConfiguration.autoSaveWhenNoErrors
-		) {
-			// We can avoid the call to `doGetAutoSaveMode` by checking
-			// the configuration for some properties that clearly indicate
-			// that the short auto save delay cannot apply.
-			return false;
-		}
-
-		return this.doGetAutoSaveMode(resourceOrEditor, autoSaveConfiguration) === AutoSaveMode.AFTER_SHORT_DELAY;
-	}
-
-	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): AutoSaveMode {
-		return this.doGetAutoSaveMode(resourceOrEditor, this.getAutoSaveConfiguration(resourceOrEditor));
-	}
-
-	private doGetAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, autoSaveConfiguration: IAutoSaveConfiguration): AutoSaveMode {
-		if (typeof autoSaveConfiguration.autoSave === 'undefined') {
-			return AutoSaveMode.OFF;
-		}
-
+	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean {
 		const resource = this.toResource(resourceOrEditor);
+		if (this.getAutoSaveConfiguration(resource).isShortAutoSaveDelay) {
+			return !resource || !this.autoSaveDisabledOverrides.has(resource);
+		}
+
+		return false;
+	}
+
+	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveMode {
+		const resource = this.toResource(resourceOrEditor);
+		if (resource && this.autoSaveDisabledOverrides.has(resource)) {
+			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.DISABLED };
+		}
+
+		const autoSaveConfiguration = this.getAutoSaveConfiguration(resource);
+		if (typeof autoSaveConfiguration.autoSave === 'undefined') {
+			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.SETTINGS };
+		}
+
 		if (resource) {
-			if (autoSaveConfiguration.autoSaveWorkspaceFilesOnly && !this.contextService.isInsideWorkspace(resource)) {
-				return AutoSaveMode.OFF;
+			if (autoSaveConfiguration.autoSaveWorkspaceFilesOnly && autoSaveConfiguration.isOutOfWorkspace) {
+				return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.OUT_OF_WORKSPACE };
 			}
 
 			if (autoSaveConfiguration.autoSaveWhenNoErrors && this.markerService.read({ resource, take: 1, severities: MarkerSeverity.Error }).length > 0) {
-				return AutoSaveMode.OFF;
+				return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.ERRORS };
 			}
 		}
 
@@ -382,13 +413,13 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 					// The rationale here is that errors may come in after auto
 					// save has been scheduled and then further delay the auto
 					// save until resolved.
-					return autoSaveConfiguration.autoSaveWhenNoErrors ? AutoSaveMode.AFTER_LONG_DELAY : AutoSaveMode.AFTER_SHORT_DELAY;
+					return { mode: autoSaveConfiguration.autoSaveWhenNoErrors ? AutoSaveMode.AFTER_LONG_DELAY : AutoSaveMode.AFTER_SHORT_DELAY };
 				}
-				return AutoSaveMode.AFTER_LONG_DELAY;
+				return { mode: AutoSaveMode.AFTER_LONG_DELAY };
 			case 'onFocusChange':
-				return AutoSaveMode.ON_FOCUS_CHANGE;
+				return { mode: AutoSaveMode.ON_FOCUS_CHANGE };
 			case 'onWindowChange':
-				return AutoSaveMode.ON_WINDOW_CHANGE;
+				return { mode: AutoSaveMode.ON_WINDOW_CHANGE };
 		}
 	}
 
@@ -403,6 +434,30 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 
 		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
+	}
+
+	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable {
+		const resource = this.toResource(resourceOrEditor);
+		if (!resource) {
+			return Disposable.None;
+		}
+
+		const counter = this.autoSaveDisabledOverrides.get(resource) ?? 0;
+		this.autoSaveDisabledOverrides.set(resource, counter + 1);
+
+		if (counter === 0) {
+			this._onDidChangeAutoSaveDisabled.fire(resource);
+		}
+
+		return toDisposable(() => {
+			const counter = this.autoSaveDisabledOverrides.get(resource) ?? 0;
+			if (counter <= 1) {
+				this.autoSaveDisabledOverrides.delete(resource);
+				this._onDidChangeAutoSaveDisabled.fire(resource);
+			} else {
+				this.autoSaveDisabledOverrides.set(resource, counter - 1);
+			}
+		});
 	}
 
 	get isHotExitEnabled(): boolean {

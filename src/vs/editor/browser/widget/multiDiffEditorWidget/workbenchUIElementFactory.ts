@@ -17,5 +17,9 @@ export interface IWorkbenchUIElementFactory {
 }
 
 export interface IResourceLabel extends IDisposable {
-	setUri(uri: URI): void;
+	setUri(uri: URI | undefined, options?: IResourceLabelOptions): void;
+}
+
+export interface IResourceLabelOptions {
+	strikethrough?: boolean;
 }

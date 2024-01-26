@@ -495,9 +495,16 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
  */
 export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	/**
-	 * The list of resources to compare.
+	 * A unique identifier of this multi diff editor input.
+	 * If a second multi diff editor with the same uri is opened, the existing one is revealed instead (even if the resources list is different!).
 	 */
-	readonly resources: (IResourceDiffEditorInput & { readonly resource: URI })[];
+	readonly multiDiffSource?: URI;
+
+	/**
+	 * The list of resources to compare.
+	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
+	 */
+	readonly resources?: IResourceDiffEditorInput[];
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
@@ -558,8 +565,14 @@ export function isResourceDiffListEditorInput(editor: unknown): editor is IResou
 	}
 
 	const candidate = editor as IResourceMultiDiffEditorInput | undefined;
+	if (!candidate) {
+		return false;
+	}
+	if (candidate.resources && !Array.isArray(candidate.resources)) {
+		return false;
+	}
 
-	return Array.isArray(candidate?.resources);
+	return !!candidate.resources || !!candidate.multiDiffSource;
 }
 
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {

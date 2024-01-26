@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomFactor } from 'vs/base/browser/browser';
+import { getZoomFactor, isChrome } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -87,11 +87,12 @@ export class MouseWheelClassifier {
 	}
 
 	public acceptStandardWheelEvent(e: StandardWheelEvent): void {
-		const osZoomFactor = dom.getWindow(e.browserEvent).devicePixelRatio / getZoomFactor();
-		if (platform.isWindows || platform.isLinux) {
-			// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
+		if (isChrome) {
+			const targetWindow = dom.getWindow(e.browserEvent);
+			const pageZoomFactor = getZoomFactor(targetWindow);
+			// On Chrome, the incoming delta events are multiplied with the OS zoom factor.
 			// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
-			this.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
+			this.accept(Date.now(), e.deltaX * pageZoomFactor, e.deltaY * pageZoomFactor);
 		} else {
 			this.accept(Date.now(), e.deltaX, e.deltaY);
 		}

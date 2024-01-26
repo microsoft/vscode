@@ -112,11 +112,30 @@ function valueValidatesAsType(value: any, type: string): boolean {
 	return true;
 }
 
+function toRegExp(pattern: string): RegExp {
+	try {
+		// The u flag allows support for better Unicode matching,
+		// but deprecates some patterns such as [\s-9]
+		// Ref https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Character_class#description
+		return new RegExp(pattern, 'u');
+	} catch (e) {
+		try {
+			return new RegExp(pattern);
+		} catch (e) {
+			// If the pattern can't be parsed even without the 'u' flag,
+			// just log the error to avoid rendering the entire Settings editor blank.
+			// Ref https://github.com/microsoft/vscode/issues/195054
+			console.error(nls.localize('regexParsingError', "Error parsing the following regex both with and without the u flag:"), pattern);
+			return /.*/;
+		}
+	}
+}
+
 function getStringValidators(prop: IConfigurationPropertySchema) {
 	const uriRegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	let patternRegex: RegExp | undefined;
 	if (typeof prop.pattern === 'string') {
-		patternRegex = new RegExp(prop.pattern, 'u');
+		patternRegex = toRegExp(prop.pattern);
 	}
 
 	return [
@@ -272,7 +291,7 @@ function getArrayValidator(prop: IConfigurationPropertySchema): ((value: any) =>
 					}
 
 					if (typeof propItems.pattern === 'string') {
-						const patternRegex = new RegExp(propItems.pattern, 'u');
+						const patternRegex = toRegExp(propItems.pattern);
 						arrayValue.forEach(v => {
 							if (!patternRegex.test(v)) {
 								message +=

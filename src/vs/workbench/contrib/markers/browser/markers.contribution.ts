@@ -9,7 +9,7 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -23,7 +23,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -34,6 +35,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -90,10 +92,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // configuration
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'problems',
-	'order': 101,
-	'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
-	'type': 'object',
+	...problemsConfigurationNodeBase,
 	'properties': {
 		'problems.autoReveal': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
@@ -121,12 +120,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
-		'problems.visibility': {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
-			description: localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
-		}
 	}
 });
 
@@ -208,12 +201,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleErrors`,
-			title: localize('toggle errors', "Toggle Errors"),
+			title: localize('show errors', "Show Errors"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowErrorsFilterContextKey,
-				title: localize('errors', "Show Errors")
-			},
+			toggled: MarkersContextKeys.ShowErrorsFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -233,12 +223,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleWarnings`,
-			title: localize('toggle warnings', "Toggle Warnings"),
+			title: localize('show warnings', "Show Warnings"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowWarningsFilterContextKey,
-				title: localize('warnings', "Show Warnings")
-			},
+			toggled: MarkersContextKeys.ShowWarningsFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -258,12 +245,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleInfos`,
-			title: localize('toggle infos', "Toggle Infos"),
+			title: localize('show infos', "Show Infos"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowInfoFilterContextKey,
-				title: localize('Infos', "Show Infos")
-			},
+			toggled: MarkersContextKeys.ShowInfoFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -283,12 +267,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleActiveFile`,
-			title: localize('toggle active file', "Toggle Active File"),
+			title: localize('show active file', "Show Active File Only"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowActiveFileFilterContextKey,
-				title: localize('Active File', "Show Active File Only")
-			},
+			toggled: MarkersContextKeys.ShowActiveFileFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '2_filter',
@@ -308,12 +289,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleExcludedFiles`,
-			title: localize('toggle Excluded Files', "Toggle Excluded Files"),
+			title: localize('show excluded files', "Show Excluded Files"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowExcludedFilesFilterContextKey,
-				title: localize('Excluded Files', "Hide Excluded Files")
-			},
+			toggled: MarkersContextKeys.ShowExcludedFilesFilterContextKey.negate(),
 			menu: {
 				id: viewFilterSubmenu,
 				group: '2_filter',
@@ -348,7 +326,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
 			id: Markers.MARKER_COPY_ACTION_ID,
-			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
+			title: localize2('copyMarker', 'Copy'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when,
@@ -388,7 +366,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.MarkerFocusContextKey,
@@ -410,7 +388,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.RelatedInformationFocusContextKey,

@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import { Color, HSLA, HSVA, RGBA } from 'vs/base/common/color';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Color', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('isLighterColor', () => {
 		const color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));

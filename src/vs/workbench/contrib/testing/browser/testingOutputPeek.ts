@@ -46,9 +46,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IPeekViewService, PeekViewWidget, peekViewResultsBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -57,7 +57,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -73,19 +73,20 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
+import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
@@ -252,7 +253,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
-		}, undefined, { selection: candidate.location.range, ...options });
+		}, undefined, { selection: candidate.location.range, selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport, ...options });
 		return true;
 	}
 
@@ -941,7 +942,7 @@ class TestResultsPeek extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IPeekViewService peekViewService: IPeekViewService,
 		@ITestingPeekOpener private readonly testingPeek: ITestingPeekOpener,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -953,13 +954,14 @@ class TestResultsPeek extends PeekViewWidget {
 
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
 		this._disposables.add(this.onDidClose(() => this.visibilityChange.fire(false)));
-		this.applyTheme(themeService.getColorTheme());
 		peekViewService.addExclusiveWidget(editor, this);
 	}
 
-	private applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(testingPeekBorder) || Color.transparent;
-		const headerBg = theme.getColor(testingPeekHeaderBackground) || Color.transparent;
+	private applyTheme() {
+		const theme = this.themeService.getColorTheme();
+		const isError = this.current instanceof MessageSubject && this.current.message.type === TestMessageType.Error;
+		const borderColor = (isError ? theme.getColor(testingPeekBorder) : theme.getColor(testingMessagePeekBorder)) || Color.transparent;
+		const headerBg = (isError ? theme.getColor(testingPeekHeaderBackground) : theme.getColor(testingPeekMessageHeaderBackground)) || Color.transparent;
 		const editorBg = theme.getColor(editorBackground);
 		this.style({
 			arrowColor: borderColor,
@@ -1022,7 +1024,8 @@ class TestResultsPeek extends PeekViewWidget {
 		}
 
 		this.show(subject.revealLocation.range, TestResultsPeek.lastHeightInLines || hintMessagePeekHeight(message));
-		this.editor.revealPositionNearTop(subject.revealLocation.range.getStartPosition(), ScrollType.Smooth);
+		const startPosition = subject.revealLocation.range.getStartPosition();
+		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(startPosition), ScrollType.Smooth);
 
 		return this.showInPlace(subject);
 	}
@@ -1038,6 +1041,7 @@ class TestResultsPeek extends PeekViewWidget {
 		} else {
 			this.setTitle(localize('testOutputTitle', 'Test Output'));
 		}
+		this.applyTheme();
 		await this.content.reveal({ subject: subject, preserveFocus: false });
 	}
 
@@ -1714,7 +1718,7 @@ class CoverageElement implements ITreeElement {
 	}
 
 	public get icon() {
-		return this.isOpen ? widgetClose : icons.testingCoverage;
+		return this.isOpen ? widgetClose : icons.testingCoverageReport;
 	}
 
 	public get isOpen() {
@@ -2471,7 +2475,7 @@ export class GoToNextMessageAction extends Action2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
+			title: localize2('testing.goToNextMessage', 'Go to Next Test Failure'),
 			icon: Codicon.arrowDown,
 			category: Categories.Test,
 			keybinding: {
@@ -2504,7 +2508,7 @@ export class GoToPreviousMessageAction extends Action2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
+			title: localize2('testing.goToPreviousMessage', 'Go to Previous Test Failure'),
 			icon: Codicon.arrowUp,
 			category: Categories.Test,
 			keybinding: {
@@ -2537,7 +2541,7 @@ export class OpenMessageInEditorAction extends Action2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
+			title: localize2('testing.openMessageInEditor', 'Open in Editor'),
 			icon: Codicon.goToFile,
 			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
@@ -2555,7 +2559,7 @@ export class ToggleTestingPeekHistory extends Action2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
+			title: localize2('testing.toggleTestingPeekHistory', 'Toggle Test History in Peek'),
 			icon: Codicon.history,
 			category: Categories.Test,
 			menu: [{

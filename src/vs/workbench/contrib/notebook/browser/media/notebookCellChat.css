@@ -6,7 +6,7 @@
 .monaco-workbench .notebookOverlay .cell-chat-part {
 	display: none;
 	color: inherit;
-	padding: 0 6px;
+	padding: 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	background: var(--vscode-inlineChat-background);
@@ -15,14 +15,8 @@
 	padding: 8px 8px 0px 8px;
 }
 
-.monaco-workbench .notebookOverlay .cell-chat-part > .toolbar {
-	height: 22px;
-	margin: 10px 2px;
-}
-
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat {
 	color: inherit;
-	margin-top: 6px;
 }
 
 /* body */
@@ -86,6 +80,10 @@
 	display: flex;
 	flex-direction: row;
 	gap: 4px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .body > .widget-toolbar {
+	padding-left: 4px;
 }
 
 /* progress bit */

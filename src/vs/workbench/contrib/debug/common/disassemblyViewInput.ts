@@ -7,6 +7,9 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+const DisassemblyEditorIcon = registerIcon('disassembly-editor-label-icon', Codicon.debug, localize('disassemblyEditorLabelIcon', 'Icon of the disassembly editor label.'));
 
 export class DisassemblyViewInput extends EditorInput {
 
@@ -32,7 +35,7 @@ export class DisassemblyViewInput extends EditorInput {
 	}
 
 	override getIcon(): ThemeIcon {
-		return Codicon.debug;
+		return DisassemblyEditorIcon;
 	}
 
 	override matches(other: unknown): boolean {

@@ -12,11 +12,11 @@
   },
   "main": "./out/node/jsonServerMain",
   "dependencies": {
-    "@vscode/l10n": "^0.0.16",
-    "jsonc-parser": "^3.2.0",
+    "@vscode/l10n": "^0.0.18",
+    "jsonc-parser": "^3.2.1",
     "request-light": "^0.7.0",
-    "vscode-json-languageservice": "^5.3.7",
-    "vscode-languageserver": "^9.0.1",
+    "vscode-json-languageservice": "^5.3.9",
+    "vscode-languageserver": "^9.0.2-next.1",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {

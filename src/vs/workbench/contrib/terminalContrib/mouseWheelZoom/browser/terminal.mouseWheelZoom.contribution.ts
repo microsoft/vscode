@@ -17,7 +17,7 @@ import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/cont
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 
 class TerminalMouseWheelZoomContribution extends Disposable implements ITerminalContribution {
-	static readonly ID = 'terminal.find';
+	static readonly ID = 'terminal.mouseWheelZoom';
 
 	/**
 	 * Currently focused find widget. This is used to track action context since
@@ -40,7 +40,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		super();
 	}
 
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalSettingId.MouseWheelZoom)) {
 				if (!!this._configurationService.getValue(TerminalSettingId.MouseWheelZoom)) {
