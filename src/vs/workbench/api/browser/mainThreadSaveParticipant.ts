@@ -9,8 +9,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel, ITextFileSaveParticipantContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from '../common/extHost.protocol';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { raceCancellationError } from 'vs/base/common/async';
@@ -23,7 +22,7 @@ class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(editorModel: ITextFileEditorModel, context: ITextFileSaveParticipantContext, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		if (!editorModel.textEditorModel || !shouldSynchronizeModel(editorModel.textEditorModel)) {
 			// the model never made it to the extension
@@ -37,7 +36,7 @@ class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),
 				1750
 			);
-			this._proxy.$participateInSave(editorModel.resource, env.reason).then(values => {
+			this._proxy.$participateInSave(editorModel.resource, context.reason).then(values => {
 				if (!values.every(success => success)) {
 					return Promise.reject(new Error('listener failed'));
 				}
