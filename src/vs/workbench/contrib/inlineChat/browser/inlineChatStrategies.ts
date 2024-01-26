@@ -192,7 +192,9 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
-		return this._makeChanges(edits, obs, opts, undefined);
+		await this._makeChanges(edits, obs, opts, new Progress<any>(() => {
+			this._zone.widget.showEditsPreview(this._session.hunkData, this._session.textModel0, this._session.textModelN);
+		}));
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
@@ -202,7 +204,7 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	override async renderChanges(response: ReplyResponse): Promise<undefined> {
 		if (response.allLocalEdits.length > 0) {
-			await this._zone.widget.showEditsPreview(this._session.textModel0, this._session.textModelN);
+			this._zone.widget.showEditsPreview(this._session.hunkData, this._session.textModel0, this._session.textModelN);
 		} else {
 			this._zone.widget.hideEditsPreview();
 		}
