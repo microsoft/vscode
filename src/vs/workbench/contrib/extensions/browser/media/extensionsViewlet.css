@@ -121,14 +121,9 @@
 .extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
 	display: none;
 }
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container {
-	display: flex;
-	align-items: flex-start;
-	padding-top: 10px;
-}
 .extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
-	width: 24px;
-	height: 24px;
+	width: 32px;
+	height: 32px;
 	padding-right: 8px;
 }
 

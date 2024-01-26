@@ -80,6 +80,7 @@ export interface ExtensionsListViewOptions {
 	flexibleHeight?: boolean;
 	onDidChangeTitle?: Event<string>;
 	hideBadge?: boolean;
+	compact?: boolean;
 }
 
 interface IQueryResult {
@@ -178,9 +179,12 @@ export class ExtensionsListView extends ViewPane {
 		const messageContainer = append(container, $('.message-container'));
 		const messageSeverityIcon = append(messageContainer, $(''));
 		const messageBox = append(messageContainer, $('.message'));
-		const delegate = new Delegate();
+		const delegate = new Delegate(this.options.compact);
 		const extensionsViewState = new ExtensionsViewState();
-		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState, { hoverOptions: { position: () => { return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT; } } });
+		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState, {
+			hoverOptions: { position: () => { return this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT; } },
+			compact: this.options.compact
+		});
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
@@ -473,11 +477,11 @@ export class ExtensionsListView extends ViewPane {
 	private parseCategories(value: string): { value: string; includedCategories: string[]; excludedCategories: string[] } {
 		const includedCategories: string[] = [];
 		const excludedCategories: string[] = [];
-		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
+		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory: string, category: string) => {
 			const entry = (category || quotedCategory || '').toLowerCase();
 			if (entry.startsWith('-')) {
 				if (excludedCategories.indexOf(entry) === -1) {
-					excludedCategories.push(entry);
+					excludedCategories.push(entry.substring(1));
 				}
 			} else {
 				if (includedCategories.indexOf(entry) === -1) {

@@ -22,14 +22,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { Color } from 'vs/base/common/color';
@@ -41,6 +39,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { fromNow } from 'vs/base/common/date';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -320,7 +319,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (this.extension?.state === ExtensionState.Installed ? this.extension.preRelease : this.extension?.hasPreReleaseVersion) {
+		if (this.extension?.state === ExtensionState.Uninstalled && this.extension.hasPreReleaseVersion) {
 			this.element = append(this.parent, $('div.extension-bookmark'));
 			const preRelease = append(this.element, $('.pre-release'));
 			append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
@@ -458,20 +457,12 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
-export class ExtensionActivationStatusWidget extends ExtensionWidget {
+export class ExtensionPreReleaseWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly small: boolean,
-		@IExtensionService extensionService: IExtensionService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
-		this._register(extensionService.onDidChangeExtensionsStatus(extensions => {
-			if (this.extension && extensions.some(e => areSameExtensions({ id: e.value }, this.extension!.identifier))) {
-				this.update();
-			}
-		}));
 	}
 
 	render(): void {
@@ -481,21 +472,43 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 			return;
 		}
 
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
-		if (!extensionStatus || !extensionStatus.activationTimes) {
+		if (this.extension.state !== ExtensionState.Installed) {
 			return;
 		}
 
-		const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-		if (this.small) {
-			append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
-			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${activationTime}ms`;
-		} else {
-			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`;
+		if (!this.extension.preRelease) {
+			return;
 		}
 
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+	}
+
+}
+
+export class ExtensionUpdateTimeWidget extends ExtensionWidget {
+
+	constructor(
+		private readonly container: HTMLElement,
+	) {
+		super();
+	}
+
+	render(): void {
+		this.container.innerText = '';
+
+		if (!this.extension) {
+			return;
+		}
+
+		if (this.extension.state !== ExtensionState.Installed) {
+			return;
+		}
+
+		if (!this.extension.local?.installedTimestamp) {
+			return;
+		}
+
+		this.container.innerText = fromNow(this.extension.local.installedTimestamp, true, true);
 	}
 
 }

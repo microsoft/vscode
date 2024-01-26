@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction, ToggleAutoUpdateForExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget, ExtensionUpdateTimeWidget, ExtensionPreReleaseWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -26,8 +26,6 @@ import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-
-const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -50,15 +48,19 @@ export interface ITemplateData {
 }
 
 export class Delegate implements IListVirtualDelegate<IExtension> {
-	getHeight() { return EXTENSION_LIST_ELEMENT_HEIGHT; }
+
+	constructor(private readonly compact?: boolean) { }
+
+	getHeight() { return this.compact ? 54 : 72; }
 	getTemplateId() { return 'extension'; }
 }
 
-export type ExtensionListRendererOptions = {
-	hoverOptions: {
+export interface ExtensionListRendererOptions {
+	readonly compact?: boolean;
+	readonly hoverOptions: {
 		position: () => HoverPosition;
 	};
-};
+}
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
@@ -79,6 +81,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const recommendationWidget = this.instantiationService.createInstance(RecommendationWidget, append(root, $('.extension-bookmark-container')));
 		const preReleaseWidget = this.instantiationService.createInstance(PreReleaseBookmarkWidget, append(root, $('.extension-bookmark-container')));
 		const element = append(root, $('.extension-list-item'));
+		if (this.options.compact) {
+			element.classList.add('compact');
+		}
 		const iconContainer = append(element, $('.icon-container'));
 		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { alt: '' }));
 		const iconRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, false);
@@ -90,13 +95,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
 		const syncIgnore = append(header, $('span.sync-ignored'));
-		const activationStatus = append(header, $('span.activation-status'));
+		const preRelease = append(header, $('span.pre-release'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const publisher = append(footer, $('.author.ellipsis'));
-		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $(`.verified-publisher`)), true);
+		const verifiiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $(`.verified-publisher`)), true);
 		const publisherDisplayName = append(publisher, $('.publisher-name.ellipsis'));
+		const updatedLabelWidget = this.instantiationService.createInstance(ExtensionUpdateTimeWidget, append(footer, $(`.updated-label`)));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
@@ -138,10 +144,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			iconRemoteBadgeWidget,
 			extensionPackBadgeWidget,
 			headerRemoteBadgeWidget,
-			verifiedPublisherWidget,
+			verifiiedPublisherWidget,
 			extensionHoverWidget,
+			updatedLabelWidget,
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
-			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
+			this.instantiationService.createInstance(ExtensionPreReleaseWidget, preRelease),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true),
 		];
