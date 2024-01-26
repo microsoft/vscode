@@ -21,6 +21,8 @@ const root = path.dirname(__dirname);
 const commit = getVersion(root);
 const plumber = require('gulp-plumber');
 const ext = require('./lib/extensions');
+const fancyLog = require('fancy-log');
+const ansiColors = require('ansi-colors');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
@@ -242,8 +244,17 @@ const compileExtensionsBuildTask = task.define('compile-extensions-build', task.
 	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
 ));
 
+let debugMemoryUsageInterval;
+const debugMemoryUsage = task.define('debug-memory-usage', () => {
+	debugMemoryUsageInterval = setInterval(() => fancyLog(ansiColors.green('[memory]'), JSON.stringify(process.memoryUsage())), 1000);
+});
+
+const stopDebugMemoryUsage = task.define('stop-debug-memory-usage', () => {
+	clearInterval(debugMemoryUsageInterval);
+});
+
 gulp.task(compileExtensionsBuildTask);
-gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
+gulp.task(task.define('extensions-ci', task.series(debugMemoryUsage, compileExtensionsBuildTask, compileExtensionMediaBuildTask, stopDebugMemoryUsage)));
 
 const compileExtensionsBuildPullRequestTask = task.define('compile-extensions-build-pr', task.series(
 	cleanExtensionsBuildTask,
