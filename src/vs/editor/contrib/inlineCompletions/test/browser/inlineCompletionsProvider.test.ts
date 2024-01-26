@@ -654,6 +654,8 @@ suite('Inline Completions', () => {
 
 		async function acceptNextWord(model: InlineCompletionsModel, editor: ITestCodeEditor, timesToAccept: number = 1): Promise<void> {
 			for (let i = 0; i < timesToAccept; i++) {
+				model.triggerExplicitly();
+				await timeout(1000);
 				await model.acceptNextWord(editor);
 			}
 		}
@@ -673,9 +675,6 @@ suite('Inline Completions', () => {
 						insertText: `let a = 'some word'; `,
 						range: new Range(1, 1, 1, 1000),
 					});
-
-					model.triggerExplicitly();
-					await timeout(1000);
 
 					await acceptNextWord(model, editor, 2);
 

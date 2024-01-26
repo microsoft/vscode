@@ -306,15 +306,9 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
-			editor.executeEdits(
-				'inlineSuggestion.accept',
-				[
-					...this._getEdits(editor, completion.toSingleTextEdit()).edits,
-					...completion.additionalTextEdits
-				]
-			);
-
-			// set the selections after
+			const edits = this._getEdits(editor, completion.toSingleTextEdit());
+			editor.executeEdits('inlineSuggestion.accept', [...edits.edits, ...completion.additionalTextEdits]);
+			editor.setSelections(edits.editorSelections, 'inlineCompletionPartialAccept');
 		}
 
 		if (completion.command) {
@@ -450,9 +444,7 @@ export class InlineCompletionsModel extends Disposable {
 		const replacedTextAfterPrimaryCursor = textModel
 			.getLineContent(primaryPosition.lineNumber)
 			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-		console.log('completion : ', JSON.stringify(completion));
 		const secondaryEditText = completion.text.substring(primaryPosition.column - completion.range.startColumn);
-		console.log('secondaryEditText : ', secondaryEditText);
 		const edits = [
 			EditOperation.replaceMove(completion.range, completion.text),
 			...secondaryPositions.map(pos => {
@@ -464,16 +456,12 @@ export class InlineCompletionsModel extends Disposable {
 				return EditOperation.replaceMove(range, secondaryEditText);
 			})
 		];
-
-		// 1. need to figure out the new selections using the information at hand
-		// 2. polish and clean the code, should be able to simplify the below
-		let editorSelections: ISelection[] = [];
-		const primaryEditLength = lengthOfText(completion.text ?? '');
-		const secondaryEditLength = lengthOfText(secondaryEditText);
-		editorSelections = [
-			Selection.fromPositions(addPositions(new Position(completion.range.startLineNumber, completion.range.startColumn), primaryEditLength)),
-			...secondaryPositions.map(pos => Selection.fromPositions(addPositions(pos, secondaryEditLength)))
-		];
+		const editorSelections = edits.map(edit => Selection.fromPositions(
+			addPositions(
+				Position.lift({ lineNumber: edit.range.startLineNumber, column: edit.range.startColumn }),
+				lengthOfText(edit.text ?? '')
+			)
+		));
 
 		return {
 			edits,
