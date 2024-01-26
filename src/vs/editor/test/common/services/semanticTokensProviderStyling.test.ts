@@ -10,8 +10,9 @@ import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
@@ -28,6 +29,8 @@ suite('ModelService', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #134973: invalid semantic tokens should be handled better', () => {
 		const languageId = 'java';
 		disposables.add(languageService.registerLanguage({ id: languageId }));
@@ -35,9 +38,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9', 'st10'],
 			tokenModifiers: []
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),
@@ -87,9 +90,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9'],
 			tokenModifiers: ['stm0', 'stm1', 'stm2']
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),
@@ -139,9 +142,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5'],
 			tokenModifiers: ['stm0', 'stm1', 'stm2']
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),

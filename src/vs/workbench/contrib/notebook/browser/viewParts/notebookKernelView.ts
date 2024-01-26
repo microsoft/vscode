@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -45,9 +44,10 @@ registerAction2(class extends Action2 {
 		super({
 			id: SELECT_KERNEL_ID,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
+			title: localize2('notebookActions.selectKernel', 'Select Notebook Kernel'),
 			icon: selectKernelIcon,
 			f1: true,
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(
@@ -67,7 +67,7 @@ registerAction2(class extends Action2 {
 				group: 'status',
 				order: -10
 			}],
-			description: {
+			metadata: {
 				description: localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
 					{

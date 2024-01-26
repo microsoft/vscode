@@ -10,7 +10,7 @@ import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/
 
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IPickerDebugItem } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 

@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchListOptionsUpdate } from 'vs/platform/list/browser/listService';
-import { CellRevealRangeType, CellRevealSyncType, CellRevealType, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealRangeType, CellRevealType, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -43,6 +43,7 @@ export interface INotebookCellList {
 	length: number;
 	rowsContainer: HTMLElement;
 	scrollableElement: HTMLElement;
+	ariaLabel: string;
 	readonly onDidRemoveOutputs: Event<readonly ICellOutputViewModel[]>;
 	readonly onDidHideOutputs: Event<readonly ICellOutputViewModel[]>;
 	readonly onDidRemoveCellsFromView: Event<readonly ICellViewModel[]>;
@@ -53,6 +54,8 @@ export interface INotebookCellList {
 	attachViewModel(viewModel: NotebookViewModel): void;
 	attachWebview(element: HTMLElement): void;
 	clear(): void;
+	getCellViewScrollTop(cell: ICellViewModel): number;
+	getCellViewScrollBottom(cell: ICellViewModel): number;
 	getViewIndex(cell: ICellViewModel): number | undefined;
 	getViewIndex2(modelIndex: number): number | undefined;
 	getModelIndex(cell: CellViewModel): number | undefined;
@@ -62,16 +65,14 @@ export interface INotebookCellList {
 	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
-	revealCellsInView(range: ICellRange): void;
 	scrollToBottom(): void;
-	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
-	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
-	revealCellRangeAsync(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
-	revealCellOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
+	revealCell(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
+	revealCells(range: ICellRange): void;
+	revealRangeInCell(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
+	revealCellOffsetInCenter(element: ICellViewModel, offset: number): void;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
-	getAbsoluteTopOfElement(element: ICellViewModel): number;
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
@@ -112,3 +113,5 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 }
+
+

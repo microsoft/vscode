@@ -12,11 +12,9 @@ import { IFeaturedExtension } from 'vs/base/common/product';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { raceTimeout } from 'vs/base/common/async';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-type FeaturedExtensionTreatment = { extensions: string[]; showAsList?: string };
 type FeaturedExtensionStorageData = { title: string; description: string; imagePath: string; date: number };
 
 export const IFeaturedExtensionsService = createDecorator<IFeaturedExtensionsService>('featuredExtensionsService');
@@ -38,20 +36,19 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 	declare readonly _serviceBrand: undefined;
 
 	private ignoredExtensions: Set<string> = new Set<string>();
-	private treatment: FeaturedExtensionTreatment | undefined;
 	private _isInitialized: boolean = false;
 
 	private static readonly STORAGE_KEY = 'workbench.welcomePage.extensionMetadata';
 
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 	) {
 		super();
-		this.title = localize('gettingStarted.featuredTitle', 'Featured');
+		this.title = localize('gettingStarted.featuredTitle', 'Recommended');
 	}
 
 	title: string;
@@ -60,19 +57,11 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		await this._init();
 
-		let treatments = this.treatment?.extensions?.filter(extension => !this.ignoredExtensions.has(extension)) ?? new Array<string>();
-		const featuredExtensions: IFeaturedExtension[] = new Array();
-
-		if (this.treatment?.showAsList !== 'true' && treatments.length > 0) {
-			// pick a random extensionId for display
-			const treatment = treatments[Math.floor(Math.random() * treatments.length)];
-			treatments = [treatment];
-		}
-
-		for (const treatment of treatments) {
-			const extension = await this.resolveExtension(treatment);
-			if (extension) {
-				featuredExtensions.push(extension);
+		const featuredExtensions: IFeaturedExtension[] = [];
+		for (const extension of this.productService.featuredExtensions?.filter(e => !this.ignoredExtensions.has(e.id)) ?? []) {
+			const resolvedExtension = await this.resolveExtension(extension);
+			if (resolvedExtension) {
+				featuredExtensions.push(resolvedExtension);
 			}
 		}
 
@@ -85,50 +74,42 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 			return;
 		}
 
-		const [extensions, extensionListTitle] = await Promise.all([raceTimeout(this.tasExperimentService?.getTreatment<string>('welcome.featured.item'), 2000),
-		raceTimeout(this.tasExperimentService?.getTreatment<string>('welcome.featured.title'), 2000)]);
-
-		try {
-			this.treatment = extensions ? JSON.parse(extensions) : { extensions: [] };
-		} catch {
+		const featuredExtensions = this.productService.featuredExtensions;
+		if (!featuredExtensions) {
+			this._isInitialized = true;
+			return;
 		}
 
-		this.title = extensionListTitle ?? localize('gettingStarted.featuredTitle', 'Featured');
-
-		if (this.treatment?.extensions && Array.isArray(this.treatment.extensions)) {
-			const installed = await this.extensionManagementService.getInstalled();
-			for (const extension of this.treatment.extensions) {
-				if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension))) {
-					this.ignoredExtensions.add(extension);
+		await this.extensionService.whenInstalledExtensionsRegistered();
+		const installed = await this.extensionManagementService.getInstalled();
+		for (const extension of featuredExtensions) {
+			if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension.id))) {
+				this.ignoredExtensions.add(extension.id);
+			}
+			else {
+				let galleryExtension: IGalleryExtension | undefined;
+				try {
+					galleryExtension = (await this.galleryService.getExtensions([{ id: extension.id }], CancellationToken.None))[0];
+				} catch (err) {
+					continue;
 				}
-				else {
-					let galleryExtension: IGalleryExtension | undefined;
-					try {
-						galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
-					} catch (err) {
-						continue;
-					}
-					if (!await this.extensionManagementService.canInstall(galleryExtension)) {
-						this.ignoredExtensions.add(extension);
-					}
+				if (!await this.extensionManagementService.canInstall(galleryExtension)) {
+					this.ignoredExtensions.add(extension.id);
 				}
 			}
 		}
-
 		this._isInitialized = true;
 	}
 
-	private async resolveExtension(extensionId: string): Promise<IFeaturedExtension | undefined> {
+	private async resolveExtension(productMetadata: IFeaturedExtension): Promise<IFeaturedExtension | undefined> {
 
-		const productMetadata = this.productService.featuredExtensions?.find(e => ExtensionIdentifier.equals(e.id, extensionId));
-
-		const title = productMetadata?.title ?? await this.getMetadata(extensionId, FeaturedExtensionMetadataType.Title);
-		const description = productMetadata?.description ?? await this.getMetadata(extensionId, FeaturedExtensionMetadataType.Description);
-		const imagePath = productMetadata?.imagePath ?? await this.getMetadata(extensionId, FeaturedExtensionMetadataType.ImagePath);
+		const title = productMetadata.title ?? await this.getMetadata(productMetadata.id, FeaturedExtensionMetadataType.Title);
+		const description = productMetadata.description ?? await this.getMetadata(productMetadata.id, FeaturedExtensionMetadataType.Description);
+		const imagePath = productMetadata.imagePath ?? await this.getMetadata(productMetadata.id, FeaturedExtensionMetadataType.ImagePath);
 
 		if (title && description && imagePath) {
 			return {
-				id: extensionId,
+				id: productMetadata.id,
 				title: title,
 				description: description,
 				imagePath: imagePath,

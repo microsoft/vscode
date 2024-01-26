@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { groupBy } from 'vs/base/common/collections';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestMarkersModel extends MarkersModel {
 
@@ -26,6 +27,8 @@ class TestMarkersModel extends MarkersModel {
 }
 
 suite('MarkersModel Test', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marker ids are unique', function () {
 		const marker1 = anErrorWithRange(3);

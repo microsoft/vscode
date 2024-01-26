@@ -114,7 +114,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 
 	private _scheduleRender(): void {
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 16);
+			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(DOM.getWindow(this._domNode.domNode), this._onRenderScheduled.bind(this), 16);
 		}
 	}
 

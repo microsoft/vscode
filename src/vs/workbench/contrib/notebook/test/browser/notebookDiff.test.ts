@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { Mimes } from 'vs/base/common/mime';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
@@ -28,16 +29,16 @@ class CellSequence implements ISequence {
 	}
 }
 
-
 suite('NotebookCommon', () => {
 	const configurationService = new TestConfigurationService();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('diff different source', async () => {
 		await withTestNotebookDiffModel([
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
 		], [
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			assert.strictEqual(diffResult.changes.length, 1);
@@ -53,12 +54,19 @@ suite('NotebookCommon', () => {
 				modifiedLength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -69,7 +77,7 @@ suite('NotebookCommon', () => {
 		], [
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
 			['', 'javascript', CellKind.Code, [], {}]
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			assert.strictEqual(diffResult.changes.length, 1);
@@ -85,13 +93,21 @@ suite('NotebookCommon', () => {
 				modifiedLength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
+
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -100,7 +116,7 @@ suite('NotebookCommon', () => {
 			['123456789', 'javascript', CellKind.Code, [], {}]
 		], [
 			['987654321', 'javascript', CellKind.Code, [], {}],
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			assert.strictEqual(diffResult.changes.length, 1);
@@ -116,12 +132,20 @@ suite('NotebookCommon', () => {
 				modifiedLength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
+
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -138,7 +162,7 @@ suite('NotebookCommon', () => {
 				'    \'This version is debugged.\'\n',
 				'    return a * b'
 			].join(''), 'javascript', CellKind.Code, [], {}],
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			assert.strictEqual(diffResult.changes.length, 1);
@@ -154,12 +178,20 @@ suite('NotebookCommon', () => {
 				modifiedLength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
+
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -172,10 +204,10 @@ suite('NotebookCommon', () => {
 			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 5 }],
 			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 6 }],
 			['', 'javascript', CellKind.Code, [], {}]
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
@@ -183,6 +215,14 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[2].type, 'unchanged');
+
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -195,10 +235,10 @@ suite('NotebookCommon', () => {
 			['This is a test notebook with markdown cells only', 'markdown', CellKind.Markup, [], {}],
 			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
 			['In the news', 'markdown', CellKind.Markup, [], {}],
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
@@ -206,6 +246,14 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
 			assert.strictEqual(diffViewModels.viewModels[2].type, 'modified');
+
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -217,8 +265,8 @@ suite('NotebookCommon', () => {
 			['var h = 8;', 'javascript', CellKind.Code, [], {}],
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], (model, accessor) => {
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		], (model, disposables, accessor) => {
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: {
 					changes: [{
@@ -235,6 +283,14 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
 			assert.strictEqual(diffResult.viewModels[1].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[2].type, 'unchanged');
+
+			diffResult.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -257,8 +313,8 @@ suite('NotebookCommon', () => {
 			['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			['var f = 6;', 'javascript', CellKind.Code, [], {}],
 			['var g = 7;', 'javascript', CellKind.Code, [], {}],
-		], async (model, accessor) => {
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		], async (model, disposables, accessor) => {
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: {
 					changes: [{
@@ -285,6 +341,14 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffResult.viewModels[5].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[6].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[7].type, 'unchanged');
+
+			diffResult.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -307,8 +371,8 @@ suite('NotebookCommon', () => {
 			['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			['var f = 6;', 'javascript', CellKind.Code, [], {}],
 			['var g = 7;', 'javascript', CellKind.Code, [], {}],
-		], async (model, accessor) => {
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		], async (model, disposables, accessor) => {
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: {
 					changes: [{
@@ -330,6 +394,14 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffResult.viewModels[5].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[6].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[7].type, 'unchanged');
+
+			diffResult.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -461,10 +533,10 @@ suite('NotebookCommon', () => {
 		], [
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
@@ -472,6 +544,14 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'unchanged');
 			assert.strictEqual(diffViewModels.viewModels[0].checkIfOutputsModified(), false);
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'modified');
+
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 
@@ -482,16 +562,23 @@ suite('NotebookCommon', () => {
 		], [
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-		], (model, accessor) => {
+		], (model, disposables, accessor) => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].original!.textModel.equal(diffViewModels.viewModels[0].modified!.textModel), true);
 			assert.strictEqual(diffViewModels.viewModels[1].original!.textModel.equal(diffViewModels.viewModels[1].modified!.textModel), false);
+			diffViewModels.viewModels.forEach(vm => {
+				vm.original?.dispose();
+				vm.modified?.dispose();
+				vm.dispose();
+			});
+			model.original.notebook.dispose();
+			model.modified.notebook.dispose();
 		});
 	});
 });

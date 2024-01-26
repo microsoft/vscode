@@ -34,7 +34,7 @@ export class SmartSnippetInserter {
 		const eolLength = model.getEOL().length;
 		const lineCount = model.getLineCount();
 		for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
-			const lineTotalLength = model.getLineContent(lineNumber).length + eolLength;
+			const lineTotalLength = model.getLineLength(lineNumber) + eolLength;
 			const offsetAfterLine = offsetBeforeLine + lineTotalLength;
 
 			if (offsetAfterLine > offset) {

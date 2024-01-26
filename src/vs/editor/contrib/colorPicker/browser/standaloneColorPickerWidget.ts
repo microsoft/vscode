@@ -87,11 +87,10 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	static readonly ID = 'editor.contrib.standaloneColorPickerWidget';
 	readonly allowEditorOverflow = true;
 
-	private body: HTMLElement = document.createElement('div');
-
 	private readonly _position: Position | undefined = undefined;
 	private readonly _standaloneColorPickerParticipant: StandaloneColorPickerParticipant;
 
+	private _body: HTMLElement = document.createElement('div');
 	private _colorHover: StandaloneColorPickerHover | null = null;
 	private _selectionSetInEditor: boolean = false;
 
@@ -120,7 +119,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 				endLineNumber: editorSelection.endLineNumber,
 				endColumn: editorSelection.endColumn
 			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
-		const focusTracker = this._register(dom.trackFocus(this.body));
+		const focusTracker = this._register(dom.trackFocus(this._body));
 		this._register(focusTracker.onDidBlur(_ => {
 			this.hide();
 		}));
@@ -146,6 +145,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			this._render(result.value, result.foundInEditor);
 		}));
 		this._start(selection);
+		this._body.style.zIndex = '50';
 		this._editor.addContentWidget(this);
 	}
 
@@ -160,7 +160,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	}
 
 	public getDomNode(): HTMLElement {
-		return this.body;
+		return this._body;
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
@@ -186,7 +186,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	public focus(): void {
 		this._standaloneColorPickerFocused.set(true);
-		this.body.focus();
+		this._body.focus();
 	}
 
 	private async _start(selection: IRange) {
@@ -230,11 +230,11 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		if (colorPickerWidget === undefined) {
 			return;
 		}
-		this.body.classList.add('standalone-colorpicker-body');
-		this.body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
-		this.body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';
-		this.body.tabIndex = 0;
-		this.body.appendChild(fragment);
+		this._body.classList.add('standalone-colorpicker-body');
+		this._body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
+		this._body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';
+		this._body.tabIndex = 0;
+		this._body.appendChild(fragment);
 		colorPickerWidget.layout();
 
 		const colorPickerBody = colorPickerWidget.body;

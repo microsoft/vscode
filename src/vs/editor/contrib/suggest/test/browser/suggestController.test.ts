@@ -32,6 +32,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { DeleteLinesAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
 
 suite('SuggestController', function () {
 
@@ -42,10 +43,12 @@ suite('SuggestController', function () {
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
 
-
 	teardown(function () {
+
 		disposables.clear();
 	});
+
+	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 
@@ -53,7 +56,7 @@ suite('SuggestController', function () {
 			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
 			[ILogService, new NullLogService()],
-			[IStorageService, new InMemoryStorageService()],
+			[IStorageService, disposables.add(new InMemoryStorageService())],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 				override computeWordRanges() {
@@ -89,6 +92,7 @@ suite('SuggestController', function () {
 
 	test('postfix completion reports incorrect position #86984', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -125,6 +129,7 @@ suite('SuggestController', function () {
 	test('use additionalTextEdits sync when possible', async function () {
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -166,6 +171,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -218,6 +224,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -274,6 +281,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -323,6 +331,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -377,6 +386,7 @@ suite('SuggestController', function () {
 
 		const resolve: Function[] = [];
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -434,6 +444,7 @@ suite('SuggestController', function () {
 
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -470,6 +481,7 @@ suite('SuggestController', function () {
 
 	test('Pressing enter on autocomplete should always apply the selected dropdown completion, not a different, hidden one #161883', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 
 				const word = doc.getWordUntilPosition(pos);
@@ -516,6 +528,7 @@ suite('SuggestController', function () {
 
 	test('Fast autocomple typing selects the previous autocomplete suggestion, #71795', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 
 				const word = doc.getWordUntilPosition(pos);
@@ -568,5 +581,130 @@ suite('SuggestController', function () {
 
 		controller.acceptSelectedSuggestion(false, false);
 		assert.strictEqual(editor.getValue(), 'for');
+	});
+
+	test.skip('Suggest widget gets orphaned in editor #187779', async function () {
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+
+				const word = doc.getLineContent(pos.lineNumber);
+				const range = new Range(pos.lineNumber, 1, pos.lineNumber, pos.column);
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: word,
+						insertText: word,
+						range
+					}]
+				};
+			}
+		}));
+
+		editor.setValue(`console.log(example.)\nconsole.log(EXAMPLE.not)`);
+		editor.setSelection(new Selection(1, 21, 1, 21));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		await p1;
+
+		const p2 = Event.toPromise(controller.model.onDidCancel);
+		new DeleteLinesAction().run(null!, editor);
+
+		await p2;
+	});
+
+	test('Ranges where additionalTextEdits are applied are not appropriate when characters are typed #177591', async function () {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'aaa',
+						insertText: 'aaa',
+						range: Range.fromPositions(pos),
+						additionalTextEdits: [{
+							range: Range.fromPositions(pos.delta(0, 10)),
+							text: 'aaa'
+						}]
+					}]
+				};
+			}
+		}));
+
+		{ // PART1 - no typing
+			editor.setValue(`123456789123456789`);
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			const p1 = Event.toPromise(controller.model.onDidSuggest);
+			controller.triggerSuggest();
+
+			const e = await p1;
+			assert.strictEqual(e.completionModel.items.length, 1);
+			assert.strictEqual(e.completionModel.items[0].textLabel, 'aaa');
+
+			controller.acceptSelectedSuggestion(false, false);
+
+			assert.strictEqual(editor.getValue(), 'aaa1234567891aaa23456789');
+		}
+
+		{ // PART2 - typing
+			editor.setValue(`123456789123456789`);
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			const p1 = Event.toPromise(controller.model.onDidSuggest);
+			controller.triggerSuggest();
+
+			const e = await p1;
+			assert.strictEqual(e.completionModel.items.length, 1);
+			assert.strictEqual(e.completionModel.items[0].textLabel, 'aaa');
+
+			editor.trigger('keyboard', 'type', { text: 'aa' });
+
+			controller.acceptSelectedSuggestion(false, false);
+
+			assert.strictEqual(editor.getValue(), 'aaa1234567891aaa23456789');
+		}
+	});
+
+	test.skip('[Bug] "No suggestions" persists while typing if the completion helper is set to return an empty list for empty content#3557', async function () {
+		let requestCount = 0;
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				requestCount += 1;
+
+				if (requestCount === 1) {
+					return undefined;
+				}
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'foo',
+						insertText: 'foo',
+						range: new Range(pos.lineNumber, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		const e1 = await p1;
+		assert.strictEqual(e1.completionModel.items.length, 0);
+		assert.strictEqual(requestCount, 1);
+
+		const p2 = Event.toPromise(controller.model.onDidSuggest);
+		editor.trigger('keyboard', 'type', { text: 'f' });
+
+		const e2 = await p2;
+		assert.strictEqual(e2.completionModel.items.length, 1);
+		assert.strictEqual(requestCount, 2);
+
 	});
 });

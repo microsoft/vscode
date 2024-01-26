@@ -5,10 +5,10 @@
 
 import * as nls from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -23,7 +23,7 @@ interface ITerminalData {
 	status: ITerminalStatus;
 	problemMatcher: AbstractProblemCollector;
 	taskRunEnded: boolean;
-	disposeListener?: IDisposable;
+	disposeListener?: MutableDisposable<IDisposable>;
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
@@ -50,35 +50,44 @@ export class TaskTerminalStatus extends Disposable {
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
 			}
 		}));
+		this._register(toDisposable(() => {
+			for (const terminalData of this.terminalMap.values()) {
+				terminalData.disposeListener?.dispose();
+			}
+			this.terminalMap.clear();
+		}));
 	}
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		problemMatcher.onDidFindFirstMatch(() => {
+		this._register(problemMatcher.onDidFindFirstMatch(() => {
 			this._marker = terminal.registerMarker();
-		});
-		problemMatcher.onDidFindErrors(() => {
+			if (this._marker) {
+				this._register(this._marker);
+			}
+		}));
+		this._register(problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
 				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
-		});
-		problemMatcher.onDidRequestInvalidateLastMarker(() => {
+		}));
+		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
 			this._marker?.dispose();
 			this._marker = undefined;
-		});
+		}));
 
 		this.terminalMap.set(terminal.instanceId, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 
-	private terminalFromEvent(event: ITaskEvent): ITerminalData | undefined {
-		if (!event.terminalId) {
+	private terminalFromEvent(event: { terminalId: number | undefined }): ITerminalData | undefined {
+		if (!('terminalId' in event) || !event.terminalId) {
 			return undefined;
 		}
 		return this.terminalMap.get(event.terminalId);
 	}
 
-	private eventEnd(event: ITaskEvent) {
+	private eventEnd(event: ITaskProcessEndedEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData) {
 			return;
@@ -104,7 +113,7 @@ export class TaskTerminalStatus extends Disposable {
 		}
 	}
 
-	private eventInactive(event: ITaskEvent) {
+	private eventInactive(event: ITaskGeneralEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData || !terminalData.problemMatcher || terminalData.taskRunEnded) {
 			return;
@@ -123,13 +132,14 @@ export class TaskTerminalStatus extends Disposable {
 		}
 	}
 
-	private eventActive(event: ITaskEvent) {
+	private eventActive(event: ITaskGeneralEvent | ITaskProcessStartedEvent) {
 		const terminalData = this.terminalFromEvent(event);
 		if (!terminalData) {
 			return;
 		}
 		if (!terminalData.disposeListener) {
-			terminalData.disposeListener = terminalData.terminal.onDisposed(() => {
+			terminalData.disposeListener = this._register(new MutableDisposable());
+			terminalData.disposeListener.value = terminalData.terminal.onDisposed(() => {
 				if (!event.terminalId) {
 					return;
 				}

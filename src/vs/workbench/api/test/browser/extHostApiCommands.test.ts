@@ -34,7 +34,6 @@ import { mock } from 'vs/base/test/common/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
@@ -62,6 +61,7 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -76,6 +76,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	const defaultSelector = { scheme: 'far' };
 	let model: ITextModel;
 
+	let insta: TestInstantiationService;
 	let rpcProtocol: TestRPCProtocol;
 	let extHost: ExtHostLanguageFeatures;
 	let mainThread: MainThreadLanguageFeatures;
@@ -152,7 +153,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
 		services.set(IConfigurationService, new TestConfigurationService());
 
-		const insta = new InstantiationService(services);
+		insta = new TestInstantiationService(services);
 
 		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
@@ -196,12 +197,17 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
 		mainThread.dispose();
+
+		(<OutlineModelService>insta.get(IOutlineModelService)).dispose();
+		insta.dispose();
 	});
 
 	teardown(() => {
 		disposables = dispose(disposables);
 		return rpcProtocol.sync();
 	});
+
+	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --- workspace symbols
 
@@ -676,6 +682,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			assert.strictEqual(first.range.end.line, 0);
 			assert.strictEqual(first.range.end.character, 5);
 		});
+	});
+
+	// --- document highlights
+
+	test('"vscode.executeDocumentHighlights" API has stopped returning DocumentHighlight[]#200056', async function () {
+
+
+		disposables.push(extHost.registerDocumentHighlightProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentHighlightProvider>{
+			provideDocumentHighlights() {
+				return [
+					new types.DocumentHighlight(new types.Range(0, 17, 0, 25), types.DocumentHighlightKind.Read)
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		return commands.executeCommand<vscode.DocumentHighlight[]>('vscode.executeDocumentHighlights', model.uri, new types.Position(0, 0)).then(values => {
+			assert.ok(Array.isArray(values));
+			assert.strictEqual(values.length, 1);
+			const [first] = values;
+			assert.strictEqual(first.range.start.line, 0);
+			assert.strictEqual(first.range.start.character, 17);
+			assert.strictEqual(first.range.end.line, 0);
+			assert.strictEqual(first.range.end.character, 25);
+		});
+
 	});
 
 	// --- outline

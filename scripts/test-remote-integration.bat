@@ -55,7 +55,7 @@ echo Storing log files into '%VSCODELOGSDIR%'
 
 :: Tests in the extension host
 
-set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --disable-keytar --disable-inspect --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
+set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-inspect --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
 
 echo.
 echo ### API tests (folder)

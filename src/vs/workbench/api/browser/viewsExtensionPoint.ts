@@ -18,7 +18,7 @@ import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workb
 import { CustomTreeView, RawCustomTreeViewContextKey, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, ICustomTreeViewDescriptor, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ResolvableTreeItem, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ResolvableTreeItem, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
 import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
@@ -30,7 +30,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
@@ -307,15 +307,19 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				if (!treeItem.tooltip) {
 					return;
 				}
-				const element = treeViewsService.getRenderedTreeElement(treeItem);
+				const element = treeViewsService.getRenderedTreeElement(('handle' in treeItem) ? treeItem.handle : treeItem);
 				if (!element) {
 					return;
 				}
 				hoverService.showHover({
 					content: treeItem.tooltip,
 					target: element,
-					hoverPosition: HoverPosition.BELOW,
-					hideOnHover: false
+					position: {
+						hoverPosition: HoverPosition.BELOW,
+					},
+					persistence: {
+						hideOnHover: false
+					}
 				}, true);
 			},
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -435,7 +439,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
-				title, extensionId,
+				title: { value: title, original: title },
+				extensionId,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					[id, { mergeViewWithContainerWhenSingleView: true }]
@@ -530,14 +535,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						}
 					}
 
-					const viewDescriptor = <ICustomTreeViewDescriptor>{
+					const viewDescriptor: ICustomViewDescriptor = {
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
-						name: item.name,
+						name: { value: item.name, original: item.name },
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
-						containerTitle: item.contextualTitle || viewContainer?.title,
+						containerTitle: item.contextualTitle || (viewContainer && (typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value)),
 						canToggleVisibility: true,
 						canMoveView: viewContainer?.id !== REMOTE,
 						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name, extension.description.identifier.value) : undefined,
@@ -587,7 +592,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			if (removedViews.length) {
 				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
 				for (const view of removedViews) {
-					const anyView = view as ICustomTreeViewDescriptor;
+					const anyView = view as ICustomViewDescriptor;
 					if (anyView.treeView) {
 						anyView.treeView.dispose();
 					}

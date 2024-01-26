@@ -193,7 +193,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	}
 
 	protected renderList(): void {
-		const focused = DOM.isAncestor(document.activeElement, this.listElement);
+		const focused = DOM.isAncestorOfActiveElement(this.listElement);
 
 		DOM.clearNode(this.listElement);
 		this.listDisposables.clear();
@@ -208,18 +208,13 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		}
 
 		const header = this.renderHeader();
-		const ITEM_HEIGHT = 24;
-		let listHeight = ITEM_HEIGHT * this.model.items.length;
 
 		if (header) {
-			listHeight += ITEM_HEIGHT;
 			this.listElement.appendChild(header);
 		}
 
 		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
 		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
-
-		this.listElement.style.height = listHeight + 'px';
 	}
 
 	protected createBasicSelectBox(value: IObjectEnumData): SelectBox {
@@ -287,7 +282,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.addTooltipsToRow(rowElementGroup, item);
 
 		if (item.selected && listFocused) {
-			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
+			disposableTimeout(() => rowElement.focus(), undefined, this.listDisposables);
 		}
 
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, 'click', (e) => {
@@ -489,9 +484,9 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			if (ev.dataTransfer) {
 				ev.dataTransfer.dropEffect = 'move';
 				const dragImage = this.getDragImage(item);
-				document.body.appendChild(dragImage);
+				rowElement.ownerDocument.body.appendChild(dragImage);
 				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => document.body.removeChild(dragImage), 0);
+				setTimeout(() => rowElement.ownerDocument.body.removeChild(dragImage), 0);
 			}
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {

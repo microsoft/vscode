@@ -118,8 +118,8 @@ function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
 
 export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
-	#resolved = false;
-	#resolvePromise?: CancelablePromise<void>;
+	private _resolved = false;
+	private _resolvePromise?: CancelablePromise<void>;
 
 	constructor(
 		init: WebviewInputInitInfo,
@@ -131,17 +131,17 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 	override dispose() {
 		super.dispose();
-		this.#resolvePromise?.cancel();
-		this.#resolvePromise = undefined;
+		this._resolvePromise?.cancel();
+		this._resolvePromise = undefined;
 	}
 
 	@memoize
 	public override async resolve() {
-		if (!this.#resolved) {
-			this.#resolved = true;
-			this.#resolvePromise = createCancelablePromise(token => this._webviewWorkbenchService.resolveWebview(this, token));
+		if (!this._resolved) {
+			this._resolved = true;
+			this._resolvePromise = createCancelablePromise(token => this._webviewWorkbenchService.resolveWebview(this, token));
 			try {
-				await this.#resolvePromise;
+				await this._resolvePromise;
 			} catch (e) {
 				if (!isCancellationError(e)) {
 					throw e;
@@ -156,7 +156,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 			return;
 		}
 
-		other.#resolved = this.#resolved;
+		other._resolved = this._resolved;
 		return other;
 	}
 }

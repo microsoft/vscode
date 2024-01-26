@@ -19,6 +19,8 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { isWeb } from 'vs/base/common/platform';
 import { createBlobWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ITerminalBackendRegistry, TerminalExtensions } from 'vs/platform/terminal/common/terminal';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -501,7 +503,8 @@ export abstract class AbstractTimerService implements ITimerService {
 		Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(), // extensions registered
 			_lifecycleService.when(LifecyclePhase.Restored),			// workbench created and parts restored
-			layoutService.whenRestored									// layout restored (including visible editors resolved)
+			layoutService.whenRestored,									// layout restored (including visible editors resolved)
+			Promise.all(Array.from(Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values()).map(e => e.whenReady))
 		]).then(() => {
 			// set perf mark from renderer
 			this.setPerformanceMarks('renderer', perf.getMarks());
@@ -541,6 +544,7 @@ export abstract class AbstractTimerService implements ITimerService {
 					const t1 = performance.now();
 					fib(24);
 					const value = Math.round(performance.now() - t1);
+					// eslint-disable-next-line no-restricted-globals
 					postMessage({ value: tooSlow ? -1 : value });
 
 				}).toString();

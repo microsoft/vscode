@@ -146,20 +146,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				untitledModel = this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
 			}
 
-			return this.createOrGetCached(untitledModel.resource, () => {
-
-				// Factory function for new untitled editor
-				const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
-
-				// We dispose the untitled model once the editor
-				// is being disposed. Even though we may have not
-				// created the model initially, the lifecycle for
-				// untitled is tightly coupled with the editor
-				// lifecycle for now.
-				Event.once(input.onWillDispose)(() => untitledModel.dispose());
-
-				return input;
-			});
+			return this.createOrGetCached(untitledModel.resource, () => this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel));
 		}
 
 		// Text File/Resource Editor Support

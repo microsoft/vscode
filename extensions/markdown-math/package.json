@@ -11,7 +11,8 @@
     "vscode": "^1.54.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -98,7 +99,7 @@
     "build-notebook": "node ./esbuild"
   },
   "dependencies": {
-    "@vscode/markdown-it-katex": "^1.0.0"
+    "@vscode/markdown-it-katex": "^1.0.3"
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",

@@ -150,7 +150,7 @@ export type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedI
 
 export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
 
-	private renderedNodes = new Map<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, IResourceMarkersTemplateData>();
+	private renderedNodes = new Map<ResourceMarkers, IResourceMarkersTemplateData[]>();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -185,11 +185,23 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		}
 
 		this.updateCount(node, templateData);
-		this.renderedNodes.set(node, templateData);
+		const nodeRenders = this.renderedNodes.get(resourceMarkers) ?? [];
+		this.renderedNodes.set(resourceMarkers, [...nodeRenders, templateData]);
 	}
 
-	disposeElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
-		this.renderedNodes.delete(node);
+	disposeElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, index: number, templateData: IResourceMarkersTemplateData): void {
+		const nodeRenders = this.renderedNodes.get(node.element) ?? [];
+		const nodeRenderIndex = nodeRenders.findIndex(nodeRender => templateData === nodeRender);
+
+		if (nodeRenderIndex < 0) {
+			throw new Error('Disposing unknown resource marker');
+		}
+
+		if (nodeRenders.length === 1) {
+			this.renderedNodes.delete(node.element);
+		} else {
+			nodeRenders.splice(nodeRenderIndex, 1);
+		}
 	}
 
 	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
@@ -197,13 +209,13 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	}
 
 	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
-		const templateData = this.renderedNodes.get(node);
+		const nodeRenders = this.renderedNodes.get(node.element);
 
-		if (!templateData) {
+		if (!nodeRenders) {
 			return;
 		}
 
-		this.updateCount(node, templateData);
+		nodeRenders.forEach(nodeRender => this.updateCount(node, nodeRender));
 	}
 
 	private updateCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, templateData: IResourceMarkersTemplateData): void {

@@ -6,12 +6,11 @@
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalProfile, TerminalExtensions, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -22,11 +21,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	declare _serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
-	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 	private _configHelper: TerminalConfigHelper;
 	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
-	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
 	constructor(
@@ -37,7 +35,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		super();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
-		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
 
@@ -55,7 +52,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalShellTypeContextKey,
 			this._terminalInRunCommandPicker,
-			this._terminalSuggestWidgetVisibleContextKey,
 			this._configHelper,
 			shellLaunchConfig
 		);

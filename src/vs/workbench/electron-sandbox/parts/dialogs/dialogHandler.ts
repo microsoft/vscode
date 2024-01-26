@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
 import { isLinuxSnap } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IAsyncPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -24,7 +24,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.getPromptButtons(prompt);

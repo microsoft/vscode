@@ -29,6 +29,18 @@ pub fn process_exists(pid: u32) -> bool {
 	sys.refresh_process(Pid::from_u32(pid))
 }
 
+pub fn kill_pid(pid: u32) -> bool {
+	let mut sys = System::new();
+	let pid = Pid::from_u32(pid);
+	sys.refresh_process(pid);
+
+	if let Some(p) = sys.process(pid) {
+		p.kill()
+	} else {
+		false
+	}
+}
+
 pub async fn wait_until_process_exits(pid: Pid, poll_ms: u64) {
 	let mut s = System::new();
 	let duration = Duration::from_millis(poll_ms);

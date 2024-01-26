@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction } from 'vs/editor/browser/editorExtensions';
@@ -27,6 +28,9 @@ function executeAction(action: EditorAction, editor: ICodeEditor): void {
 }
 
 suite('Editor Contrib - Line Operations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('SortLinesAscendingAction', () => {
 		test('should sort selected lines in ascending order', function () {
 			withTestCodeEditor(

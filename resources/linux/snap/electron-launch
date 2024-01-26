@@ -47,6 +47,15 @@ function append_dir() {
   fi
 }
 
+function copy_env_variable() {
+  local -n var="$1"
+  if [[ "+$var" ]]; then
+    export "${!var}_VSCODE_SNAP_ORIG=${var}"
+  else
+    export "${!var}_VSCODE_SNAP_ORIG=''"
+  fi
+}
+
 # shellcheck source=/dev/null
 source "$SNAP_USER_DATA/.last_revision" 2>/dev/null || true
 if [ "$SNAP_DESKTOP_LAST_REVISION" = "$SNAP_VERSION" ]; then
@@ -83,6 +92,19 @@ function is_subpath() {
 function can_open_file() {
   [ -f "$1" ] && [ -r "$1" ]
 }
+
+# Preserve system variables that get modified below
+copy_env_variable XDG_CONFIG_DIRS
+copy_env_variable XDG_DATA_DIRS
+copy_env_variable LOCPATH
+copy_env_variable GIO_MODULE_DIR
+copy_env_variable GSETTINGS_SCHEMA_DIR
+copy_env_variable GDK_PIXBUF_MODULE_FILE
+copy_env_variable GDK_PIXBUF_MODULEDIR
+copy_env_variable GDK_BACKEND
+copy_env_variable GTK_PATH
+copy_env_variable GTK_EXE_PREFIX
+copy_env_variable GTK_IM_MODULE_FILE
 
 # XDG Config
 prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"

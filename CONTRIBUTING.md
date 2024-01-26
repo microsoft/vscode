@@ -2,11 +2,12 @@
 
 Welcome, and thank you for your interest in contributing to VS Code!
 
-There are many ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
+There are several ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
 
 ## Asking Questions
 
-Have a question? Rather than opening an issue, please ask away on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
+
+Have a question? Instead of opening an issue, please ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) using the tag `visual-studio-code`.
 
 The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
 
@@ -18,7 +19,7 @@ See the [Feedback Channels](https://github.com/microsoft/vscode/wiki/Feedback-Ch
 
 ## Reporting Issues
 
-Have you identified a reproducible problem in VS Code? Have a feature request? We want to hear about it! Here's how you can report your issue as effectively as possible.
+Have you identified a reproducible problem in VS Code? Do you have a feature request? We want to hear about it! Here's how you can report your issue as effectively as possible.
 
 ### Identify Where to Report
 
@@ -52,21 +53,13 @@ The built-in tool for reporting an issue, which you can access by using `Report 
 Please include the following with each issue:
 
 * Version of VS Code
-
 * Your operating system
-
 * List of extensions that you have installed
-
 * Reproducible steps (1... 2... 3...) that cause the issue
-
 * What you expected to see, versus what you actually saw
-
 * Images, animations, or a link to a video showing the issue occurring
-
 * A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
-
   * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
-
 * Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
 
 ### Creating Pull Requests
@@ -78,22 +71,20 @@ Please include the following with each issue:
 Please remember to do the following:
 
 * [ ] Search the issue repository to ensure your report is a new issue
-
 * [ ] Recreate the issue after disabling all extensions
-
 * [ ] Simplify your code around the issue to better isolate the problem
 
 Don't feel bad if the developers can't reproduce the issue right away. They will simply ask for more information!
 
 ### Follow Your Issue
 
-Once submitted, your report will go into the [issue tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect, and how to continue to assist throughout the process.
+Once submitted, your report will go into the [issue tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect and how to continue to assist throughout the process.
 
 ## Automated Issue Management
 
 We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
 
-* Automatically closes any issue marked `needs-more-info` if there has been no response in the past 7 days.
+* Automatically close any issue marked `info-needed` if there has been no response in the past 7 days.
 * Automatically lock issues 45 days after they are closed.
 * Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
 
@@ -101,9 +92,8 @@ If you believe the bot got something wrong, please open a new issue and let us k
 
 ## Contributing Fixes
 
-If you are interested in writing code to fix issues,
-please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
+If you are interested in writing code to fix issues, please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
 
-# Thank You!
+## Thank You
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.

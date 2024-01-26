@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as arrays from 'vs/base/common/arrays';
+import * as arraysFind from 'vs/base/common/arraysFind';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Arrays', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('removeFastWithoutKeepingOrder', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
@@ -22,25 +26,25 @@ suite('Arrays', () => {
 	test('findFirst', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
-		let idx = arrays.findFirstInSorted(array, e => e >= 0);
+		let idx = arraysFind.findFirstIdxMonotonousOrArrLen(array, e => e >= 0);
 		assert.strictEqual(array[idx], 1);
 
-		idx = arrays.findFirstInSorted(array, e => e > 1);
+		idx = arraysFind.findFirstIdxMonotonousOrArrLen(array, e => e > 1);
 		assert.strictEqual(array[idx], 4);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 8);
+		idx = arraysFind.findFirstIdxMonotonousOrArrLen(array, e => e >= 8);
 		assert.strictEqual(array[idx], 55);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 61);
+		idx = arraysFind.findFirstIdxMonotonousOrArrLen(array, e => e >= 61);
 		assert.strictEqual(array[idx], 61);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 69);
+		idx = arraysFind.findFirstIdxMonotonousOrArrLen(array, e => e >= 69);
 		assert.strictEqual(array[idx], 69);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 70);
+		idx = arraysFind.findFirstIdxMonotonousOrArrLen(array, e => e >= 70);
 		assert.strictEqual(idx, array.length);
 
-		idx = arrays.findFirstInSorted([], e => e >= 0);
+		idx = arraysFind.findFirstIdxMonotonousOrArrLen([], e => e >= 0);
 		assert.strictEqual(array[idx], 1);
 	});
 
@@ -372,7 +376,7 @@ suite('Arrays', () => {
 		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
 
 		assert.strictEqual(
-			array.indexOf(arrays.findMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			array.indexOf(arraysFind.findFirstMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
 			1
 		);
 	});
@@ -381,7 +385,7 @@ suite('Arrays', () => {
 		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
 
 		assert.strictEqual(
-			array.indexOf(arrays.findLastMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			array.indexOf(arraysFind.findLastMaxBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
 			5
 		);
 	});
@@ -390,7 +394,7 @@ suite('Arrays', () => {
 		const array = [{ v: 3 }, { v: 5 }, { v: 2 }, { v: 2 }, { v: 2 }, { v: 5 }];
 
 		assert.strictEqual(
-			array.indexOf(arrays.findMinBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
+			array.indexOf(arraysFind.findFirstMinBy(array, arrays.compareBy(v => v.v, arrays.numberComparator))!),
 			2
 		);
 	});

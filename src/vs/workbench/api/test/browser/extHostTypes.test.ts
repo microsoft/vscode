@@ -11,6 +11,7 @@ import { assertType } from 'vs/base/common/types';
 import { Mimes } from 'vs/base/common/mime';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { CancellationError } from 'vs/base/common/errors';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -19,6 +20,8 @@ function assertToJSON(a: any, expected: any) {
 }
 
 suite('ExtHostTypes', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('URI, toJSON', function () {
 
@@ -432,6 +435,22 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(second.edit.newText, 'Foo');
 	});
 
+	test('WorkspaceEdit - set with metadata accepts undefined', function () {
+		const edit = new types.WorkspaceEdit();
+		const uri = URI.parse('foo:bar');
+
+		edit.set(uri, [
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), { needsConfirmation: true, label: 'foo' }],
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), undefined],
+		]);
+
+		const all = edit._allEntries();
+		assert.strictEqual(all.length, 2);
+		const [first, second] = all;
+		assert.ok(first.metadata);
+		assert.ok(!second.metadata);
+	});
+
 	test('DocumentLink', () => {
 		assert.throws(() => new types.DocumentLink(null!, null!));
 		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null!));
@@ -553,11 +572,38 @@ suite('ExtHostTypes', function () {
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1|far,\\$boo|}bar');
+		assert.strictEqual(string.value, 'foo${1|far,$boo|}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
 		assert.strictEqual(string.value, 'foo${1:farboo}${2|far,boo|}bar');
+	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa$aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa,aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa|aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa\\aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
+		}
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {

@@ -294,6 +294,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			});
 
 			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
+			this._register(mainCells[i]);
 		}
 
 		this._cells.splice(0, 0, ...mainCells);
@@ -613,7 +614,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					if (edit.append) {
 						this._spliceNotebookCellOutputs(cell, { start: cell.outputs.length, deleteCount: 0, newOutputs: edit.outputs.map(op => new NotebookCellOutputTextModel(op)) }, true, computeUndoRedo);
 					} else {
-						this._spliceNotebookCellOutputs2(cell, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
+						this._spliceNotebookCellOutputs2(cell, edit.outputs, computeUndoRedo);
 					}
 					break;
 				}
@@ -734,6 +735,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._bindCellContentHandler(cell, e);
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
+			this._register(cell);
 			return cell;
 		});
 
@@ -1042,19 +1044,24 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 	}
 
-	private _spliceNotebookCellOutputs2(cell: NotebookCellTextModel, outputs: ICellOutput[], computeUndoRedo: boolean): void {
+	private _spliceNotebookCellOutputs2(cell: NotebookCellTextModel, outputs: IOutputDto[], computeUndoRedo: boolean): void {
 		if (outputs.length === 0 && cell.outputs.length === 0) {
 			return;
 		}
 
 		if (outputs.length <= 1) {
-			this._spliceNotebookCellOutputs(cell, { start: 0, deleteCount: cell.outputs.length, newOutputs: outputs }, false, computeUndoRedo);
+			this._spliceNotebookCellOutputs(cell, { start: 0, deleteCount: cell.outputs.length, newOutputs: outputs.map(op => new NotebookCellOutputTextModel(op)) }, false, computeUndoRedo);
 			return;
 		}
 
 		const diff = new LcsDiff(new OutputSequence(cell.outputs), new OutputSequence(outputs));
 		const diffResult = diff.ComputeDiff(false);
-		const splices: NotebookCellOutputsSplice[] = diffResult.changes.map(change => ({ start: change.originalStart, deleteCount: change.originalLength, newOutputs: outputs.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength) }));
+		const splices: NotebookCellOutputsSplice[] = diffResult.changes.map(change => ({
+			start: change.originalStart,
+			deleteCount: change.originalLength,
+			// create cell output text model only when it's inserted into the notebook document
+			newOutputs: outputs.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength).map(op => new NotebookCellOutputTextModel(op))
+		}));
 		splices.reverse().forEach(splice => {
 			this._spliceNotebookCellOutputs(cell, splice, false, computeUndoRedo);
 		});
@@ -1066,7 +1073,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			rawEvents: [{
 				kind: NotebookCellsChangeType.Output,
 				index: this._cells.indexOf(cell),
-				outputs: cell.outputs ?? [],
+				outputs: cell.outputs.map(output => output.asDto()) ?? [],
 				append,
 				transient: this.transientOptions.transientOutputs,
 			}],

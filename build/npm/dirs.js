@@ -41,6 +41,7 @@ const dirs = [
 	'extensions/references-view',
 	'extensions/search-result',
 	'extensions/simple-browser',
+	'extensions/tunnel-forwarding',
 	'extensions/typescript-language-features',
 	'extensions/vscode-api-tests',
 	'extensions/vscode-colorize-tests',

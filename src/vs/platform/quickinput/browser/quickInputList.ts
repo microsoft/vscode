@@ -8,12 +8,11 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -27,15 +26,15 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ltrim } from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
-import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
+import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
-import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
+import { isDark } from 'vs/platform/theme/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -235,7 +234,10 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 	static readonly ID = 'listelement';
 
-	constructor(private readonly colorScheme: ColorScheme) { }
+	constructor(
+		private readonly themeService: IThemeService,
+		private readonly hoverDelegate: IHoverDelegate | undefined,
+	) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -267,7 +269,8 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		const row2 = dom.append(rows, $('.quick-input-list-row'));
 
 		// Label
-		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
+		data.toDisposeTemplate.push(data.label);
 		data.icon = <HTMLInputElement>dom.prepend(data.label.element, $('.quick-input-list-icon'));
 
 		// Keybinding
@@ -276,13 +279,14 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true });
+		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
+		data.toDisposeTemplate.push(data.detail);
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry);
+		data.actionBar = new ActionBar(data.entry, this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined);
 		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
 		data.toDisposeTemplate.push(data.actionBar);
 
@@ -291,7 +295,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 	renderElement(element: IListElement, index: number, data: IListElementTemplateData): void {
 		data.element = element;
-		element.element = withNullAsUndefined(data.entry);
+		element.element = data.entry ?? undefined;
 		const mainItem: QuickPickItem = element.item ? element.item : element.separator!;
 
 		data.checkbox.checked = element.checked;
@@ -300,7 +304,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
 		if (element.item?.iconPath) {
-			const icon = isDark(this.colorScheme) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
+			const icon = isDark(this.themeService.getColorTheme().type) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
 			const iconUrl = URI.revive(icon);
 			data.icon.className = 'quick-input-list-icon';
 			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
@@ -312,7 +316,8 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		// Label
 		const options: IIconLabelValueOptions = {
 			matches: labelHighlights || [],
-			descriptionTitle: element.saneDescription,
+			// If we have a tooltip, we want that to be shown and not any other hover
+			descriptionTitle: element.saneTooltip ? undefined : element.saneDescription,
 			descriptionMatches: descriptionHighlights || [],
 			labelEscapeNewLines: true
 		};
@@ -334,7 +339,8 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 			data.detail.element.style.display = '';
 			data.detail.setLabel(element.saneDetail, undefined, {
 				matches: detailHighlights,
-				title: element.saneDetail,
+				// If we have a tooltip, we want that to be shown and not any other hover
+				title: element.saneTooltip ? undefined : element.saneDetail,
 				labelEscapeNewLines: true
 			});
 		} else {
@@ -353,30 +359,13 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index): IAction => {
-				let cssClasses = button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined);
-				if (button.alwaysVisible) {
-					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
-				}
-				return {
-					id: `id-${index}`,
-					class: cssClasses,
-					enabled: true,
-					label: '',
-					tooltip: button.tooltip || '',
-					run: () => {
-						mainItem.type !== 'separator'
-							? element.fireButtonTriggered({
-								button,
-								item: mainItem
-							})
-							: element.fireSeparatorButtonTriggered({
-								button,
-								separator: mainItem
-							});
-					}
-				};
-			}), { icon: true, label: false });
+			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
+				button,
+				`id-${index}`,
+				() => mainItem.type !== 'separator'
+					? element.fireButtonTriggered({ button, item: mainItem })
+					: element.fireSeparatorButtonTriggered({ button, separator: mainItem })
+			)), { icon: true, label: false });
 			data.entry.classList.add('has-actions');
 		} else {
 			data.entry.classList.remove('has-actions');
@@ -460,12 +449,13 @@ export class QuickInputList {
 		private parent: HTMLElement,
 		id: string,
 		private options: IQuickInputOptions,
+		themeService: IThemeService
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.styles.colorScheme)], {
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(themeService, options.hoverDelegate)], {
 			identityProvider: {
 				getId: element => {
 					// always prefer item over separator because if item is defined, it must be the main item type
@@ -580,6 +570,7 @@ export class QuickInputList {
 			}
 			delayer.cancel();
 		}));
+		this.disposables.push(delayer);
 		this.disposables.push(this._listElementChecked.event(_ => this.fireCheckedEvents()));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
@@ -589,8 +580,7 @@ export class QuickInputList {
 			this._onButtonTriggered,
 			this._onSeparatorButtonTriggered,
 			this._onLeave,
-			this._onKeyDown,
-			delayer
+			this._onKeyDown
 		);
 	}
 
@@ -842,6 +832,7 @@ export class QuickInputList {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
 		}
+
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}
@@ -851,9 +842,13 @@ export class QuickInputList {
 			linkHandler: (url) => {
 				this.options.linkOpenerDelegate(url);
 			},
-			showPointer: true,
+			appearance: {
+				showPointer: true,
+			},
 			container: this.container,
-			hoverPosition: HoverPosition.RIGHT
+			position: {
+				hoverPosition: HoverPosition.RIGHT
+			}
 		}, false);
 	}
 
@@ -896,12 +891,12 @@ export class QuickInputList {
 			this.elements.forEach(element => {
 				let labelHighlights: IMatch[] | undefined;
 				if (this.matchOnLabelMode === 'fuzzy') {
-					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
+					labelHighlights = this.matchOnLabel ? matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel)) ?? undefined : undefined;
 				} else {
-					labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesContiguousIconAware(queryWithWhitespace, parseLabelWithIcons(element.saneLabel))) : undefined;
+					labelHighlights = this.matchOnLabel ? matchesContiguousIconAware(queryWithWhitespace, parseLabelWithIcons(element.saneLabel)) ?? undefined : undefined;
 				}
-				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
-				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
+				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || '')) ?? undefined : undefined;
+				const detailHighlights = this.matchOnDetail ? matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || '')) ?? undefined : undefined;
 
 				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;

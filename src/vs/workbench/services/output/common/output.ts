@@ -30,11 +30,6 @@ export const OUTPUT_MODE_ID = 'Log';
 export const LOG_MIME = 'text/x-code-log-output';
 
 /**
- * Log resource scheme.
- */
-export const LOG_SCHEME = 'log';
-
-/**
  * Id used by the log output editor.
  */
 export const LOG_MODE_ID = 'log';
@@ -46,7 +41,7 @@ export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
-export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+export const CONTEXT_ACTIVE_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
 
 export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
 
