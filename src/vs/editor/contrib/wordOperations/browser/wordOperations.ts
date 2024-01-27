@@ -48,10 +48,11 @@ export abstract class MoveWordCommand extends EditorCommand {
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
+		const recognizeWordLocales = editor.getOption(EditorOption.recognizeWordLocales);
 
 		const result = selections.map((sel) => {
 			const inPosition = new Position(sel.positionLineNumber, sel.positionColumn);
-			const outPosition = this._move(wordSeparators, model, inPosition, this._wordNavigationType);
+			const outPosition = this._move(wordSeparators, model, inPosition, this._wordNavigationType, recognizeWordLocales);
 			return this._moveTo(sel, outPosition, this._inSelectionMode);
 		});
 
@@ -83,18 +84,18 @@ export abstract class MoveWordCommand extends EditorCommand {
 		}
 	}
 
-	protected abstract _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position;
+	protected abstract _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position;
 }
 
 export class WordLeftCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType);
+	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+		return WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType, recognizeWordLocales);
 	}
 }
 
 export class WordRightCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
+	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+		return WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType, recognizeWordLocales);
 	}
 }
 
@@ -187,8 +188,8 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType, recognizeWordLocales);
 	}
 }
 
@@ -202,8 +203,8 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType, recognizeWordLocales);
 	}
 }
 
@@ -295,8 +296,8 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType, recognizeWordLocales);
 	}
 }
 
@@ -310,8 +311,8 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 		});
 	}
 
-	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+	protected override _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, recognizeWordLocales: string[]): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType, recognizeWordLocales);
 	}
 }
 
@@ -354,7 +355,8 @@ export abstract class DeleteWordCommand extends EditorCommand {
 				autoClosingBrackets,
 				autoClosingQuotes,
 				autoClosingPairs,
-				autoClosedCharacters: viewModel.getCursorAutoClosedCharacters()
+				autoClosedCharacters: viewModel.getCursorAutoClosedCharacters(),
+				recognizeWordLocales: editor.getOption(EditorOption.recognizeWordLocales)
 			}, this._wordNavigationType);
 			return new ReplaceCommand(deleteRange, '');
 		});
@@ -485,9 +487,10 @@ export class DeleteInsideWord extends EditorAction {
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
+		const recognizeWordLocales = editor.getOption(EditorOption.recognizeWordLocales);
 
 		const commands = selections.map((sel) => {
-			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel);
+			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel, recognizeWordLocales);
 			return new ReplaceCommand(deleteRange, '');
 		});
 

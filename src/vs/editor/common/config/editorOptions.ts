@@ -161,6 +161,13 @@ export interface IEditorOptions {
 	 */
 	readOnlyMessage?: IMarkdownString;
 	/**
+	 * Locales that recognizes word separators when doing word related navigations or operations.
+	 *
+	 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.
+	 * If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized.
+	 */
+	recognizeWordLocales?: string;
+	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
 	 * Defaults to false.
 	 */
@@ -3566,6 +3573,50 @@ class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMa
 
 //#endregion
 
+//#region readonly
+
+/**
+ * Locales that recognizes word separators when doing word related navigations or operations.
+ *
+ * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.
+ * If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized.
+ */
+class RecognizeWordLocales extends BaseEditorOption<EditorOption.recognizeWordLocales, string, string[]> {
+	constructor() {
+		const defaults: string[] = [];
+
+		super(
+			EditorOption.recognizeWordLocales, 'recognizeWordLocales', defaults,
+			{
+				type: 'string',
+				description: nls.localize('recognizeWordLocales', "Locales that recognizes word separators when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized."),
+			}
+		);
+	}
+
+	public validate(input: any): string[] {
+		if (typeof input === 'string') {
+			const input_locales = input.split(',').map((item) => item.trim());
+			const valid_locales: string[] = [];
+			for (const locale of input_locales) {
+				try {
+					if (Intl.Segmenter.supportedLocalesOf(locale).length > 0) {
+						valid_locales.push(locale);
+					}
+				} catch (_) {
+					// ignore invalid locales
+				}
+			}
+			return valid_locales;
+		}
+
+		return this.defaultValue;
+	}
+}
+
+
+//#endregion
+
 //#region scrollbar
 
 /**
@@ -5161,6 +5212,7 @@ export const enum EditorOption {
 	quickSuggestionsDelay,
 	readOnly,
 	readOnlyMessage,
+	recognizeWordLocales,
 	renameOnType,
 	renderControlCharacters,
 	renderFinalNewline,
@@ -5699,6 +5751,7 @@ export const EditorOptions = {
 		EditorOption.readOnly, 'readOnly', false,
 	)),
 	readOnlyMessage: register(new ReadonlyMessage()),
+	recognizeWordLocales: register(new RecognizeWordLocales()),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }

@@ -3188,6 +3188,13 @@ declare namespace monaco.editor {
 		 */
 		readOnlyMessage?: IMarkdownString;
 		/**
+		 * Locales that recognizes word separators when doing word related navigations or operations.
+		 *
+		 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). If you specify more than one, separate them with a comma.
+		 * If the default setting is blank, or if all specified BCP 47 language tags are not supported, the word will not be recognized.
+		 */
+		recognizeWordLocales?: string;
+		/**
 		 * Should the textarea used for input use the DOM `readonly` attribute.
 		 * Defaults to false.
 		 */
@@ -4872,62 +4879,63 @@ declare namespace monaco.editor {
 		quickSuggestionsDelay = 89,
 		readOnly = 90,
 		readOnlyMessage = 91,
-		renameOnType = 92,
-		renderControlCharacters = 93,
-		renderFinalNewline = 94,
-		renderLineHighlight = 95,
-		renderLineHighlightOnlyWhenFocus = 96,
-		renderValidationDecorations = 97,
-		renderWhitespace = 98,
-		revealHorizontalRightPadding = 99,
-		roundedSelection = 100,
-		rulers = 101,
-		scrollbar = 102,
-		scrollBeyondLastColumn = 103,
-		scrollBeyondLastLine = 104,
-		scrollPredominantAxis = 105,
-		selectionClipboard = 106,
-		selectionHighlight = 107,
-		selectOnLineNumbers = 108,
-		showFoldingControls = 109,
-		showUnused = 110,
-		snippetSuggestions = 111,
-		smartSelect = 112,
-		smoothScrolling = 113,
-		stickyScroll = 114,
-		stickyTabStops = 115,
-		stopRenderingLineAfter = 116,
-		suggest = 117,
-		suggestFontSize = 118,
-		suggestLineHeight = 119,
-		suggestOnTriggerCharacters = 120,
-		suggestSelection = 121,
-		tabCompletion = 122,
-		tabIndex = 123,
-		unicodeHighlighting = 124,
-		unusualLineTerminators = 125,
-		useShadowDOM = 126,
-		useTabStops = 127,
-		wordBreak = 128,
-		wordSeparators = 129,
-		wordWrap = 130,
-		wordWrapBreakAfterCharacters = 131,
-		wordWrapBreakBeforeCharacters = 132,
-		wordWrapColumn = 133,
-		wordWrapOverride1 = 134,
-		wordWrapOverride2 = 135,
-		wrappingIndent = 136,
-		wrappingStrategy = 137,
-		showDeprecated = 138,
-		inlayHints = 139,
-		editorClassName = 140,
-		pixelRatio = 141,
-		tabFocusMode = 142,
-		layoutInfo = 143,
-		wrappingInfo = 144,
-		defaultColorDecorators = 145,
-		colorDecoratorsActivatedOn = 146,
-		inlineCompletionsAccessibilityVerbose = 147
+		recognizeWordLocales = 92,
+		renameOnType = 93,
+		renderControlCharacters = 94,
+		renderFinalNewline = 95,
+		renderLineHighlight = 96,
+		renderLineHighlightOnlyWhenFocus = 97,
+		renderValidationDecorations = 98,
+		renderWhitespace = 99,
+		revealHorizontalRightPadding = 100,
+		roundedSelection = 101,
+		rulers = 102,
+		scrollbar = 103,
+		scrollBeyondLastColumn = 104,
+		scrollBeyondLastLine = 105,
+		scrollPredominantAxis = 106,
+		selectionClipboard = 107,
+		selectionHighlight = 108,
+		selectOnLineNumbers = 109,
+		showFoldingControls = 110,
+		showUnused = 111,
+		snippetSuggestions = 112,
+		smartSelect = 113,
+		smoothScrolling = 114,
+		stickyScroll = 115,
+		stickyTabStops = 116,
+		stopRenderingLineAfter = 117,
+		suggest = 118,
+		suggestFontSize = 119,
+		suggestLineHeight = 120,
+		suggestOnTriggerCharacters = 121,
+		suggestSelection = 122,
+		tabCompletion = 123,
+		tabIndex = 124,
+		unicodeHighlighting = 125,
+		unusualLineTerminators = 126,
+		useShadowDOM = 127,
+		useTabStops = 128,
+		wordBreak = 129,
+		wordSeparators = 130,
+		wordWrap = 131,
+		wordWrapBreakAfterCharacters = 132,
+		wordWrapBreakBeforeCharacters = 133,
+		wordWrapColumn = 134,
+		wordWrapOverride1 = 135,
+		wordWrapOverride2 = 136,
+		wrappingIndent = 137,
+		wrappingStrategy = 138,
+		showDeprecated = 139,
+		inlayHints = 140,
+		editorClassName = 141,
+		pixelRatio = 142,
+		tabFocusMode = 143,
+		layoutInfo = 144,
+		wrappingInfo = 145,
+		defaultColorDecorators = 146,
+		colorDecoratorsActivatedOn = 147,
+		inlineCompletionsAccessibilityVerbose = 148
 	}
 
 	export const EditorOptions: {
@@ -5025,6 +5033,7 @@ declare namespace monaco.editor {
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
 		readOnlyMessage: IEditorOption<EditorOption.readOnlyMessage, any>;
+		recognizeWordLocales: IEditorOption<EditorOption.recognizeWordLocales, {}>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'on' | 'off' | 'dimmed'>;
