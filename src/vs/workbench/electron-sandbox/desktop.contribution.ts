@@ -195,13 +195,13 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'maximum': MAX_ZOOM_LEVEL,
 				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomLevel' }, "Adjust the default zoom level for all windows. Each increment above `0` (e.g. `1`) or below (e.g. `-1`) represents zooming `20%` larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity. See {0} for configuring if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window.", '`#window.zoomPerWindow#`'),
 				ignoreSync: true,
-				tags: ['accessibility', 'FeatureInsight']
+				tags: ['accessibility']
 			},
 			'window.zoomPerWindow': {
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomPerWindow' }, "Controls if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window. See {0} for configuring a default zoom level for all windows.", '`#window.zoomLevel#`'),
-				tags: ['accessibility', 'FeatureInsight']
+				tags: ['accessibility']
 			},
 			'window.newWindowDimensions': {
 				'type': 'string',
@@ -234,7 +234,6 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
-				tags: ['FeatureInsight']
 			},
 			'window.customTitleBarVisibility': {
 				'type': 'string',
@@ -246,8 +245,7 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				],
 				'default': isLinux ? 'never' : 'auto',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown."),
-				tags: ['FeatureInsight']
+				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in none full screen mode with `never` when `#window.titleBarStyle#` is set to `native`."),
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -262,7 +260,6 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 				'included': isMacintosh,
-				tags: ['FeatureInsight']
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',

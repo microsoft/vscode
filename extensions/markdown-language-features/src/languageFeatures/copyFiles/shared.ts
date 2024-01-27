@@ -19,12 +19,6 @@ enum MediaKind {
 	Audio,
 }
 
-export const externalUriSchemes = [
-	'http',
-	'https',
-	'mailto',
-];
-
 export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Images
 	['bmp', MediaKind.Image],

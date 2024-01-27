@@ -18,6 +18,7 @@
     "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlInputBoxMenu",
+    "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "diffCommand",
     "editSessionIdentityProvider",
@@ -94,6 +95,7 @@
       {
         "command": "git.reopenClosedRepositories",
         "title": "%command.reopenClosedRepositories%",
+        "icon": "$(repo)",
         "category": "Git",
         "enablement": "!operationInProgress && git.closedRepositoryCount != 0"
       },
@@ -1448,6 +1450,13 @@
           "when": "scmProvider == git"
         }
       ],
+      "scm/sourceControl/title": [
+        {
+          "command": "git.reopenClosedRepositories",
+          "group": "navigation@1",
+          "when": "scmProvider == git && git.closedRepositoryCount > 0"
+        }
+      ],
       "scm/sourceControl": [
         {
           "command": "git.close",
@@ -1851,14 +1860,14 @@
       "scm/incomingChanges/allChanges/context": [
         {
           "command": "git.viewAllChanges",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
       "scm/incomingChanges/historyItem/context": [
         {
           "command": "git.viewCommit",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
@@ -1872,14 +1881,14 @@
       "scm/outgoingChanges/allChanges/context": [
         {
           "command": "git.viewAllChanges",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
       "scm/outgoingChanges/historyItem/context": [
         {
           "command": "git.viewCommit",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],

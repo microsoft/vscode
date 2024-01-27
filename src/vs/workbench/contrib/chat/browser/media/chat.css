@@ -115,6 +115,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
+	background-color: var(--vscode-chat-list-background);
 }
 
 .interactive-item-container .header .avatar .codicon {

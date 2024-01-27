@@ -886,7 +886,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.stickyScrollMode.flat', "Nested sticky lines appear flat."),
 				nls.localize('notebook.stickyScrollMode.indented', "Nested sticky lines appear indented."),
 			],
-			default: 'flat',
+			default: 'indented',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.consolidatedOutputButton]: {

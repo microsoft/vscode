@@ -279,19 +279,21 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				return { canPreview: !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				// If provider contributes ranges, then highlight contributed range over diagnostic range.
-				if (action && action.action.ranges) {
+				if (action && action.action) {
+					const ranges = action.action.ranges;
+					const diagnostics = action.action.diagnostics;
 					currentDecorations.clear();
-					const decorations: IModelDeltaDecoration[] = action.action.ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
-					currentDecorations.set(decorations);
-				} else if (action && action.action.diagnostics) {
-					currentDecorations.clear();
-					const decorations: IModelDeltaDecoration[] = action.action.diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
-					currentDecorations.set(decorations);
-					const diagnostic = action.action.diagnostics[0];
-					if (diagnostic.startLineNumber && diagnostic.startColumn) {
-						const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
-						aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
+					if (ranges && ranges.length > 0) {
+						const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+						currentDecorations.set(decorations);
+					} else if (diagnostics && diagnostics.length > 0) {
+						const decorations: IModelDeltaDecoration[] = diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
+						currentDecorations.set(decorations);
+						const diagnostic = diagnostics[0];
+						if (diagnostic.startLineNumber && diagnostic.startColumn) {
+							const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
+							aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
+						}
 					}
 				} else {
 					currentDecorations.clear();

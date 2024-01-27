@@ -159,25 +159,25 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Breakpoint]: {
-			'markdownDescription': localize('alert.breakpoint', "Alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.breakpoint#`'),
+			'markdownDescription': localize('alert.breakpoint', "Alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.onDebugBreak#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Error]: {
-			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.error#`'),
+			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.lineHasError#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Warning]: {
-			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.warning#`'),
+			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.lineHasWarning#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.FoldedArea]: {
-			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.foldedArea#`'),
+			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.lineHasFoldedArea#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
@@ -189,7 +189,7 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.TerminalBell]: {
-			'markdownDescription': localize('alert.terminalBell', "Alerts when the terminal bell is activated. Also see {0}.", '`#audioCues.terminalBell#`'),
+			'markdownDescription': localize('alert.terminalBell', "Alerts when the terminal bell is activated."),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']

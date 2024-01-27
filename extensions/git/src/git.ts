@@ -35,9 +35,11 @@ export interface IFileStatus {
 }
 
 export interface Stash {
-	index: number;
-	description: string;
-	branchName?: string;
+	readonly hash: string;
+	readonly parents: string[];
+	readonly index: number;
+	readonly description: string;
+	readonly branchName?: string;
 }
 
 interface MutableRemote extends Remote {
@@ -353,6 +355,7 @@ function sanitizePath(path: string): string {
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
+const STASH_FORMAT = '%H%n%P%n%gd%n%gs';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -934,7 +937,7 @@ function parseGitDiffShortStat(data: string): CommitShortStat {
 	return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
 }
 
-interface LsTreeElement {
+export interface LsTreeElement {
 	mode: string;
 	type: string;
 	object: string;
@@ -965,33 +968,91 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
+
 function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
-	const regex = /^stash@{(\d+)}:(.+)$/;
-	const descriptionRegex = /(WIP\s)*on([^:]+):(.*)$/i;
 
-	for (const stash of raw.split('\n').filter(s => !!s)) {
-		// Extract index and description
-		const match = regex.exec(stash);
-		if (!match) {
-			continue;
+	let match, hash, parents, index, wip, branchName, description;
+
+	do {
+		match = stashRegex.exec(raw);
+		if (match === null) {
+			break;
 		}
 
-		const [, index, description] = match;
-
-		// Extract branch name from description
-		const descriptionMatch = descriptionRegex.exec(description);
-		if (!descriptionMatch) {
-			result.push({ index: parseInt(index), description: description.trim() });
-			continue;
-		}
-
-		const [, wip, branchName, message] = descriptionMatch;
+		[, hash, parents, index, wip, branchName, description] = match;
 		result.push({
+			hash,
+			parents: parents.split(' '),
 			index: parseInt(index),
-			description: wip ? `WIP (${message.trim()})` : message.trim(),
-			branchName: branchName.trim()
+			branchName: branchName.trim(),
+			description: wip ? `WIP (${description.trim()})` : description.trim()
 		});
+	} while (true);
+
+	return result;
+}
+
+// TODO@lszomoru - adopt in diffFiles()
+function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
+	let index = 0;
+	const result: Change[] = [];
+	const segments = raw.trim()
+		.split('\x00')
+		.filter(s => s);
+
+	segmentsLoop:
+	while (index < segments.length - 1) {
+		const change = segments[index++];
+		const resourcePath = segments[index++];
+
+		if (!change || !resourcePath) {
+			break;
+		}
+
+		const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(repositoryRoot, resourcePath));
+
+		let uri = originalUri;
+		let renameUri = originalUri;
+		let status = Status.UNTRACKED;
+
+		// Copy or Rename status comes with a number (ex: 'R100').
+		// We don't need the number, we use only first character of the status.
+		switch (change[0]) {
+			case 'A':
+				status = Status.INDEX_ADDED;
+				break;
+
+			case 'M':
+				status = Status.MODIFIED;
+				break;
+
+			case 'D':
+				status = Status.DELETED;
+				break;
+
+			// Rename contains two paths, the second one is what the file is renamed/copied to.
+			case 'R': {
+				if (index >= segments.length) {
+					break;
+				}
+
+				const newPath = segments[index++];
+				if (!newPath) {
+					break;
+				}
+
+				status = Status.INDEX_RENAMED;
+				uri = renameUri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(repositoryRoot, newPath));
+				break;
+			}
+			default:
+				// Unknown status
+				break segmentsLoop;
+		}
+
+		result.push({ status, uri, originalUri, renameUri });
 	}
 
 	return result;
@@ -1233,8 +1294,13 @@ export class Repository {
 		return { mode, object, size: parseInt(size) };
 	}
 
-	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.exec(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
+	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
+		const args = ['ls-tree', '-l', treeish];
+		if (path) {
+			args.push('--', sanitizePath(path));
+		}
+
+		const { stdout } = await this.exec(args);
 		return parseLsTree(stdout);
 	}
 
@@ -2147,15 +2213,16 @@ export class Repository {
 		}
 	}
 
-	async showStash(index: number): Promise<string[] | undefined> {
-		const args = ['stash', 'show', `stash@{${index}}`, '--name-only'];
+	async showStash(index: number): Promise<Change[] | undefined> {
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-status', '-z', '-u'];
 
 		try {
 			const result = await this.exec(args);
+			if (result.exitCode) {
+				return [];
+			}
 
-			return result.stdout.trim()
-				.split('\n')
-				.filter(line => !!line);
+			return parseGitChanges(this.repositoryRoot, result.stdout.trim());
 		} catch (err) {
 			if (/No stash found/.test(err.stderr || '')) {
 				return undefined;
@@ -2435,7 +2502,7 @@ export class Repository {
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		const result = await this.exec(['stash', 'list']);
+		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
 		return parseGitStashes(result.stdout.trim());
 	}
 

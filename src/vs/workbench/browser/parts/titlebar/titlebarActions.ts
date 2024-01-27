@@ -106,8 +106,24 @@ class ToggleCustomTitleBar extends Action2 {
 			title: localize('toggle.customTitleBar', 'Custom Title Bar'),
 			toggled: TitleBarVisibleContext,
 			menu: [
-				{ id: MenuId.MenubarAppearanceMenu, order: 6, when: ContextKeyExpr.or(ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext), group: '2_workbench_layout' },
-			]
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					order: 6,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
+								ContextKeyExpr.equals('config.window.commandCenter', false),
+								ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
+								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top')
+							)?.negate()
+						),
+						IsMainWindowFullscreenContext
+					),
+					group: '2_workbench_layout'
+				},
+			],
 		});
 	}
 

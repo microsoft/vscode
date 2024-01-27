@@ -17,7 +17,7 @@ import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } fr
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, IRegisteredConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditing, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -37,7 +37,7 @@ import { delta, distinct, equals as arrayEquals } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { isBoolean, isNumber, isString, isUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
@@ -47,7 +47,6 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { mainWindow } from 'vs/base/browser/window';
 import { runWhenWindowIdle } from 'vs/base/browser/dom';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return (userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings)
@@ -1325,96 +1324,6 @@ class ResetConfigurationDefaultsOverridesCache extends Disposable implements IWo
 	}
 }
 
-class ConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
-
-	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-
-	constructor(
-		@IConfigurationService private readonly configurationService: WorkspaceService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-	) {
-		super();
-
-		// Debounce the event by 1000 ms and merge all affected keys into one event
-		const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
-			const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
-			return { ...cur, affectedKeys: newAffectedKeys };
-		}, 1000, true);
-
-		debouncedConfigService(event => {
-			if (event.source !== ConfigurationTarget.DEFAULT) {
-				type UpdateConfigurationClassification = {
-					owner: 'sandy081';
-					comment: 'Event which fires when user updates settings';
-					configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
-					configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
-				};
-				type UpdateConfigurationEvent = {
-					configurationSource: string;
-					configurationKeys: string[];
-				};
-				telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-					configurationSource: ConfigurationTargetToString(event.source),
-					configurationKeys: Array.from(event.affectedKeys)
-				});
-			}
-		});
-
-		type UpdatedSettingClassification = {
-			owner: 'sandy081';
-			comment: 'Event reporting the updated setting';
-			setting: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'name of the setting' };
-			value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-		};
-		type UpdatedSettingEvent = {
-			setting: string;
-			value: string;
-			source: string;
-		};
-		const { user, workspace } = configurationService.keys();
-		const userSource = ConfigurationTargetToString(ConfigurationTarget.USER_LOCAL);
-		for (const setting of user) {
-			const schema = this.configurationRegistry.getConfigurationProperties()[setting];
-			if (schema?.tags?.includes('FeatureInsight')) {
-				const value = this.getValueToReport(setting, ConfigurationTarget.USER_LOCAL, schema);
-				this.telemetryService.publicLog2<UpdatedSettingEvent, UpdatedSettingClassification>('updatedsetting', { setting, value, source: userSource });
-			}
-		}
-		const worskpaceSource = ConfigurationTargetToString(ConfigurationTarget.WORKSPACE);
-		for (const setting of workspace) {
-			const schema = this.configurationRegistry.getConfigurationProperties()[setting];
-			if (schema?.tags?.includes('FeatureInsight')) {
-				const value = this.getValueToReport(setting, ConfigurationTarget.WORKSPACE, schema);
-				this.telemetryService.publicLog2<UpdatedSettingEvent, UpdatedSettingClassification>('updatedsetting', { setting, value, source: worskpaceSource });
-			}
-		}
-	}
-
-	/**
-	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
-	 */
-	private getValueToReport(key: string, target: ConfigurationTarget, schema: IRegisteredConfigurationPropertySchema): any {
-		const configurationModel = this.configurationService.getConfigurationModel(target);
-		const value = configurationModel?.getValue(key);
-		if (isNumber(value) || isBoolean(value)) {
-			return value;
-		}
-		if (isString(value)) {
-			if (schema.enum?.includes(value)) {
-				return value;
-			}
-			return undefined;
-		}
-		if (Array.isArray(value)) {
-			if (value.every(v => isNumber(v) || isBoolean(v) || (isString(v) && schema.enum?.includes(v)))) {
-				return value;
-			}
-		}
-		return undefined;
-	}
-}
-
 class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenchContribution {
 
 	private readonly processedExperimentalSettings = new Set<string>();
@@ -1457,7 +1366,6 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(ResetConfigurationDefaultsOverridesCache, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(UpdateExperimentalSettingsDefaults, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ConfigurationTelemetryContribution, LifecyclePhase.Eventually);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

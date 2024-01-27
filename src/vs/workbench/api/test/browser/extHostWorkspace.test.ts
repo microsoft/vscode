@@ -25,6 +25,7 @@ import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSyste
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { nullExtensionDescription as extensionDescriptor } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
@@ -39,6 +40,8 @@ function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData,
 }
 
 suite('ExtHostWorkspace', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertAsRelativePath(workspace: ExtHostWorkspace, input: string, expected: string, includeWorkspace?: boolean) {
 		const actual = workspace.getRelativePath(input, includeWorkspace);

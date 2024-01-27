@@ -78,10 +78,12 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 			}
 		);
 
-		const resources = observableFromEvent<MultiDiffEditorItem[]>(group.onDidChangeResources, () => group.resources.map(e => ({
-			original: e.multiDiffEditorOriginalUri,
-			modified: e.multiDiffEditorModifiedUri
-		})));
+		const resources = observableFromEvent<MultiDiffEditorItem[]>(group.onDidChangeResources, () => group.resources.map(e => {
+			return {
+				original: e.multiDiffEditorOriginalUri,
+				modified: e.multiDiffEditorModifiedUri
+			};
+		}));
 
 		return new ScmResolvedMultiDiffSource(resources, {
 			scmResourceGroup: groupId,
