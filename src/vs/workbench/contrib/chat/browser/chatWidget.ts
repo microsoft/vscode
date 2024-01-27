@@ -32,6 +32,7 @@ import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatC
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -138,6 +139,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -439,6 +441,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
+		this.container.style.setProperty('--vscode-chat-list-background', this._themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
 	}
 
 	setModel(model: IChatModel, viewState: IChatViewState): void {

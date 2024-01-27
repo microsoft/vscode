@@ -290,7 +290,6 @@ export class ContinuousRunTestAction extends Action2 {
 
 	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		const crService = accessor.get(ITestingContinuousRunService);
-		const profileService = accessor.get(ITestProfileService);
 		for (const element of elements) {
 			const id = element.test.item.extId;
 			if (crService.isSpecificallyEnabledFor(id)) {
@@ -298,13 +297,7 @@ export class ContinuousRunTestAction extends Action2 {
 				continue;
 			}
 
-			const profiles = profileService.getGroupDefaultProfiles(TestRunProfileBitset.Run)
-				.filter(p => p.supportsContinuousRun && p.controllerId === element.test.controllerId);
-			if (!profiles.length) {
-				continue;
-			}
-
-			crService.start(profiles, id);
+			crService.start(TestRunProfileBitset.Run, id);
 		}
 	}
 }

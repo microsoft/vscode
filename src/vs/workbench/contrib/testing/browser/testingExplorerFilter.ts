@@ -230,7 +230,6 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				tooltip: ''
 			},
 			{
-				checked: false,
 				class: undefined,
 				enabled: this.testService.excluded.hasAny,
 				id: 'removeExcluded',

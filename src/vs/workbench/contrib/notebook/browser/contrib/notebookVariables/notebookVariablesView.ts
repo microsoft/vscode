@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
@@ -34,6 +35,9 @@ export class NotebookVariablesView extends ViewPane {
 
 	private tree: WorkbenchAsyncDataTree<INotebookScope, INotebookVariableElement> | undefined;
 	private activeNotebook: NotebookTextModel | undefined;
+	private readonly dataSource: NotebookVariableDataSource;
+
+	private updateScheduler: RunOnceScheduler;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -59,6 +63,9 @@ export class NotebookVariablesView extends ViewPane {
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
 
 		this.setActiveNotebook();
+
+		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
+		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -70,7 +77,7 @@ export class NotebookVariablesView extends ViewPane {
 			container,
 			new NotebookVariablesDelegate(),
 			[new NotebookVariableRenderer()],
-			new NotebookVariableDataSource(this.notebookKernelService),
+			this.dataSource,
 			{
 				accessibilityProvider: new NotebookVariableAccessibilityProvider(),
 				identityProvider: { getId: (e: INotebookVariableElement) => e.id },
@@ -78,7 +85,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		this.tree.layout();
 		if (this.activeNotebook) {
-			this.tree.setInput({ type: 'root', notebook: this.activeNotebook });
+			this.tree.setInput({ kind: 'root', notebook: this.activeNotebook });
 		}
 	}
 
@@ -87,7 +94,7 @@ export class NotebookVariablesView extends ViewPane {
 		this.tree?.layout(height, width);
 	}
 
-	setActiveNotebook() {
+	private setActiveNotebook() {
 		const current = this.activeNotebook;
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane && activeEditorPane.getId() === 'workbench.editor.notebook') {
@@ -100,24 +107,32 @@ export class NotebookVariablesView extends ViewPane {
 
 	private handleActiveEditorChange() {
 		if (this.setActiveNotebook() && this.activeNotebook) {
-			this.tree?.setInput({ type: 'root', notebook: this.activeNotebook });
-			this.tree?.updateChildren();
+			this.tree?.setInput({ kind: 'root', notebook: this.activeNotebook });
+			this.updateScheduler.schedule();
 		}
 	}
 
 	private handleExecutionStateChange(event: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) {
 		if (this.activeNotebook) {
-			// changed === undefined -> excecution ended
-			if (event.changed === undefined && event.affectsNotebook(this.activeNotebook?.uri)) {
-				this.tree?.updateChildren();
+			if (event.affectsNotebook(this.activeNotebook.uri)) {
+				// new execution state means either new variables or the kernel is busy so we shouldn't ask
+				this.dataSource.cancel();
+
+				// changed === undefined -> excecution ended
+				if (event.changed === undefined) {
+					this.updateScheduler.schedule();
+				}
+				else {
+					this.updateScheduler.cancel();
+				}
 			}
 		}
 	}
 
 	private handleVariablesChanged(notebookUri: URI) {
 		if (this.activeNotebook && notebookUri.toString() === this.activeNotebook.uri.toString()) {
-			this.tree?.setInput({ type: 'root', notebook: this.activeNotebook });
-			this.tree?.updateChildren();
+			this.tree?.setInput({ kind: 'root', notebook: this.activeNotebook });
+			this.updateScheduler.schedule();
 		}
 	}
 }

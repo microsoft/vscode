@@ -3598,8 +3598,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.popStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.popStash(result.stash.index);
 	}
 
 	@command('git.stashApply', { repository: true })
@@ -3633,8 +3633,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.applyStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.applyStash(result.stash.index);
 	}
 
 	@command('git.stashDrop', { repository: true })
@@ -3708,19 +3708,46 @@ export class CommandCenter {
 			return;
 		}
 
-		const stashFiles = await repository.showStash(stash.index);
-
-		if (!stashFiles || stashFiles.length === 0) {
+		const stashChanges = await repository.showStash(stash.index);
+		if (!stashChanges || stashChanges.length === 0) {
 			return;
+		}
+
+		// A stash commit can have up to 3 parents:
+		// 1. The first parent is the commit that was HEAD when the stash was created.
+		// 2. The second parent is the commit that represents the index when the stash was created.
+		// 3. The third parent (when present) represents the untracked files when the stash was created.
+		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
+		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
+		const stashUntrackedFiles: string[] = [];
+
+		if (stashUntrackedFilesParentCommit) {
+			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
+			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
 
-		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
-		for (const file of stashFiles) {
-			const fileUri = Uri.file(path.join(repository.root, file));
-			resources.push({ originalUri: fileUri, modifiedUri: toGitUri(fileUri, `stash@{${stash.index}}`) });
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of stashChanges) {
+			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
+			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
+
+			switch (change.status) {
+				case Status.INDEX_ADDED:
+					resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, modifiedUriRef) });
+					break;
+				case Status.DELETED:
+					resources.push({ originalUri: toGitUri(change.uri, stashFirstParentCommit), modifiedUri: undefined });
+					break;
+				case Status.INDEX_RENAMED:
+					resources.push({ originalUri: toGitUri(change.originalUri, stashFirstParentCommit), modifiedUri: toGitUri(change.uri, modifiedUriRef) });
+					break;
+				default:
+					resources.push({ originalUri: toGitUri(change.uri, stashFirstParentCommit), modifiedUri: toGitUri(change.uri, modifiedUriRef) });
+					break;
+			}
 		}
 
 		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });

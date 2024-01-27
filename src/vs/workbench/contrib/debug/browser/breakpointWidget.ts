@@ -84,6 +84,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private inputContainer!: HTMLElement;
 	private selectBreakpointContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;
+	private selectBreakpointBox!: SelectBox;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
 	private hitCountInput = '';
@@ -205,7 +206,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			{ text: nls.localize('expression', "Expression") },
 			{ text: nls.localize('hitCount', "Hit Count") },
 			{ text: nls.localize('logMessage', "Log Message") },
-			{ text: nls.localize('triggeredBy', "Wait For Breakpoint") },
+			{ text: nls.localize('triggeredBy', "Wait for Breakpoint") },
 		], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
@@ -228,7 +229,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 		this.updateContextInput();
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
-		setTimeout(() => this.input.focus(), 150);
+		setTimeout(() => this.focusInput(), 150);
 	}
 
 	private createTriggerBreakpointInput(container: HTMLElement) {
@@ -256,7 +257,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			], select);
 		});
 
-		const selectBreakpointBox = new SelectBox([{ text: nls.localize('triggerByLoading', 'Loading...'), isDisabled: true }], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox([{ text: nls.localize('triggerByLoading', 'Loading...'), isDisabled: true }], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
@@ -295,7 +296,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.setInputMode();
 			const value = this.getInputValue(this.breakpoint);
 			this.input.getModel().setValue(value);
-			this.input.focus();
+			this.focusInput();
 		}
 	}
 
@@ -453,6 +454,14 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 
 		this.dispose();
+	}
+
+	private focusInput() {
+		if (this.context === Context.TRIGGER_POINT) {
+			this.selectBreakpointBox.focus();
+		} else {
+			this.input.focus();
+		}
 	}
 
 	override dispose(): void {

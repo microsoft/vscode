@@ -147,7 +147,7 @@
 
 .test-explorer .computed-state.retired,
 .testing-run-glyph.retired {
-	opacity: 0.7  !important;
+	opacity: 0.7 !important;
 }
 
 .test-explorer .test-is-hidden {
@@ -171,11 +171,7 @@
 	flex-grow: 1;
 }
 
-.monaco-workbench
-	.test-explorer
-	.monaco-action-bar
-	.action-item
-	> .action-label {
+.monaco-workbench .test-explorer .monaco-action-bar .action-item > .action-label {
 	padding: 1px 2px;
 	margin-right: 2px;
 }
@@ -358,6 +354,7 @@
 .monaco-editor .testing-inline-message-severity-0 {
 	color: var(--vscode-testing-message-error-decorationForeground) !important;
 }
+
 .monaco-editor .testing-inline-message-severity-1 {
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
 }
@@ -411,8 +408,10 @@
 .explorer-item-with-test-coverage .explorer-item {
 	flex-grow: 1;
 }
+
 .explorer-item-with-test-coverage .monaco-icon-label::after {
-	margin-right: 12px; /* slightly reduce because the bars handle the scrollbar margin */
+	margin-right: 12px;
+	/* slightly reduce because the bars handle the scrollbar margin */
 }
 
 /** -- coverage decorations  */
@@ -447,14 +446,13 @@
 
 .coverage-deco-gutter.coverage-deco-miss.coverage-deco-hit::before {
 	background-image: linear-gradient(45deg,
-		var(--vscode-testing-coveredGutterBackground) 25%,
-		var(--vscode-testing-uncoveredGutterBackground) 25%,
-		var(--vscode-testing-uncoveredGutterBackground) 50%,
-		var(--vscode-testing-coveredGutterBackground) 50%,
-		75%,
-		var(--vscode-testing-uncoveredGutterBackground) 75%,
-		var(--vscode-testing-uncoveredGutterBackground) 100%
-	);
+			var(--vscode-testing-coveredGutterBackground) 25%,
+			var(--vscode-testing-uncoveredGutterBackground) 25%,
+			var(--vscode-testing-uncoveredGutterBackground) 50%,
+			var(--vscode-testing-coveredGutterBackground) 50%,
+			75%,
+			var(--vscode-testing-uncoveredGutterBackground) 75%,
+			var(--vscode-testing-uncoveredGutterBackground) 100%);
 	background-size: 6px 6px;
 	background-color: transparent;
 }
@@ -496,4 +494,32 @@
 	border-radius: 2px;
 	font: normal normal normal calc(var(--vscode-testing-coverage-lineHeight) / 2)/1 codicon;
 	border: 1px solid;
+}
+
+.coverage-deco-inline-count {
+	position: relative;
+	background: var(--vscode-testing-coverCountBadgeBackground);
+	color: var(--vscode-testing-coverCountBadgeForeground);
+	font-size: 0.7em;
+	margin: 0 0.7em 0 0.4em;
+	padding: 0.2em 0 0.2em 0.2em;
+	/* display: inline-block; */
+	border-top-left-radius: 2px;
+	border-bottom-left-radius: 2px;
+}
+
+.coverage-deco-inline-count::after {
+	content: '';
+	display: block;
+	position: absolute;
+	left: 100%;
+	top: 0;
+	bottom: 0;
+	width: 0.5em;
+	background-image:
+		linear-gradient(to bottom left, transparent 50%, var(--vscode-testing-coverCountBadgeBackground) 0),
+		linear-gradient(to bottom right, var(--vscode-testing-coverCountBadgeBackground) 50%, transparent 0);
+	background-size: 100% 50%;
+	background-repeat: no-repeat;
+	background-position: top, bottom;
 }

@@ -148,15 +148,18 @@ export interface IReplElementSource {
 	readonly column: number;
 }
 
-export interface IExpressionContainer extends ITreeElement {
+export interface IExpressionValue {
+	readonly value: string;
+	readonly type?: string;
+	valueChanged?: boolean;
+}
+
+export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly hasChildren: boolean;
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
 	readonly memoryReference?: string;
-	readonly value: string;
-	readonly type?: string;
-	valueChanged?: boolean;
 	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
 }
 

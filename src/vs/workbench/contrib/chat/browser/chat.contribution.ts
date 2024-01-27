@@ -265,7 +265,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${c.description}`;
 					}).join('\n');
 
-					return agentLine + '\n' + commandText;
+					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
 			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'markdownContent' });
 			if (defaultAgent?.metadata.helpTextPostfix) {

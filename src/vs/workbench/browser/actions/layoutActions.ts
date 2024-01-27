@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -30,7 +30,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
+import { TitlebarStyle } from 'vs/platform/window/common/window';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -587,10 +587,7 @@ export class EditorActionsTitleBarAction extends Action2 {
 				original: 'Move Editor Actions to Title Bar'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR).negate(),
-				ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE).negate(),
-			),
+			precondition: ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR).negate(),
 			f1: true
 		});
 	}
@@ -803,7 +800,7 @@ if (isWindows || isLinux || isWeb) {
 				title: localize('miMenuBarNoMnemonic', "Menu Bar"),
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 			},
-			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext.negate()),
+			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext.negate()),
 			group: '2_config',
 			order: 0
 		});

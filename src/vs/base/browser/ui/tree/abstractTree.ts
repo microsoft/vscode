@@ -1767,8 +1767,10 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	private _domHasFocus: boolean = false;
 	private get domHasFocus(): boolean { return this._domHasFocus; }
 	private set domHasFocus(hasFocus: boolean) {
-		this._domHasFocus = hasFocus;
-		this._onDidChangeHasFocus.fire(hasFocus);
+		if (hasFocus !== this._domHasFocus) {
+			this._onDidChangeHasFocus.fire(hasFocus);
+			this._domHasFocus = hasFocus;
+		}
 	}
 
 	constructor(

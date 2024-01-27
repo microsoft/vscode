@@ -97,13 +97,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			e.preventDefault();
 		}));
 
-		this._register(addDisposableListener(this.window, EventType.RESIZE, () => {
-			const dimension = getClientArea(this.window.document.body, this.container);
-			position(this.container, 0, 0, 0, 0, 'relative');
-			size(this.container, dimension.width, dimension.height);
-
-			this._onDidLayout.fire(dimension);
-		}));
+		this._register(addDisposableListener(this.window, EventType.RESIZE, () => this.layout()));
 
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0)); 						// Prevent container from scrolling (#55456)
 
@@ -142,7 +136,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	layout(): void {
-		this._onDidLayout.fire(getClientArea(this.window.document.body, this.container));
+		const dimension = getClientArea(this.window.document.body, this.container);
+		position(this.container, 0, 0, 0, 0, 'relative');
+		size(this.container, dimension.width, dimension.height);
+
+		this._onDidLayout.fire(dimension);
 	}
 
 	override dispose(): void {
@@ -419,6 +417,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
+		container.setAttribute('role', 'application');
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes

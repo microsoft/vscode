@@ -879,11 +879,12 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	async function testSaveFromSaveParticipant(workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>, async: boolean): Promise<void> {
-
+		const from = URI.file('testFrom');
 		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
 
 		const disposable = accessor.workingCopyFileService.addSaveParticipant({
-			participate: async () => {
+			participate: async (wc, context) => {
+
 				if (async) {
 					await timeout(10);
 				}
@@ -894,10 +895,39 @@ suite('StoredFileWorkingCopy', function () {
 
 		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, true);
 
-		await workingCopy.save({ force: true });
+		await workingCopy.save({ force: true, from });
 
 		disposable.dispose();
 	}
+
+	test('Save Participant carries context', async function () {
+		await workingCopy.resolve();
+
+		const from = URI.file('testFrom');
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+
+		let e: Error | undefined = undefined;
+		const disposable = accessor.workingCopyFileService.addSaveParticipant({
+			participate: async (wc, context) => {
+				try {
+					assert.strictEqual(context.reason, SaveReason.EXPLICIT);
+					assert.strictEqual(context.savedFrom?.toString(), from.toString());
+				} catch (error) {
+					e = error;
+				}
+			}
+		});
+
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, true);
+
+		await workingCopy.save({ force: true, from });
+
+		if (e) {
+			throw e;
+		}
+
+		disposable.dispose();
+	});
 
 	test('revert', async () => {
 		await workingCopy.resolve();
