@@ -2,11 +2,7 @@
 # Reference: https://github.com/microsoft/vscode/wiki/How-to-Contribute
 properties:
   resources:
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      directives:
-        description: Install Git
-        allowPrerelease: true
-      settings:
+    - resource: 
         id: Git.Git
         source: winget
     - resource: Microsoft.WinGet.DSC/WinGetPackage
