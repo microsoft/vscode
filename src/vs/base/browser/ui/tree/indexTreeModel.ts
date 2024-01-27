@@ -147,6 +147,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
 		options: IIndexTreeModelSpliceOptions<T, TFilterData> = {},
 	): void {
+		const triggerCollapseStateChange = this.root.children.length === 0;
 		if (location.length === 0) {
 			throw new TreeError(this.user, 'Invalid tree location');
 		}
@@ -155,6 +156,9 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			this.spliceSmart(options.diffIdentityProvider, location, deleteCount, toInsert, options);
 		} else {
 			this.spliceSimple(location, deleteCount, toInsert, options);
+		}
+		if (triggerCollapseStateChange) {
+			this._onDidChangeCollapseState.fire({ node: this.root, deep: true });
 		}
 	}
 
