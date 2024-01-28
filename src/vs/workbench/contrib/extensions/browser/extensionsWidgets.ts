@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -40,6 +40,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { fromNow } from 'vs/base/common/date';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -457,6 +459,38 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
+export class ExtensionActivationStatusWidget extends ExtensionWidget {
+
+	constructor(
+		private readonly container: HTMLElement,
+		@IExtensionService extensionService: IExtensionService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super();
+		this._register(extensionService.onDidChangeExtensionsStatus(extensions => {
+			if (this.extension && extensions.some(e => areSameExtensions({ id: e.value }, this.extension!.identifier))) {
+				this.update();
+			}
+		}));
+	}
+
+	render(): void {
+		this.container.innerText = '';
+
+		if (!this.extension) {
+			return;
+		}
+
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		if (!extensionStatus || !extensionStatus.activationTimes) {
+			return;
+		}
+
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
+	}
+
+}
+
 export class ExtensionPreReleaseWidget extends ExtensionWidget {
 
 	constructor(
@@ -567,12 +601,15 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		markdown.appendText(`\n`);
 
 		if (this.extension.state === ExtensionState.Installed) {
+			markdown.appendMarkdown(this.extension.publisherDisplayName);
+			if (this.extension.publisherDomain?.verified) {
+				const bgColor = this.themeService.getColorTheme().getColor(extensionVerifiedPublisherIconColor);
+				markdown.appendMarkdown(`&nbsp;<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${verifiedPublisherIcon.id})</span>&nbsp;[${URI.parse(this.extension.publisherDomain.link).authority}](${this.extension.publisherDomain.link})`);
+			}
 			let addSeparator = false;
 			const installLabel = InstallCountWidget.getInstallLabel(this.extension, true);
 			if (installLabel) {
-				if (addSeparator) {
-					markdown.appendText(`  |  `);
-				}
+				markdown.appendText(`  |  `);
 				markdown.appendMarkdown(`$(${installCountIcon.id}) ${installLabel}`);
 				addSeparator = true;
 			}
@@ -598,13 +635,6 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		if (this.extension.description) {
 			markdown.appendMarkdown(`${this.extension.description}`);
-			markdown.appendText(`\n`);
-		}
-
-		if (this.extension.publisherDomain?.verified) {
-			const bgColor = this.themeService.getColorTheme().getColor(extensionVerifiedPublisherIconColor);
-			const publisherVerifiedTooltip = localize('publisher verified tooltip', "This publisher has verified ownership of {0}", `[${URI.parse(this.extension.publisherDomain.link).authority}](${this.extension.publisherDomain.link})`);
-			markdown.appendMarkdown(`<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${verifiedPublisherIcon.id})</span>&nbsp;${publisherVerifiedTooltip}`);
 			markdown.appendText(`\n`);
 		}
 

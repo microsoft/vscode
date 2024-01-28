@@ -100,6 +100,7 @@
 	text-decoration: line-through;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .pre-release,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header > .ratings {
@@ -112,6 +113,7 @@
 	margin: 0 6px;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty),
 .extension-list-item > .details > .header-container > .header > .pre-release:not(:empty) {
 	font-size: 90%;
 	margin-left: 2px;
@@ -227,6 +229,10 @@
 	flex: 1;
 	font-size: 90%;
 	opacity: 0.8;
+}
+
+.extension-list-item:not(.compact) > .details > .footer > .updated-label {
+	display: none;
 }
 
 .extension-list-item .ellipsis {

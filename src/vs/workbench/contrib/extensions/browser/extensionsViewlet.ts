@@ -16,7 +16,7 @@ import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus } fro
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, ExtensionsGroupsConfigurationKey, EnableGroupingConfigurationKey } from '../common/extensions';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -64,6 +64,7 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -86,7 +87,7 @@ const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', f
 
 const REMOTE_CATEGORY: ILocalizedString = { value: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"), original: 'Remote' };
 
-export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
+export class ExtensionsViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly container: ViewContainer;
 
@@ -94,8 +95,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
+		super();
 		this.container = viewDescriptorService.getViewContainerById(VIEWLET_ID)!;
 		this.registerViews();
 	}
@@ -121,7 +124,19 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		/* Other Local Filtered extensions views */
 		viewDescriptors.push(...this.createOtherLocalFilteredExtensionsViewDescriptors());
 
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, this.container);
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewsRegistry.registerViews(viewDescriptors, this.container);
+
+		/* Grouped Extensions views */
+		let groupedViewDescriptors = this.createGroupedExtensionsViewDescriptors();
+		viewsRegistry.registerViews(groupedViewDescriptors, this.container);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ExtensionsGroupsConfigurationKey)) {
+				viewsRegistry.deregisterViews(groupedViewDescriptors, this.container);
+				groupedViewDescriptors = this.createGroupedExtensionsViewDescriptors();
+				viewsRegistry.registerViews(groupedViewDescriptors, this.container);
+			}
+		}));
 	}
 
 	private createDefaultExtensionsViewDescriptors(): IViewDescriptor[] {
@@ -165,7 +180,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 				},
 				weight: 100,
 				order: 1,
-				when: ContextKeyExpr.and(DefaultViewsContext),
+				when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.has(`config.${EnableGroupingConfigurationKey}`).negate()),
 				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, compact: true, flexibleHeight: true, onDidChangeTitle }]),
 				/* Installed extensions views shall not be allowed to hidden when there are more than one server */
 				canToggleVisibility: servers.length === 1
@@ -420,6 +435,39 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 
+		return viewDescriptors;
+	}
+
+	private createGroupedExtensionsViewDescriptors(): IViewDescriptor[] {
+		const viewDescriptors: IViewDescriptor[] = [];
+		const groups: IStringDictionary<string[]> = this.configurationService.getValue(ExtensionsGroupsConfigurationKey);
+		const configuredCategories: string[] = [];
+		const installedWhenContext = ContextKeyExpr.and(ContextKeyExpr.has(`config.${EnableGroupingConfigurationKey}`), ContextKeyExpr.or(ContextKeyExpr.and(DefaultViewsContext), ContextKeyExpr.has('installedExtensions')));
+		for (const group of Object.keys(groups)) {
+			const categories = groups[group].map(c => c.toLowerCase());
+			if (categories.length) {
+				viewDescriptors.push({
+					id: `workbench.views.extensions.installed-group-${group}`,
+					name: { value: group, original: group },
+					ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ compact: true, query: `@installed ${categories.map(c => `category:"${c}"`).join(' ')}` }]),
+					when: installedWhenContext,
+					order: 1,
+				});
+				configuredCategories.push(...categories);
+			}
+		}
+
+		const notConfiguredCategories = EXTENSION_CATEGORIES.filter(c => !configuredCategories.includes(c.toLowerCase()));
+		notConfiguredCategories.push(NONE_CATEGORY);
+
+		const otherCategoriesQuery = `${notConfiguredCategories.map(c => `category:"${c}"`).join(' ')} ${configuredCategories.map(c => `category:"-${c}"`).join(' ')}`;
+		viewDescriptors.push({
+			id: 'workbench.views.extensions.other-installed-group',
+			name: localize2('other', "Others"),
+			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ compact: true, query: `@installed ${otherCategoriesQuery}` }]),
+			when: installedWhenContext,
+			order: 1,
+		});
 		return viewDescriptors;
 	}
 
