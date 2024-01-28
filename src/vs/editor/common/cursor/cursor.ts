@@ -394,7 +394,7 @@ export class CursorsController extends Disposable {
 
 	private _emitStateChangedIfNecessary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null, reachedMaxCursorCount: boolean): boolean {
 		const newState = CursorModelState.from(this._model, this);
-		if (newState.equals(oldState) && source !== 'restoreState') {
+		if (newState.equals(oldState)) {
 			return false;
 		}
 
