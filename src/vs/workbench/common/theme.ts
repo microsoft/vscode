@@ -184,7 +184,7 @@ export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorde
 
 //#region Tab Drag and Drop Indicator
 
-export const TAB_Drag_And_Drop_Between_Indicator = registerColor('tab.dragAndDropBetweenIndicator', {
+export const TAB_DRAG_AND_DROP_BETWEEEN_INDICATOR = registerColor('tab.dragAndDropBetweenIndicator', {
 	dark: TAB_INACTIVE_FOREGROUND,
 	light: TAB_INACTIVE_FOREGROUND,
 	hcDark: activeContrastBorder,
