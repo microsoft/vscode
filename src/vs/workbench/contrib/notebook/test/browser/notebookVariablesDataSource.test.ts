@@ -91,6 +91,7 @@ suite('NotebookVariableDataSource', () => {
 
 		assert(variables.length > 1, 'We should have results for groups of children');
 		assert(!provideVariablesCalled, 'provideVariables should not be called');
+		assert.equal(variables[0].extHostId, parent.extHostId, 'ExtHostId should match the parent since we will use it to get the real children');
 	});
 
 	test('Cancel while enumerating through children', async () => {
