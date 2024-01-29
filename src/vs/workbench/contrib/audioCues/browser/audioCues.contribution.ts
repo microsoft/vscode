@@ -100,6 +100,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'audioCues.terminalBell': {
 			'description': localize('audioCues.terminalBell', "Plays a sound when the terminal bell is ringing."),
 			...audioCueFeatureBase,
+			default: 'on'
 		},
 		'audioCues.diffLineInserted': {
 			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
