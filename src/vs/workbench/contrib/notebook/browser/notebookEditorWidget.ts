@@ -17,7 +17,6 @@ import 'vs/css!./media/notebookCellOutput';
 import 'vs/css!./media/notebookEditorStickyScroll';
 import 'vs/css!./media/notebookKernelActionViewItem';
 import 'vs/css!./media/notebookOutline';
-import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
@@ -102,6 +101,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 const $ = DOM.$;
 
@@ -579,7 +579,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
+		const targetWindow = DOM.getWindow(this.getDomNode());
+		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
 	}
 
 	private _createBody(parent: HTMLElement): void {
@@ -890,7 +891,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._register(renderer);
 		});
 
-		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
+		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate, DOM.getWindow(this.getDomNode()));
 		this._register(this._listDelegate);
 
 		const createNotebookAriaLabel = () => {
