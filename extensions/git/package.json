@@ -18,6 +18,7 @@
     "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlInputBoxMenu",
+    "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "diffCommand",
     "editSessionIdentityProvider",
@@ -94,6 +95,7 @@
       {
         "command": "git.reopenClosedRepositories",
         "title": "%command.reopenClosedRepositories%",
+        "icon": "$(repo)",
         "category": "Git",
         "enablement": "!operationInProgress && git.closedRepositoryCount != 0"
       },
@@ -1446,6 +1448,13 @@
           "command": "git.showOutput",
           "group": "3_footer",
           "when": "scmProvider == git"
+        }
+      ],
+      "scm/sourceControl/title": [
+        {
+          "command": "git.reopenClosedRepositories",
+          "group": "navigation@1",
+          "when": "scmProvider == git && git.closedRepositoryCount > 0"
         }
       ],
       "scm/sourceControl": [

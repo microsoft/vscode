@@ -33,6 +33,7 @@ declare module 'vscode' {
 		wholeRange: Range;
 		attempt: number;
 		live: boolean;
+		previewDocument: TextDocument | undefined;
 		withIntentDetection: boolean;
 	}
 
