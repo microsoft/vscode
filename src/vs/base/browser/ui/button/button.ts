@@ -23,6 +23,7 @@ import { localize } from 'vs/nls';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
+	readonly ariaLabel?: boolean | string;
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
@@ -108,6 +109,9 @@ export class Button extends Disposable implements IButton {
 			this._element.classList.add('monaco-text-button-with-short-label');
 		}
 
+		if (typeof options.ariaLabel === 'string') {
+			this._element.setAttribute('aria-label', options.ariaLabel);
+		}
 		container.appendChild(this._element);
 
 		this._register(Gesture.addTarget(this._element));
@@ -236,6 +240,12 @@ export class Button extends Disposable implements IButton {
 			this._element.title = this.options.title;
 		} else if (this.options.title) {
 			this._element.title = renderStringAsPlaintext(value);
+		}
+
+		if (typeof this.options.ariaLabel === 'string') {
+			this._element.setAttribute('aria-label', this.options.ariaLabel);
+		} else if (this.options.ariaLabel) {
+			this._element.setAttribute('aria-label', this._element.title);
 		}
 
 		this._label = value;

@@ -12,9 +12,14 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
+export interface IVoiceChatExecuteActionContext {
+	readonly disableTimeout?: boolean;
+}
+
 export interface IChatExecuteActionContext {
 	widget?: IChatWidget;
 	inputValue?: string;
+	voice?: IVoiceChatExecuteActionContext;
 }
 
 export class SubmitAction extends Action2 {

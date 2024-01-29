@@ -12,7 +12,7 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorTheme } from 'vs/editor/common/editorTheme';
-import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
@@ -28,6 +28,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	readonly viewLayout: IViewLayout;
 
 	readonly cursorConfig: CursorConfiguration;
+
+	readonly glyphLanes: IGlyphMarginLanesModel;
 
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;

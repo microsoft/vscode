@@ -9,9 +9,9 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolveResult, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -28,7 +28,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
+	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData> {
 		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 		const jobs: Promise<any>[] = [];
 
@@ -62,7 +62,7 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		return {
 			variables: resolvedVariables,
-			prompt: parsedPrompt.join('').trim()
+			message: parsedPrompt.join('').trim()
 		};
 	}
 

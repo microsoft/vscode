@@ -10,33 +10,43 @@ import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/languages';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 
-export function convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
+export function convertParsedRequestToMarkdown(accessor: ServicesAccessor, parsedRequest: IParsedChatRequest): string {
 	let result = '';
 	for (const part of parsedRequest.parts) {
 		if (part instanceof ChatRequestTextPart) {
 			result += part.text;
 		} else {
-			result += `[${part.text}](${variableRefUrl})`;
+			const labelService = accessor.get(ILabelService);
+			const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
+				|| undefined;
+			const title = uri ? labelService.getUriLabel(uri, { relative: true }) : '';
+
+			result += `[${part.text}](${variableRefUrl}${title})`;
 		}
 	}
 
 	return result;
 }
 
-export function walkTreeAndAnnotateReferenceLinks(element: HTMLElement, keybindingService: IKeybindingService): void {
+export function walkTreeAndAnnotateReferenceLinks(accessor: ServicesAccessor, element: HTMLElement): void {
+	const keybindingService = accessor.get(IKeybindingService);
+
 	element.querySelectorAll('a').forEach(a => {
 		const href = a.getAttribute('data-href');
 		if (href) {
 			if (href.startsWith(variableRefUrl)) {
+				const title = href.slice(variableRefUrl.length);
 				a.parentElement!.replaceChild(
-					renderResourceWidget(a.textContent!),
+					renderResourceWidget(a.textContent!, title),
 					a);
 			} else if (href.startsWith(contentRefUrl)) {
 				renderFileWidget(href, a);
@@ -60,9 +70,10 @@ function injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingServ
 	}
 }
 
-function renderResourceWidget(name: string): HTMLElement {
+function renderResourceWidget(name: string, title: string): HTMLElement {
 	const container = dom.$('span.chat-resource-widget');
 	const alias = dom.$('span', undefined, name);
+	alias.title = title;
 	container.appendChild(alias);
 	return container;
 }

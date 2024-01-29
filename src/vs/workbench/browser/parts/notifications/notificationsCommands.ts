@@ -9,17 +9,19 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { INotificationViewItem, isNotificationViewItem, NotificationsModel } from 'vs/workbench/common/notifications';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationSourceFilter, NotificationPriority, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { hash } from 'vs/base/common/hash';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -42,6 +44,7 @@ const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTIFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
 export const TOGGLE_DO_NOT_DISTURB_MODE = 'notifications.toggleDoNotDisturbMode';
+export const TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE = 'notifications.toggleDoNotDisturbModeBySource';
 
 export interface INotificationsCenterController {
 	readonly isVisible: boolean;
@@ -139,11 +142,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			primary: KeyMod.CtrlCmd | KeyCode.Backspace
 		},
 		handler: (accessor, args?) => {
-			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
+			const audioCueService = accessor.get(IAudioCueService);
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification && !notification.hasProgress) {
 				notification.close();
-				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+				audioCueService.playAudioCue(AudioCue.clear);
 			}
 		}
 	});
@@ -287,17 +290,56 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, accessor => {
 		const notificationService = accessor.get(INotificationService);
 
-		notificationService.doNotDisturbMode = !notificationService.doNotDisturbMode;
+		notificationService.setFilter(notificationService.getFilter() === NotificationsFilter.ERROR ? NotificationsFilter.OFF : NotificationsFilter.ERROR);
+	});
+
+	// Configure Do Not Disturb by Source
+	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE, accessor => {
+		const notificationService = accessor.get(INotificationService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const sortedFilters = notificationService.getFilters().sort((a, b) => a.label.localeCompare(b.label));
+
+		const disposables = new DisposableStore();
+		const picker = disposables.add(quickInputService.createQuickPick<IQuickPickItem & INotificationSourceFilter>());
+
+		picker.items = sortedFilters.map(source => ({
+			id: source.id,
+			label: source.label,
+			tooltip: `${source.label} (${source.id})`,
+			filter: source.filter
+		}));
+
+		picker.canSelectMany = true;
+		picker.placeholder = localize('selectSources', "Select sources to enable notifications for");
+		picker.selectedItems = picker.items.filter(item => (item as INotificationSourceFilter).filter === NotificationsFilter.OFF) as (IQuickPickItem & INotificationSourceFilter)[];
+
+		picker.show();
+
+		disposables.add(picker.onDidAccept(async () => {
+			for (const item of picker.items as (IQuickPickItem & INotificationSourceFilter)[]) {
+				notificationService.setFilter({
+					id: item.id,
+					label: item.label,
+					filter: picker.selectedItems.includes(item) ? NotificationsFilter.OFF : NotificationsFilter.ERROR
+				});
+			}
+
+			picker.hide();
+		}));
+
+		disposables.add(picker.onDidHide(() => disposables.dispose()));
 	});
 
 	// Commands for Command Palette
-	const category = { value: localize('notifications', "Notifications"), original: 'Notifications' };
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: { value: localize('showNotifications', "Show Notifications"), original: 'Show Notifications' }, category } });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: { value: localize('hideNotifications', "Hide Notifications"), original: 'Hide Notifications' }, category }, when: NotificationsCenterVisibleContext });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: { value: localize('clearAllNotifications', "Clear All Notifications"), original: 'Clear All Notifications' }, category } });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: ACCEPT_PRIMARY_ACTION_NOTIFICATION, title: { value: localize('acceptNotificationPrimaryAction', "Accept Notification Primary Action"), original: 'Accept Notification Primary Action' }, category } });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE, title: { value: localize('toggleDoNotDisturbMode', "Toggle Do Not Disturb Mode"), original: 'Toggle Do Not Disturb Mode' }, category } });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: FOCUS_NOTIFICATION_TOAST, title: { value: localize('focusNotificationToasts', "Focus Notification Toast"), original: 'Focus Notification Toast' }, category }, when: NotificationsToastsVisibleContext });
+	const category = localize2('notifications', 'Notifications');
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: localize2('showNotifications', 'Show Notifications'), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: localize2('hideNotifications', 'Hide Notifications'), category }, when: NotificationsCenterVisibleContext });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: localize2('clearAllNotifications', 'Clear All Notifications'), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: ACCEPT_PRIMARY_ACTION_NOTIFICATION, title: localize2('acceptNotificationPrimaryAction', 'Accept Notification Primary Action'), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE, title: localize2('toggleDoNotDisturbMode', 'Toggle Do Not Disturb Mode'), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE, title: localize2('toggleDoNotDisturbModeBySource', 'Toggle Do Not Disturb Mode By Source...'), category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: FOCUS_NOTIFICATION_TOAST, title: localize2('focusNotificationToasts', 'Focus Notification Toast'), category }, when: NotificationsToastsVisibleContext });
 }
 
 

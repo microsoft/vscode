@@ -756,13 +756,17 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private registerViewsVisibilityActions(viewContainer: ViewContainer, { viewContainerModel, disposables }: { viewContainerModel: ViewContainerModel; disposables: DisposableStore }): void {
+		this.viewsVisibilityActionDisposables.deleteAndDispose(viewContainer);
 		this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
 		disposables.add(Event.any(
 			viewContainerModel.onDidChangeActiveViewDescriptors,
 			viewContainerModel.onDidAddVisibleViewDescriptors,
 			viewContainerModel.onDidRemoveVisibleViewDescriptors,
 			viewContainerModel.onDidMoveVisibleViewDescriptors
-		)(e => this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel))));
+		)(e => {
+			this.viewsVisibilityActionDisposables.deleteAndDispose(viewContainer);
+			this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
+		}));
 	}
 
 	private registerViewsVisibilityActionsForContainer(viewContainerModel: ViewContainerModel): IDisposable {
@@ -791,7 +795,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							}, {
 								id: MenuId.ViewTitleContext,
 								when: ContextKeyExpr.and(
-									viewContainerModel.visibleViewDescriptors.length > 1 ? ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id))) : ContextKeyExpr.false()
+									ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id)))
 								),
 								order: index,
 								group: '2_toggleVisibility'

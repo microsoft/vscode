@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionBar, ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -40,6 +39,7 @@ import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '
 import { Codicon } from 'vs/base/common/codicons';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { clamp } from 'vs/base/common/numbers';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -60,6 +60,8 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private readonly stopActionViewItemDisposables = this._register(new DisposableStore());
 	/** coordinate of the debug toolbar per aux window */
 	private readonly auxWindowCoordinates = new WeakMap<CodeWindow, { x: number; y: number | undefined }>();
+
+	private readonly trackPixelRatioListener = this._register(new MutableDisposable());
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -158,7 +160,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
 				const widgetWidth = this.$el.clientWidth;
-				this.setCoordinates(0.5 * activeWindow.innerWidth - 0.5 * widgetWidth, 0);
+				this.setCoordinates(0.5 * activeWindow.innerWidth - 0.5 * widgetWidth, this.yDefault);
 				this.storePosition();
 			}
 		}));
@@ -185,7 +187,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.setYCoordinate()));
-		this._register(browser.PixelRatio.onDidChange(() => this.setYCoordinate()));
 
 		const resizeListener = this._register(new MutableDisposable());
 
@@ -196,7 +197,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			// `then` clause to avoid any races due to quickly switching windows.
 			this.layoutService.whenActiveContainerStylesLoaded.then(() => {
 				if (this.isBuilt) {
-					this.layoutService.activeContainer.appendChild(this.$el);
+					this.doShowInActiveContainer();
 					this.setCoordinates();
 				}
 
@@ -267,7 +268,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				: this.auxWindowCoordinates.get(currentWindow)?.y;
 		}
 
-		this.setYCoordinate(y || 0);
+		this.setYCoordinate(y ?? this.yDefault);
 	}
 
 	private setYCoordinate(y = this.yCoordinate): void {
@@ -277,11 +278,15 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.yCoordinate = y;
 	}
 
+	private get yDefault() {
+		return this.layoutService.mainContainerOffset.top;
+	}
+
 	private _yRange: [number, number] | undefined;
 	private get yRange(): [number, number] {
 		if (!this._yRange) {
 			const isTitleBarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, dom.getWindow(this.layoutService.activeContainer));
-			const yMin = isTitleBarVisible ? this.layoutService.mainContainerOffset.top : 0;
+			const yMin = isTitleBarVisible ? 0 : this.layoutService.mainContainerOffset.top;
 			let yMax = 0;
 
 			if (isTitleBarVisible) {
@@ -307,12 +312,17 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.layoutService.activeContainer.appendChild(this.$el);
+			this.doShowInActiveContainer();
 		}
 
 		this.isVisible = true;
 		dom.show(this.$el);
 		this.setCoordinates();
+	}
+
+	private doShowInActiveContainer(): void {
+		this.layoutService.activeContainer.appendChild(this.$el);
+		this.trackPixelRatioListener.value = PixelRatio.getInstance(dom.getWindow(this.$el)).onDidChange(() => this.setYCoordinate());
 	}
 
 	private hide(): void {

@@ -20,7 +20,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -62,7 +62,11 @@ export class WelcomeView extends ViewPane {
 		this.debugStartLanguageContext.set(lastSetLanguage);
 
 		const setContextKey = () => {
-			const editorControl = this.editorService.activeTextEditorControl;
+			let editorControl = this.editorService.activeTextEditorControl;
+			if (isDiffEditor(editorControl)) {
+				editorControl = editorControl.getModifiedEditor();
+			}
+
 			if (isCodeEditor(editorControl)) {
 				const model = editorControl.getModel();
 				const language = model ? model.getLanguageId() : undefined;
@@ -82,7 +86,11 @@ export class WelcomeView extends ViewPane {
 		this._register(editorService.onDidActiveEditorChange(() => {
 			disposables.clear();
 
-			const editorControl = this.editorService.activeTextEditorControl;
+			let editorControl = this.editorService.activeTextEditorControl;
+			if (isDiffEditor(editorControl)) {
+				editorControl = editorControl.getModifiedEditor();
+			}
+
 			if (isCodeEditor(editorControl)) {
 				disposables.add(editorControl.onDidChangeModelLanguage(setContextKey));
 			}

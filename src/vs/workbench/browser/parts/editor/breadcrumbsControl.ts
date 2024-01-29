@@ -31,7 +31,7 @@ import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -424,7 +424,7 @@ export class BreadcrumbsControl {
 				}
 
 				const selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				const zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
+				const zoomListener = PixelRatio.getInstance(dom.getWindow(this.domNode)).onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
 				const focusTracker = dom.trackFocus(parent);
 				const blurListener = focusTracker.onDidBlur(() => {

@@ -113,7 +113,7 @@ export class BrowserMain extends Disposable {
 	private init(): void {
 
 		// Browser config
-		setFullscreen(!!detectFullscreen(mainWindow));
+		setFullscreen(!!detectFullscreen(mainWindow), mainWindow);
 	}
 
 	async open(): Promise<IWorkbench> {

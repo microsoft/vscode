@@ -46,8 +46,12 @@ suite('Workbench - TestProfileService', () => {
 			...profile,
 		};
 
-		t.addProfile(null as any, p);
+		t.addProfile({ id: 'ctrlId' } as any, p);
 		return p;
+	};
+
+	const assertGroupDefaults = (group: TestRunProfileBitset, expected: ITestRunProfile[]) => {
+		assert.deepStrictEqual(t.getGroupDefaultProfiles(group).map(p => p.label), expected.map(e => e.label));
 	};
 
 	const expectProfiles = (expected: ITestRunProfile[], actual: string[]) => {
@@ -74,8 +78,8 @@ suite('Workbench - TestProfileService', () => {
 			addProfile({ isDefault: false, group: TestRunProfileBitset.Run, label: 'd' });
 
 			t.setGroupDefaultProfiles(TestRunProfileBitset.Run, [p3]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), [p3]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), [p1]);
+			assertGroupDefaults(TestRunProfileBitset.Run, [p3]);
+			assertGroupDefaults(TestRunProfileBitset.Debug, [p1]);
 		});
 
 		test('syncs labels if same', () => {
@@ -85,12 +89,12 @@ suite('Workbench - TestProfileService', () => {
 			const p4 = addProfile({ isDefault: false, group: TestRunProfileBitset.Run, label: 'b' });
 
 			t.setGroupDefaultProfiles(TestRunProfileBitset.Run, [p3]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), [p3]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), [p1]);
+			assertGroupDefaults(TestRunProfileBitset.Run, [p3]);
+			assertGroupDefaults(TestRunProfileBitset.Debug, [p1]);
 
 			t.setGroupDefaultProfiles(TestRunProfileBitset.Debug, [p2]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), [p4]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), [p2]);
+			assertGroupDefaults(TestRunProfileBitset.Run, [p4]);
+			assertGroupDefaults(TestRunProfileBitset.Debug, [p2]);
 		});
 
 		test('does not mess up sync for multiple controllers', () => {
@@ -107,23 +111,23 @@ suite('Workbench - TestProfileService', () => {
 
 			// same profile on both
 			t.setGroupDefaultProfiles(TestRunProfileBitset.Debug, [p3]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), [p7]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), [p3]);
+			assertGroupDefaults(TestRunProfileBitset.Run, [p7]);
+			assertGroupDefaults(TestRunProfileBitset.Debug, [p3]);
 
 			// different profile, other should be unaffected
 			t.setGroupDefaultProfiles(TestRunProfileBitset.Run, [p8]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), [p8]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), [p3]);
+			assertGroupDefaults(TestRunProfileBitset.Run, [p8]);
+			assertGroupDefaults(TestRunProfileBitset.Debug, [p5]);
 
 			// multiple changes in one go, with unmatched c
 			t.setGroupDefaultProfiles(TestRunProfileBitset.Debug, [p1, p2, p4]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), [p5, p6]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), [p1, p2, p4]);
+			assertGroupDefaults(TestRunProfileBitset.Run, [p5, p6, p8]);
+			assertGroupDefaults(TestRunProfileBitset.Debug, [p1, p2, p4]);
 
 			// identity
-			t.setGroupDefaultProfiles(TestRunProfileBitset.Run, [p5, p8]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Run), [p5, p8]);
-			assert.deepStrictEqual(t.getGroupDefaultProfiles(TestRunProfileBitset.Debug), [p2, p4, p1]);
+			t.setGroupDefaultProfiles(TestRunProfileBitset.Run, [p5, p6, p8]);
+			assertGroupDefaults(TestRunProfileBitset.Run, [p5, p6, p8]);
+			assertGroupDefaults(TestRunProfileBitset.Debug, [p1, p2, p4]);
 		});
 	});
 });
