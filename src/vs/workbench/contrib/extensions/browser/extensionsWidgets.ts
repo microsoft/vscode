@@ -459,7 +459,7 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
-export class ExtensionActivationStatusWidget extends ExtensionWidget {
+export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -482,7 +482,19 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 		}
 
 		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
-		if (!extensionStatus || !extensionStatus.activationTimes) {
+		if (!extensionStatus) {
+			return;
+		}
+
+		const hasErrors = extensionStatus.runtimeErrors.length || extensionStatus.messages.some(message => message.type === Severity.Error);
+		if (hasErrors) {
+			append(this.container, $('span' + ThemeIcon.asCSSSelector(errorIcon)));
+			return;
+		}
+
+		const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
+		if (hasWarnings) {
+			append(this.container, $('span' + ThemeIcon.asCSSSelector(warningIcon)));
 			return;
 		}
 
@@ -538,11 +550,11 @@ export class ExtensionUpdateTimeWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (!this.extension.local?.installedTimestamp) {
+		if (!this.extension.gallery?.lastUpdated) {
 			return;
 		}
 
-		this.container.innerText = fromNow(this.extension.local.installedTimestamp, true, true);
+		this.container.innerText = fromNow(this.extension.gallery.lastUpdated, false, true);
 	}
 
 }
@@ -648,9 +660,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const reloadRequiredMessage = this.extension.reloadRequiredStatus;
+		const lastUpdateMessaage = this.getLastUpdatedMessage(this.extension);
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage || preReleaseMessage) {
+		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || lastUpdateMessaage || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -693,6 +706,11 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendText(`\n`);
 			}
 
+			if (lastUpdateMessaage) {
+				markdown.appendMarkdown(lastUpdateMessaage);
+				markdown.appendText(`\n`);
+			}
+
 			if (preReleaseMessage) {
 				const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
 				markdown.appendMarkdown(`<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${preReleaseMessage}`);
@@ -721,6 +739,14 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
 		return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
+	}
+
+	private getLastUpdatedMessage(extension: IExtension): string | undefined {
+		if (!extension.gallery?.lastUpdated) {
+			return undefined;
+		}
+		return localize('lastUpdated', "This extension was last updated {0} ago.", fromNow(extension.gallery?.lastUpdated, false, true));
+
 	}
 
 	static getPreReleaseMessage(extension: IExtension): string | undefined {
