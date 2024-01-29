@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: { value: localize('miWelcome', "Welcome"), original: 'Welcome' },
+			title: localize2('miWelcome', 'Welcome'),
 			category: Categories.Help,
 			f1: true,
 			menu: {
@@ -127,13 +127,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
-const category = { value: localize('welcome', "Welcome"), original: 'Welcome' };
+const category = localize2('welcome', "Welcome");
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.goBack',
-			title: { value: localize('welcome.goBack', "Go Back"), original: 'Go Back' },
+			title: localize2('welcome.goBack', 'Go Back'),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
@@ -203,7 +203,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showAllWalkthroughs',
-			title: { value: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."), original: 'Open Walkthrough...' },
+			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
 		});
@@ -305,13 +305,14 @@ configurationRegistry.registerConfiguration({
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,
 			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal'],
 			'enumDescriptions': [
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
 			],
 			'default': 'welcomePage',
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")

@@ -14,13 +14,13 @@ import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EndOfLinePreference } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -64,11 +64,26 @@ import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleVi
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { TerminalVoiceSession } from 'vs/workbench/contrib/terminal/browser/terminalVoice';
+import { HasSpeechProvider } from 'vs/workbench/contrib/speech/common/speechService';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const category = terminalStrings.actionCategory;
+
+// Some terminal context keys get complicated. Since normalizing and/or context keys can be
+// expensive this is done once per context key and shared.
+const sharedWhenClause = (() => {
+	const terminalAvailable = ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated);
+	return {
+		terminalAvailable,
+		terminalAvailable_and_opened: ContextKeyExpr.and(terminalAvailable, TerminalContextKeys.isOpen),
+		terminalAvailable_and_editorActive: ContextKeyExpr.and(terminalAvailable, TerminalContextKeys.terminalEditorActive),
+		terminalAvailable_and_singularSelection: ContextKeyExpr.and(terminalAvailable, TerminalContextKeys.tabsSingularSelection),
+		focusInAny_and_normalBuffer: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.altBufferActive.negate())
+	};
+})();
 
 export interface WorkspaceFolderCwdPair {
 	folder: IWorkspaceFolder;
@@ -292,7 +307,7 @@ function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesColle
 export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.NewInActiveWorkspace,
-		title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Terminal (In Active Workspace)"), original: 'Create New Terminal (In Active Workspace)' },
+		title: localize2('workbench.action.terminal.newInActiveWorkspace', 'Create New Terminal (In Active Workspace)'),
 		run: async (c) => {
 			if (c.service.isProcessSupportRegistered) {
 				const instance = await c.service.createTerminal({ location: c.service.defaultLocation });
@@ -310,7 +325,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.CreateTerminalEditor,
-		title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
+		title: localize2('workbench.action.terminal.createTerminalEditor', 'Create New Terminal in Editor Area'),
 		run: async (c, _, args) => {
 			const options = (isObject(args) && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
 			const instance = await c.service.createTerminal(options);
@@ -320,7 +335,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.CreateTerminalEditorSameGroup,
-		title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
+		title: localize2('workbench.action.terminal.createTerminalEditor', 'Create New Terminal in Editor Area'),
 		f1: false,
 		run: async (c, accessor, args) => {
 			// Force the editor into the same editor group if it's locked. This command is only ever
@@ -335,7 +350,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.CreateTerminalEditorSide,
-		title: { value: localize('workbench.action.terminal.createTerminalEditorSide', "Create New Terminal in Editor Area to the Side"), original: 'Create New Terminal in Editor Area to the Side' },
+		title: localize2('workbench.action.terminal.createTerminalEditorSide', 'Create New Terminal in Editor Area to the Side'),
 		run: async (c) => {
 			const instance = await c.service.createTerminal({
 				location: { viewColumn: SIDE_GROUP }
@@ -347,16 +362,24 @@ export function registerTerminalActions() {
 	registerContextualInstanceAction({
 		id: TerminalCommandId.MoveToEditor,
 		title: terminalStrings.moveToEditor,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
 		activeInstanceType: 'view',
 		run: (instance, c) => c.service.moveToEditor(instance),
+		runAfter: (instances) => instances.at(-1)?.focus()
+	});
+
+	registerContextualInstanceAction({
+		id: TerminalCommandId.MoveIntoNewWindow,
+		title: terminalStrings.moveIntoNewWindow,
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
+		run: (instance, c) => c.service.moveIntoNewEditor(instance),
 		runAfter: (instances) => instances.at(-1)?.focus()
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.MoveToTerminalPanel,
 		title: terminalStrings.moveToTerminalPanel,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive),
+		precondition: sharedWhenClause.terminalAvailable_and_editorActive,
 		run: (c, _, args) => {
 			const source = toOptionalUri(args) ?? c.editorService.activeInstance;
 			if (source) {
@@ -367,7 +390,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.FocusPreviousPane,
-		title: { value: localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Terminal in Terminal Group"), original: 'Focus Previous Terminal in Terminal Group' },
+		title: localize2('workbench.action.terminal.focusPreviousPane', 'Focus Previous Terminal in Terminal Group'),
 		keybinding: {
 			primary: KeyMod.Alt | KeyCode.LeftArrow,
 			secondary: [KeyMod.Alt | KeyCode.UpArrow],
@@ -378,7 +401,7 @@ export function registerTerminalActions() {
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
 			c.groupService.activeGroup?.focusPreviousPane();
 			await c.groupService.showPanel(true);
@@ -387,7 +410,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.FocusNextPane,
-		title: { value: localize('workbench.action.terminal.focusNextPane', "Focus Next Terminal in Terminal Group"), original: 'Focus Next Terminal in Terminal Group' },
+		title: localize2('workbench.action.terminal.focusNextPane', 'Focus Next Terminal in Terminal Group'),
 		keybinding: {
 			primary: KeyMod.Alt | KeyCode.RightArrow,
 			secondary: [KeyMod.Alt | KeyCode.DownArrow],
@@ -398,7 +421,7 @@ export function registerTerminalActions() {
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
 			c.groupService.activeGroup?.focusNextPane();
 			await c.groupService.showPanel(true);
@@ -407,8 +430,8 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.RunRecentCommand,
-		title: { value: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."), original: 'Run Recent Command...' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
+		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: [
 			{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
@@ -435,7 +458,7 @@ export function registerTerminalActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommand,
 		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
 			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
@@ -453,7 +476,7 @@ export function registerTerminalActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandOutput,
 		title: { value: localize('workbench.action.terminal.copyLastCommandOutput', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
 			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
@@ -474,7 +497,7 @@ export function registerTerminalActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandAndLastCommandOutput,
 		title: { value: localize('workbench.action.terminal.copyLastCommandAndOutput', 'Copy Last Command and Output'), original: 'Copy Last Command and Output' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
 			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
@@ -495,8 +518,8 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.GoToRecentDirectory,
-		title: { value: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."), original: 'Go to Recent Directory...' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
+		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyG,
 			when: TerminalContextKeys.focus,
@@ -514,51 +537,51 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.ResizePaneLeft,
-		title: { value: localize('workbench.action.terminal.resizePaneLeft', "Resize Terminal Left"), original: 'Resize Terminal Left' },
+		title: localize2('workbench.action.terminal.resizePaneLeft', 'Resize Terminal Left'),
 		keybinding: {
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow },
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Left)
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.ResizePaneRight,
-		title: { value: localize('workbench.action.terminal.resizePaneRight', "Resize Terminal Right"), original: 'Resize Terminal Right' },
+		title: localize2('workbench.action.terminal.resizePaneRight', 'Resize Terminal Right'),
 		keybinding: {
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow },
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Right)
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.ResizePaneUp,
-		title: { value: localize('workbench.action.terminal.resizePaneUp', "Resize Terminal Up"), original: 'Resize Terminal Up' },
+		title: localize2('workbench.action.terminal.resizePaneUp', 'Resize Terminal Up'),
 		keybinding: {
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow },
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Up)
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.ResizePaneDown,
-		title: { value: localize('workbench.action.terminal.resizePaneDown', "Resize Terminal Down"), original: 'Resize Terminal Down' },
+		title: localize2('workbench.action.terminal.resizePaneDown', 'Resize Terminal Down'),
 		keybinding: {
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow },
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Down)
 	});
 
@@ -570,7 +593,7 @@ export function registerTerminalActions() {
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
 			const instance = c.service.activeInstance || await c.service.createTerminal({ location: TerminalLocation.Panel });
 			if (!instance) {
@@ -583,20 +606,20 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.FocusTabs,
-		title: { value: localize('workbench.action.terminal.focus.tabsView', "Focus Terminal Tabs View"), original: 'Focus Terminal Tabs View' },
+		title: localize2('workbench.action.terminal.focus.tabsView', 'Focus Terminal Tabs View'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus),
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c) => c.groupService.focusTabs()
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.FocusNext,
-		title: { value: localize('workbench.action.terminal.focusNext', "Focus Next Terminal Group"), original: 'Focus Next Terminal Group' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.focusNext', 'Focus Next Terminal Group'),
+		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 			mac: {
@@ -613,8 +636,8 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.FocusPrevious,
-		title: { value: localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal Group"), original: 'Focus Previous Terminal Group' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.focusPrevious', 'Focus Previous Terminal Group'),
+		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 			mac: {
@@ -631,7 +654,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.RunSelectedText,
-		title: { value: localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal"), original: 'Run Selected Text In Active Terminal' },
+		title: localize2('workbench.action.terminal.runSelectedText', 'Run Selected Text In Active Terminal'),
 		run: async (c, accessor) => {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor();
@@ -654,8 +677,8 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.RunActiveFile,
-		title: { value: localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal"), original: 'Run Active File In Active Terminal' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.runActiveFile', 'Run Active File In Active Terminal'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c, accessor) => {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const notificationService = accessor.get(INotificationService);
@@ -682,93 +705,93 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollDownLine,
-		title: { value: localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)"), original: 'Scroll Down (Line)' },
+		title: localize2('workbench.action.terminal.scrollDown', 'Scroll Down (Line)'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
-			when: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.altBufferActive.negate()),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm) => xterm.scrollDownLine()
 	});
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollDownPage,
-		title: { value: localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)"), original: 'Scroll Down (Page)' },
+		title: localize2('workbench.action.terminal.scrollDownPage', 'Scroll Down (Page)'),
 		keybinding: {
 			primary: KeyMod.Shift | KeyCode.PageDown,
 			mac: { primary: KeyCode.PageDown },
-			when: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.altBufferActive.negate()),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm) => xterm.scrollDownPage()
 	});
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollToBottom,
-		title: { value: localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom"), original: 'Scroll to Bottom' },
+		title: localize2('workbench.action.terminal.scrollToBottom', 'Scroll to Bottom'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.End,
 			linux: { primary: KeyMod.Shift | KeyCode.End },
-			when: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.altBufferActive.negate()),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm) => xterm.scrollToBottom()
 	});
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollUpLine,
-		title: { value: localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)"), original: 'Scroll Up (Line)' },
+		title: localize2('workbench.action.terminal.scrollUp', 'Scroll Up (Line)'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
-			when: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.altBufferActive.negate()),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm) => xterm.scrollUpLine()
 	});
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollUpPage,
-		title: { value: localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)"), original: 'Scroll Up (Page)' },
+		title: localize2('workbench.action.terminal.scrollUpPage', 'Scroll Up (Page)'),
 		f1: true,
 		category,
 		keybinding: {
 			primary: KeyMod.Shift | KeyCode.PageUp,
 			mac: { primary: KeyCode.PageUp },
-			when: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.altBufferActive.negate()),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm) => xterm.scrollUpPage()
 	});
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollToTop,
-		title: { value: localize('workbench.action.terminal.scrollToTop', "Scroll to Top"), original: 'Scroll to Top' },
+		title: localize2('workbench.action.terminal.scrollToTop', 'Scroll to Top'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.Home,
 			linux: { primary: KeyMod.Shift | KeyCode.Home },
-			when: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.altBufferActive.negate()),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm) => xterm.scrollToTop()
 	});
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.ClearSelection,
-		title: { value: localize('workbench.action.terminal.clearSelection', "Clear Selection"), original: 'Clear Selection' },
+		title: localize2('workbench.action.terminal.clearSelection', 'Clear Selection'),
 		keybinding: {
 			primary: KeyCode.Escape,
 			when: ContextKeyExpr.and(TerminalContextKeys.focusInAny, TerminalContextKeys.textSelected, TerminalContextKeys.notFindVisible),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm) => {
 			if (xterm.hasSelection()) {
 				xterm.clearSelection();
@@ -779,7 +802,7 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon()
 	});
 
@@ -787,7 +810,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIconActiveTab,
 		title: terminalStrings.changeIcon,
 		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
+		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
 		run: async (c, accessor) => {
 			let icon: TerminalIcon | undefined;
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
@@ -799,7 +822,7 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c, _, args) => getResourceOrActiveInstance(c, args)?.changeColor()
 	});
 
@@ -807,11 +830,15 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeColorActiveTab,
 		title: terminalStrings.changeColor,
 		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
+		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
 		run: async (c, accessor) => {
 			let color: string | undefined;
+			let i = 0;
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				color = await terminal.changeColor(color);
+				const skipQuickPick = i !== 0;
+				// Always show the quickpick on the first iteration
+				color = await terminal.changeColor(color, skipQuickPick);
+				i++;
 			}
 		}
 	});
@@ -819,7 +846,7 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.Rename,
 		title: terminalStrings.rename,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c, accessor, args) => renameWithQuickPick(c, accessor, args)
 	});
 
@@ -835,14 +862,20 @@ export function registerTerminalActions() {
 			when: ContextKeyExpr.and(TerminalContextKeys.tabsFocus),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
+		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
 		run: async (c, accessor) => {
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const notificationService = accessor.get(INotificationService);
 			const instances = getSelectedInstances(accessor);
 			const firstInstance = instances?.[0];
 			if (!firstInstance) {
 				return;
 			}
+
+			if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
+				return renameWithQuickPick(c, accessor, firstInstance);
+			}
+
 			c.service.setEditingTerminal(firstInstance);
 			c.service.setEditable(firstInstance, {
 				validationMessage: value => validateTerminalName(value),
@@ -870,13 +903,13 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.DetachSession,
-		title: { value: localize('workbench.action.terminal.detachSession', "Detach Session"), original: 'Detach Session' },
+		title: localize2('workbench.action.terminal.detachSession', 'Detach Session'),
 		run: (activeInstance) => activeInstance.detachProcessAndDispose(TerminalExitReason.User)
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.AttachToSession,
-		title: { value: localize('workbench.action.terminal.attachToSession', "Attach to Session"), original: 'Attach to Session' },
+		title: localize2('workbench.action.terminal.attachToSession', 'Attach to Session'),
 		run: async (c, accessor) => {
 			const quickInputService = accessor.get(IQuickInputService);
 			const labelService = accessor.get(ILabelService);
@@ -921,8 +954,8 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.QuickOpenTerm,
-		title: { value: localize('quickAccessTerminal', "Switch Active Terminal"), original: 'Switch Active Terminal' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('quickAccessTerminal', 'Switch Active Terminal'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c, accessor) => accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX)
 	});
 
@@ -934,7 +967,7 @@ export function registerTerminalActions() {
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		icon: Codicon.arrowUp,
 		menu: [
 			{
@@ -956,7 +989,7 @@ export function registerTerminalActions() {
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		icon: Codicon.arrowDown,
 		menu: [
 			{
@@ -975,13 +1008,13 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SelectToPreviousCommand,
-		title: { value: localize('workbench.action.terminal.selectToPreviousCommand', "Select To Previous Command"), original: 'Select To Previous Command' },
+		title: localize2('workbench.action.terminal.selectToPreviousCommand', 'Select To Previous Command'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (activeInstance) => {
 			activeInstance.xterm?.markTracker.selectToPreviousMark();
 			activeInstance.focus();
@@ -990,13 +1023,13 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SelectToNextCommand,
-		title: { value: localize('workbench.action.terminal.selectToNextCommand', "Select To Next Command"), original: 'Select To Next Command' },
+		title: localize2('workbench.action.terminal.selectToNextCommand', 'Select To Next Command'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
 			when: TerminalContextKeys.focus,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (activeInstance) => {
 			activeInstance.xterm?.markTracker.selectToNextMark();
 			activeInstance.focus();
@@ -1005,8 +1038,8 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToPreviousLine,
-		title: { value: localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line"), original: 'Select To Previous Line' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.selectToPreviousLine', 'Select To Previous Line'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (xterm, _, instance) => {
 			xterm.markTracker.selectToPreviousLine();
 			// prefer to call focus on the TerminalInstance for additional accessibility triggers
@@ -1016,8 +1049,8 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToNextLine,
-		title: { value: localize('workbench.action.terminal.selectToNextLine', "Select To Next Line"), original: 'Select To Next Line' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.selectToNextLine', 'Select To Next Line'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (xterm, _, instance) => {
 			xterm.markTracker.selectToNextLine();
 			// prefer to call focus on the TerminalInstance for additional accessibility triggers
@@ -1098,7 +1131,7 @@ export function registerTerminalActions() {
 				}
 			}]
 		},
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (activeInstance, c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
 			const name = isObject(args) && 'name' in args ? toOptionalString(args.name) : undefined;
@@ -1112,7 +1145,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.Relaunch,
-		title: { value: localize('workbench.action.terminal.relaunch', "Relaunch Active Terminal"), original: 'Relaunch Active Terminal' },
+		title: localize2('workbench.action.terminal.relaunch', 'Relaunch Active Terminal'),
 		run: (activeInstance) => activeInstance.relaunch()
 	});
 
@@ -1179,7 +1212,7 @@ export function registerTerminalActions() {
 	registerContextualInstanceAction({
 		id: TerminalCommandId.Unsplit,
 		title: terminalStrings.unsplit,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (instance, c) => {
 			const group = c.groupService.getGroupForInstance(instance);
 			if (group && group?.terminalInstances.length > 1) {
@@ -1190,8 +1223,8 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.JoinActiveTab,
-		title: { value: localize('workbench.action.terminal.joinInstance', "Join Terminals"), original: 'Join Terminals' },
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection.toNegated()),
+		title: localize2('workbench.action.terminal.joinInstance', 'Join Terminals'),
+		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.tabsSingularSelection.toNegated()),
 		run: async (c, accessor) => {
 			const instances = getSelectedInstances(accessor);
 			if (instances && instances.length > 1) {
@@ -1202,8 +1235,8 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.Join,
-		title: { value: localize('workbench.action.terminal.join', "Join Terminals"), original: 'Join Terminals' },
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)),
+		title: localize2('workbench.action.terminal.join', 'Join Terminals'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c, accessor) => {
 			const themeService = accessor.get(IThemeService);
 			const notificationService = accessor.get(INotificationService);
@@ -1249,7 +1282,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SplitInActiveWorkspace,
-		title: { value: localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)"), original: 'Split Terminal (In Active Workspace)' },
+		title: localize2('workbench.action.terminal.splitInActiveWorkspace', 'Split Terminal (In Active Workspace)'),
 		run: async (instance, c) => {
 			const newInstance = await c.service.createTerminal({ location: { parentTerminal: instance } });
 			if (newInstance?.target !== TerminalLocation.Editor) {
@@ -1260,8 +1293,8 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.SelectAll,
-		title: { value: localize('workbench.action.terminal.selectAll', "Select All"), original: 'Select All' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.selectAll', 'Select All'),
+		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: [{
 			// Don't use ctrl+a by default as that would override the common go to start
 			// of prompt shell binding
@@ -1278,7 +1311,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.New,
-		title: { value: localize('workbench.action.terminal.new', "Create New Terminal"), original: 'Create New Terminal' },
+		title: localize2('workbench.action.terminal.new', 'Create New Terminal'),
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
 		icon: newTerminalIcon,
 		keybinding: {
@@ -1336,8 +1369,8 @@ export function registerTerminalActions() {
 	}
 	registerTerminalAction({
 		id: TerminalCommandId.Kill,
-		title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
-		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		title: localize2('workbench.action.terminal.kill', 'Kill the Active Terminal Instance'),
+		precondition: ContextKeyExpr.or(sharedWhenClause.terminalAvailable, TerminalContextKeys.isOpen),
 		icon: killTerminalIcon,
 		run: async (c) => killInstance(c, c.groupService.activeInstance)
 	});
@@ -1345,14 +1378,14 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.KillViewOrEditor,
 		title: terminalStrings.kill,
 		f1: false, // This is an internal command used for context menus
-		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		precondition: ContextKeyExpr.or(sharedWhenClause.terminalAvailable, TerminalContextKeys.isOpen),
 		run: async (c) => killInstance(c, c.service.activeInstance)
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.KillAll,
-		title: { value: localize('workbench.action.terminal.killAll', "Kill All Terminals"), original: 'Kill All Terminals' },
-		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		title: localize2('workbench.action.terminal.killAll', 'Kill All Terminals'),
+		precondition: ContextKeyExpr.or(sharedWhenClause.terminalAvailable, TerminalContextKeys.isOpen),
 		icon: Codicon.trash,
 		run: async (c) => {
 			const disposePromises: Promise<void>[] = [];
@@ -1365,8 +1398,8 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.KillEditor,
-		title: { value: localize('workbench.action.terminal.killEditor', "Kill the Active Terminal in Editor Area"), original: 'Kill the Active Terminal in Editor Area' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.killEditor', 'Kill the Active Terminal in Editor Area'),
+		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
@@ -1380,7 +1413,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.KillActiveTab,
 		title: terminalStrings.kill,
 		f1: false,
-		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		precondition: ContextKeyExpr.or(sharedWhenClause.terminalAvailable, TerminalContextKeys.isOpen),
 		keybinding: {
 			primary: KeyCode.Delete,
 			mac: {
@@ -1391,9 +1424,11 @@ export function registerTerminalActions() {
 			when: TerminalContextKeys.tabsFocus
 		},
 		run: async (c, accessor) => {
-			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				c.service.safeDisposeTerminal(terminal);
+			const disposePromises: Promise<void>[] = [];
+			for (const terminal of getSelectedInstances(accessor, true) ?? []) {
+				disposePromises.push(c.service.safeDisposeTerminal(terminal));
 			}
+			await Promise.all(disposePromises);
 			c.groupService.focusTabs();
 		}
 	});
@@ -1401,7 +1436,7 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.FocusHover,
 		title: terminalStrings.focusHover,
-		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		precondition: ContextKeyExpr.or(sharedWhenClause.terminalAvailable, TerminalContextKeys.isOpen),
 		keybinding: {
 			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -1412,8 +1447,8 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.Clear,
-		title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.clear', 'Clear'),
+		precondition: sharedWhenClause.terminalAvailable,
 		keybinding: [{
 			primary: 0,
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyK },
@@ -1429,28 +1464,28 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.SelectDefaultProfile,
-		title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Profile"), original: 'Select Default Profile' },
+		title: localize2('workbench.action.terminal.selectDefaultShell', 'Select Default Profile'),
 		run: (c) => c.service.showProfileQuickPick('setDefault')
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.ConfigureTerminalSettings,
-		title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.openSettings', 'Configure Terminal Settings'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@feature:terminal' })
 	});
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SetDimensions,
-		title: { value: localize('workbench.action.terminal.setFixedDimensions', "Set Fixed Dimensions"), original: 'Set Fixed Dimensions' },
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		title: localize2('workbench.action.terminal.setFixedDimensions', 'Set Fixed Dimensions'),
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
 		run: (activeInstance) => activeInstance.setFixedDimensions()
 	});
 
 	registerContextualInstanceAction({
 		id: TerminalCommandId.SizeToContentWidth,
 		title: terminalStrings.toggleSizeToContentWidth,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
 		keybinding: {
 			primary: KeyMod.Alt | KeyCode.KeyZ,
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -1461,96 +1496,17 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.ClearPreviousSessionHistory,
-		title: { value: localize('workbench.action.terminal.clearPreviousSessionHistory', "Clear Previous Session History"), original: 'Clear Previous Session History' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.clearPreviousSessionHistory', 'Clear Previous Session History'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c, accessor) => {
 			getCommandHistory(accessor).clear();
 			clearShellFileHistory();
 		}
 	});
 
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectPrevSuggestion,
-		title: { value: localize('workbench.action.terminal.selectPrevSuggestion', "Select the Previous Suggestion"), original: 'Select the Previous Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Up is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.UpArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.selectPreviousSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectPrevPageSuggestion,
-		title: { value: localize('workbench.action.terminal.selectPrevPageSuggestion', "Select the Previous Page Suggestion"), original: 'Select the Previous Page Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Up is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.PageUp,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.selectPreviousPageSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectNextSuggestion,
-		title: { value: localize('workbench.action.terminal.selectNextSuggestion', "Select the Next Suggestion"), original: 'Select the Next Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Down is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.DownArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (insactiveInstanceance) => insactiveInstanceance.selectNextSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectNextPageSuggestion,
-		title: { value: localize('workbench.action.terminal.selectNextPageSuggestion', "Select the Next Page Suggestion"), original: 'Select the Next Page Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Down is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.PageDown,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.selectNextPageSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.AcceptSelectedSuggestion,
-		title: { value: localize('workbench.action.terminal.acceptSelectedSuggestion', "Accept Selected Suggestion"), original: 'Accept Selected Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			primary: KeyCode.Enter,
-			secondary: [KeyCode.Tab],
-			// Enter is bound to other workbench keybindings that this needs to beat
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.acceptSelectedSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.HideSuggestWidget,
-		title: { value: localize('workbench.action.terminal.hideSuggestWidget', "Hide Suggest Widget"), original: 'Hide Suggest Widget' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			primary: KeyCode.Escape,
-			// Escape is bound to other workbench keybindings that this needs to beat
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.hideSuggestWidget()
-	});
-
 	registerTerminalAction({
 		id: TerminalCommandId.ToggleStickyScroll,
-		title: { value: localize('workbench.action.terminal.toggleStickyScroll', "Toggle Sticky Scroll"), original: 'Toggle Sticky Scroll' },
+		title: localize2('workbench.action.terminal.toggleStickyScroll', 'Toggle Sticky Scroll'),
 		toggled: {
 			condition: ContextKeyExpr.equals('config.terminal.integrated.stickyScroll.enabled', true),
 			title: localize('stickyScroll', "Sticky Scroll"),
@@ -1570,9 +1526,9 @@ export function registerTerminalActions() {
 	if (BrowserFeatures.clipboard.writeText) {
 		registerActiveXtermAction({
 			id: TerminalCommandId.CopySelection,
-			title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
+			title: localize2('workbench.action.terminal.copySelection', 'Copy Selection'),
 			// TODO: Why is copy still showing up when text isn't selected?
-			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected)),
+			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.textSelected)),
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
@@ -1587,8 +1543,8 @@ export function registerTerminalActions() {
 
 		registerActiveXtermAction({
 			id: TerminalCommandId.CopyAndClearSelection,
-			title: { value: localize('workbench.action.terminal.copyAndClearSelection', "Copy and Clear Selection"), original: 'Copy and Clear Selection' },
-			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected)),
+			title: localize2('workbench.action.terminal.copyAndClearSelection', 'Copy and Clear Selection'),
+			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.textSelected)),
 			keybinding: [{
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1605,10 +1561,10 @@ export function registerTerminalActions() {
 
 		registerActiveXtermAction({
 			id: TerminalCommandId.CopySelectionAsHtml,
-			title: { value: localize('workbench.action.terminal.copySelectionAsHtml', "Copy Selection as HTML"), original: 'Copy Selection as HTML' },
+			title: localize2('workbench.action.terminal.copySelectionAsHtml', 'Copy Selection as HTML'),
 			f1: true,
 			category,
-			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected)),
+			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.textSelected)),
 			run: (xterm) => xterm.copySelection(true)
 		});
 	}
@@ -1616,8 +1572,8 @@ export function registerTerminalActions() {
 	if (BrowserFeatures.clipboard.readText) {
 		registerActiveInstanceAction({
 			id: TerminalCommandId.Paste,
-			title: { value: localize('workbench.action.terminal.paste', "Paste into Active Terminal"), original: 'Paste into Active Terminal' },
-			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+			title: localize2('workbench.action.terminal.paste', 'Paste into Active Terminal'),
+			precondition: sharedWhenClause.terminalAvailable,
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyV,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KeyV, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV] },
@@ -1632,8 +1588,8 @@ export function registerTerminalActions() {
 	if (BrowserFeatures.clipboard.readText && isLinux) {
 		registerActiveInstanceAction({
 			id: TerminalCommandId.PasteSelection,
-			title: { value: localize('workbench.action.terminal.pasteSelection', "Paste Selection into Active Terminal"), original: 'Paste Selection into Active Terminal' },
-			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+			title: localize2('workbench.action.terminal.pasteSelection', 'Paste Selection into Active Terminal'),
+			precondition: sharedWhenClause.terminalAvailable,
 			keybinding: [{
 				linux: { primary: KeyMod.Shift | KeyCode.Insert },
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1645,8 +1601,8 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.SwitchTerminal,
-		title: { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		title: localize2('workbench.action.terminal.switchTerminal', 'Switch Terminal'),
+		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c, accessor, args) => {
 			const item = toOptionalString(args);
 			if (!item) {
@@ -1687,6 +1643,34 @@ export function registerTerminalActions() {
 			}
 		}
 	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StartVoice,
+		title: {
+			value: localize('workbench.action.startTerminalVoice', "Start Terminal Voice"),
+			original: 'Start Terminal Voice'
+		},
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalVoiceSession.getInstance(instantiationService).start();
+		}
+	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StopVoice,
+		title: {
+			value: localize('workbench.action.stopTerminalVoice', "Stop Terminal Voice"),
+			original: 'Stop Terminal Voice'
+		},
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalVoiceSession.getInstance(instantiationService).stop(true);
+		}
+	});
 }
 
 interface IRemoteTerminalPick extends IQuickPickItem {
@@ -1717,18 +1701,19 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	const terminalGroupService = accessor.get(ITerminalGroupService);
 	const result: ITerminalInstance[] = [];
 
-	// Get inline tab instance
-	if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
+	const list = listService.lastFocusedList;
+	// Get selected tab list instance(s)
+	const selections = list?.getSelection();
+	// Get inline tab instance if there are not tab list selections #196578
+	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selections?.length) {
 		const instance = terminalGroupService.activeInstance;
 		return instance ? [terminalGroupService.activeInstance] : undefined;
 	}
 
-	// Get tab list instance
-	if (!listService.lastFocusedList?.getSelection()) {
+	if (!list || !selections) {
 		return undefined;
 	}
-	const selections = listService.lastFocusedList.getSelection();
-	const focused = listService.lastFocusedList.getFocus();
+	const focused = list.getFocus();
 
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1
@@ -1772,7 +1757,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 		constructor() {
 			super({
 				id: TerminalCommandId.NewWithProfile,
-				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Terminal (With Profile)"), original: 'Create New Terminal (With Profile)' },
+				title: localize2('workbench.action.terminal.newWithProfile', 'Create New Terminal (With Profile)'),
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
@@ -1947,7 +1932,9 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {
 	let instance: ITerminalInstance | undefined = resource as ITerminalInstance;
-	if (!instance) {
+	// Check if the 'instance' does not exist or if 'instance.rename' is not defined
+	if (!instance || !instance?.rename) {
+		// If not, obtain the resource instance using 'getResourceOrActiveInstance'
 		instance = getResourceOrActiveInstance(c, resource);
 	}
 

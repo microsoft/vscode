@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -236,7 +236,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 
 		const multiplexer = this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
-		multiplexer.event(e => {
+		const sub = multiplexer.event(e => {
 			this._onDidExecuteCommand(e.instance.instanceId, {
 				commandLine: e.data.command,
 				// TODO: Convert to URI if possible
@@ -245,7 +245,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				output: e.data.getOutput()
 			});
 		});
-		this._sendCommandEventListener.value = multiplexer;
+		this._sendCommandEventListener.value = combinedDisposable(multiplexer, sub);
 	}
 
 	public $stopSendingCommandEvents(): void {

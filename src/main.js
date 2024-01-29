@@ -24,6 +24,7 @@ const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath
 const { stripComments } = require('./vs/base/common/stripComments');
 const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
+// @ts-ignore
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
 
@@ -96,11 +97,11 @@ if (portable && portable.isPortable) {
 protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-webview',
-		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, }
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, codeCache: true }
 	},
 	{
 		scheme: 'vscode-file',
-		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true, codeCache: true }
 	}
 ]);
 
@@ -513,6 +514,7 @@ function registerListeners() {
 	 * @type {string[]}
 	 */
 	const macOpenFiles = [];
+	// @ts-ignore
 	global['macOpenFiles'] = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
@@ -539,6 +541,7 @@ function registerListeners() {
 		app.on('open-url', onOpenUrl);
 	});
 
+	// @ts-ignore
 	global['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
 

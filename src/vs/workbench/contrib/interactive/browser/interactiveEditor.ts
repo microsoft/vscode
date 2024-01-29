@@ -48,7 +48,7 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -63,6 +63,7 @@ import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
+import { mainWindow } from 'vs/base/browser/window';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -159,7 +160,7 @@ export class InteractiveEditor extends EditorPane {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScroll: false, dragAndDropEnabled: false });
+		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
@@ -381,11 +382,11 @@ export class InteractiveEditor extends EditorPane {
 			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				ModesHoverController.ID,
+				HoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions
-		});
+		}, undefined, this._rootElement ? DOM.getWindow(this._rootElement) : mainWindow);
 
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
@@ -398,7 +399,7 @@ export class InteractiveEditor extends EditorPane {
 					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					ModesHoverController.ID,
+					HoverController.ID,
 					MarkerController.ID
 				])
 			}

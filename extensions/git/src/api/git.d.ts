@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken, ThemeIcon } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -194,6 +194,8 @@ export interface Repository {
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 
+	readonly onDidCommit: Event<void>;
+
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
 	setConfig(key: string, value: string): Promise<string>;
@@ -257,6 +259,8 @@ export interface Repository {
 	log(options?: LogOptions): Promise<Commit[]>;
 
 	commit(message: string, opts?: CommitOptions): Promise<void>;
+	merge(ref: string): Promise<void>;
+	mergeAbort(): Promise<void>;
 }
 
 export interface RemoteSource {
@@ -312,12 +316,6 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
-export interface CommitMessageProvider {
-	readonly title: string;
-	readonly icon?: Uri | { light: Uri, dark: Uri } | ThemeIcon;
-	provideCommitMessage(repository: Repository, changes: string[], cancellationToken?: CancellationToken): Promise<string | undefined>;
-}
-
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -345,7 +343,6 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
-	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable;
 }
 
 export interface GitExtension {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
@@ -24,32 +24,65 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
 import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { createSingleCallFunction } from 'vs/base/common/functional';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export abstract class BaseWindow extends Disposable {
 
 	private static TIMEOUT_HANDLES = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
 	private static readonly TIMEOUT_DISPOSABLES = new Map<number, Set<IDisposable>>();
 
-	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
+	constructor(
+		targetWindow: CodeWindow,
+		dom = { getWindowsCount, getWindows }, /* for testing */
+		@IHostService protected readonly hostService: IHostService
+	) {
 		super();
 
+		this.enableWindowFocusOnElementFocus(targetWindow);
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
+
+		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
 	}
+
+	//#region focus handling in multi-window applications
+
+	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
+		const originalFocus = HTMLElement.prototype.focus;
+
+		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
+
+			// If the active focused window is not the same as the
+			// window of the element to focus, make sure to focus
+			// that window first before focusing the element.
+			const activeWindow = getActiveWindow();
+			if (activeWindow.document.hasFocus()) {
+				const elementWindow = getWindow(this);
+				if (activeWindow !== elementWindow) {
+					elementWindow.focus();
+				}
+			}
+
+			// Pass to original focus() method
+			originalFocus.apply(this, [options]);
+		};
+	}
+
+	//#endregion
 
 	//#region timeout handling in multi-window applications
 
-	/**
-	 * Override `setTimeout` and `clearTimeout` on the provided window to make
-	 * sure timeouts are dispatched to all opened windows. Some browsers may decide
-	 * to throttle timeouts in minimized windows, so with this we can ensure the
-	 * timeout is scheduled without being throttled (unless all windows are minimized).
-	 */
 	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+
+		// Override `setTimeout` and `clearTimeout` on the provided window to make
+		// sure timeouts are dispatched to all opened windows. Some browsers may decide
+		// to throttle timeouts in minimized windows, so with this we can ensure the
+		// timeout is scheduled without being throttled (unless all windows are minimized).
+
 		const originalSetTimeout = targetWindow.setTimeout;
 		Object.defineProperty(targetWindow, 'vscodeOriginalSetTimeout', { get: () => originalSetTimeout });
 
@@ -102,6 +135,47 @@ export abstract class BaseWindow extends Disposable {
 
 	//#endregion
 
+	private registerFullScreenListeners(targetWindowId: number): void {
+		this._register(this.hostService.onDidChangeFullScreen(({ windowId, fullscreen }) => {
+			if (windowId === targetWindowId) {
+				const targetWindow = getWindowById(targetWindowId);
+				if (targetWindow) {
+					setFullscreen(fullscreen, targetWindow.window);
+				}
+			}
+		}));
+	}
+
+	//#region Confirm on Shutdown
+
+	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
+		const dialogService = accessor.get(IDialogService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const message = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
+			localize('closeWindowMessage', "Are you sure you want to close the window?");
+		const primaryButton = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
+			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
+
+		const res = await dialogService.confirm({
+			message,
+			primaryButton,
+			checkbox: {
+				label: localize('doNotAskAgain', "Do not ask me again")
+			}
+		});
+
+		// Update setting if checkbox checked
+		if (res.confirmed && res.checkboxChecked) {
+			await configurationService.updateValue('window.confirmBeforeClose', 'never');
+		}
+
+		return res.confirmed;
+	}
+
+	//#endregion
 }
 
 export class BrowserWindow extends BaseWindow {
@@ -115,9 +189,9 @@ export class BrowserWindow extends BaseWindow {
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService hostService: IHostService
 	) {
-		super(mainWindow);
+		super(mainWindow, undefined, hostService);
 
 		this.registerListeners();
 		this.create();
@@ -147,16 +221,6 @@ export class BrowserWindow extends BaseWindow {
 
 		// Prevent default navigation on drop
 		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.DROP, e => EventHelper.stop(e, true)));
-
-		// Fullscreen (Browser)
-		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
-			this._register(addDisposableListener(mainWindow.document, event, () => setFullscreen(!!detectFullscreen(mainWindow))));
-		}
-
-		// Fullscreen (Native)
-		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(!!detectFullscreen(mainWindow));
-		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
 	private onWillShutdown(): void {

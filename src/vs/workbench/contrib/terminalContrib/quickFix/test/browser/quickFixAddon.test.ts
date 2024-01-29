@@ -15,7 +15,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
+import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, gitPull, GitPullOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import type { Terminal } from '@xterm/xterm';
@@ -180,6 +180,40 @@ suite('QuickFixAddon', () => {
 				});
 				test('matching exit status', async () => {
 					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitTwoDashesRegex, 2), expectedMap, commandService, openerService, labelService)), actions);
+				});
+			});
+		});
+		suite('gitPull', () => {
+			const expectedMap = new Map();
+			const command = `git checkout vnext`;
+			const output = 'Already on \'vnext\' \n Your branch is behind \'origin/vnext\' by 1 commit, and can be fast-forwarded.';
+			const exitCode = 0;
+			const actions = [{
+				id: 'Git Pull',
+				enabled: true,
+				label: 'Run: git pull',
+				tooltip: 'Run: git pull',
+				command: 'git pull'
+			}];
+			setup(() => {
+				const command = gitPull();
+				expectedMap.set(command.commandLineMatcher.toString(), [command]);
+				quickFixAddon.registerCommandFinishedListener(command);
+			});
+			suite('returns undefined when', () => {
+				test('output does not match', async () => {
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
+				});
+				test('command does not match', async () => {
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(`gt add`, output, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
+				});
+				test('exit code does not match', async () => {
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitPullOutputRegex, 2), expectedMap, commandService, openerService, labelService)), undefined);
+				});
+			});
+			suite('returns actions when', () => {
+				test('matching exit status, command, ouput', async () => {
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), actions);
 				});
 			});
 		});

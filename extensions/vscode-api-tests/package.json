@@ -7,7 +7,6 @@
   "enabledApiProposals": [
     "authSession",
     "chatAgents2",
-    "chatVariables",
     "contribViewsRemote",
     "contribStatusBarItems",
     "createFileSystemWatcher",
@@ -34,7 +33,6 @@
     "readonlyMessage",
     "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -53,8 +51,7 @@
     "workspaceTrust",
     "telemetry",
     "testingActiveProfile",
-    "windowActivity",
-    "interactiveUserActions"
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],

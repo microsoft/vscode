@@ -17,6 +17,7 @@ import type { ISearchOptions } from '@xterm/addon-search';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { openContextMenu } from 'vs/workbench/contrib/terminalContrib/find/browser/textInputContextMenu';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -24,6 +25,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findInputFocused: IContextKey<boolean>;
 	private _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
+
+	private _overrideCopyOnSelectionDisposable: IDisposable | undefined;
 
 	constructor(
 		private _instance: ITerminalInstance | IDetachedTerminalInstance,
@@ -143,10 +146,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerFocus() {
+		if ('overrideCopyOnSelection' in this._instance) {
+			this._overrideCopyOnSelectionDisposable = this._instance.overrideCopyOnSelection(false);
+		}
 		this._findWidgetFocused.set(true);
 	}
 
 	protected _onFocusTrackerBlur() {
+		this._overrideCopyOnSelectionDisposable?.dispose();
 		this._instance.xterm?.clearActiveSearchDecoration();
 		this._findWidgetFocused.reset();
 	}

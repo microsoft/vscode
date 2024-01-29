@@ -9,9 +9,9 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolveResult, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -28,7 +28,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
+	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData> {
 		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 		const jobs: Promise<any>[] = [];
 
@@ -48,9 +48,11 @@ export class ChatVariablesService implements IChatVariablesService {
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					// Maybe the dynamic reference should include a full IChatRequestVariableValue[] at the time it is inserted?
-					resolvedVariables[part.referenceText] = part.data;
-					parsedPrompt[i] = part.promptText;
+					const referenceName = this.getUniqueReferenceName(part.referenceText, resolvedVariables);
+					resolvedVariables[referenceName] = part.data;
+					const safeText = part.text.replace(/[\[\]]/g, '_');
+					const safeTarget = referenceName.replace(/[\(\)]/g, '_');
+					parsedPrompt[i] = `[${safeText}](values:${safeTarget})`;
 				} else {
 					parsedPrompt[i] = part.promptText;
 				}
@@ -60,8 +62,16 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		return {
 			variables: resolvedVariables,
-			prompt: parsedPrompt.join('').trim()
+			message: parsedPrompt.join('').trim()
 		};
+	}
+
+	private getUniqueReferenceName(name: string, vars: Record<string, any>): string {
+		let i = 1;
+		while (vars[name]) {
+			name = `${name}_${i++}`;
+		}
+		return name;
 	}
 
 	hasVariable(name: string): boolean {

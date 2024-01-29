@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { BidirectionalMap, LinkedMap, LRUCache, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
+import { BidirectionalMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Map', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('LinkedMap - Simple', () => {
 		const map = new LinkedMap<string, string>();
@@ -483,9 +486,30 @@ suite('Map', () => {
 		assert.deepStrictEqual(Array.from(map.keys()).map(String), [fileAUpper].map(String));
 		assert.deepStrictEqual(Array.from(map), [[fileAUpper, 1]]);
 	});
+
+	test('mapsStrictEqualIgnoreOrder', () => {
+		const map1 = new Map();
+		const map2 = new Map();
+
+		assert.strictEqual(mapsStrictEqualIgnoreOrder(map1, map2), true);
+
+		map1.set('foo', 'bar');
+		assert.strictEqual(mapsStrictEqualIgnoreOrder(map1, map2), false);
+
+		map2.set('foo', 'bar');
+		assert.strictEqual(mapsStrictEqualIgnoreOrder(map1, map2), true);
+
+		map2.set('bar', 'foo');
+		assert.strictEqual(mapsStrictEqualIgnoreOrder(map1, map2), false);
+
+		map1.set('bar', 'foo');
+		assert.strictEqual(mapsStrictEqualIgnoreOrder(map1, map2), true);
+	});
 });
 
 suite('BidirectionalMap', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('should set and get values correctly', () => {
 		const map = new BidirectionalMap<string, number>();
 		map.set('one', 1);
@@ -573,6 +597,8 @@ suite('BidirectionalMap', () => {
 });
 
 suite('SetMap', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('add and get', () => {
 		const setMap = new SetMap<string, number>();

@@ -746,7 +746,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		if (shadowRoot) {
 			return shadowRoot.activeElement === this._actual;
 		} else if (this._actual.isConnected) {
-			return this._actual.ownerDocument.activeElement === this._actual;
+			return dom.getActiveElement() === this._actual;
 		} else {
 			return false;
 		}
@@ -796,7 +796,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		if (shadowRoot) {
 			activeElement = shadowRoot.activeElement;
 		} else {
-			activeElement = textArea.ownerDocument.activeElement;
+			activeElement = dom.getActiveElement();
 		}
 		const activeWindow = dom.getWindow(activeElement);
 

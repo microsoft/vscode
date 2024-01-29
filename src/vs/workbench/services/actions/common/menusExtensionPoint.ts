@@ -125,6 +125,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
+		key: 'scm/sourceControl/title',
+		id: MenuId.SCMSourceControlTitle,
+		description: localize('menus.scmSourceControlTitle', "The Source Control title menu"),
+		proposed: 'contribSourceControlTitleMenu'
+	},
+	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
 		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
@@ -143,6 +149,60 @@ const apiMenus: IAPIMenu[] = [
 		key: 'scm/change/title',
 		id: MenuId.SCMChangeContext,
 		description: localize('menus.changeTitle', "The Source Control inline change menu")
+	},
+	{
+		key: 'scm/inputBox',
+		id: MenuId.SCMInputBox,
+		description: localize('menus.input', "The Source Control input box menu"),
+		proposed: 'contribSourceControlInputBoxMenu'
+	},
+	{
+		key: 'scm/incomingChanges',
+		id: MenuId.SCMIncomingChanges,
+		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/incomingChanges/context',
+		id: MenuId.SCMIncomingChangesContext,
+		description: localize('menus.incomingChangesContext', "The Source Control incoming changes context menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/outgoingChanges',
+		id: MenuId.SCMOutgoingChanges,
+		description: localize('menus.outgoingChanges', "The Source Control outgoing changes menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/context',
+		id: MenuId.SCMOutgoingChangesContext,
+		description: localize('menus.outgoingChangesContext', "The Source Control outgoing changes context menu"),
+		proposed: 'contribSourceControlHistoryItemGroupMenu'
+	},
+	{
+		key: 'scm/incomingChanges/allChanges/context',
+		id: MenuId.SCMIncomingChangesAllChangesContext,
+		description: localize('menus.incomingChangesAllChangesContext', "The Source Control all incoming changes context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/incomingChanges/historyItem/context',
+		id: MenuId.SCMIncomingChangesHistoryItemContext,
+		description: localize('menus.incomingChangesHistoryItemContext', "The Source Control incoming changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/allChanges/context',
+		id: MenuId.SCMOutgoingChangesAllChangesContext,
+		description: localize('menus.outgoingChangesAllChangesContext', "The Source Control all outgoing changes context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/historyItem/context',
+		id: MenuId.SCMOutgoingChangesHistoryItemContext,
+		description: localize('menus.outgoingChangesHistoryItemContext', "The Source Control outgoing changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -339,6 +399,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
 		proposed: 'contribMergeEditorMenus'
 	},
+	{
+		key: 'multiDiffEditor/resource/title',
+		id: MenuId.MultiDiffEditorFileToolbar,
+		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
+		proposed: 'contribMultiDiffEditorMenus'
+	}
 ];
 
 namespace schema {

@@ -38,16 +38,16 @@ export interface INotebookKernelChangeEvent {
 	hasVariableProvider?: true;
 }
 
-export interface Variable {
+export interface VariablesResult {
+	id: number;
 	name: string;
 	value: string;
-}
-
-export interface VariablesResult {
-	variable: Variable;
-	namedChildrenCount: number;
+	type?: string;
+	hasNamedChildren: boolean;
 	indexedChildrenCount: number;
 }
+
+export const variablePageSize = 100;
 
 export interface INotebookKernel {
 	readonly id: string;
@@ -70,7 +70,7 @@ export interface INotebookKernel {
 	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 
-	provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
 }
 
 export const enum ProxyKernelState {

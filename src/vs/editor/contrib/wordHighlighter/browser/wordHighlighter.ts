@@ -24,7 +24,7 @@ import { IDiffEditor, IEditorContribution, IEditorDecorationsCollection } from '
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider, MultiDocumentHighlightProvider } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -65,6 +65,8 @@ export function getOccurrencesAcrossMultipleModels(registry: LanguageFeatureRegi
 	// (good = none empty array)
 	return first<ResourceMap<DocumentHighlight[]> | null | undefined>(orderedByScore.map(provider => () => {
 		const filteredModels = otherModels.filter(otherModel => {
+			return shouldSynchronizeModel(otherModel);
+		}).filter(otherModel => {
 			return score(provider.selector, otherModel.uri, otherModel.getLanguageId(), true, undefined, undefined) > 0;
 		});
 
@@ -253,9 +255,10 @@ function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocu
 	return new TextualOccurenceRequest(model, selection, word, wordSeparators, otherModels);
 }
 
-registerModelAndPositionCommand('_executeDocumentHighlights', (accessor, model, position) => {
+registerModelAndPositionCommand('_executeDocumentHighlights', async (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	return getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None);
+	const map = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None);
+	return map?.get(model.uri);
 });
 
 class WordHighlighter {
@@ -627,6 +630,7 @@ class WordHighlighter {
 			// The selection must be inside a word or surround one word at most
 			if (!word || word.startColumn > startColumn || word.endColumn < endColumn) {
 				// no previous query, nothing to highlight
+				WordHighlighter.query = null;
 				this._stopAll();
 				return;
 			}

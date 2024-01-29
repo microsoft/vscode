@@ -7,19 +7,22 @@ import * as dom from 'vs/base/browser/dom';
 import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { GlyphMarginLane } from 'vs/editor/common/model';
 
 const $ = dom.$;
 
 export interface IHoverMessage {
 	value: IMarkdownString;
 }
+
+type LaneOrLineNumber = GlyphMarginLane | 'lineNo';
 
 export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 
@@ -98,8 +101,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	public startShowingAt(lineNumber: number): void {
-		if (this._computer.lineNumber === lineNumber) {
+	public startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
+		if (this._computer.lineNumber === lineNumber && this._computer.lane === laneOrLine) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
 		}
@@ -109,6 +112,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		this.hide();
 
 		this._computer.lineNumber = lineNumber;
+		this._computer.lane = laneOrLine;
 		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
@@ -167,8 +171,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const nodeHeight = this._hover.containerDomNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
-
-		this._hover.containerDomNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
+		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (this._computer.lane === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
+		this._hover.containerDomNode.style.left = `${left}px`;
 		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
 	}
 }
@@ -176,6 +180,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
 	private _lineNumber: number = -1;
+	private _laneOrLine: LaneOrLineNumber = GlyphMarginLane.Center;
 
 	public get lineNumber(): number {
 		return this._lineNumber;
@@ -183,6 +188,14 @@ class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
 	public set lineNumber(value: number) {
 		this._lineNumber = value;
+	}
+
+	public get lane(): LaneOrLineNumber {
+		return this._laneOrLine;
+	}
+
+	public set lane(value: LaneOrLineNumber) {
+		this._laneOrLine = value;
 	}
 
 	constructor(
@@ -201,16 +214,18 @@ class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
 		const result: IHoverMessage[] = [];
+		const isLineHover = this._laneOrLine === 'lineNo';
 		if (!lineDecorations) {
 			return result;
 		}
 
 		for (const d of lineDecorations) {
-			if (!d.options.glyphMarginClassName) {
+			const lane = d.options.glyphMargin?.position ?? GlyphMarginLane.Center;
+			if (!isLineHover && lane !== this._laneOrLine) {
 				continue;
 			}
 
-			const hoverMessage = d.options.glyphMarginHoverMessage;
+			const hoverMessage = isLineHover ? d.options.lineNumberHoverMessage : d.options.glyphMarginHoverMessage;
 			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}

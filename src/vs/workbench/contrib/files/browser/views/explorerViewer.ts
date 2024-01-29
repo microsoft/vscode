@@ -6,7 +6,7 @@
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
-import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from 'vs/platform/files/common/files';
@@ -34,7 +34,7 @@ import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
-import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -63,10 +63,11 @@ import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { timeout } from 'vs/base/common/async';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IExplorerFileContribution, explorerFileContribRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -267,7 +268,7 @@ export interface IFileTemplateData {
 	readonly elementDisposables: DisposableStore;
 	readonly label: IResourceLabel;
 	readonly container: HTMLElement;
-
+	readonly contribs: IExplorerFileContribution[];
 	currentContext?: ExplorerItem;
 }
 
@@ -367,7 +368,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -411,7 +413,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}
 		}));
 
-		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container };
+		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);
+
+		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
 		return templateData;
 	}
 
@@ -432,6 +436,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
+			templateData.contribs.forEach(c => c.setResource(undefined));
 			templateData.elementDisposables.add(this.renderInputBox(templateData.container, stat, editableData));
 		}
 	}
@@ -490,6 +495,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		else {
 			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
+			templateData.contribs.forEach(c => c.setResource(undefined));
 			templateData.elementDisposables.add(this.renderInputBox(templateData.container, editable[0], editableData));
 		}
 	}
@@ -514,6 +520,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
 		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
+		templateData.contribs.forEach(c => c.setResource(stat.resource));
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
 			title: experimentalHover ? isStringArray(label) ? label[0] : label : undefined,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
@@ -1083,7 +1090,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => updateDropEnablement(e)));
 	}
 
-	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		if (!this.dropEnabled) {
 			return false;
 		}
@@ -1126,7 +1133,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const isNative = data instanceof NativeDragAndDropData;
-		const effect = (isNative || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
+		const effectType = (isNative || isCopy) ? ListDragOverEffectType.Copy : ListDragOverEffectType.Move;
+		const effect = { type: effectType, position: ListDragOverEffectPosition.Over };
 
 		// Native DND
 		if (isNative) {
@@ -1245,7 +1253,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
+	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
 		this.compressedDropTargetDisposable.dispose();
 
 		// Find compressed target

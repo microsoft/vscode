@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
@@ -320,18 +320,11 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension) {
-			return;
+		if (this.extension?.state === ExtensionState.Installed ? this.extension.preRelease : this.extension?.hasPreReleaseVersion) {
+			this.element = append(this.parent, $('div.extension-bookmark'));
+			const preRelease = append(this.element, $('.pre-release'));
+			append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 		}
-		if (!this.extension.hasPreReleaseVersion) {
-			return;
-		}
-		if (this.extension.state === ExtensionState.Installed && !this.extension.local?.isPreReleaseVersion) {
-			return;
-		}
-		this.element = append(this.parent, $('div.extension-bookmark'));
-		const preRelease = append(this.element, $('.pre-release'));
-		append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 
 }
@@ -556,11 +549,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		markdown.appendMarkdown(`**${this.extension.displayName}**`);
 		if (semver.valid(this.extension.version)) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}_**&nbsp;</span>`);
-		}
-		if (this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion) {
-			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-			markdown.appendMarkdown(`**&nbsp;**&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;$(${preReleaseIcon.id})&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}${(this.extension.isPreReleaseVersion ? ' (pre-release)' : '')}_**&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 
@@ -698,7 +687,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (extension.isBuiltin) {
 			return undefined;
 		}
-		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
+		if (extension.isPreReleaseVersion) {
+			return undefined;
+		}
+		if (extension.preRelease) {
 			return undefined;
 		}
 		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;

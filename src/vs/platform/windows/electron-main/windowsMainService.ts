@@ -198,6 +198,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onDidUnmaximizeWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onDidUnmaximizeWindow = this._onDidUnmaximizeWindow.event;
 
+	private readonly _onDidChangeFullScreen = this._register(new Emitter<{ window: ICodeWindow; fullscreen: boolean }>());
+	readonly onDidChangeFullScreen = this._onDidChangeFullScreen.event;
+
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: ICodeWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
@@ -1453,7 +1456,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			isInitialStartup: options.initialStartup,
 			perfMarks: getMarks(),
 			os: { release: release(), hostname: hostname(), arch: arch() },
-			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
@@ -1495,9 +1497,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const disposables = new DisposableStore();
 			disposables.add(createdWindow.onDidSignalReady(() => this._onDidSignalReadyWindow.fire(createdWindow)));
 			disposables.add(Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow, disposables)));
-			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow)));
+			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this.onWindowDestroyed(createdWindow)));
 			disposables.add(createdWindow.onDidMaximize(() => this._onDidMaximizeWindow.fire(createdWindow)));
 			disposables.add(createdWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(createdWindow)));
+			disposables.add(createdWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: true })));
+			disposables.add(createdWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: false })));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);
@@ -1625,6 +1629,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Clean up
 		disposables.dispose();
+	}
+
+	private onWindowDestroyed(window: ICodeWindow): void {
+
+		// Remove from our list so that Electron can clean it up
+		this.windows.delete(window.id);
+
+		// Emit
+		this._onDidDestroyWindow.fire(window);
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {

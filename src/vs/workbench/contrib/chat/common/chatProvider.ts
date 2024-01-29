@@ -29,7 +29,7 @@ export interface IChatResponseFragment {
 
 export interface IChatResponseProviderMetadata {
 	readonly extension: ExtensionIdentifier;
-	readonly displayName: string;
+	readonly model: string;
 	readonly description?: string;
 }
 
@@ -44,6 +44,8 @@ export interface IChatProviderService {
 
 	readonly _serviceBrand: undefined;
 
+	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined;
+
 	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable;
 
 	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
@@ -54,6 +56,9 @@ export class ChatProviderService implements IChatProviderService {
 
 	private readonly _providers: Map<string, IChatResponseProvider> = new Map();
 
+	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined {
+		return this._providers.get(identifier)?.metadata;
+	}
 
 	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable {
 		if (this._providers.has(identifier)) {

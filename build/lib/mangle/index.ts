@@ -399,7 +399,6 @@ export class Mangler {
 	private readonly allClassDataByKey = new Map<string, ClassData>();
 	private readonly allExportedSymbols = new Set<DeclarationData>();
 
-	private readonly service: ts.LanguageService;
 	private readonly renameWorkerPool: workerpool.WorkerPool;
 
 	constructor(
@@ -407,7 +406,6 @@ export class Mangler {
 		private readonly log: typeof console.log = () => { },
 		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
 	) {
-		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
 			maxWorkers: 1,
@@ -416,6 +414,8 @@ export class Mangler {
 	}
 
 	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
+
+		const service = ts.createLanguageService(new StaticLanguageServiceHost(this.projectPath));
 
 		// STEP:
 		// - Find all classes and their field info.
@@ -471,14 +471,14 @@ export class Mangler {
 						return;
 					}
 
-					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service, fileIdents));
+					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, service, fileIdents));
 				}
 			}
 
 			ts.forEachChild(node, visit);
 		};
 
-		for (const file of this.service.getProgram()!.getSourceFiles()) {
+		for (const file of service.getProgram()!.getSourceFiles()) {
 			if (!file.isDeclarationFile) {
 				ts.forEachChild(file, visit);
 			}
@@ -495,7 +495,7 @@ export class Mangler {
 				return;
 			}
 
-			const info = this.service.getDefinitionAtPosition(data.fileName, extendsClause.types[0].expression.getEnd());
+			const info = service.getDefinitionAtPosition(data.fileName, extendsClause.types[0].expression.getEnd());
 			if (!info || info.length === 0) {
 				// throw new Error('SUPER type not found');
 				return;
@@ -641,9 +641,9 @@ export class Mangler {
 		const result = new Map<string, MangleOutput>();
 		let savedBytes = 0;
 
-		for (const item of this.service.getProgram()!.getSourceFiles()) {
+		for (const item of service.getProgram()!.getSourceFiles()) {
 
-			const { mapRoot, sourceRoot } = this.service.getProgram()!.getCompilerOptions();
+			const { mapRoot, sourceRoot } = service.getProgram()!.getCompilerOptions();
 			const projectDir = path.dirname(this.projectPath);
 			const sourceMapRoot = mapRoot ?? pathToFileURL(sourceRoot ?? projectDir).toString();
 
@@ -721,7 +721,9 @@ export class Mangler {
 			result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
 		}
 
-		this.log(`Done: ${savedBytes / 1000}kb saved`);
+		service.dispose();
+		this.renameWorkerPool.terminate();
+		this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(process.memoryUsage())}`);
 		return result;
 	}
 }

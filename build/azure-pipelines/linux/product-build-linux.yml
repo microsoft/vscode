@@ -48,13 +48,13 @@ steps:
       # Start X server
       sudo apt-get update
       sudo apt-get install -y pkg-config \
-        libxss1 \
         dbus \
         xvfb \
         libgtk-3-0 \
-        libgbm1 \
         libxkbfile-dev \
-        libkrb5-dev
+        libkrb5-dev \
+        libgbm1 \
+        rpm
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
@@ -100,17 +100,6 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - ${{ if and(ne(parameters.VSCODE_QUALITY, 'oss'), or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64'))) }}:
-    - task: Docker@1
-      displayName: "Pull Docker image"
-      inputs:
-        azureSubscriptionEndpoint: "vscode-builds-subscription"
-        azureContainerRegistry: vscodehub.azurecr.io
-        command: "Run an image"
-        imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
-        containerCommand: uname
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
@@ -124,29 +113,61 @@ steps:
           echo "Yarn failed $i, trying again..."
         done
 
-        docker run -e GITHUB_TOKEN -e npm_config_arch -e NPM_REGISTRY \
-        -e VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME -e VSCODE_HOST_MOUNT \
-        -e ELECTRON_SKIP_BINARY_DOWNLOAD -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD \
-        -e VSCODE_SKIP_NODE_VERSION_CHECK \
-        -v /mnt/vss/_work/1/s:/home/builduser/vscode -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -u 1000:1000 \
-        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
-        /bin/bash -c "./build/azure-pipelines/linux/install.sh"
-
-        sudo chown -R $USER:$USER /mnt/vss/_work/1/s
+        ./build/azure-pipelines/linux/install.sh
       env:
         npm_config_arch: $(NPM_ARCH)
+        VSCODE_ARCH: $(VSCODE_ARCH)
         NPM_REGISTRY: "$(NPM_REGISTRY)"
         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-        VSCODE_SKIP_NODE_VERSION_CHECK: 1
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
-        ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
-          VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
       displayName: Install dependencies (non-OSS)
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+    - script: |
+        set -e
+
+        TRIPLE="x86_64-linux-gnu"
+        if [ "$VSCODE_ARCH" == "arm64" ]; then
+          TRIPLE="aarch64-linux-gnu"
+        elif [ "$VSCODE_ARCH" == "armhf" ]; then
+          TRIPLE="arm-rpi-linux-gnueabihf"
+        fi
+
+        # Get all files with .node extension from remote/node_modules folder
+        files=$(find remote/node_modules -name "*.node")
+
+        # Check if any file has dependency of GLIBC > 2.28 or GLIBCXX > 3.4.25
+        for file in $files; do
+          glibc_version="2.28"
+          glibcxx_version="3.4.25"
+          while IFS= read -r line; do
+            if [[ $line == *"GLIBC_"* ]]; then
+              version=$(echo "$line" | awk '{print $5}' | tr -d '()')
+              version=${version#*_}
+              if [[ $(printf "%s\n%s" "$version" "$glibc_version" | sort -V | tail -n1) == "$version" ]]; then
+                glibc_version=$version
+              fi
+            elif [[ $line == *"GLIBCXX_"* ]]; then
+              version=$(echo "$line" | awk '{print $5}' | tr -d '()')
+              version=${version#*_}
+              if [[ $(printf "%s\n%s" "$version" "$glibcxx_version" | sort -V | tail -n1) == "$version" ]]; then
+                glibcxx_version=$version
+              fi
+            fi
+          done < <("$PWD/.build/sysroots/$TRIPLE/$TRIPLE/bin/objdump" -T "$file")
+
+          if [[ "$glibc_version" != "2.28" ]]; then
+            echo "Error: File $file has dependency on GLIBC > 2.28"
+            exit 1
+          fi
+          if [[ "$glibcxx_version" != "3.4.25" ]]; then
+            echo "Error: File $file has dependency on GLIBCXX > 3.4.25"
+            exit 1
+          fi
+        done
+      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
 
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -266,12 +287,9 @@ steps:
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - script:  |
         set -e
-        docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
-        -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
-        -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
-        -u 1000:1000 \
-        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Prepare deb package
 
     - script:  |
@@ -282,11 +300,6 @@ steps:
 
     - script:  |
         set -e
-        docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
-        -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
-        -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
-        -u 1000:1000 \
-        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
       displayName: Prepare rpm package
 

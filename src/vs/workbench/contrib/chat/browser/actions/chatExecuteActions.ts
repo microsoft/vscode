@@ -12,9 +12,14 @@ import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/brows
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
+export interface IVoiceChatExecuteActionContext {
+	readonly disableTimeout?: boolean;
+}
+
 export interface IChatExecuteActionContext {
 	widget?: IChatWidget;
 	inputValue?: string;
+	voice?: IVoiceChatExecuteActionContext;
 }
 
 export class SubmitAction extends Action2 {
@@ -35,22 +40,21 @@ export class SubmitAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
 				group: 'navigation',
-			}
+			},
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext = args[0];
+		const context: IChatExecuteActionContext | undefined = args[0];
 
 		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context.widget ?? widgetService.lastFocusedWidget;
-		widget?.acceptInput(context.inputValue);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		widget?.acceptInput(context?.inputValue);
 	}
 }
 
 export function registerChatExecuteActions() {
 	registerAction2(SubmitAction);
-
 	registerAction2(class CancelAction extends Action2 {
 		constructor() {
 			super({

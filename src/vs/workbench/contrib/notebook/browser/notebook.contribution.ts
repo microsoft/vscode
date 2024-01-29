@@ -686,11 +686,13 @@ class NotebookAccessibilityHelpContribution extends Disposable {
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(105, 'notebook', async accessor => {
-			const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-			if (!codeEditor) {
-				return;
+			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor()
+				|| accessor.get(ICodeEditorService).getFocusedCodeEditor()
+				|| accessor.get(IEditorService).activeEditorPane;
+
+			if (activeEditor) {
+				runAccessibilityHelpAction(accessor, activeEditor);
 			}
-			runAccessibilityHelpAction(accessor, codeEditor);
 		}, NOTEBOOK_IS_ACTIVE_EDITOR));
 	}
 }
@@ -870,10 +872,21 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.stickyScroll]: {
-			description: nls.localize('notebook.stickyScroll.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
+		[NotebookSetting.stickyScrollEnabled]: {
+			description: nls.localize('notebook.stickyScrollEnabled.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
 			type: 'boolean',
 			default: false,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.stickyScrollMode]: {
+			description: nls.localize('notebook.stickyScrollMode.description', "Control whether nested sticky lines appear to stack flat or indented."),
+			type: 'string',
+			enum: ['flat', 'indented'],
+			enumDescriptions: [
+				nls.localize('notebook.stickyScrollMode.flat', "Nested sticky lines appear flat."),
+				nls.localize('notebook.stickyScrollMode.indented', "Nested sticky lines appear indented."),
+			],
+			default: 'indented',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.consolidatedOutputButton]: {
@@ -917,7 +930,14 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.textOutputLineLimit', "Controls how many lines of text are displayed in a text output. If {0} is enabled, this setting is used to determine the scroll height of the output.", '`#notebook.output.scrolling#`'),
 			type: 'number',
 			default: 30,
-			tags: ['notebookLayout', 'notebookOutputLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout'],
+			minimum: 1,
+		},
+		[NotebookSetting.LinkifyOutputFilePaths]: {
+			description: nls.localize('notebook.disableOutputFilePathLinks', "Control whether to disable filepath links in the output of notebook cells."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookOutputLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
@@ -1053,6 +1073,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.cellChat]: {
 			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			type: 'boolean',
+			default: false
+		},
+		[NotebookSetting.notebookVariablesView]: {
+			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
 			type: 'boolean',
 			default: false
 		}

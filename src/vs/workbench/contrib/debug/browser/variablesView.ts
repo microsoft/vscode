@@ -10,12 +10,14 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -37,8 +39,10 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, CONTEXT_VARIABLES_FOCUSED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_VARIABLE_IS_READONLY, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { ErrorScope, Expression, getUriForDebugMemory, Scope, StackFrame, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
+import { ErrorScope, Expression, Scope, StackFrame, Variable, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DebugVisualizer, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -212,22 +216,31 @@ export class VariablesView extends ViewPane {
 			return;
 		}
 
-		const toDispose = new DisposableStore();
+		return openContextMenuForVariableTreeElement(this.contextKeyService, this.menuService, this.contextMenuService, MenuId.DebugVariablesContext, e);
+	}
+}
 
-		try {
-			const contextKeyService = await getContextForVariableMenuWithDataAccess(this.contextKeyService, variable);
-			const menu = toDispose.add(this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService));
+export async function openContextMenuForVariableTreeElement(parentContextKeyService: IContextKeyService, menuService: IMenuService, contextMenuService: IContextMenuService, menuId: MenuId, e: ITreeContextMenuEvent<IExpression | IScope>) {
+	const variable = e.element;
+	if (!(variable instanceof Variable) || !variable.value) {
+		return;
+	}
 
-			const context: IVariablesContext = getVariablesContext(variable);
-			const secondary: IAction[] = [];
-			createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
-				getActions: () => secondary
-			});
-		} finally {
-			toDispose.dispose();
-		}
+	const toDispose = new DisposableStore();
+
+	try {
+		const contextKeyService = await getContextForVariableMenuWithDataAccess(parentContextKeyService, variable);
+		const menu = toDispose.add(menuService.createMenu(menuId, contextKeyService));
+
+		const context: IVariablesContext = getVariablesContext(variable);
+		const secondary: IAction[] = [];
+		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+		contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => secondary
+		});
+	} finally {
+		toDispose.dispose();
 	}
 }
 
@@ -245,7 +258,7 @@ const getVariablesContext = (variable: Variable): IVariablesContext => ({
 async function getContextForVariableMenuWithDataAccess(parentContext: IContextKeyService, variable: Variable) {
 	const session = variable.getSession();
 	if (!session || !session.capabilities.supportsDataBreakpoints) {
-		return getContextForVariableMenu(parentContext, variable);
+		return getContextForVariableMenuBase(parentContext, variable);
 	}
 
 	const contextKeys: [string, unknown][] = [];
@@ -271,25 +284,15 @@ async function getContextForVariableMenuWithDataAccess(parentContext: IContextKe
 		}
 	}
 
-	return getContextForVariableMenu(parentContext, variable, contextKeys);
+	return getContextForVariableMenuBase(parentContext, variable, contextKeys);
 }
 
 /**
  * Gets a context key overlay that has context for the given variable.
  */
-function getContextForVariableMenu(parentContext: IContextKeyService, variable: Variable, additionalContext: [string, unknown][] = []) {
-	const session = variable.getSession();
-	const contextKeys: [string, unknown][] = [
-		[CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.key, variable.variableMenuContext || ''],
-		[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, !!variable.evaluateName],
-		[CONTEXT_CAN_VIEW_MEMORY.key, !!session?.capabilities.supportsReadMemoryRequest && variable.memoryReference !== undefined],
-		[CONTEXT_VARIABLE_IS_READONLY.key, !!variable.presentationHint?.attributes?.includes('readOnly') || variable.presentationHint?.lazy],
-		...additionalContext,
-	];
-
+function getContextForVariableMenuBase(parentContext: IContextKeyService, variable: Variable, additionalContext: [string, unknown][] = []) {
 	variableInternalContext = variable;
-
-	return parentContext.createOverlay(contextKeys);
+	return getContextForVariable(parentContext, variable, additionalContext);
 }
 
 function isStackFrame(obj: any): obj is IStackFrame {
@@ -401,6 +404,8 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		private readonly linkDetector: LinkDetector,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IDebugVisualizerService private readonly visualization: IDebugVisualizerService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
@@ -443,9 +448,9 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		};
 	}
 
-	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
+	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData) {
 		const variable = expression as Variable;
-		const contextKeyService = getContextForVariableMenu(this.contextKeyService, variable);
+		const contextKeyService = getContextForVariableMenuBase(this.contextKeyService, variable);
 		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
 
 		const primary: IAction[] = [];
@@ -455,6 +460,43 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		actionBar.clear();
 		actionBar.context = context;
 		actionBar.push(primary, { icon: true, label: false });
+
+		const cts = new CancellationTokenSource();
+		data.elementDisposable.add(toDisposable(() => cts.dispose(true)));
+		this.visualization.getApplicableFor(expression, cts.token).then(result => {
+			data.elementDisposable.add(result);
+
+			const actions = result.object.map(v => new Action('debugViz', v.name, v.iconClass || 'debug-viz-icon', undefined, this.useVisualizer(v, cts.token)));
+			if (actions.length === 0) {
+				// no-op
+			} else if (actions.length === 1) {
+				actionBar.push(actions[0], { icon: true, label: false });
+			} else {
+				actionBar.push(new Action('debugViz', localize('useVisualizer', 'Visualize Variable...'), ThemeIcon.asClassName(Codicon.eye), undefined, () => this.pickVisualizer(actions, expression, data)), { icon: true, label: false });
+			}
+		});
+	}
+
+	private pickVisualizer(actions: IAction[], expression: IExpression, data: IExpressionTemplateData) {
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => data.actionBar!.getContainer(),
+			getActions: () => actions,
+		});
+	}
+
+	private useVisualizer(viz: DebugVisualizer, token: CancellationToken) {
+		return async () => {
+			const resolved = await viz.resolve(token);
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			if (resolved.type === DebugVisualizationType.Command) {
+				viz.execute();
+			} else {
+				throw new Error('not implemented, yet');
+			}
+		};
 	}
 }
 
