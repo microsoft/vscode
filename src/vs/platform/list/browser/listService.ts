@@ -1484,7 +1484,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
+			default: true,
 			description: localize('sticky scroll', "Controls whether sticky scrolling is enabled in trees."),
 		},
 		[treeStickyScrollMaxElements]: {
