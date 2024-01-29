@@ -35,7 +35,7 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 	private readonly _disposables = new DisposableStore();
 	private _combinedEntry?: IStatusbarEntryAccessor;
 	private _delayer = new ThrottledDelayer(1000);
-	private _renderDisposables = new DisposableStore();
+	private readonly _renderDisposables = new DisposableStore();
 
 	constructor(
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
@@ -139,7 +139,7 @@ registerAction2(class extends Action2 {
 		if (editorUri) {
 			const lang = await languageDetectionService.detectLanguage(editorUri);
 			if (lang) {
-				editor.getModel()?.setMode(lang, LanguageDetectionLanguageEventSource);
+				editor.getModel()?.setLanguage(lang, LanguageDetectionLanguageEventSource);
 			} else {
 				notificationService.warn(localize('noDetection', "Unable to detect editor language"));
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path};
 use tempfile::tempdir;
 
 use crate::{
@@ -11,7 +11,8 @@ use crate::{
 	options::Quality,
 	update_service::{unzip_downloaded_release, Platform, Release, TargetKind, UpdateService},
 	util::{
-		errors::{wrap, AnyError, CorruptDownload, UpdatesNotConfigured},
+		command::new_std_command,
+		errors::{wrap, AnyError, CodeError, CorruptDownload},
 		http,
 		io::{ReportCopyProgress, SilentCopyProgress},
 	},
@@ -24,17 +25,21 @@ pub struct SelfUpdate<'a> {
 	update_service: &'a UpdateService,
 }
 
+static OLD_UPDATE_EXTENSION: &str = "Updating CLI";
+
 impl<'a> SelfUpdate<'a> {
 	pub fn new(update_service: &'a UpdateService) -> Result<Self, AnyError> {
 		let commit = VSCODE_CLI_COMMIT
-			.ok_or_else(|| UpdatesNotConfigured("unknown build commit".to_string()))?;
+			.ok_or_else(|| CodeError::UpdatesNotConfigured("unknown build commit"))?;
 
 		let quality = VSCODE_CLI_QUALITY
-			.ok_or_else(|| UpdatesNotConfigured("no configured quality".to_string()))
-			.and_then(|q| Quality::try_from(q).map_err(UpdatesNotConfigured))?;
+			.ok_or_else(|| CodeError::UpdatesNotConfigured("no configured quality"))
+			.and_then(|q| {
+				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
+			})?;
 
 		let platform = Platform::env_default().ok_or_else(|| {
-			UpdatesNotConfigured("Unknown platform, please report this error".to_string())
+			CodeError::UpdatesNotConfigured("Unknown platform, please report this error")
 		})?;
 
 		Ok(Self {
@@ -57,6 +62,18 @@ impl<'a> SelfUpdate<'a> {
 		release.commit == self.commit
 	}
 
+	/// Cleans up old self-updated binaries. Should be called with regularity.
+	/// May fail if old versions are still running.
+	pub fn cleanup_old_update(&self) -> Result<(), std::io::Error> {
+		let current_path = std::env::current_exe()?;
+		let old_path = current_path.with_extension(OLD_UPDATE_EXTENSION);
+		if old_path.exists() {
+			fs::remove_file(old_path)?;
+		}
+
+		Ok(())
+	}
+
 	/// Updates the CLI to the given release.
 	pub async fn do_update(
 		&self,
@@ -65,8 +82,8 @@ impl<'a> SelfUpdate<'a> {
 	) -> Result<(), AnyError> {
 		// 1. Download the archive into a temporary directory
 		let tempdir = tempdir().map_err(|e| wrap(e, "Failed to create temp dir"))?;
-		let archive_path = tempdir.path().join("archive");
 		let stream = self.update_service.get_download_stream(release).await?;
+		let archive_path = tempdir.path().join(stream.url_path_basename().unwrap());
 		http::download_into_file(&archive_path, progress, stream).await?;
 
 		// 2. Unzip the archive and get the binary
@@ -86,9 +103,12 @@ impl<'a> SelfUpdate<'a> {
 		// Try to rename the old CLI to the tempdir, where it can get cleaned up by the
 		// OS later. However, this can fail if the tempdir is on a different drive
 		// than the installation dir. In this case just rename it to ".old".
-		if fs::rename(&target_path, &tempdir.path().join("old-code-cli")).is_err() {
-			fs::rename(&target_path, &target_path.with_extension(".old"))
-				.map_err(|e| wrap(e, "failed to rename old CLI"))?;
+		if fs::rename(&target_path, tempdir.path().join("old-code-cli")).is_err() {
+			fs::rename(
+				&target_path,
+				target_path.with_extension(OLD_UPDATE_EXTENSION),
+			)
+			.map_err(|e| wrap(e, "failed to rename old CLI"))?;
 		}
 
 		fs::rename(&staging_path, &target_path)
@@ -99,14 +119,14 @@ impl<'a> SelfUpdate<'a> {
 }
 
 fn validate_cli_is_good(exe_path: &Path) -> Result<(), AnyError> {
-	let o = Command::new(exe_path)
+	let o = new_std_command(exe_path)
 		.args(["--version"])
 		.output()
 		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {}", e)))?;
 
 	if !o.status.success() {
 		let msg = format!(
-			"could not execute new binary, aborting. Stdout:\r\n\r\n{}\r\n\r\nStderr:\r\n\r\n{}",
+			"could not execute new binary, aborting. Stdout:\n\n{}\n\nStderr:\n\n{}",
 			String::from_utf8_lossy(&o.stdout),
 			String::from_utf8_lossy(&o.stderr),
 		);
@@ -132,7 +152,7 @@ fn copy_updated_cli_to_path(unzipped_content: &Path, staging_path: &Path) -> Res
 	let archive_file = unzipped_files[0]
 		.as_ref()
 		.map_err(|e| wrap(e, "error listing update files"))?;
-	fs::copy(&archive_file.path(), staging_path)
+	fs::copy(archive_file.path(), staging_path)
 		.map_err(|e| wrap(e, "error copying to staging file"))?;
 	Ok(())
 }
@@ -140,7 +160,7 @@ fn copy_updated_cli_to_path(unzipped_content: &Path, staging_path: &Path) -> Res
 #[cfg(target_os = "windows")]
 fn copy_file_metadata(from: &Path, to: &Path) -> Result<(), std::io::Error> {
 	let permissions = from.metadata()?.permissions();
-	fs::set_permissions(&to, permissions)?;
+	fs::set_permissions(to, permissions)?;
 	Ok(())
 }
 

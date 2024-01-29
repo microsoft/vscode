@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
+import { ShowAccessibilityAlertHelp, ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -46,6 +46,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 70,
 			tags: ['accessibility']
 		},
+		'audioCues.debouncePositionChanges': {
+			'description': localize('audioCues.debouncePositionChanges', "Whether or not position changes should be debounced"),
+			'type': 'boolean',
+			'default': false,
+			tags: ['accessibility']
+		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
 			...audioCueFeatureBase
@@ -83,16 +89,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.taskFailed', "Plays a sound when a task fails (non-zero exit code)."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.terminalCommandFailed': {
+			'description': localize('audioCues.terminalCommandFailed', "Plays a sound when a terminal command fails (non-zero exit code)."),
+			...audioCueFeatureBase,
+		},
 		'audioCues.terminalQuickFix': {
 			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.diffLineInserted': {
-			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in diff review mode"),
+			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.diffLineDeleted': {
-			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode"),
+			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.diffLineModified': {
+			'description': localize('audioCues.diffLineModified', "Plays a sound when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.notebookCellCompleted': {
@@ -103,7 +117,52 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.notebookCellFailed', "Plays a sound when a notebook cell execution fails."),
 			...audioCueFeatureBase,
 		},
-	}
+		'audioCues.chatRequestSent': {
+			'description': localize('audioCues.chatRequestSent', "Plays a sound when a chat request is made."),
+			...audioCueFeatureBase,
+			default: 'off'
+		},
+		'audioCues.chatResponsePending': {
+			'description': localize('audioCues.chatResponsePending', "Plays a sound on loop while the response is pending."),
+			...audioCueFeatureBase,
+			default: 'auto'
+		},
+		'audioCues.chatResponseReceived': {
+			'description': localize('audioCues.chatResponseReceived', "Plays a sound on loop while the response has been received."),
+			...audioCueFeatureBase,
+			default: 'off'
+		},
+		'audioCues.clear': {
+			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
+			...audioCueFeatureBase,
+			default: 'off'
+		},
+		'audioCues.save': {
+			'markdownDescription': localize('audioCues.save', "Plays a sound when a file is saved. Also see {0}", '`#accessibility.alert.save#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'never',
+			'enumDescriptions': [
+				localize('audioCues.save.userGesture', "Plays the audio cue when a user explicitly saves a file."),
+				localize('audioCues.save.always', "Plays the audio cue whenever a file is saved, including auto save."),
+				localize('audioCues.save.never', "Never plays the audio cue.")
+			],
+			tags: ['accessibility']
+		},
+		'audioCues.format': {
+			'markdownDescription': localize('audioCues.format', "Plays a sound when a file or notebook is formatted. Also see {0}", '`#accessibility.alert.format#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'never',
+			'enumDescriptions': [
+				localize('audioCues.format.userGesture', "Plays the audio cue when a user explicitly formats a file."),
+				localize('audioCues.format.always', "Plays the audio cue whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
+				localize('audioCues.format.never', "Never plays the audio cue.")
+			],
+			tags: ['accessibility']
+		},
+	},
 });
 
 registerAction2(ShowAudioCueHelp);
+registerAction2(ShowAccessibilityAlertHelp);

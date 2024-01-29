@@ -24,14 +24,13 @@ import { IExtHostSecretState, ExtHostSecretState } from 'vs/workbench/api/common
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostEditorTabs, IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { ExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
 import { ExtHostLocalizationService, IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
+import { ExtHostManagedSockets, IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 
 registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
-registerSingleton(ILogService, ExtHostLogService, InstantiationType.Delayed);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService, InstantiationType.Delayed);
 registerSingleton(IExtHostCommands, ExtHostCommands, InstantiationType.Eager);
 registerSingleton(IExtHostConfiguration, ExtHostConfiguration, InstantiationType.Eager);
@@ -39,6 +38,7 @@ registerSingleton(IExtHostConsumerFileSystem, ExtHostConsumerFileSystem, Instant
 registerSingleton(IExtHostDebugService, WorkerExtHostDebugService, InstantiationType.Eager);
 registerSingleton(IExtHostDecorations, ExtHostDecorations, InstantiationType.Eager);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors, InstantiationType.Eager);
+registerSingleton(IExtHostManagedSockets, ExtHostManagedSockets, InstantiationType.Eager);
 registerSingleton(IExtHostFileSystemInfo, ExtHostFileSystemInfo, InstantiationType.Eager);
 registerSingleton(IExtHostOutputService, ExtHostOutputService, InstantiationType.Delayed);
 registerSingleton(IExtHostSearch, ExtHostSearch, InstantiationType.Eager);

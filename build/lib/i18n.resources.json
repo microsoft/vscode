@@ -55,6 +55,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/commands",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/mappedEdits",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -67,11 +75,19 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/multiDiffEditor",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/experiments",
+			"name": "vs/workbench/services/assignment",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/auxiliaryWindow",
 			"project": "vscode-workbench"
 		},
 		{
@@ -80,10 +96,6 @@
 		},
 		{
 			"name": "vs/workbench/contrib/externalTerminal",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/feedback",
 			"project": "vscode-workbench"
 		},
 		{
@@ -112,6 +124,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/languageStatus",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/limitIndicator",
 			"project": "vscode-workbench"
 		},
 		{
@@ -148,6 +164,14 @@
 		},
 		{
 			"name": "vs/workbench/contrib/notebook",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/inlineChat",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/chat",
 			"project": "vscode-workbench"
 		},
 		{
@@ -195,6 +219,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/speech",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/surveys",
 			"project": "vscode-workbench"
 		},
@@ -208,6 +236,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/terminal",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/terminalContrib",
 			"project": "vscode-workbench"
 		},
 		{
@@ -259,10 +291,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcomeOverlay",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/welcomePage",
 			"project": "vscode-workbench"
 		},
@@ -272,6 +300,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/welcomeWalkthrough",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeDialog",
 			"project": "vscode-workbench"
 		},
 		{
@@ -304,10 +336,6 @@
 		},
 		{
 			"name": "vs/workbench/contrib/bracketPairColorizer2Telemetry",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/offline",
 			"project": "vscode-workbench"
 		},
 		{
@@ -367,7 +395,15 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/filesConfiguration",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/history",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/hover",
 			"project": "vscode-workbench"
 		},
 		{
@@ -400,6 +436,10 @@
 		},
 		{
 			"name": "vs/workbench/services/search",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/suggest",
 			"project": "vscode-workbench"
 		},
 		{
@@ -485,6 +525,30 @@
 		{
 			"name": "vs/workbench/services/userDataProfile",
 			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/localization",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/share",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/accessibility",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/issue",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/secrets",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/accountEntitlements",
+			"project": "vscode-workbench"
 		}
 	]
 }

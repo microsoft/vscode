@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
+import { PlatformName } from 'vs/base/common/platform';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -12,11 +13,34 @@ export interface IBuiltInExtension {
 	readonly metadata: any;
 }
 
+export interface IProductWalkthrough {
+	id: string;
+	steps: IProductWalkthroughStep[];
+}
+
+export interface IProductWalkthroughStep {
+	id: string;
+	title: string;
+	when: string;
+	description: string;
+	media:
+	| { type: 'image'; path: string | { hc: string; hcLight?: string; light: string; dark: string }; altText: string }
+	| { type: 'svg'; path: string; altText: string }
+	| { type: 'markdown'; path: string };
+}
+
+export interface IFeaturedExtension {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly imagePath: string;
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
 	stableUrl: string;
-	canSwitch: boolean;
+	canSwitch?: boolean;
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
 };
 
@@ -49,9 +73,12 @@ export interface IProductConfiguration {
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
+	readonly walkthroughMetadata?: IProductWalkthrough[];
+	readonly featuredExtensions?: IFeaturedExtension[];
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webUrl?: string;
 	readonly webEndpointUrlTemplate?: string;
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
@@ -62,11 +89,8 @@ export interface IProductConfiguration {
 	readonly tasConfig?: {
 		endpoint: string;
 		telemetryEventName: string;
-		featuresTelemetryPropertyName: string;
 		assignmentContextTelemetryPropertyName: string;
 	};
-
-	readonly experimentsUrl?: string;
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
@@ -79,17 +103,20 @@ export interface IProductConfiguration {
 		readonly nlsBaseUrl: string;
 	};
 
-	readonly extensionTips?: { [id: string]: string };
-	readonly extensionImportantTips?: IStringDictionary<ImportantExtensionTip>;
-	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip };
-	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip };
-	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip };
-	readonly extensionKeywords?: { [extension: string]: readonly string[] };
+	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
+	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
+	readonly exeBasedExtensionTips?: IStringDictionary<IExeBasedExtensionTip>;
+	readonly remoteExtensionTips?: IStringDictionary<IRemoteExtensionTip>;
+	readonly virtualWorkspaceExtensionTips?: IStringDictionary<IVirtualWorkspaceExtensionTip>;
+	readonly extensionKeywords?: IStringDictionary<string[]>;
 	readonly keymapExtensionTips?: readonly string[];
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
-	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
+	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
 	readonly trustedExtensionAuthAccess?: readonly string[];
+	readonly trustedExtensionProtocolHandlers?: readonly string[];
+
+	readonly commandPaletteSuggestedCommandIds?: string[];
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -104,12 +131,8 @@ export interface IProductConfiguration {
 		readonly ariaKey: string;
 	};
 
-	readonly sendASmile?: {
-		readonly reportIssueUrl: string;
-		readonly requestFeatureUrl: string;
-	};
-
 	readonly documentationUrl?: string;
+	readonly serverDocumentationUrl?: string;
 	readonly releaseNotesUrl?: string;
 	readonly keyboardShortcutsUrlMac?: string;
 	readonly keyboardShortcutsUrlLinux?: string;
@@ -117,11 +140,12 @@ export interface IProductConfiguration {
 	readonly introductoryVideosUrl?: string;
 	readonly tipsAndTricksUrl?: string;
 	readonly newsletterSignupUrl?: string;
-	readonly twitterUrl?: string;
+	readonly youTubeUrl?: string;
 	readonly requestFeatureUrl?: string;
 	readonly reportIssueUrl?: string;
 	readonly reportMarketplaceIssueUrl?: string;
 	readonly licenseUrl?: string;
+	readonly serverLicenseUrl?: string;
 	readonly privacyStatementUrl?: string;
 	readonly showTelemetryOptOut?: boolean;
 
@@ -160,6 +184,11 @@ export interface IProductConfiguration {
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+	readonly profileTemplatesUrl?: string;
+
+	readonly commonlyUsedSettings?: string[];
+	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
+	readonly gitHubEntitlement?: IGitHubEntitlement;
 }
 
 export interface ITunnelApplicationConfig {
@@ -168,20 +197,53 @@ export interface ITunnelApplicationConfig {
 	extension: IRemoteExtensionTip;
 }
 
-export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };
+export interface IExtensionRecommendations {
+	readonly onFileOpen: IFileOpenCondition[];
+	readonly onSettingsEditorOpen?: ISettingsEditorOpenCondition;
+}
+
+export interface ISettingsEditorOpenCondition {
+	readonly prerelease?: boolean | string;
+}
+
+export interface IExtensionRecommendationCondition {
+	readonly important?: boolean;
+	readonly whenInstalled?: string[];
+	readonly whenNotInstalled?: string[];
+}
+
+export type IFileOpenCondition = IFileLanguageCondition | IFilePathCondition | IFileContentCondition;
+
+export interface IFileLanguageCondition extends IExtensionRecommendationCondition {
+	readonly languages: string[];
+}
+
+export interface IFilePathCondition extends IExtensionRecommendationCondition {
+	readonly pathGlob: string;
+}
+
+export type IFileContentCondition = (IFileLanguageCondition | IFilePathCondition) & { readonly contentPattern: string };
 
 export interface IAppCenterConfiguration {
-	readonly 'win32-ia32': string;
 	readonly 'win32-x64': string;
+	readonly 'win32-arm64': string;
 	readonly 'linux-x64': string;
 	readonly 'darwin': string;
+	readonly 'darwin-universal': string;
+	readonly 'darwin-arm64': string;
 }
 
 export interface IConfigBasedExtensionTip {
 	configPath: string;
 	configName: string;
 	configScheme?: string;
-	recommendations: IStringDictionary<{ name: string; remotes?: string[]; important?: boolean; isExtensionPack?: boolean; whenNotInstalled?: string[] }>;
+	recommendations: IStringDictionary<{
+		name: string;
+		contentPattern?: string;
+		important?: boolean;
+		isExtensionPack?: boolean;
+		whenNotInstalled?: string[];
+	}>;
 }
 
 export interface IExeBasedExtensionTip {
@@ -194,6 +256,25 @@ export interface IExeBasedExtensionTip {
 export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
+	supportedPlatforms?: PlatformName[];
+	startEntry?: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
+}
+
+export interface IVirtualWorkspaceExtensionTip {
+	friendlyName: string;
+	extensionId: string;
+	supportedPlatforms?: PlatformName[];
+	startEntry: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
 }
 
 export interface ISurveyData {
@@ -202,4 +283,22 @@ export interface ISurveyData {
 	languageId: string;
 	editCount: number;
 	userProbability: number;
+}
+
+export interface IAiGeneratedWorkspaceTrust {
+	readonly title: string;
+	readonly checkboxText: string;
+	readonly trustOption: string;
+	readonly dontTrustOption: string;
+	readonly startupTrustRequestLearnMore: string;
+}
+
+export interface IGitHubEntitlement {
+	providerId: string;
+	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
+	entitlementUrl: string;
+	extensionId: string;
+	enablementKey: string;
+	confirmationMessage: string;
+	confirmationAction: string;
 }

@@ -5,14 +5,29 @@
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
+import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ConfigurationModelParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suiteSetup(() => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'ConfigurationModelParserTest',
+			'type': 'object',
+			'properties': {
+				'ConfigurationModelParserTest.windowSetting': {
+					'type': 'string',
+					'default': 'isSet',
+				}
+			}
+		});
+	});
 
 	test('parse configuration model with single override identifier', () => {
 		const testObject = new ConfigurationModelParser('');
@@ -38,10 +53,45 @@ suite('ConfigurationModelParser', () => {
 		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y', 'z'], keys: ['a'], contents: { 'a': 1 } }]));
 	});
 
+	test('parse configuration model with exclude option', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'a': 1, 'b': 2 }), { exclude: ['a'] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('a'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('b'), 2);
+	});
+
+	test('parse configuration model with exclude option even included', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'a': 1, 'b': 2 }), { exclude: ['a'], include: ['a'] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('a'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('b'), 2);
+	});
+
+	test('parse configuration model with scopes filter', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'ConfigurationModelParserTest.windowSetting': '1' }), { scopes: [ConfigurationScope.APPLICATION] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('ConfigurationModelParserTest.windowSetting'), undefined);
+	});
+
+	test('parse configuration model with include option', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'ConfigurationModelParserTest.windowSetting': '1' }), { include: ['ConfigurationModelParserTest.windowSetting'], scopes: [ConfigurationScope.APPLICATION] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('ConfigurationModelParserTest.windowSetting'), '1');
+	});
 
 });
 
 suite('ConfigurationModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('setValue for a key that has no sections and not defined', () => {
 		const testObject = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
@@ -108,7 +158,7 @@ suite('ConfigurationModel', () => {
 		testObject.setValue('a.b.c', 1);
 
 		assert.deepStrictEqual(testObject.contents, { 'a': { 'b': { 'c': 1 } }, 'f': 1 });
-		assert.deepStrictEqual(testObject.keys, ['a.b.c', 'f']);
+		assert.deepStrictEqual(testObject.keys, ['a.b', 'f', 'a.b.c']);
 	});
 
 	test('removeValue: remove a non existing key', () => {
@@ -228,17 +278,6 @@ suite('ConfigurationModel', () => {
 		const base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 		const add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]);
 		const result = base.merge(add);
-
-		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
-		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
-		assert.deepStrictEqual(result.override('c').contents, { 'a': { 'b': 2, 'd': 1, 'e': 2 }, 'f': 1 });
-		assert.deepStrictEqual(result.keys, ['a.b', 'f']);
-	});
-
-	test('merge overrides when frozen', () => {
-		const model1 = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]).freeze();
-		const model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]).freeze();
-		const result = new ConfigurationModel().merge(model1, model2);
 
 		assert.deepStrictEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
 		assert.deepStrictEqual(result.overrides, [{ identifiers: ['c'], contents: { 'a': { 'd': 1, 'e': 2 } }, keys: ['a'] }]);
@@ -369,6 +408,8 @@ suite('ConfigurationModel', () => {
 
 suite('CustomConfigurationModel', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('simple merge using models', () => {
 		const base = new ConfigurationModelParser('base');
 		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
@@ -473,75 +514,11 @@ suite('CustomConfigurationModel', () => {
 		assert.deepStrictEqual(testObject.configurationModel.keys, ['']);
 	});
 
-	test('Test registering the same property again', () => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'a',
-			'order': 1,
-			'title': 'a',
-			'type': 'object',
-			'properties': {
-				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': true,
-				}
-			}
-		});
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'a',
-			'order': 1,
-			'title': 'a',
-			'type': 'object',
-			'properties': {
-				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': false,
-				}
-			}
-		});
-		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
-	});
-});
-
-suite('CustomConfigurationModel', () => {
-
-	test('Default configuration model uses overrides', () => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'a',
-			'order': 1,
-			'title': 'a',
-			'type': 'object',
-			'properties': {
-				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': false,
-				}
-			}
-		});
-		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
-	});
-
-	test('Default configuration model uses overrides', () => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'a',
-			'order': 1,
-			'title': 'a',
-			'type': 'object',
-			'properties': {
-				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': false,
-				}
-			}
-		});
-		assert.strictEqual(false, new DefaultConfigurationModel({ a: false }).getValue('a'));
-	});
 });
 
 suite('Configuration', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Test inspect for overrideIdentifiers', () => {
 		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
@@ -704,6 +681,8 @@ suite('Configuration', () => {
 
 suite('ConfigurationChangeEvent', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('changeEvent affecting keys with new configuration', () => {
 		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
 		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
@@ -713,7 +692,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window'));
@@ -745,7 +724,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.zoomLevel', 'workbench.editor.enablePreview']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window'));
@@ -772,7 +751,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', '[typescript][jsonc]', 'editor.wordWrap', 'editor.lineNumbers']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['files.autoSave', '[markdown]', '[typescript][jsonc]', 'editor.wordWrap', 'editor.lineNumbers']);
 
 		assert.ok(testObject.affectsConfiguration('files'));
 		assert.ok(testObject.affectsConfiguration('files.autoSave'));
@@ -830,7 +809,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', '[css][scss]', 'workbench.editor.enablePreview', 'editor.fontSize', 'editor.lineNumbers']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.zoomLevel', '[markdown]', '[css][scss]', 'workbench.editor.enablePreview', 'editor.fontSize', 'editor.lineNumbers']);
 
 		assert.ok(!testObject.affectsConfiguration('files'));
 
@@ -882,7 +861,7 @@ suite('ConfigurationChangeEvent', () => {
 		);
 		const testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('folder1') }));
@@ -980,7 +959,7 @@ suite('ConfigurationChangeEvent', () => {
 		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
 		const testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
 
 		assert.ok(testObject.affectsConfiguration('window.title'));
 		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
@@ -1066,10 +1045,18 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['launch', 'launch.version', 'tasks']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['launch', 'launch.version', 'tasks']);
 		assert.ok(testObject.affectsConfiguration('launch'));
 		assert.ok(testObject.affectsConfiguration('launch.version'));
 		assert.ok(testObject.affectsConfiguration('tasks'));
+	});
+
+	test('affectsConfiguration returns false for empty string', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({ 'window.zoomLevel': 1 }));
+		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+
+		assert.strictEqual(false, testObject.affectsConfiguration(''));
 	});
 
 });

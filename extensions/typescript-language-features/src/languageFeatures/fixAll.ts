@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { API } from '../tsServer/api';
+import * as errorCodes from '../tsServer/protocol/errorCodes';
+import * as fixNames from '../tsServer/protocol/fixNames';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as errorCodes from '../utils/errorCodes';
-import * as fixNames from '../utils/fixNames';
-import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 
 interface AutoFix {
@@ -213,16 +213,12 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}
 
 		const actions = this.getFixAllActions(context.only);
-		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
-			return actions;
-		}
-
 		const diagnostics = this.diagnosticsManager.getDiagnostics(document.uri);
 		if (!diagnostics.length) {
 			// Actions are a no-op in this case but we still want to return them

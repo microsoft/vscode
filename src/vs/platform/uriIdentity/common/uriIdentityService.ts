@@ -92,13 +92,13 @@ export class UriIdentityService implements IUriIdentityService {
 			return;
 		}
 
-		// get all entries, sort by touch (MRU) and re-initalize
+		// get all entries, sort by time (MRU) and re-initalize
 		// the uri cache and the entry clock. this is an expensive
 		// operation and should happen rarely
 		const entries = [...this._canonicalUris.entries()].sort((a, b) => {
-			if (a[1].touch < b[1].touch) {
+			if (a[1].time < b[1].time) {
 				return 1;
-			} else if (a[1].touch > b[1].touch) {
+			} else if (a[1].time > b[1].time) {
 				return -1;
 			} else {
 				return 0;

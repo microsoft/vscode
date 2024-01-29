@@ -8,6 +8,7 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class MockGrammarContributions implements IGrammarContributions {
 	private scopeName: string;
@@ -22,7 +23,6 @@ class MockGrammarContributions implements IGrammarContributions {
 }
 
 suite('Emmet', () => {
-
 	test('Get language mode and parent mode for emmet', () => {
 		withTestCodeEditor([], {}, (editor, viewModel, instantiationService) => {
 			const languageService = instantiationService.get(ILanguageService);
@@ -39,7 +39,7 @@ suite('Emmet', () => {
 					assert.fail('Editor model not found');
 				}
 
-				model.setMode(mode);
+				model.setLanguage(mode);
 				const langOutput = EmmetEditorAction.getLanguage(editor, new MockGrammarContributions(scopeName));
 				if (!langOutput) {
 					assert.fail('langOutput not found');
@@ -63,4 +63,6 @@ suite('Emmet', () => {
 
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

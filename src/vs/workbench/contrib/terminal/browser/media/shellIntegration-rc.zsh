@@ -38,6 +38,32 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Apply EnvironmentVariableCollections if needed
+if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="$(echo -e ${ITEM#*=})"
+	done
+	unset VSCODE_ENV_REPLACE
+fi
+if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_PREPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="$(echo -e ${ITEM#*=})${(P)VARNAME}"
+	done
+	unset VSCODE_ENV_PREPEND
+fi
+if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_APPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="${(P)VARNAME}$(echo -e ${ITEM#*=})"
+	done
+	unset VSCODE_ENV_APPEND
+fi
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
@@ -49,21 +75,13 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Backslashes must be doubled.
+		# Escape backslashes and semi-colons
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
-		# Conservatively pass alphanumerics through.
-		elif [[ "$byte" == [0-9A-Za-z] ]]; then
-			token="$byte"
-		# Hex-encode anything else.
-		# (Importantly including: semicolon, newline, and control chars).
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
 		else
-			token="\\x${(l:2::0:)$(( [##16] #byte ))}"
-			#            | |  |       |/|/ |_____|
-			#            | |  |       | |     |
-			# left-pad --+ |  |       | |     +- the byte value of the character
-			# two digits --+  |       | +------- in hexadecimal
-			# with '0' -------+       +--------- with no prefix
+			token="$byte"
 		fi
 
 		out+="$token"
@@ -74,6 +92,10 @@ __vsc_escape_value() {
 
 __vsc_in_command_execution="1"
 __vsc_current_command=""
+
+# It's fine this is in the global scope as it getting at it requires access to the shell environment
+__vsc_nonce="$VSCODE_NONCE"
+unset VSCODE_NONCE
 
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
@@ -89,7 +111,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 }
 
 __vsc_continuation_start() {

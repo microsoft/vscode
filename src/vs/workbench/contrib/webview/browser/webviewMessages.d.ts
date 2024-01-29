@@ -38,6 +38,19 @@ export type FromWebviewMessage = {
 	'drag-start': void;
 };
 
+interface UpdateContentEvent {
+	contents: string;
+	title: string | undefined;
+	options: {
+		allowMultipleAPIAcquire: boolean;
+		allowScripts: boolean;
+		allowForms: boolean;
+	};
+	state: any;
+	cspSource: string;
+	confirmBeforeClose: string;
+}
+
 export type ToWebviewMessage = {
 	'focus': void;
 	'message': { message: any; transfer?: ArrayBuffer[] };
@@ -53,18 +66,10 @@ export type ToWebviewMessage = {
 		location: string | undefined;
 	};
 	'set-confirm-before-close': string;
+	'set-context-menu-visible': { visible: boolean };
 	'initial-scroll-position': number;
-	'content': {
-		contents: string;
-		options: {
-			allowMultipleAPIAcquire: boolean;
-			allowScripts: boolean;
-			allowForms: boolean;
-		};
-		state: any;
-		cspSource: string;
-		confirmBeforeClose: string;
-	};
+	'content': UpdateContentEvent;
+	'set-title': string | undefined;
 	'styles': {
 		styles: WebviewStyles;
 		activeTheme: string;

@@ -17,6 +17,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IWindowSettings } from 'vs/platform/window/common/window';
 import { IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -77,8 +78,8 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Make sure a window is open, ready to receive the url event
 			whenWindowReady.then(() => {
-				for (const { uri, url } of urlsToOpen) {
-					this.urlService.open(uri, { originalUrl: url });
+				for (const { uri, originalUrl } of urlsToOpen) {
+					this.urlService.open(uri, { originalUrl });
 				}
 			});
 		}
@@ -89,7 +90,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 	}
 
-	private parseOpenUrl(args: NativeParsedArgs): { uri: URI; url: string }[] {
+	private parseOpenUrl(args: NativeParsedArgs): IProtocolUrl[] {
 		if (args['open-url'] && args._urls && args._urls.length > 0) {
 
 			// --open-url must contain -- followed by the url(s)
@@ -98,7 +99,7 @@ export class LaunchMainService implements ILaunchMainService {
 			return coalesce(args._urls
 				.map(url => {
 					try {
-						return { uri: URI.parse(url), url };
+						return { uri: URI.parse(url), originalUrl: url };
 					} catch (err) {
 						return null;
 					}
@@ -118,7 +119,18 @@ export class LaunchMainService implements ILaunchMainService {
 		const baseConfig: IOpenConfiguration = {
 			context,
 			cli: args,
-			userEnv,
+			/**
+			 * When opening a new window from a second instance that sent args and env
+			 * over to this instance, we want to preserve the environment only if that second
+			 * instance was spawned from the CLI or used the `--preserve-env` flag (example:
+			 * when using `open -n "VSCode.app" --args --preserve-env WORKSPACE_FOLDER`).
+			 *
+			 * This is done to ensure that the second window gets treated exactly the same
+			 * as the first window, for example, it gets the same resolved user shell environment.
+			 *
+			 * https://github.com/microsoft/vscode/issues/194736
+			 */
+			userEnv: (args['preserve-env'] || context === OpenContext.CLI) ? userEnv : undefined,
 			waitMarkerFileURI,
 			remoteAuthority,
 			forceProfile: args.profile,

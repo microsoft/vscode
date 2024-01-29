@@ -21,7 +21,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -245,7 +246,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map((edit, idx) => {
-				const range = Range.lift(edit.textEdit.textEdit.range);
+				const range = textModel.validateRange(edit.textEdit.textEdit.range);
 
 				//prefix-math
 				const startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);

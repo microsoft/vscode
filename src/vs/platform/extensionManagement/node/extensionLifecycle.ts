@@ -30,11 +30,22 @@ export class ExtensionsLifecycle extends Disposable {
 		const script = this.parseScript(extension, 'uninstall');
 		if (script) {
 			this.logService.info(extension.identifier.id, extension.manifest.version, `Running post uninstall script`);
-			await this.processesLimiter.queue(() =>
-				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
-					.then(() => this.logService.info(extension.identifier.id, extension.manifest.version, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, extension.manifest.version, `Failed to run post uninstall script: ${err}`)));
+			await this.processesLimiter.queue(async () => {
+				try {
+					await this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension);
+					this.logService.info(`Finished running post uninstall script`, extension.identifier.id, extension.manifest.version);
+				} catch (error) {
+					this.logService.error('Failed to run post uninstall script', extension.identifier.id, extension.manifest.version);
+					this.logService.error(error);
+				}
+			});
 		}
-		return Promises.rm(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
+		try {
+			await Promises.rm(this.getExtensionStoragePath(extension));
+		} catch (error) {
+			this.logService.error('Error while removing extension storage path', extension.identifier.id);
+			this.logService.error(error);
+		}
 	}
 
 	private parseScript(extension: ILocalExtension, type: string): { script: string; args: string[] } | null {

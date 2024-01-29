@@ -13,18 +13,43 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export interface ICodeWindow extends IDisposable {
+export interface IBaseWindow extends IDisposable {
+
+	readonly onDidMaximize: Event<void>;
+	readonly onDidUnmaximize: Event<void>;
+	readonly onDidTriggerSystemContextMenu: Event<{ readonly x: number; readonly y: number }>;
+	readonly onDidEnterFullScreen: Event<void>;
+	readonly onDidLeaveFullScreen: Event<void>;
+	readonly onDidClose: Event<void>;
+
+	readonly id: number;
+	readonly win: BrowserWindow | null;
+
+	readonly lastFocusTime: number;
+	focus(options?: { force: boolean }): void;
+
+	setRepresentedFilename(name: string): void;
+	getRepresentedFilename(): string | undefined;
+
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
+
+	handleTitleDoubleClick(): void;
+
+	readonly isFullScreen: boolean;
+	toggleFullScreen(): void;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
+}
+
+export interface ICodeWindow extends IBaseWindow {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
-	readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }>;
-	readonly onDidClose: Event<void>;
 	readonly onDidDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
 
-	readonly id: number;
-	readonly win: BrowserWindow | null; /* `null` after being disposed */
 	readonly config: INativeWindowConfiguration | undefined;
 
 	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
@@ -38,8 +63,6 @@ export interface ICodeWindow extends IDisposable {
 	readonly isExtensionDevelopmentHost: boolean;
 	readonly isExtensionTestHost: boolean;
 
-	readonly lastFocusTime: number;
-
 	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
 	setReady(): void;
@@ -49,7 +72,6 @@ export interface ICodeWindow extends IDisposable {
 	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
 	reload(cli?: NativeParsedArgs): void;
 
-	focus(options?: { force: boolean }): void;
 	close(): void;
 
 	getBounds(): Rectangle;
@@ -57,24 +79,11 @@ export interface ICodeWindow extends IDisposable {
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
 
-	readonly isFullScreen: boolean;
-	toggleFullScreen(): void;
-
-	isMinimized(): boolean;
-
-	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string | undefined;
-
-	setDocumentEdited(edited: boolean): void;
-	isDocumentEdited(): boolean;
-
-	handleTitleDoubleClick(): void;
-
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
-	serializeWindowState(): IWindowState;
+	notifyZoomLevel(zoomLevel: number | undefined): void;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
+	serializeWindowState(): IWindowState;
 }
 
 export const enum LoadReason {
@@ -124,6 +133,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	zoomLevel?: number;
 	readonly display?: number;
 }
 

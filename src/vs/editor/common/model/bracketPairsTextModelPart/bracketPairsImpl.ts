@@ -18,6 +18,8 @@ import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBrack
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
+/* hot-reload:patch-prototype-methods */
+
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());
 
@@ -114,10 +116,10 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		return this.bracketPairsTree.value?.object.getBracketPairsInRange(range, true) || CallbackIterable.empty;
 	}
 
-	public getBracketsInRange(range: Range): CallbackIterable<BracketInfo> {
+	public getBracketsInRange(range: Range, onlyColorizedBrackets: boolean = false): CallbackIterable<BracketInfo> {
 		this.bracketsRequested = true;
 		this.updateBracketPairsTree();
-		return this.bracketPairsTree.value?.object.getBracketsInRange(range) || CallbackIterable.empty;
+		return this.bracketPairsTree.value?.object.getBracketsInRange(range, onlyColorizedBrackets) || CallbackIterable.empty;
 	}
 
 	public findMatchingBracketUp(_bracket: string, _position: IPosition, maxDuration?: number): Range | null {

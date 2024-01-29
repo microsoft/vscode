@@ -30,7 +30,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.AuxWindowUnsupported;
 	}
 
 	private readonly _resourceId = generateUuid();
@@ -90,6 +90,7 @@ export class WebviewInput extends EditorInput {
 
 	public setName(value: string): void {
 		this._name = value;
+		this.webview.setTitle(value);
 		this._onDidChangeLabel.fire();
 	}
 

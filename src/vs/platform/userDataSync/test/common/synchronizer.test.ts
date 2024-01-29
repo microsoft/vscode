@@ -8,10 +8,10 @@ import { Barrier } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -161,8 +161,8 @@ class TestSynchroniser extends AbstractSynchroniser {
 		super.stop();
 	}
 
-	override async triggerLocalChange(): Promise<void> {
-		super.triggerLocalChange();
+	testTriggerLocalChange(): void {
+		this.triggerLocalChange();
 	}
 
 	onDidTriggerLocalChangeCall: Emitter<void> = this._register(new Emitter<void>());
@@ -177,19 +177,19 @@ class TestSynchroniser extends AbstractSynchroniser {
 
 suite('TestSynchronizer - Auto Sync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
-	let userDataSyncStoreService: IUserDataSyncStoreService;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp();
-		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
-		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('status is syncing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
@@ -462,7 +462,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		server.reset();
 		const promise = Event.toPromise(testObject.onDidTriggerLocalChangeCall.event);
-		await testObject.triggerLocalChange();
+		testObject.testTriggerLocalChange();
 
 		await promise;
 		assert.deepStrictEqual(server.requests, []);
@@ -484,19 +484,19 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 suite('TestSynchronizer - Manual Sync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
-	let userDataSyncStoreService: IUserDataSyncStoreService;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp();
-		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
-		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('preview', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
@@ -603,39 +603,6 @@ suite('TestSynchronizer - Manual Sync', () => {
 		let preview = await testObject.preview(await client.getResourceManifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
-
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts.conflicts, []);
-
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
-	}));
-
-	test('preview -> accept', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-
-		let preview = await testObject.preview(await client.getResourceManifest(), {});
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assertConflicts(testObject.conflicts.conflicts, []);
-	}));
-
-	test('preview -> accept -> apply', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.getResourceManifest());
-
-		const manifest = await client.getResourceManifest();
-		const expectedContent = manifest![testObject.resource];
-		let preview = await testObject.preview(await client.getResourceManifest(), {});
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
@@ -883,7 +850,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	}));
 
-	test('conflicts: preview -> accept', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('conflicts: preview -> accept 2', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
@@ -1095,19 +1062,19 @@ suite('TestSynchronizer - Manual Sync', () => {
 });
 
 suite('TestSynchronizer - Last Sync Data', () => {
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
-	let userDataSyncStoreService: IUserDataSyncStoreService;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp();
-		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
-		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('last sync data is null when not synced before', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));

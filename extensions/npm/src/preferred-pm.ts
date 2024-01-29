@@ -23,6 +23,14 @@ async function pathExists(filePath: string) {
 	return true;
 }
 
+async function isBunPreferred(pkgPath: string): Promise<PreferredProperties> {
+	if (await pathExists(path.join(pkgPath, 'bun.lockb'))) {
+		return { isPreferred: true, hasLockfile: true };
+	}
+
+	return { isPreferred: false, hasLockfile: false };
+}
+
 async function isPNPMPreferred(pkgPath: string): Promise<PreferredProperties> {
 	if (await pathExists(path.join(pkgPath, 'pnpm-lock.yaml'))) {
 		return { isPreferred: true, hasLockfile: true };
@@ -66,16 +74,22 @@ export async function findPreferredPM(pkgPath: string): Promise<{ name: string; 
 		detectedPackageManagerProperties.push(npmPreferred);
 	}
 
+	const pnpmPreferred = await isPNPMPreferred(pkgPath);
+	if (pnpmPreferred.isPreferred) {
+		detectedPackageManagerNames.push('pnpm');
+		detectedPackageManagerProperties.push(pnpmPreferred);
+	}
+
 	const yarnPreferred = await isYarnPreferred(pkgPath);
 	if (yarnPreferred.isPreferred) {
 		detectedPackageManagerNames.push('yarn');
 		detectedPackageManagerProperties.push(yarnPreferred);
 	}
 
-	const pnpmPreferred = await isPNPMPreferred(pkgPath);
-	if (pnpmPreferred.isPreferred) {
-		detectedPackageManagerNames.push('pnpm');
-		detectedPackageManagerProperties.push(pnpmPreferred);
+	const bunPreferred = await isBunPreferred(pkgPath);
+	if (bunPreferred.isPreferred) {
+		detectedPackageManagerNames.push('bun');
+		detectedPackageManagerProperties.push(bunPreferred);
 	}
 
 	const pmUsedForInstallation: { name: string } | null = await whichPM(pkgPath);

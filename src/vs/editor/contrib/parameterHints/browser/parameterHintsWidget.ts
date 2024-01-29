@@ -14,10 +14,10 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
@@ -25,7 +25,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const $ = dom.$;
 
@@ -130,9 +130,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		updateFont();
 
-		this._register(Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.hasChanged(EditorOption.fontInfo))
-			.on(updateFont, null));
+		this._register(Event.chain(
+			this.editor.onDidChangeConfiguration.bind(this.editor),
+			$ => $.filter(e => e.hasChanged(EditorOption.fontInfo))
+		)(updateFont));
 
 		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
 		this.updateMaxHeight();

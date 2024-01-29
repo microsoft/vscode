@@ -35,12 +35,14 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { asCssValue, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -57,6 +59,7 @@ export interface IFindController {
 	getGlobalBufferTerm(): Promise<string>;
 }
 
+const NLS_FIND_DIALOG_LABEL = nls.localize('label.findDialog', "Find / Replace");
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
@@ -678,7 +681,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (!this._isVisible) {
 			return;
 		}
-		if (!dom.isInDOM(this._domNode)) {
+		if (!this._domNode.isConnected) {
 			// the widget is not in the DOM
 			return;
 		}
@@ -729,8 +732,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
 		}
 
+		this._findInput.layout({ collapsedFindWidget, narrowFindWidget, reducedFindWidget });
 		if (this._resized) {
-			this._findInput.inputBox.layout();
 			const findInputWidth = this._findInput.inputBox.element.clientWidth;
 			if (findInputWidth > 0) {
 				this._replaceInput.width = findInputWidth;
@@ -1040,16 +1043,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false,
-			inputActiveOptionBackground: asCssValue(inputActiveOptionBackground),
-			inputActiveOptionBorder: asCssValue(inputActiveOptionBorder),
-			inputActiveOptionForeground: asCssValue(inputActiveOptionForeground),
+			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
+			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 		}));
 
 		this._register(this._toggleSelectionFind.onChange(() => {
 			if (this._toggleSelectionFind.checked) {
 				if (this._codeEditor.hasModel()) {
-					const selections = this._codeEditor.getSelections();
-					selections.map(selection => {
+					let selections = this._codeEditor.getSelections();
+					selections = selections.map(selection => {
 						if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 							selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1));
 						}
@@ -1057,7 +1060,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 							return selection;
 						}
 						return null;
-					}).filter(element => !!element);
+					}).filter((element): element is Selection => !!element);
 
 					if (selections.length) {
 						this._state.change({ searchScope: selections as Range[] }, true);
@@ -1090,8 +1093,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				}
 			}
 		}));
-
-		actionsContainer.appendChild(this._closeBtn.domNode);
 
 		// Replace input
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
@@ -1191,14 +1192,18 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
 		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.ariaLabel = NLS_FIND_DIALOG_LABEL;
+		this._domNode.role = 'dialog';
+
 		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
 		this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
+		this._domNode.appendChild(this._closeBtn.domNode);
 		this._domNode.appendChild(replacePart);
 
-		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
+		this._resizeSash = this._register(new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 }));
 		this._resized = false;
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 

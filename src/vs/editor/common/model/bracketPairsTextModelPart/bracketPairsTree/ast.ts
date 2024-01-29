@@ -388,7 +388,7 @@ class TwoThreeListAstNode extends ListAstNode {
 		}
 		throw new Error('Invalid child index');
 	}
-	public setChild(idx: number, node: AstNode): void {
+	protected setChild(idx: number, node: AstNode): void {
 		switch (idx) {
 			case 0: this._item1 = node; return;
 			case 1: this._item2 = node; return;
@@ -506,7 +506,7 @@ class ArrayListAstNode extends ListAstNode {
 	getChild(idx: number): AstNode | null {
 		return this._children[idx];
 	}
-	setChild(idx: number, child: AstNode): void {
+	protected setChild(idx: number, child: AstNode): void {
 		this._children[idx] = child;
 	}
 	get children(): readonly AstNode[] {

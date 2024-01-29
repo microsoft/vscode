@@ -13,6 +13,7 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
@@ -34,6 +35,7 @@ export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemO
 	readonly classNames?: string[] | string;
 	readonly anchorAlignmentProvider?: IAnchorAlignmentProvider;
 	readonly menuAsChild?: boolean;
+	readonly skipTelemetry?: boolean;
 }
 
 export class DropdownMenuActionViewItem extends BaseActionViewItem {
@@ -100,7 +102,8 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			labelRenderer: labelRenderer,
 			menuAsChild: this.options.menuAsChild,
 			actions: isActionsArray ? this.menuActionsOrProvider as IAction[] : undefined,
-			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider
+			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider,
+			skipTelemetry: this.options.skipTelemetry
 		};
 
 		this.dropdownMenu = this._register(new DropdownMenu(container, options));
@@ -200,10 +203,14 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			separator.classList.toggle('prominent', menuActionClassNames.includes('prominent'));
 			append(this.element, separator);
 
-			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...menuActionClassNames] });
+			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames] }));
 			this.dropdownMenuActionViewItem.render(this.element);
 
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
+				// If we don't have any actions then the dropdown is hidden so don't try to focus it #164050
+				if (menuActionsProvider.getActions().length === 0) {
+					return;
+				}
 				const event = new StandardKeyboardEvent(e);
 				let handled: boolean = false;
 				if (this.dropdownMenuActionViewItem?.isFocused() && event.equals(KeyCode.LeftArrow)) {

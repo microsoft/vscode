@@ -29,6 +29,9 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { FuzzyScoreOptions } from 'vs/base/common/filters';
 import { assertType } from 'vs/base/common/types';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -43,13 +46,13 @@ export interface ITriggerEvent {
 export interface ISuggestEvent {
 	readonly completionModel: CompletionModel;
 	readonly isFrozen: boolean;
-	readonly auto: boolean;
-	readonly shy: boolean;
+	readonly triggerOptions: SuggestTriggerOptions;
 }
 
 export interface SuggestTriggerOptions {
 	readonly auto: boolean;
 	readonly shy?: boolean;
+	readonly refilter?: boolean;
 	readonly retrigger?: boolean;
 	readonly triggerKind?: CompletionTriggerKind;
 	readonly triggerCharacter?: string;
@@ -71,7 +74,8 @@ export class LineContext {
 		if (!word) {
 			return false;
 		}
-		if (word.endColumn !== pos.column) {
+		if (word.endColumn !== pos.column &&
+			word.startColumn + 1 !== pos.column /* after typing a single character before a word */) {
 			return false;
 		}
 		if (!isNaN(Number(word.word))) {
@@ -84,16 +88,14 @@ export class LineContext {
 	readonly column: number;
 	readonly leadingLineContent: string;
 	readonly leadingWord: IWordAtPosition;
-	readonly auto: boolean;
-	readonly shy: boolean;
+	readonly triggerOptions: SuggestTriggerOptions;
 
-	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean | undefined) {
+	constructor(model: ITextModel, position: Position, triggerOptions: SuggestTriggerOptions) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
-		this.auto = auto;
-		this.shy = shy ?? false;
+		this.triggerOptions = triggerOptions;
 	}
 }
 
@@ -103,25 +105,16 @@ export const enum State {
 	Auto = 2
 }
 
-function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
-	return editor.getOption(EditorOption.suggest).preview;
-}
-
 function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
-	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
+	if (!Boolean(contextKeyService.getContextKeyValue(InlineCompletionContextKeys.inlineSuggestionVisible.key))) {
 		// Allow if there is no inline suggestion.
 		return true;
 	}
-
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
-	if (allowQuickSuggestions !== undefined) {
-		// Use setting if available.
-		return Boolean(allowQuickSuggestions);
+	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
+	if (suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
 	}
-
-	// Don't allow if inline suggestions are visible and no suggest preview is configured.
-	// TODO disabled for copilot
-	return false && isSuggestPreviewEnabled(editor);
+	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 }
 
 function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
@@ -129,16 +122,11 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		// Allow if there is no inline suggestion.
 		return true;
 	}
-
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
-	if (allowQuickSuggestions !== undefined) {
-		// Use setting if available.
-		return Boolean(allowQuickSuggestions);
+	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
+	if (suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
 	}
-
-	// Don't allow if inline suggestions are visible and no suggest preview is configured.
-	// TODO disabled for copilot
-	return false && isSuggestPreviewEnabled(editor);
+	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 }
 
 export class SuggestModel implements IDisposable {
@@ -146,8 +134,8 @@ export class SuggestModel implements IDisposable {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
-	private _state: State = State.Idle;
 
+	private _triggerState: SuggestTriggerOptions | undefined = undefined;
 	private _requestToken?: CancellationTokenSource;
 	private _context?: LineContext;
 	private _currentSelection: Selection;
@@ -171,6 +159,7 @@ export class SuggestModel implements IDisposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -209,7 +198,7 @@ export class SuggestModel implements IDisposable {
 			// only filter completions when the editor isn't composing a character
 			// allow-any-unicode-next-line
 			// e.g. ¨ + u makes ü but just ¨ cannot be used for filtering
-			if (!editorIsComposing) {
+			if (!editorIsComposing && this._triggerState !== undefined) {
 				this._refilterCompletionItems();
 			}
 		}));
@@ -292,6 +281,7 @@ export class SuggestModel implements IDisposable {
 
 				this.trigger({
 					auto: true,
+					triggerKind: CompletionTriggerKind.TriggerCharacter,
 					triggerCharacter: lastChar,
 					retrigger: Boolean(this._completionModel),
 					clipboardText: this._completionModel?.clipboardText,
@@ -307,15 +297,21 @@ export class SuggestModel implements IDisposable {
 	// --- trigger/retrigger/cancel suggest
 
 	get state(): State {
-		return this._state;
+		if (!this._triggerState) {
+			return State.Idle;
+		} else if (!this._triggerState.auto) {
+			return State.Manual;
+		} else {
+			return State.Auto;
+		}
 	}
 
 	cancel(retrigger: boolean = false): void {
-		if (this._state !== State.Idle) {
+		if (this._triggerState !== undefined) {
 			this._triggerQuickSuggest.cancel();
 			this._requestToken?.cancel();
 			this._requestToken = undefined;
-			this._state = State.Idle;
+			this._triggerState = undefined;
 			this._completionModel = undefined;
 			this._context = undefined;
 			this._onDidCancel.fire({ retrigger });
@@ -327,11 +323,11 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private _updateActiveSuggestSession(): void {
-		if (this._state !== State.Idle) {
+		if (this._triggerState !== undefined) {
 			if (!this._editor.hasModel() || !this._languageFeaturesService.completionProvider.has(this._editor.getModel())) {
 				this.cancel();
 			} else {
-				this.trigger({ auto: this._state === State.Auto, retrigger: true });
+				this.trigger({ auto: this._triggerState.auto, retrigger: true });
 			}
 		}
 	}
@@ -356,13 +352,13 @@ export class SuggestModel implements IDisposable {
 		}
 
 
-		if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
+		if (this._triggerState === undefined && e.reason === CursorChangeReason.NotSet) {
 			if (prevSelection.containsRange(this._currentSelection) || prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
 				// cursor did move RIGHT due to typing -> trigger quick suggest
 				this._doTriggerQuickSuggest();
 			}
 
-		} else if (this._state !== State.Idle && e.reason === CursorChangeReason.Explicit) {
+		} else if (this._triggerState !== undefined && e.reason === CursorChangeReason.Explicit) {
 			// suggest is active and something like cursor keys are used to move
 			// the cursor. this means we can refilter at the new position
 			this._refilterCompletionItems();
@@ -371,7 +367,7 @@ export class SuggestModel implements IDisposable {
 
 	private _onCompositionEnd(): void {
 		// trigger or refilter when composition ends
-		if (this._state === State.Idle) {
+		if (this._triggerState === undefined) {
 			this._doTriggerQuickSuggest();
 		} else {
 			this._refilterCompletionItems();
@@ -385,10 +381,15 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
+		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
+			// no quick suggestion when in snippet mode
+			return;
+		}
+
 		this.cancel();
 
 		this._triggerQuickSuggest.cancelAndSet(() => {
-			if (this._state !== State.Idle) {
+			if (this._triggerState !== undefined) {
 				return;
 			}
 			if (!LineContext.shouldAutoTrigger(this._editor)) {
@@ -432,10 +433,11 @@ export class SuggestModel implements IDisposable {
 
 	private _refilterCompletionItems(): void {
 		assertType(this._editor.hasModel());
+		assertType(this._triggerState !== undefined);
 
 		const model = this._editor.getModel();
 		const position = this._editor.getPosition();
-		const ctx = new LineContext(model, position, this._state === State.Auto, false);
+		const ctx = new LineContext(model, position, { ...this._triggerState, refilter: true });
 		this._onNewContext(ctx);
 	}
 
@@ -445,13 +447,12 @@ export class SuggestModel implements IDisposable {
 		}
 
 		const model = this._editor.getModel();
-		const auto = options.auto;
-		const ctx = new LineContext(model, this._editor.getPosition(), auto, options.shy);
+		const ctx = new LineContext(model, this._editor.getPosition(), options);
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(options.retrigger);
-		this._state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto, shy: options.shy ?? false, position: this._editor.getPosition() });
+		this._triggerState = options;
+		this._onDidTrigger.fire({ auto: options.auto, shy: options.shy ?? false, position: this._editor.getPosition() });
 
 		// Capture context when request was sent
 		this._context = ctx;
@@ -483,7 +484,7 @@ export class SuggestModel implements IDisposable {
 				break;
 		}
 
-		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel._createSuggestFilter(this._editor);
+		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel.createSuggestFilter(this._editor);
 		const completionOptions = new CompletionOptions(snippetSortOrder, options.completionOptions?.kindFilter ?? itemKindFilter, options.completionOptions?.providerFilter, options.completionOptions?.providerItemsToReuse, showDeprecated);
 		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
@@ -509,7 +510,7 @@ export class SuggestModel implements IDisposable {
 				clipboardText = await this._clipboardService.readText();
 			}
 
-			if (this._state === State.Idle) {
+			if (this._triggerState === undefined) {
 				return;
 			}
 
@@ -521,7 +522,7 @@ export class SuggestModel implements IDisposable {
 			// 	items = items.concat(existing.items).sort(cmpFn);
 			// }
 
-			const ctx = new LineContext(model, this._editor.getPosition(), auto, options.shy);
+			const ctx = new LineContext(model, this._editor.getPosition(), options);
 			const fuzzySearchOptions = {
 				...FuzzyScoreOptions.default,
 				firstMatchCanBeWeak: !this._editor.getOption(EditorOption.suggest).matchOnWordStartOnly
@@ -544,6 +545,15 @@ export class SuggestModel implements IDisposable {
 
 			// finally report telemetry about durations
 			this._reportDurationsTelemetry(completions.durations);
+
+			// report invalid completions by source
+			if (!this._envService.isBuilt || this._envService.isExtensionDevelopment) {
+				for (const item of completions.items) {
+					if (item.isInvalid) {
+						this._logService.warn(`[suggest] did IGNORE invalid completion item from ${item.provider._debugDisplayName}`, item.completion);
+					}
+				}
+			}
 
 		}).catch(onUnexpectedError);
 	}
@@ -568,7 +578,7 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	private static _createSuggestFilter(editor: ICodeEditor): { itemKind: Set<CompletionItemKind>; showDeprecated: boolean } {
+	static createSuggestFilter(editor: ICodeEditor): { itemKind: Set<CompletionItemKind>; showDeprecated: boolean } {
 		// kind filter and snippet sort rules
 		const result = new Set<CompletionItemKind>();
 
@@ -635,7 +645,7 @@ export class SuggestModel implements IDisposable {
 		if (ctx.column < this._context.column) {
 			// typed -> moved cursor LEFT -> retrigger if still on a word
 			if (ctx.leadingWord.word) {
-				this.trigger({ auto: this._context.auto, retrigger: true });
+				this.trigger({ auto: this._context.triggerOptions.auto, retrigger: true });
 			} else {
 				this.cancel();
 			}
@@ -649,10 +659,13 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
 			// started a new word while IntelliSense shows -> retrigger but reuse all items that we currently have
-			if (LineContext.shouldAutoTrigger(this._editor)) {
+			const shouldAutoTrigger = LineContext.shouldAutoTrigger(this._editor);
+			if (shouldAutoTrigger && this._context) {
+				// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
+				// suggestions to be cancelled, which causes `this._context` to be undefined
 				const map = this._completionModel.getItemsByProvider();
 				this.trigger({
-					auto: this._context.auto,
+					auto: this._context.triggerOptions.auto,
 					retrigger: true,
 					clipboardText: this._completionModel.clipboardText,
 					completionOptions: { providerItemsToReuse: map }
@@ -675,7 +688,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			this.trigger({
-				auto: this._state === State.Auto,
+				auto: this._context.triggerOptions.auto,
 				triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions,
 				retrigger: true,
 				clipboardText: this._completionModel.clipboardText,
@@ -704,11 +717,11 @@ export class SuggestModel implements IDisposable {
 
 				if (shouldAutoTrigger && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
 					// retrigger when heading into a new word
-					this.trigger({ auto: this._context.auto, retrigger: true });
+					this.trigger({ auto: this._context.triggerOptions.auto, retrigger: true });
 					return;
 				}
 
-				if (!this._context.auto) {
+				if (!this._context.triggerOptions.auto) {
 					// freeze when IntelliSense was manually requested
 					this._completionModel.lineContext = oldLineContext;
 					isFrozen = this._completionModel.items.length > 0;
@@ -729,8 +742,7 @@ export class SuggestModel implements IDisposable {
 
 			this._onDidSuggest.fire({
 				completionModel: this._completionModel,
-				auto: this._context.auto,
-				shy: this._context.shy,
+				triggerOptions: ctx.triggerOptions,
 				isFrozen,
 			});
 		}

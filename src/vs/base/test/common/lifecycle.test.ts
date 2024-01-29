@@ -13,8 +13,9 @@ class Disposable implements IDisposable {
 	dispose() { this.isDisposed = true; }
 }
 
+// Leaks are allowed here since we test lifecycle stuff:
+// eslint-disable-next-line local/code-ensure-no-disposables-leak-in-test
 suite('Lifecycle', () => {
-
 	test('dispose single disposable', () => {
 		const disposable = new Disposable();
 
@@ -129,6 +130,8 @@ suite('Lifecycle', () => {
 });
 
 suite('DisposableStore', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('dispose should call all child disposes even if a child throws on dispose', () => {
 		const disposedValues = new Set<number>();
 
@@ -172,9 +175,57 @@ suite('DisposableStore', () => {
 		assert.strictEqual((thrownError as AggregateError).errors[0].message, 'I am error 1');
 		assert.strictEqual((thrownError as AggregateError).errors[1].message, 'I am error 2');
 	});
+
+	test('delete should evict and dispose of the disposables', () => {
+		const disposedValues = new Set<number>();
+		const disposables: IDisposable[] = [
+			toDisposable(() => { disposedValues.add(1); }),
+			toDisposable(() => { disposedValues.add(2); })
+		];
+
+		const store = new DisposableStore();
+		store.add(disposables[0]);
+		store.add(disposables[1]);
+
+		store.delete(disposables[0]);
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(!disposedValues.has(2));
+
+		store.dispose();
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(2));
+	});
+
+	test('deleteAndLeak should evict and not dispose of the disposables', () => {
+		const disposedValues = new Set<number>();
+		const disposables: IDisposable[] = [
+			toDisposable(() => { disposedValues.add(1); }),
+			toDisposable(() => { disposedValues.add(2); })
+		];
+
+		const store = new DisposableStore();
+		store.add(disposables[0]);
+		store.add(disposables[1]);
+
+		store.deleteAndLeak(disposables[0]);
+
+		assert.ok(!disposedValues.has(1));
+		assert.ok(!disposedValues.has(2));
+
+		store.dispose();
+
+		assert.ok(!disposedValues.has(1));
+		assert.ok(disposedValues.has(2));
+
+		disposables[0].dispose();
+	});
 });
 
 suite('Reference Collection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	class Collection extends ReferenceCollection<number> {
 		private _count = 0;
 		get count() { return this._count; }
@@ -231,16 +282,16 @@ suite('No Leakage Utilities', () => {
 					eventEmitter.event(() => {
 						// noop
 					});
-				});
-			}, e => e.message.indexOf('These disposables were not disposed') !== -1);
+				}, false);
+			}, e => e.message.indexOf('undisposed disposables') !== -1);
 		});
 
 		test('throws if a disposable is not disposed', () => {
 			assertThrows(() => {
 				throwIfDisposablesAreLeaked(() => {
 					new DisposableStore();
-				});
-			}, e => e.message.indexOf('These disposables were not disposed') !== -1);
+				}, false);
+			}, e => e.message.indexOf('undisposed disposables') !== -1);
 		});
 
 		test('does not throw if all event subscriptions are cleaned up', () => {

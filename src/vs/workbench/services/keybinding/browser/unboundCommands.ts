@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
@@ -24,8 +24,8 @@ export function getAllUnboundCommands(boundCommands: Map<string, boolean>): stri
 		}
 		if (!includeCommandWithArgs) {
 			const command = CommandsRegistry.getCommand(id);
-			if (command && typeof command.description === 'object'
-				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
+			if (command && typeof command.metadata === 'object'
+				&& isNonEmptyArray((<ICommandMetadata>command.metadata).args)) { // command with args
 				return;
 			}
 		}

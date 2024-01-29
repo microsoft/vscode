@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationError } from 'vs/base/common/errors';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { Mimes } from 'vs/base/common/mime';
-import { isWindows } from 'vs/base/common/platform';
-import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { isWindows } from 'vs/base/common/platform';
+import { assertType } from 'vs/base/common/types';
+import { Mimes } from 'vs/base/common/mime';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { CancellationError } from 'vs/base/common/errors';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -20,6 +20,8 @@ function assertToJSON(a: any, expected: any) {
 }
 
 suite('ExtHostTypes', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('URI, toJSON', function () {
 
@@ -433,21 +435,20 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(second.edit.newText, 'Foo');
 	});
 
-	test('WorkspaceEdit - NotebookEdits', () => {
+	test('WorkspaceEdit - set with metadata accepts undefined', function () {
 		const edit = new types.WorkspaceEdit();
-		const notebookEdit = types.NotebookEdit.insertCells(0, [new types.NotebookCellData(types.NotebookCellKind.Code, '// hello', 'javascript')]) as types.NotebookEdit;
-		const notebookUri = URI.parse('/foo/notebook.ipynb');
-		edit.set(notebookUri, [notebookEdit]);
+		const uri = URI.parse('foo:bar');
 
-		const cellUri = CellUri.generate(notebookUri, 123);
-		try {
-			edit.set(cellUri, [notebookEdit]);
-		} catch (err) {
-			assert.ok(err.message.includes('set must be called with a notebook document URI'), err.toString());
-			return;
-		}
+		edit.set(uri, [
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), { needsConfirmation: true, label: 'foo' }],
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), undefined],
+		]);
 
-		throw new Error('Expected set to throw with cell URI');
+		const all = edit._allEntries();
+		assert.strictEqual(all.length, 2);
+		const [first, second] = all;
+		assert.ok(first.metadata);
+		assert.ok(!second.metadata);
 	});
 
 	test('DocumentLink', () => {
@@ -571,11 +572,38 @@ suite('ExtHostTypes', function () {
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1|far,\\$boo|}bar');
+		assert.strictEqual(string.value, 'foo${1|far,$boo|}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
 		assert.strictEqual(string.value, 'foo${1:farboo}${2|far,boo|}bar');
+	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa$aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa,aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa|aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa\\aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
+		}
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {

@@ -6,6 +6,9 @@
 import * as vscode from 'vscode';
 
 export function isWeb(): boolean {
-	// @ts-expect-error
-	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
+	return 'navigator' in globalThis && vscode.env.uiKind === vscode.UIKind.Web;
+}
+
+export function isWebAndHasSharedArrayBuffers(): boolean {
+	return isWeb() && (globalThis as any)['crossOriginIsolated'];
 }

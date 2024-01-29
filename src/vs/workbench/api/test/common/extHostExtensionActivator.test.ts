@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtensionsActivator', () => {
@@ -248,9 +248,15 @@ suite('ExtensionsActivator', () => {
 		}
 	}
 
+	const basicActivationEventsReader: IActivationEventsReader = {
+		readActivationEvents: (extensionDescription: IExtensionDescription): string[] => {
+			return extensionDescription.activationEvents ?? [];
+		}
+	};
+
 	function createActivator(host: IExtensionsActivatorHost, extensionDescriptions: IExtensionDescription[], otherHostExtensionDescriptions: IExtensionDescription[] = []): ExtensionsActivator {
-		const registry = new ExtensionDescriptionRegistry(extensionDescriptions);
-		const globalRegistry = new ExtensionDescriptionRegistry(extensionDescriptions.concat(otherHostExtensionDescriptions));
+		const registry = new ExtensionDescriptionRegistry(basicActivationEventsReader, extensionDescriptions);
+		const globalRegistry = new ExtensionDescriptionRegistry(basicActivationEventsReader, extensionDescriptions.concat(otherHostExtensionDescriptions));
 		return new ExtensionsActivator(registry, globalRegistry, host, new NullLogService());
 	}
 

@@ -5,18 +5,21 @@
 
 import * as assert from 'assert';
 import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
+import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
+import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createTextModelWithColorizedBracketPairs(store: DisposableStore, text: string): TextModel {
 		const languageId = 'testLanguage';
@@ -34,6 +37,9 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		store.add(TokenizationRegistry.register(languageId, document.getTokenizationSupport()));
 
 		store.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['<', '>']
+			],
 			colorizedBracketPairs: [
 				['{', '}'],
 				['[', ']'],
@@ -291,6 +297,131 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 						isInvalid: true,
 						range: "[1,7 -> 1,8]"
 					}
+				]
+			);
+		});
+	});
+
+
+	test('colorizedBracketsVSBrackets', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹ {} [<()>] <{>} ²`);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketsInRange(doc.range(1, 2), true)
+					.map(b => ({ level: b.nestingLevel, levelEqualBracketType: b.nestingLevelOfEqualBracketType, range: b.range.toString() }))
+					.toArray(),
+				[
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,2 -> 1,3]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,3 -> 1,4]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,5 -> 1,6]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,7 -> 1,8]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,8 -> 1,9]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,10 -> 1,11]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,13 -> 1,14]",
+					},
+					{
+						level: -1,
+						levelEqualBracketType: 0,
+						range: "[1,15 -> 1,16]",
+					},
+				]
+			);
+
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketsInRange(doc.range(1, 2), false)
+					.map(b => ({ level: b.nestingLevel, levelEqualBracketType: b.nestingLevelOfEqualBracketType, range: b.range.toString() }))
+					.toArray(),
+				[
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,2 -> 1,3]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,3 -> 1,4]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,5 -> 1,6]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,6 -> 1,7]",
+					},
+					{
+						level: 2,
+						levelEqualBracketType: 0,
+						range: "[1,7 -> 1,8]",
+					},
+					{
+						level: 2,
+						levelEqualBracketType: 0,
+						range: "[1,8 -> 1,9]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,9 -> 1,10]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,10 -> 1,11]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,12 -> 1,13]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,13 -> 1,14]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,14 -> 1,15]",
+					},
+					{
+						level: -1,
+						levelEqualBracketType: 0,
+						range: "[1,15 -> 1,16]",
+					},
 				]
 			);
 		});

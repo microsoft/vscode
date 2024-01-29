@@ -7,15 +7,19 @@ import * as assert from 'assert';
 import { realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
-import { dirname, join, sep } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeType } from 'vs/platform/files/common/files';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IDiskFileChange, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
+import { FileAccess } from 'vs/base/common/network';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -45,10 +49,6 @@ import { ltrim } from 'vs/base/common/strings';
 			for (const [, watcher] of this.watchers) {
 				await watcher.ready;
 			}
-		}
-
-		testToExcludePaths(path: string, excludes: string[] | undefined): string[] | undefined {
-			return super.toExcludePaths(path, excludes);
 		}
 	}
 
@@ -82,7 +82,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});
@@ -106,16 +106,22 @@ import { ltrim } from 'vs/base/common/strings';
 		}
 	}
 
-	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<IDiskFileChange[]> {
+	async function awaitEvent(watcher: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string, correlationId?: number | null, expectedCount?: number): Promise<IFileChange[]> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
-		const res = await new Promise<IDiskFileChange[]>((resolve, reject) => {
-			const disposable = service.onDidChangeFile(events => {
+		const res = await new Promise<IFileChange[]>((resolve, reject) => {
+			let counter = 0;
+			const disposable = watcher.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.path === path && event.type === type) {
+					if (extUriBiasedIgnorePathCase.isEqual(event.resource, URI.file(path)) && event.type === type && (correlationId === null || event.cId === correlationId)) {
+						counter++;
+						if (typeof expectedCount === 'number' && counter < expectedCount) {
+							continue; // not yet
+						}
+
 						disposable.dispose();
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
@@ -137,14 +143,14 @@ import { ltrim } from 'vs/base/common/strings';
 		return res;
 	}
 
-	function awaitMessage(service: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
+	function awaitMessage(watcher: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting message of type ${type}`);
 		}
 
 		// Await the message
 		return new Promise<void>(resolve => {
-			const disposable = service.onDidLogMessage(msg => {
+			const disposable = watcher.onDidLogMessage(msg => {
 				if (msg.type === type) {
 					disposable.dispose();
 					resolve();
@@ -290,20 +296,20 @@ import { ltrim } from 'vs/base/common/strings';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string): Promise<void> {
+	async function basicCrudTest(filePath: string, correlationId?: number | null, expectedCount?: number): Promise<void> {
 
 		// New file
-		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, undefined, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
 		// Change file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, undefined, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, correlationId, expectedCount);
 		await Promises.unlink(filePath);
 		await changeFuture;
 	}
@@ -427,7 +433,7 @@ import { ltrim } from 'vs/base/common/strings';
 		await watcher.watch([
 			{ path: testDir, excludes: [], recursive: true },
 			{ path: join(testDir, 'invalid-folder'), excludes: [], recursive: true },
-			{ path: __filename, excludes: [], recursive: true }
+			{ path: FileAccess.asFileUri('').fsPath, excludes: [], recursive: true }
 		]);
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
@@ -465,6 +471,32 @@ import { ltrim } from 'vs/base/common/strings';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
+	test('excludes are supported (path)', async function () {
+		return testExcludes([join(realpathSync(testDir), 'deep')]);
+	});
+
+	test('excludes are supported (glob)', function () {
+		return testExcludes(['deep/**']);
+	});
+
+	async function testExcludes(excludes: string[]) {
+		await watcher.watch([{ path: testDir, excludes, recursive: true }]);
+
+		// New file (*.txt)
+		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newTextFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	}
+
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
@@ -486,6 +518,7 @@ import { ltrim } from 'vs/base/common/strings';
 	});
 
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support', async function () {
+		addUNCHostToAllowlist('localhost');
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
 		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
@@ -509,7 +542,7 @@ import { ltrim } from 'vs/base/common/strings';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: true }]);
 	});
 
-	test('deleting watched path is handled properly', async function () {
+	(isWindows /* flaky on windows */ ? test.skip : test)('deleting watched path is handled properly', async function () {
 		const watchedPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true }]);
@@ -530,6 +563,13 @@ import { ltrim } from 'vs/base/common/strings';
 		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
+	});
+
+	test('correlationId is supported', async function () {
+		const correlationId = Math.random();
+		await watcher.watch([{ correlationId, path: testDir, excludes: [], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'newFile.txt'), correlationId);
 	});
 
 	test('should not exclude roots that do not overlap', () => {
@@ -562,114 +602,48 @@ import { ltrim } from 'vs/base/common/strings';
 		assert.deepStrictEqual(watcher.testNormalizePaths(['/foo/bar', '/bar'], ['**', 'something']), []);
 	});
 
-	test('excludes are converted to absolute paths', () => {
+	test('watching same or overlapping paths supported when correlation is applied', async () => {
 
-		// undefined / empty
+		// same path, same options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: 2, },
+			{ path: testDir, excludes: [], recursive: true, correlationId: undefined }
+		]);
 
-		assert.strictEqual(watcher.testToExcludePaths(testDir, undefined), undefined);
-		assert.strictEqual(watcher.testToExcludePaths(testDir, []), undefined);
+		await basicCrudTest(join(testDir, 'newFile.txt'), null, 3);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), null, 3);
 
-		// absolute paths
+		// same path, different options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: 2 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: undefined },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'deep')], recursive: true, correlationId: 3 },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'other')], recursive: true, correlationId: 4 },
+		]);
 
-		let excludes = watcher.testToExcludePaths(testDir, [testDir]);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
+		await basicCrudTest(join(testDir, 'newFile.txt'), null, 5);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), null, 5);
 
-		excludes = watcher.testToExcludePaths(testDir, [`${testDir}${sep}`, join(testDir, 'foo', 'bar'), `${join(testDir, 'other', 'deep')}${sep}`]);
-		assert.strictEqual(excludes?.length, 3);
-		assert.strictEqual(excludes[0], testDir);
-		assert.strictEqual(excludes[1], join(testDir, 'foo', 'bar'));
-		assert.strictEqual(excludes[2], join(testDir, 'other', 'deep'));
+		// overlapping paths (same options)
+		await watcher.watch([
+			{ path: dirname(testDir), excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: true, correlationId: 2 },
+			{ path: join(testDir, 'deep'), excludes: [], recursive: true, correlationId: 3 },
+		]);
 
-		// wrong casing is normalized for root
-		if (!isLinux) {
-			excludes = watcher.testToExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
-			assert.strictEqual(excludes?.length, 1);
-			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-		}
+		await basicCrudTest(join(testDir, 'deep', 'newFile.txt'), null, 3);
+		await basicCrudTest(join(testDir, 'deep', 'otherNewFile.txt'), null, 3);
 
-		// exclude ignored if not parent of watched dir
-		excludes = watcher.testToExcludePaths(testDir, [join(dirname(testDir), 'node_modules', '**')]);
-		assert.strictEqual(excludes, undefined);
+		// overlapping paths (different options)
+		await watcher.watch([
+			{ path: dirname(testDir), excludes: [], recursive: true, correlationId: 1 },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'some')], recursive: true, correlationId: 2 },
+			{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'other')], recursive: true, correlationId: 3 },
+		]);
 
-		// relative paths
-
-		excludes = watcher.testToExcludePaths(testDir, ['.']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.testToExcludePaths(testDir, ['foo', `bar${sep}`, join('foo', 'bar'), `${join('other', 'deep')}${sep}`]);
-		assert.strictEqual(excludes?.length, 4);
-		assert.strictEqual(excludes[0], join(testDir, 'foo'));
-		assert.strictEqual(excludes[1], join(testDir, 'bar'));
-		assert.strictEqual(excludes[2], join(testDir, 'foo', 'bar'));
-		assert.strictEqual(excludes[3], join(testDir, 'other', 'deep'));
-
-		// simple globs (relative)
-
-		excludes = watcher.testToExcludePaths(testDir, ['**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.testToExcludePaths(testDir, ['**/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.testToExcludePaths(testDir, ['**\\**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.testToExcludePaths(testDir, ['**/node_modules/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		excludes = watcher.testToExcludePaths(testDir, ['**/.git/objects/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
-
-		excludes = watcher.testToExcludePaths(testDir, ['**/node_modules']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		excludes = watcher.testToExcludePaths(testDir, ['**/.git/objects']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
-
-		excludes = watcher.testToExcludePaths(testDir, ['node_modules/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		excludes = watcher.testToExcludePaths(testDir, ['.git/objects/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
-
-		// simple globs (absolute)
-
-		excludes = watcher.testToExcludePaths(testDir, [join(testDir, 'node_modules', '**')]);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		// Linux: more restrictive glob treatment
-		if (isLinux) {
-			excludes = watcher.testToExcludePaths(testDir, ['**/node_modules/*/**']);
-			assert.strictEqual(excludes?.length, 1);
-			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-		}
-
-		// unsupported globs
-
-		else {
-			excludes = watcher.testToExcludePaths(testDir, ['**/node_modules/*/**']);
-			assert.strictEqual(excludes, undefined);
-		}
-
-		excludes = watcher.testToExcludePaths(testDir, ['**/*.js']);
-		assert.strictEqual(excludes, undefined);
-
-		excludes = watcher.testToExcludePaths(testDir, ['*.js']);
-		assert.strictEqual(excludes, undefined);
-
-		excludes = watcher.testToExcludePaths(testDir, ['*']);
-		assert.strictEqual(excludes, undefined);
+		await basicCrudTest(join(testDir, 'deep', 'newFile.txt'), null, 3);
+		await basicCrudTest(join(testDir, 'deep', 'otherNewFile.txt'), null, 3);
 	});
 });

@@ -191,13 +191,13 @@ export class ExtHostConfigProvider {
 				} else {
 					let clonedConfig: any | undefined = undefined;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
-						let clonedTarget: any | undefined = undefined;
-						const cloneTarget = () => {
-							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
-							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
-						};
-						return isObject(target) ?
-							new Proxy(target, {
+						if (isObject(target)) {
+							let clonedTarget: any | undefined = undefined;
+							const cloneTarget = () => {
+								clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
+								clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+							};
+							return new Proxy(target, {
 								get: (target: any, property: PropertyKey) => {
 									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
 										cloneTarget();
@@ -234,7 +234,12 @@ export class ExtHostConfigProvider {
 									}
 									return true;
 								}
-							}) : target;
+							});
+						}
+						if (Array.isArray(target)) {
+							return deepClone(target);
+						}
+						return target;
 					};
 					result = cloneOnWriteProxy(result, key);
 				}

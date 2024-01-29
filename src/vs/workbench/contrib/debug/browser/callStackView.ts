@@ -35,9 +35,9 @@ import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/lis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -45,7 +45,7 @@ import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createDisconnectMenuItemAction } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
 import { StackFrame, Thread, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 
@@ -230,8 +230,8 @@ export class CallStackView extends ViewPane {
 			this.instantiationService.createInstance(ThreadsRenderer),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
-			new LoadMoreRenderer(this.themeService),
-			new ShowMoreRenderer(this.themeService)
+			new LoadMoreRenderer(),
+			new ShowMoreRenderer()
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
 			compressionEnabled: true,
@@ -280,7 +280,7 @@ export class CallStackView extends ViewPane {
 		});
 
 		this.tree.setInput(this.debugService.getModel());
-
+		this._register(this.tree);
 		this._register(this.tree.onDidOpen(async e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
@@ -389,6 +389,7 @@ export class CallStackView extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 	}
 
@@ -461,7 +462,7 @@ export class CallStackView extends ViewPane {
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 		const menu = this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
 		createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
-
+		menu.dispose();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,
@@ -496,7 +497,6 @@ interface IErrorTemplateData {
 
 interface ILabelTemplateData {
 	label: HTMLElement;
-	toDispose: IDisposable;
 }
 
 interface IStackFrameTemplateData {
@@ -813,7 +813,7 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 	static readonly ID = 'loadMore';
 	static readonly LABEL = localize('loadAllStackFrames', "Load More Stack Frames");
 
-	constructor(private readonly themeService: IThemeService) { }
+	constructor() { }
 
 	get templateId(): string {
 		return LoadMoreRenderer.ID;
@@ -821,13 +821,8 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.load-all'));
-		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
-			if (colors.textLinkForeground) {
-				label.style.color = colors.textLinkForeground.toString();
-			}
-		});
-
-		return { label, toDispose };
+		label.style.color = asCssVariable(textLinkForeground);
+		return { label };
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -839,14 +834,14 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		templateData.toDispose.dispose();
+		// noop
 	}
 }
 
 class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], FuzzyScore, ILabelTemplateData> {
 	static readonly ID = 'showMore';
 
-	constructor(private readonly themeService: IThemeService) { }
+	constructor() { }
 
 
 	get templateId(): string {
@@ -855,13 +850,8 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.show-more'));
-		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
-			if (colors.textLinkForeground) {
-				label.style.color = colors.textLinkForeground.toString();
-			}
-		});
-
-		return { label, toDispose };
+		label.style.color = asCssVariable(textLinkForeground);
+		return { label };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame[], FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -878,7 +868,7 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		templateData.toDispose.dispose();
+		// noop
 	}
 }
 
@@ -1130,7 +1120,7 @@ function registerCallStackInlineMenuItem(id: string, title: string | ICommandAct
 }
 
 const threadOrSessionWithOneThread = ContextKeyExpr.or(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'), CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD))!;
-registerCallStackInlineMenuItem(PAUSE_ID, PAUSE_LABEL, icons.debugPause, ContextKeyExpr.and(threadOrSessionWithOneThread, CONTEXT_CALLSTACK_ITEM_STOPPED.toNegated())!, 10);
+registerCallStackInlineMenuItem(PAUSE_ID, PAUSE_LABEL, icons.debugPause, ContextKeyExpr.and(threadOrSessionWithOneThread, CONTEXT_CALLSTACK_ITEM_STOPPED.toNegated())!, 10, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG.toNegated());
 registerCallStackInlineMenuItem(CONTINUE_ID, CONTINUE_LABEL, icons.debugContinue, ContextKeyExpr.and(threadOrSessionWithOneThread, CONTEXT_CALLSTACK_ITEM_STOPPED)!, 10);
 registerCallStackInlineMenuItem(STEP_OVER_ID, STEP_OVER_LABEL, icons.debugStepOver, threadOrSessionWithOneThread, 20, CONTEXT_CALLSTACK_ITEM_STOPPED);
 registerCallStackInlineMenuItem(STEP_INTO_ID, STEP_INTO_LABEL, icons.debugStepInto, threadOrSessionWithOneThread, 30, CONTEXT_CALLSTACK_ITEM_STOPPED);

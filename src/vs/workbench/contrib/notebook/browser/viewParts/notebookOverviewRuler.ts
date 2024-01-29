@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
+import { getWindow } from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorDelegate, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebookOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
@@ -25,7 +26,7 @@ export class NotebookOverviewRuler extends Themable {
 			this.layout();
 		}));
 
-		this._register(browser.PixelRatio.onDidChange(() => {
+		this._register(PixelRatio.getInstance(getWindow(this._domNode.domNode)).onDidChange(() => {
 			this.layout();
 		}));
 	}
@@ -35,7 +36,7 @@ export class NotebookOverviewRuler extends Themable {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 		const scrollHeight = layoutInfo.scrollHeight;
 		const height = layoutInfo.height;
-		const ratio = browser.PixelRatio.value;
+		const ratio = PixelRatio.getInstance(getWindow(this._domNode.domNode)).value;
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 		this._domNode.domNode.width = width * ratio;
@@ -46,7 +47,7 @@ export class NotebookOverviewRuler extends Themable {
 	}
 
 	private _render(ctx: CanvasRenderingContext2D, width: number, height: number, scrollHeight: number, ratio: number) {
-		const viewModel = this.notebookEditor._getViewModel();
+		const viewModel = this.notebookEditor.getViewModel();
 		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
 		const laneWidth = width / this._lanes;
 
@@ -61,7 +62,7 @@ export class NotebookOverviewRuler extends Themable {
 
 				decorations.filter(decoration => decoration.overviewRuler).forEach(decoration => {
 					const overviewRuler = decoration.overviewRuler!;
-					const fillStyle = this.getColor(overviewRuler.color)?.toString() || '#000000';
+					const fillStyle = this.getColor(overviewRuler.color) ?? '#000000';
 					const lineHeight = Math.min(fontInfo.lineHeight, (viewCell.layoutInfo.editorHeight / scrollHeight / textBuffer.getLineCount()) * ratio * height);
 					const lineNumbers = overviewRuler.modelRanges.map(range => range.startLineNumber).reduce((previous: number[], current: number) => {
 						if (previous.length === 0) {
@@ -76,11 +77,28 @@ export class NotebookOverviewRuler extends Themable {
 						return previous;
 					}, [] as number[]);
 
+					let x = 0;
+					switch (overviewRuler.position) {
+						case NotebookOverviewRulerLane.Left:
+							x = 0;
+							break;
+						case NotebookOverviewRulerLane.Center:
+							x = laneWidth;
+							break;
+						case NotebookOverviewRulerLane.Right:
+							x = laneWidth * 2;
+							break;
+						default:
+							break;
+					}
+
+					const width = overviewRuler.position === NotebookOverviewRulerLane.Full ? laneWidth * 3 : laneWidth;
+
 					for (let i = 0; i < lineNumbers.length; i++) {
 						ctx.fillStyle = fillStyle;
 						const lineNumber = lineNumbers[i];
 						const offset = (lineNumber - 1) * lineHeight;
-						ctx.fillRect(laneWidth, currentFrom + offset, laneWidth, lineHeight);
+						ctx.fillRect(x, currentFrom + offset, width, lineHeight);
 					}
 
 					if (overviewRuler.includeOutput) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -27,9 +27,10 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
+import { getActiveElement, getWindow, isAncestor } from 'vs/base/browser/dom';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -160,7 +161,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 	}
 
 	if (editor.hasOutputTextSelection()) {
-		document.execCommand('copy');
+		getWindow(editor.getDomNode()).document.execCommand('copy');
 		return true;
 	}
 
@@ -308,7 +309,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	private _focusInsideEmebedMonaco(editor: INotebookEditor) {
-		const windowSelection = window.getSelection();
+		const windowSelection = getWindow(editor.getDomNode()).getSelection();
 
 		if (windowSelection?.rangeCount !== 1) {
 			return false;
@@ -342,8 +343,8 @@ export class NotebookClipboardContribution extends Disposable {
 	runCopyAction(accessor: ServicesAccessor) {
 		const loggerService = accessor.get(ILogService);
 
-		const activeElement = <HTMLElement>document.activeElement;
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+		const activeElement = getActiveElement();
+		if (activeElement instanceof HTMLElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			_log(loggerService, '[NotebookEditor] focus is on input or textarea element, bypass');
 			return false;
 		}
@@ -351,6 +352,11 @@ export class NotebookClipboardContribution extends Disposable {
 		const { editor } = this._getContext();
 		if (!editor) {
 			_log(loggerService, '[NotebookEditor] no active notebook editor, bypass');
+			return false;
+		}
+
+		if (!isAncestor(activeElement, editor.getDomNode())) {
+			_log(loggerService, '[NotebookEditor] focus is outside of the notebook editor, bypass');
 			return false;
 		}
 
@@ -364,7 +370,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	runPasteAction(accessor: ServicesAccessor) {
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			return false;
 		}
@@ -385,7 +391,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	runCutAction(accessor: ServicesAccessor) {
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			return false;
 		}
@@ -549,7 +555,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleNotebookClipboardLog',
-			title: { value: localize('toggleNotebookClipboardLog', "Toggle Notebook Clipboard Troubleshooting"), original: 'Toggle Notebook Clipboard Troubleshooting' },
+			title: localize2('toggleNotebookClipboardLog', 'Toggle Notebook Clipboard Troubleshooting'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -558,8 +564,8 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		toggleLogging();
 		if (_logging) {
-			const outputService = accessor.get(IOutputService);
-			outputService.showChannel(rendererLogChannelId);
+			const commandService = accessor.get(ICommandService);
+			commandService.executeCommand(showWindowLogActionId);
 		}
 	}
 });

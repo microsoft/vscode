@@ -7,7 +7,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { URI } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 export class NativeClipboardService implements IClipboardService {

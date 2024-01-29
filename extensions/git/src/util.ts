@@ -311,18 +311,19 @@ export function pathEquals(a: string, b: string): boolean {
  * Given the `repository.root` compute the relative path while trying to preserve
  * the casing of the resource URI. The `repository.root` segment of the path can
  * have a casing mismatch if the folder/workspace is being opened with incorrect
- * casing.
+ * casing which is why we attempt to use substring() before relative().
  */
 export function relativePath(from: string, to: string): string {
-	// On Windows, there are cases in which `from` is a path that contains a trailing `\` character
-	// (ex: C:\, \\server\folder\) due to the implementation of `path.normalize()`. This behavior is
-	// by design as documented in https://github.com/nodejs/node/issues/1765.
-	if (isWindows) {
-		from = from.replace(/\\$/, '');
+	// There are cases in which the `from` path may contain a trailing separator at
+	// the end (ex: "C:\", "\\server\folder\" (Windows) or "/" (Linux/macOS)) which
+	// is by design as documented in https://github.com/nodejs/node/issues/1765. If
+	// the trailing separator is missing, we add it.
+	if (from.charAt(from.length - 1) !== sep) {
+		from += sep;
 	}
 
 	if (isDescendant(from, to) && from.length < to.length) {
-		return to.substring(from.length + 1);
+		return to.substring(from.length);
 	}
 
 	// Fallback to `path.relative`
@@ -349,6 +350,27 @@ export function* splitInChunks(array: string[], maxChunkLength: number): Iterabl
 	if (current.length > 0) {
 		yield current;
 	}
+}
+
+/**
+ * @returns whether the provided parameter is defined.
+ */
+export function isDefined<T>(arg: T | null | undefined): arg is T {
+	return !isUndefinedOrNull(arg);
+}
+
+/**
+ * @returns whether the provided parameter is undefined or null.
+ */
+export function isUndefinedOrNull(obj: unknown): obj is undefined | null {
+	return (isUndefined(obj) || obj === null);
+}
+
+/**
+ * @returns whether the provided parameter is undefined.
+ */
+export function isUndefined(obj: unknown): obj is undefined {
+	return (typeof obj === 'undefined');
 }
 
 interface ILimitedTaskFactory<T> {

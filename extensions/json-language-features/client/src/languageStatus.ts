@@ -272,19 +272,10 @@ export function createDocumentSymbolsLimitItem(documentSelector: string[], setti
 	const statusItem = languages.createLanguageStatusItem('json.documentSymbolsStatus', documentSelector);
 	statusItem.name = l10n.t('JSON Outline Status');
 	statusItem.severity = LanguageStatusSeverity.Warning;
-	statusItem.text = l10n.t('Outline Limited');
-	statusItem.detail = l10n.t('only {0} document symbols shown', limit);
+	statusItem.text = l10n.t('Outline');
+	statusItem.detail = l10n.t('only {0} document symbols shown for performance reasons', limit);
 	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
 	return Disposable.from(statusItem);
 }
 
-export function createDocumentColorsLimitItem(documentSelector: string[], settingId: string, limit: number): Disposable {
-	const statusItem = languages.createLanguageStatusItem('json.documentColorsStatus', documentSelector);
-	statusItem.name = l10n.t('JSON Color Symbol Status');
-	statusItem.severity = LanguageStatusSeverity.Warning;
-	statusItem.text = l10n.t('Color Symbols Limited');
-	statusItem.detail = l10n.t('only {0} color decorators shown', limit);
-	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
-	return Disposable.from(statusItem);
-}
 

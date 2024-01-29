@@ -144,8 +144,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 				// Entire file
 				else {
-					// TODO@electron: duplicate type definitions originate from `@types/node/stream/consumers.d.ts`
-					const reader: ReadableStreamDefaultReader<Uint8Array> = (file.stream() as unknown as ReadableStream<Uint8Array>).getReader();
+					const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
 
 					let res = await reader.read();
 					while (!res.done) {
@@ -270,8 +269,8 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				const file = await fileHandle.getFile();
 				const contents = new Uint8Array(await file.arrayBuffer());
 
-				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
-				await this.delete(from, { recursive: false, useTrash: false });
+				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false, atomic: false });
+				await this.delete(from, { recursive: false, useTrash: false, atomic: false });
 			}
 
 			// File API does not support any real rename otherwise

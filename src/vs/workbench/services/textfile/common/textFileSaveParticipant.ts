@@ -8,8 +8,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { ITextFileSaveParticipant, ITextFileEditorModel, ITextFileSaveParticipantContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { insert } from 'vs/base/common/arrays';
 
@@ -30,7 +29,7 @@ export class TextFileSaveParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	participate(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
+	participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, token: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource(token);
 
 		return this.progressService.withProgress({
@@ -52,7 +51,7 @@ export class TextFileSaveParticipant extends Disposable {
 					const promise = saveParticipant.participate(model, context, progress, cts.token);
 					await raceCancellation(promise, cts.token);
 				} catch (err) {
-					this.logService.warn(err);
+					this.logService.error(err);
 				}
 			}
 
@@ -60,11 +59,15 @@ export class TextFileSaveParticipant extends Disposable {
 			model.textEditorModel?.pushStackElement();
 		}, () => {
 			// user cancel
-			cts.dispose(true);
+			cts.cancel();
+		}).finally(() => {
+			cts.dispose();
 		});
 	}
 
 	override dispose(): void {
 		this.saveParticipants.splice(0, this.saveParticipants.length);
+
+		super.dispose();
 	}
 }

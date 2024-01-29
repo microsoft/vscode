@@ -5,26 +5,33 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface AuthenticationSessionAccount {
+	label: string;
+	id: string;
+}
+
 export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	};
+	account: AuthenticationSessionAccount;
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 }
 
 export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<AuthenticationSession>;
-	removed: ReadonlyArray<AuthenticationSession>;
-	changed: ReadonlyArray<AuthenticationSession>;
+	added: ReadonlyArray<AuthenticationSession> | undefined;
+	removed: ReadonlyArray<AuthenticationSession> | undefined;
+	changed: ReadonlyArray<AuthenticationSession> | undefined;
 }
 
 export interface AuthenticationProviderInformation {
 	id: string;
 	label: string;
+}
+
+export interface IAuthenticationCreateSessionOptions {
+	sessionToRecreate?: AuthenticationSession;
+	activateImmediate?: boolean;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -46,7 +53,6 @@ export interface IAuthenticationService {
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
 	completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string, scopes: string[]): Promise<void>;
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
-	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
 
 	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
 	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
@@ -60,21 +66,65 @@ export interface IAuthenticationService {
 	getSessions(id: string, scopes?: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
-	createSession(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
+	createSession(providerId: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
 	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
 }
 
+export interface IAuthenticationProviderCreateSessionOptions {
+	sessionToRecreate?: AuthenticationSession;
+}
+
+/**
+ * Represents an authentication provider.
+ */
 export interface IAuthenticationProvider {
+	/**
+	 * The unique identifier of the authentication provider.
+	 */
 	readonly id: string;
+
+	/**
+	 * The display label of the authentication provider.
+	 */
 	readonly label: string;
+
+	/**
+	 * Indicates whether the authentication provider supports multiple accounts.
+	 */
 	readonly supportsMultipleAccounts: boolean;
-	dispose(): void;
-	manageTrustedExtensions(accountName: string): void;
-	removeAccountSessions(accountName: string, sessions: AuthenticationSession[]): Promise<void>;
+
+	/**
+	 * An {@link Event} which fires when the array of sessions has changed, or data
+	 * within a session has changed.
+	 */
+	readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+
+	/**
+	 * Retrieves a list of authentication sessions.
+	 * @param scopes - An optional list of scopes. If provided, the sessions returned should match these permissions, otherwise all sessions should be returned.
+	 * @returns A promise that resolves to an array of authentication sessions.
+	 */
 	getSessions(scopes?: string[]): Promise<readonly AuthenticationSession[]>;
-	createSession(scopes: string[]): Promise<AuthenticationSession>;
+
+	/**
+	 * Prompts the user to log in.
+	 * If login is successful, the `onDidChangeSessions` event should be fired.
+	 * If login fails, a rejected promise should be returned.
+	 * If the provider does not support multiple accounts, this method should not be called if there is already an existing session matching the provided scopes.
+	 * @param scopes - A list of scopes that the new session should be created with.
+	 * @param options - Additional options for creating the session.
+	 * @returns A promise that resolves to an authentication session.
+	 */
+	createSession(scopes: string[], options: IAuthenticationProviderCreateSessionOptions): Promise<AuthenticationSession>;
+
+	/**
+	 * Removes the session corresponding to the specified session ID.
+	 * If the removal is successful, the `onDidChangeSessions` event should be fired.
+	 * If a session cannot be removed, the provider should reject with an error message.
+	 * @param sessionId - The ID of the session to remove.
+	 */
 	removeSession(sessionId: string): Promise<void>;
 }

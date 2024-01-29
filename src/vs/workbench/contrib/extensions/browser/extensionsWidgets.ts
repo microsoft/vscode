@@ -14,7 +14,8 @@ import { EnablementState, IExtensionManagementServerService } from 'vs/workbench
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, ExtensionStatusAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
@@ -81,7 +82,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state === ExtensionState.Installed) {
+		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 
@@ -114,7 +115,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			}
 		}
 		else {
-			installLabel = installCount.toLocaleString(platform.locale);
+			installLabel = installCount.toLocaleString(platform.language);
 		}
 
 		return installLabel;
@@ -145,7 +146,7 @@ export class RatingsWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state === ExtensionState.Installed) {
+		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 
@@ -179,6 +180,42 @@ export class RatingsWidget extends ExtensionWidget {
 				ratingCountElemet.style.paddingLeft = '1px';
 			}
 		}
+	}
+}
+
+export class VerifiedPublisherWidget extends ExtensionWidget {
+
+	private disposables = this._register(new DisposableStore());
+
+	constructor(
+		private container: HTMLElement,
+		private small: boolean,
+		@IOpenerService private readonly openerService: IOpenerService,
+	) {
+		super();
+		this.render();
+	}
+
+	render(): void {
+		reset(this.container);
+		this.disposables.clear();
+		if (!this.extension?.publisherDomain?.verified) {
+			return;
+		}
+
+		const publisherDomainLink = URI.parse(this.extension.publisherDomain.link);
+		const verifiedPublisher = append(this.container, $('span.extension-verified-publisher.clickable'));
+		append(verifiedPublisher, renderIcon(verifiedPublisherIcon));
+
+		if (!this.small) {
+			verifiedPublisher.tabIndex = 0;
+			verifiedPublisher.title = `Verified Domain: ${this.extension.publisherDomain.link}`;
+			verifiedPublisher.setAttribute('role', 'link');
+
+			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
+			this.disposables.add(onClick(verifiedPublisher, () => this.openerService.open(publisherDomainLink)));
+		}
+
 	}
 }
 
@@ -283,18 +320,11 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension) {
-			return;
+		if (this.extension?.state === ExtensionState.Installed ? this.extension.preRelease : this.extension?.hasPreReleaseVersion) {
+			this.element = append(this.parent, $('div.extension-bookmark'));
+			const preRelease = append(this.element, $('.pre-release'));
+			append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 		}
-		if (!this.extension.hasPreReleaseVersion) {
-			return;
-		}
-		if (this.extension.state === ExtensionState.Installed && !this.extension.local?.isPreReleaseVersion) {
-			return;
-		}
-		this.element = append(this.parent, $('div.extension-bookmark'));
-		const preRelease = append(this.element, $('.pre-release'));
-		append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 
 }
@@ -412,7 +442,7 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.ignoredExtensions'))(() => this.render()));
 		this._register(userDataSyncEnablementService.onDidChangeEnablement(() => this.update()));
 		this.render();
 	}
@@ -499,9 +529,11 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				showHover: (options) => {
 					return this.hoverService.showHover({
 						...options,
-						hoverPosition: this.options.position(),
-						forcePosition: true,
-						additionalClasses: ['extension-hover']
+						additionalClasses: ['extension-hover'],
+						position: {
+							hoverPosition: this.options.position(),
+							forcePosition: true,
+						},
 					});
 				},
 				placement: 'element'
@@ -517,11 +549,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		markdown.appendMarkdown(`**${this.extension.displayName}**`);
 		if (semver.valid(this.extension.version)) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}_**&nbsp;</span>`);
-		}
-		if (this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion) {
-			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-			markdown.appendMarkdown(`**&nbsp;**&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;$(${preReleaseIcon.id})&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}${(this.extension.isPreReleaseVersion ? ' (pre-release)' : '')}_**&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 
@@ -659,7 +687,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (extension.isBuiltin) {
 			return undefined;
 		}
-		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
+		if (extension.isPreReleaseVersion) {
+			return undefined;
+		}
+		if (extension.preRelease) {
 			return undefined;
 		}
 		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
@@ -670,7 +701,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 export class ExtensionStatusWidget extends ExtensionWidget {
 
-	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly renderDisposables = this._register(new MutableDisposable());
 
 	private readonly _onDidRender = this._register(new Emitter<void>());
 	readonly onDidRender: Event<void> = this._onDidRender.event;
@@ -687,6 +718,9 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 
 	render(): void {
 		reset(this.container);
+		this.renderDisposables.value = undefined;
+		const disposables = new DisposableStore();
+		this.renderDisposables.value = disposables;
 		const extensionStatus = this.extensionStatusAction.status;
 		if (extensionStatus) {
 			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
@@ -694,12 +728,12 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 				markdown.appendMarkdown(`$(${extensionStatus.icon.id})&nbsp;`);
 			}
 			markdown.appendMarkdown(extensionStatus.message.value);
-			const rendered = this.renderDisposables.add(renderMarkdown(markdown, {
+			const rendered = disposables.add(renderMarkdown(markdown, {
 				actionHandler: {
 					callback: (content) => {
 						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 					},
-					disposables: this.renderDisposables
+					disposables
 				}
 			}));
 			append(this.container, rendered.element);

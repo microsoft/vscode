@@ -16,10 +16,9 @@ import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSys
 import { Promises, ResourceQueue } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
-import { SaveReason } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -159,9 +158,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Resolve model to update (use a queue to prevent accumulation of resolves
 		// when the resolve actually takes long. At most we only want the queue
 		// to have a size of 2 (1 running resolve and 1 queued resolve).
-		const queue = this.modelResolveQueue.queueFor(model.resource);
-		if (queue.size <= 1) {
-			queue.queue(async () => {
+		const queueSize = this.modelResolveQueue.queueSize(model.resource);
+		if (queueSize <= 1) {
+			this.modelResolveQueue.queueFor(model.resource, async () => {
 				try {
 					await this.reload(model);
 				} catch (error) {
@@ -536,7 +535,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(model: ITextFileEditorModel, context: IStoredFileWorkingCopySaveParticipantContext, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(model, context, token);
 	}
 

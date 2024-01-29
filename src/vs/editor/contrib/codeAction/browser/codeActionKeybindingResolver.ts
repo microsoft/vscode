@@ -54,7 +54,7 @@ export class CodeActionKeybindingResolver {
 
 		return (action) => {
 			if (action.kind) {
-				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.getValue());
+				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.value);
 				return binding?.resolvedKeybinding;
 			}
 			return undefined;

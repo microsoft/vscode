@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -17,36 +17,37 @@ import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } 
 import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'settingsSync',
-	'type': 'object',
-	'properties': {
-		'settingsSync.machine': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE
-		},
-		'settingsSync.machineOverridable': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE_OVERRIDABLE
-		}
-	}
-});
-
 suite('SettingsSync - Auto', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
 	let testObject: SettingsSynchroniser;
 
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'settingsSync',
+			'type': 'object',
+			'properties': {
+				'settingsSync.machine': {
+					'type': 'string',
+					'scope': ConfigurationScope.MACHINE
+				},
+				'settingsSync.machineOverridable': {
+					'type': 'string',
+					'scope': ConfigurationScope.MACHINE_OVERRIDABLE
+				}
+			}
+		});
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('when settings file does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const fileService = client.instantiationService.get(IFileService);
@@ -528,19 +529,21 @@ suite('SettingsSync - Auto', () => {
 
 suite('SettingsSync - Manual', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
 	let testObject: SettingsSynchroniser;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('do not sync ignored settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/davidrios/pug-tmbundle/commit/aee5f096dac969fe09afac55f05f3f4e774f61a3",
+	"version": "https://github.com/davidrios/pug-tmbundle/commit/ae1dd60ca4aa4b45617f236d584216cd8d19eecf",
 	"name": "Pug",
 	"scopeName": "text.pug",
 	"patterns": [
@@ -272,10 +272,10 @@
 			"begin": "^(\\s*)(?:(?=\\.$)|(?:(?=[\\w.#].*?\\.$)(?=(?:(?:(?:(?:(?:#[\\w-]+)|(?:\\.[\\w-]+))|(?:(?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))(?:(?:#[\\w-]+)|(?:\\.[\\w-]+)|(?:\\((?:[^()\\'\\\"]*(?:(?:\\'(?:[^\\']|(?:(?<!\\\\)\\\\\\'))*\\')|(?:\\\"(?:[^\\\"]|(?:(?<!\\\\)\\\\\\\"))*\\\")))*[^()]*\\))*)*)(?:(?:(?::\\s+)|(?<=\\)))(?:(?:(?:(?:#[\\w-]+)|(?:\\.[\\w-]+))|(?:(?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))(?:(?:#[\\w-]+)|(?:\\.[\\w-]+)|(?:\\((?:[^()\\'\\\"]*(?:(?:\\'(?:[^\\']|(?:(?<!\\\\)\\\\\\'))*\\')|(?:\\\"(?:[^\\\"]|(?:(?<!\\\\)\\\\\\\"))*\\\")))*[^()]*\\))*)*))*)\\.$)(?:(?:(#[\\w-]+)|(\\.[\\w-]+))|((?:[#!]\\{[^}]*\\})|(?:\\w(?:(?:[\\w:-]+[\\w-])|(?:[\\w-]*)))))))",
 			"beginCaptures": {
 				"2": {
-					"name": "entity.other.attribute-name.id.pug"
+					"name": "meta.selector.css entity.other.attribute-name.id.css.pug"
 				},
 				"3": {
-					"name": "entity.other.attribute-name.class.pug"
+					"name": "meta.selector.css entity.other.attribute-name.class.css.pug"
 				},
 				"4": {
 					"name": "meta.tag.other entity.name.tag.pug"
@@ -493,9 +493,6 @@
 							"include": "#js_parens"
 						},
 						{
-							"include": "#string"
-						},
-						{
 							"match": "([^\\s(),=/]+)\\s*=\\s*",
 							"captures": {
 								"1": {
@@ -700,7 +697,7 @@
 		},
 		"tag_id": {
 			"match": "#[\\w-]+",
-			"name": "entity.other.attribute-name.id.pug"
+			"name": "meta.selector.css entity.other.attribute-name.id.css.pug"
 		},
 		"tag_classes": {
 			"match": "\\.([^\\w-])?[\\w-]*",
@@ -709,7 +706,7 @@
 					"name": "invalid.illegal.tag.pug"
 				}
 			},
-			"name": "entity.other.attribute-name.class.pug"
+			"name": "meta.selector.css entity.other.attribute-name.class.css.pug"
 		},
 		"tag_attributes": {
 			"begin": "(\\(\\s*)",
@@ -737,9 +734,6 @@
 					"name": "attribute_value",
 					"patterns": [
 						{
-							"include": "#string"
-						},
-						{
 							"include": "#js_parens"
 						},
 						{
@@ -758,9 +752,6 @@
 					"end": "$|(?=,|(?:\\s+[^!%&*\\-+~|<>?/])|\\))",
 					"name": "attribute_value2",
 					"patterns": [
-						{
-							"include": "#string"
-						},
 						{
 							"include": "#js_parens"
 						},
@@ -976,23 +967,6 @@
 				},
 				{
 					"include": "source.js"
-				}
-			]
-		},
-		"string": {
-			"begin": "(['\"])",
-			"end": "(?<!\\\\)\\1",
-			"name": "string.quoted.pug",
-			"patterns": [
-				{
-					"match": "\\\\((x[0-9a-fA-F]{2})|(u[0-9]{4})|.)",
-					"name": "constant.character.quoted.pug"
-				},
-				{
-					"include": "#interpolated_value"
-				},
-				{
-					"include": "#interpolated_error"
 				}
 			]
 		},

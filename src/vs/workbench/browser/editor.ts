@@ -10,7 +10,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IConstructorSignature, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { insert } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -19,6 +18,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Iterable } from 'vs/base/common/iterator';
 
 //#region Editor Pane Registry
 
@@ -74,17 +74,13 @@ export class EditorPaneDescriptor implements IEditorPaneDescriptor {
 
 export class EditorPaneRegistry implements IEditorPaneRegistry {
 
-	private readonly editorPanes: EditorPaneDescriptor[] = [];
 	private readonly mapEditorPanesToEditors = new Map<EditorPaneDescriptor, readonly SyncDescriptor<EditorInput>[]>();
 
 	registerEditorPane(editorPaneDescriptor: EditorPaneDescriptor, editorDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
 		this.mapEditorPanesToEditors.set(editorPaneDescriptor, editorDescriptors);
 
-		const remove = insert(this.editorPanes, editorPaneDescriptor);
-
 		return toDisposable(() => {
 			this.mapEditorPanesToEditors.delete(editorPaneDescriptor);
-			remove();
 		});
 	}
 
@@ -105,7 +101,7 @@ export class EditorPaneRegistry implements IEditorPaneRegistry {
 	private findEditorPaneDescriptors(editor: EditorInput, byInstanceOf?: boolean): EditorPaneDescriptor[] {
 		const matchingEditorPaneDescriptors: EditorPaneDescriptor[] = [];
 
-		for (const editorPane of this.editorPanes) {
+		for (const editorPane of this.mapEditorPanesToEditors.keys()) {
 			const editorDescriptors = this.mapEditorPanesToEditors.get(editorPane) || [];
 			for (const editorDescriptor of editorDescriptors) {
 				const editorClass = editorDescriptor.ctor;
@@ -135,16 +131,16 @@ export class EditorPaneRegistry implements IEditorPaneRegistry {
 	//#region Used for tests only
 
 	getEditorPaneByType(typeId: string): EditorPaneDescriptor | undefined {
-		return this.editorPanes.find(editor => editor.typeId === typeId);
+		return Iterable.find(this.mapEditorPanesToEditors.keys(), editor => editor.typeId === typeId);
 	}
 
 	getEditorPanes(): readonly EditorPaneDescriptor[] {
-		return this.editorPanes.slice(0);
+		return Array.from(this.mapEditorPanesToEditors.keys());
 	}
 
 	getEditors(): SyncDescriptor<EditorInput>[] {
 		const editorClasses: SyncDescriptor<EditorInput>[] = [];
-		for (const editorPane of this.editorPanes) {
+		for (const editorPane of this.mapEditorPanesToEditors.keys()) {
 			const editorDescriptors = this.mapEditorPanesToEditors.get(editorPane);
 			if (editorDescriptors) {
 				editorClasses.push(...editorDescriptors.map(editorDescriptor => editorDescriptor.ctor));

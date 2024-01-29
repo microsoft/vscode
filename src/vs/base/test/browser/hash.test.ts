@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { hash, StringSHA1 } from 'vs/base/common/hash';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Hash', () => {
 	test('string', () => {
@@ -101,4 +102,6 @@ suite('Hash', () => {
 	test('sha1-4', () => {
 		return checkSHA1('hello', 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

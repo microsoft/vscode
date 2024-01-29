@@ -28,16 +28,12 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { CONTEXT_SETTINGS_EDITOR_IN_USER_TAB } from 'vs/workbench/contrib/preferences/common/preferences';
-
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
@@ -53,7 +49,6 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -143,14 +138,14 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	private async update(): Promise<void> {
+	private update(): void {
 		let total = 0;
 		this._folderSettingCounts.forEach(n => total += n);
 
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri))?.fsPath || '';
+			this.anchorElement.title = this._folder.name;
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			this.dropDownElement.classList.toggle('hide', workspace.folders.length === 1 || !this._action.checked);
@@ -220,7 +215,6 @@ export class SettingsTargetsWidget extends Widget {
 	private folderSettingsAction!: Action;
 	private folderSettings!: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
-	private inUserTab: IContextKey<boolean>;
 
 	private _settingsTarget: SettingsTarget | null = null;
 
@@ -234,16 +228,13 @@ export class SettingsTargetsWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ILanguageService private readonly languageService: ILanguageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 		this.options = options ?? {};
 		this.create(parent);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
-		this.inUserTab = CONTEXT_SETTINGS_EDITOR_IN_USER_TAB.bindTo(contextKeyService);
 	}
 
 	private resetLabels() {
@@ -266,15 +257,12 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 
 		this.userLocalSettings = new Action('userSettings', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
-			// Don't wait to create UI on resolving remote
-			this.userLocalSettings.tooltip = uri?.fsPath ?? '';
-		});
+		this.userLocalSettings.tooltip = localize('userSettings', "User");
 
 		this.userRemoteSettings = new Action('userSettingsRemote', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
-			this.userRemoteSettings.tooltip = uri?.fsPath ?? '';
-		});
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
+		this.userRemoteSettings.tooltip = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
 
 		this.workspaceSettings = new Action('workspaceSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 
@@ -304,7 +292,6 @@ export class SettingsTargetsWidget extends Widget {
 		} else {
 			this.folderSettings.action.checked = false;
 		}
-		this.inUserTab.set(this.userLocalSettings.checked);
 	}
 
 	setResultCount(settingsTarget: SettingsTarget, count: number): void {
@@ -369,7 +356,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.action.enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
-		this.workspaceSettings.tooltip = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE))?.fsPath || '';
+		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");
 	}
 }
 
@@ -398,7 +385,6 @@ export class SearchWidget extends Widget {
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService
 	) {
@@ -413,19 +399,10 @@ export class SearchWidget extends Widget {
 
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
-			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-				const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-				const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
-				this.countElement.style.backgroundColor = background;
-
-				this.countElement.style.borderWidth = border ? '1px' : '';
-				this.countElement.style.borderStyle = border ? 'solid' : '';
-				this.countElement.style.borderColor = border;
-
-				const color = this.themeService.getColorTheme().getColor(badgeForeground);
-				this.countElement.style.color = color ? color.toString() : '';
-			}));
+			this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
+			this.countElement.style.color = asCssVariable(badgeForeground);
+			this.countElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 		}
 
 		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');

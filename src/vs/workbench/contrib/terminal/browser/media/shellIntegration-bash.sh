@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent the script recursing when setting up
-if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
 fi
 
@@ -13,28 +13,65 @@ VSCODE_SHELL_INTEGRATION=1
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
-		. ~/.bashrc
+		if [ -r ~/.bashrc ]; then
+			. ~/.bashrc
+		fi
 	else
 		# Imitate -l because --init-file doesn't support it:
 		# run the first of these files that exists
-		if [ -f /etc/profile ]; then
+		if [ -r /etc/profile ]; then
 			. /etc/profile
 		fi
 		# exceute the first that exists
-		if [ -f ~/.bash_profile ]; then
+		if [ -r ~/.bash_profile ]; then
 			. ~/.bash_profile
-		elif [ -f ~/.bash_login ]; then
+		elif [ -r ~/.bash_login ]; then
 			. ~/.bash_login
-		elif [ -f ~/.profile ]; then
+		elif [ -r ~/.profile ]; then
 			. ~/.profile
 		fi
 		builtin unset VSCODE_SHELL_LOGIN
+
+		# Apply any explicit path prefix (see #99878)
+		if [ -n "${VSCODE_PATH_PREFIX:-}" ]; then
+			export PATH=$VSCODE_PATH_PREFIX$PATH
+			builtin unset VSCODE_PATH_PREFIX
+		fi
 	fi
 	builtin unset VSCODE_INJECTION
 fi
 
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+# Apply EnvironmentVariableCollections if needed
+if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE"
+	done
+	builtin unset VSCODE_ENV_REPLACE
+fi
+if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE${!VARNAME}"
+	done
+	builtin unset VSCODE_ENV_PREPEND
+fi
+if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		export $VARNAME="${!VARNAME}$VALUE"
+	done
+	builtin unset VSCODE_ENV_APPEND
 fi
 
 __vsc_get_trap() {
@@ -58,36 +95,35 @@ __vsc_get_trap() {
 	builtin printf '%s' "${terms[2]:-}"
 }
 
+__vsc_escape_value_fast() {
+	builtin local LC_ALL=C out
+	out=${1//\\/\\\\}
+	out=${out//;/\\x3b}
+	builtin printf '%s\n' "${out}"
+}
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
+	# If the input being too large, switch to the faster function
+	if [ "${#1}" -ge 2000 ]; then
+		__vsc_escape_value_fast "$1"
+		builtin return
+	fi
+
 	# Process text byte by byte, not by codepoint.
 	builtin local LC_ALL=C str="${1}" i byte token out=''
 
 	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
 
-		# Backslashes must be doubled.
+		# Escape backslashes and semi-colons
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
-		# Conservatively pass alphanumerics through.
-		elif [[ "$byte" == [0-9A-Za-z] ]]; then
-			token="$byte"
-		# Hex-encode anything else.
-		# (Importantly including: semicolon, newline, and control chars).
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
 		else
-			# The printf '0x%02X' "'$byte'" converts the character to a hex integer.
-			# See printf's specification:
-			# > If the leading character is a single-quote or double-quote, the value shall be the numeric value in the
-			# > underlying codeset of the character following the single-quote or double-quote.
-			# However, the result is a sign-extended int, so a high bit like 0xD7 becomes 0xFFF…FD7
-			# We mask that word with 0xFF to get lowest 8 bits, and then encode that byte as "\xD7" per our escaping scheme.
-			builtin printf -v token '\\x%02X' "$(( $(builtin printf '0x%X' "'$byte'") & 0xFF ))"
-			#             |________| ^^^ ^^^                        ^^^^^^  ^^^^^^^  |______|
-			#                   |     |  |                            |        |         |
-			# store in `token` -+     |  |   the hex value -----------+        |         |
-			# the '\x…'-prefixed -----+  |   of the byte as an integer --------+         |
-			# 0-padded, two hex digits --+   masked to one byte (due to sign extension) -+
+			token="$byte"
 		fi
 
 		out+="$token"
@@ -117,6 +153,10 @@ __vsc_custom_PS2=""
 __vsc_in_command_execution="1"
 __vsc_current_command=""
 
+# It's fine this is in the global scope as it getting at it requires access to the shell environment
+__vsc_nonce="$VSCODE_NONCE"
+unset VSCODE_NONCE
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -131,7 +171,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 }
 
 __vsc_continuation_start() {
@@ -177,7 +217,7 @@ __vsc_precmd() {
 
 __vsc_preexec() {
 	__vsc_initialized=1
-	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
+	if [[ ! $BASH_COMMAND == __vsc_prompt* ]]; then
 		# Use history if it's available to verify the command as BASH_COMMAND comes in with aliases
 		# resolved
 		if [ "$__vsc_history_verify" = "1" ]; then
@@ -216,8 +256,8 @@ else
 		__vsc_preexec_all() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
 				__vsc_in_command_execution="1"
-				builtin eval "${__vsc_dbg_trap}"
 				__vsc_preexec
+				builtin eval "${__vsc_dbg_trap}"
 			fi
 		}
 		trap '__vsc_preexec_all "$_"' DEBUG
@@ -248,10 +288,10 @@ __vsc_prompt_cmd() {
 
 # PROMPT_COMMAND arrays and strings seem to be handled the same (handling only the first entry of
 # the array?)
-__vsc_original_prompt_command=$PROMPT_COMMAND
+__vsc_original_prompt_command=${PROMPT_COMMAND:-}
 
 if [[ -z "${bash_preexec_imported:-}" ]]; then
-	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+	if [[ -n "${__vsc_original_prompt_command:-}" && "${__vsc_original_prompt_command:-}" != "__vsc_prompt_cmd" ]]; then
 		PROMPT_COMMAND=__vsc_prompt_cmd_original
 	else
 		PROMPT_COMMAND=__vsc_prompt_cmd

@@ -5,11 +5,10 @@
 
 import { RGBA, Color } from './color';
 import { ansiColorIdentifiers } from './colorMap';
-import { linkify } from './linkify';
+import { LinkOptions, linkify } from './linkify';
 
 
-export function handleANSIOutput(text: string): HTMLSpanElement {
-	const workspaceFolder = undefined;
+export function handleANSIOutput(text: string, linkOptions: LinkOptions): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -27,7 +26,7 @@ export function handleANSIOutput(text: string): HTMLSpanElement {
 		let sequenceFound: boolean = false;
 
 		// Potentially an ANSI escape sequence.
-		// See http://ascii-table.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
+		// See https://www.asciitable.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
 		if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === '[') {
 
 			const startPos: number = currentPos;
@@ -52,7 +51,7 @@ export function handleANSIOutput(text: string): HTMLSpanElement {
 			if (sequenceFound) {
 
 				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, workspaceFolder, customFgColor, customBgColor, customUnderlineColor);
+				appendStylizedStringToContainer(root, buffer, linkOptions, styleNames, customFgColor, customBgColor, customUnderlineColor);
 
 				buffer = '';
 
@@ -98,7 +97,7 @@ export function handleANSIOutput(text: string): HTMLSpanElement {
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, workspaceFolder, customFgColor, customBgColor, customUnderlineColor);
+		appendStylizedStringToContainer(root, buffer, linkOptions, styleNames, customFgColor, customBgColor, customUnderlineColor);
 	}
 
 	return root;
@@ -379,16 +378,11 @@ export function handleANSIOutput(text: string): HTMLSpanElement {
 	}
 }
 
-const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-	createHTML: value => value,
-	createScript: value => value,
-});
-
-export function appendStylizedStringToContainer(
+function appendStylizedStringToContainer(
 	root: HTMLElement,
 	stringContent: string,
+	linkOptions: LinkOptions,
 	cssClasses: string[],
-	workspaceFolder: string | undefined,
 	customTextColor?: RGBA | string,
 	customBackgroundColor?: RGBA | string,
 	customUnderlineColor?: RGBA | string
@@ -398,12 +392,10 @@ export function appendStylizedStringToContainer(
 	}
 
 	let container = document.createElement('span');
-	const trustedHtml = ttPolicy?.createHTML(stringContent) ?? stringContent;
-	container.innerHTML = trustedHtml as string;
 
 	if (container.childElementCount === 0) {
 		// plain text
-		container = linkify(stringContent, true, workspaceFolder);
+		container = linkify(stringContent, linkOptions, true);
 	}
 
 	container.className = cssClasses.join(' ');

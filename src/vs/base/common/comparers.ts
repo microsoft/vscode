@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleValue } from 'vs/base/common/async';
+import { Lazy } from 'vs/base/common/lazy';
 import { sep } from 'vs/base/common/path';
 
 // When comparing large numbers of strings it's better for performance to create an
@@ -11,27 +11,27 @@ import { sep } from 'vs/base/common/path';
 // than it is to use String.prototype.localeCompare()
 
 // A collator with numeric sorting enabled, and no sensitivity to case, accents or diacritics.
-const intlFileNameCollatorBaseNumeric: IdleValue<{ collator: Intl.Collator; collatorIsNumeric: boolean }> = new IdleValue(() => {
+const intlFileNameCollatorBaseNumeric: Lazy<{ collator: Intl.Collator; collatorIsNumeric: boolean }> = new Lazy(() => {
 	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 	return {
-		collator: collator,
+		collator,
 		collatorIsNumeric: collator.resolvedOptions().numeric
 	};
 });
 
 // A collator with numeric sorting enabled.
-const intlFileNameCollatorNumeric: IdleValue<{ collator: Intl.Collator }> = new IdleValue(() => {
+const intlFileNameCollatorNumeric: Lazy<{ collator: Intl.Collator }> = new Lazy(() => {
 	const collator = new Intl.Collator(undefined, { numeric: true });
 	return {
-		collator: collator
+		collator
 	};
 });
 
 // A collator with numeric sorting enabled, and sensitivity to accents and diacritics but not case.
-const intlFileNameCollatorNumericCaseInsensitive: IdleValue<{ collator: Intl.Collator }> = new IdleValue(() => {
+const intlFileNameCollatorNumericCaseInsensitive: Lazy<{ collator: Intl.Collator }> = new Lazy(() => {
 	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'accent' });
 	return {
-		collator: collator
+		collator
 	};
 });
 

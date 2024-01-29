@@ -59,6 +59,7 @@
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .reply-detail,
+.comments-panel .comments-panel-container .tree-container .resource-container .owner,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .timestamp {
 	display: block;
 	overflow: hidden;
@@ -84,7 +85,11 @@
 	font-family: var(--monaco-monospace-font);
 }
 
-.comments-panel .comments-panel-container .tree-container .comment-thread-container .separator {
+.comments-panel .comments-panel-container .tree-container .monaco-icon-label {
+	padding-right: 5px;
+}
+
+.comments-panel .comments-panel-container .tree-container .separator {
 	padding-right: 5px;
 	opacity: 0.8;
 }

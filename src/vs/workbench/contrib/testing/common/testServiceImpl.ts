@@ -29,6 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { isDefined } from 'vs/base/common/types';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
@@ -67,7 +68,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly collection = new MainThreadTestCollection(this.expandTest.bind(this));
+	public readonly collection = new MainThreadTestCollection(this.uriIdentityService, this.expandTest.bind(this));
 
 	/**
 	 * @inheritdoc
@@ -77,15 +78,16 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly showInlineOutput = MutableObservableValue.stored(new StoredValue<boolean>({
+	public readonly showInlineOutput = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
 		key: 'inlineTestOutputVisible',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
-	}, this.storage), true);
+	}, this.storage)), true);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly storage: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
@@ -133,7 +135,7 @@ export class TestService extends Disposable implements ITestService {
 		const resolved: ResolvedTestRunRequest = {
 			targets: [],
 			exclude: req.exclude?.map(t => t.item.extId),
-			isAutoRun: req.isAutoRun,
+			continuous: req.continuous,
 		};
 
 		// First, try to run the tests using the default run profiles...
@@ -176,6 +178,41 @@ export class TestService extends Disposable implements ITestService {
 		}
 
 		return this.runResolvedTests(resolved, token);
+	}
+
+	/** @inheritdoc */
+	public async startContinuousRun(req: ResolvedTestRunRequest, token: CancellationToken) {
+		if (!req.exclude) {
+			req.exclude = [...this.excluded.all];
+		}
+
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('testTrust', "Running tests may execute code in your workspace."),
+		});
+
+		if (!trust) {
+			return;
+		}
+
+		const byController = groupBy(req.targets, (a, b) => a.controllerId.localeCompare(b.controllerId));
+		const requests = byController.map(
+			group => this.testControllers.get(group[0].controllerId)?.startContinuousRun(
+				group.map(controlReq => ({
+					excludeExtIds: req.exclude!.filter(t => !controlReq.testIds.includes(t)),
+					profileId: controlReq.profileId,
+					controllerId: controlReq.controllerId,
+					testIds: controlReq.testIds,
+				})),
+				token,
+			).then(result => {
+				const errs = result.map(r => r.error).filter(isDefined);
+				if (errs.length) {
+					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', errs.join(' ')));
+				}
+			})
+		);
+
+		await Promise.all(requests);
 	}
 
 	/**

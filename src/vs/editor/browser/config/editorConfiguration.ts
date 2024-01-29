@@ -19,6 +19,8 @@ import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/commo
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { getWindow, getWindowById } from 'vs/base/browser/dom';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -47,6 +49,8 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	private _viewLineCount: number = 1;
 	private _lineNumbersDigitCount: number = 1;
 	private _reservedHeight: number = 0;
+	private _glyphMarginDecorationLaneCount: number = 1;
+	private _targetWindowId: number;
 
 	private readonly _computeOptionsMemory: ComputeOptionsMemory = new ComputeOptionsMemory();
 	/**
@@ -71,6 +75,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		super();
 		this.isSimpleWidget = isSimpleWidget;
 		this._containerObserver = this._register(new ElementSizeObserver(container, options.dimension));
+		this._targetWindowId = getWindow(container).vscodeWindowId;
 
 		this._rawOptions = deepCloneAndMigrateOptions(options);
 		this._validatedOptions = EditorOptionsUtil.validateOptions(this._rawOptions);
@@ -84,7 +89,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(TabFocus.onDidChangeTabFocus(() => this._recomputeOptions()));
 		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
-		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
+		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 	}
 
@@ -117,7 +122,8 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
-			accessibilitySupport: partialEnv.accessibilitySupport
+			accessibilitySupport: partialEnv.accessibilitySupport,
+			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
 	}
@@ -128,7 +134,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerWidth: this._containerObserver.getWidth(),
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.PixelRatio.value,
+			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -138,7 +144,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	}
 
 	protected _readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
-		return FontMeasurements.readFontInfo(bareFontInfo);
+		return FontMeasurements.readFontInfo(getWindowById(this._targetWindowId, true).window, bareFontInfo);
 	}
 
 	public getRawOptions(): IEditorOptions {
@@ -191,6 +197,14 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			return;
 		}
 		this._reservedHeight = reservedHeight;
+		this._recomputeOptions();
+	}
+
+	public setGlyphMarginDecorationLaneCount(decorationLaneCount: number): void {
+		if (this._glyphMarginDecorationLaneCount === decorationLaneCount) {
+			return;
+		}
+		this._glyphMarginDecorationLaneCount = decorationLaneCount;
 		this._recomputeOptions();
 	}
 }

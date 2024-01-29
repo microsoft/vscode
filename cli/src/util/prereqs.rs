@@ -7,13 +7,12 @@ use std::cmp::Ordering;
 use super::command::capture_command;
 use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
-use crate::util::errors::SetupError;
 use lazy_static::lazy_static;
 use regex::bytes::Regex as BinRegex;
 use regex::Regex;
 use tokio::fs;
 
-use super::errors::AnyError;
+use super::errors::CodeError;
 
 lazy_static! {
 	static ref LDCONFIG_STDC_RE: Regex = Regex::new(r"libstdc\+\+.* => (.+)").unwrap();
@@ -21,8 +20,8 @@ lazy_static! {
 	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 18);
-	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
+	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
 }
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
@@ -41,19 +40,18 @@ impl PreReqChecker {
 	}
 
 	#[cfg(not(target_os = "linux"))]
-	pub async fn verify(&self) -> Result<Platform, AnyError> {
-		use crate::constants::QUALITYLESS_PRODUCT_NAME;
+	pub async fn verify(&self) -> Result<Platform, CodeError> {
 		Platform::env_default().ok_or_else(|| {
-			SetupError(format!(
-				"{} is not supported on this platform",
-				QUALITYLESS_PRODUCT_NAME
+			CodeError::UnsupportedPlatform(format!(
+				"{} {}",
+				std::env::consts::OS,
+				std::env::consts::ARCH
 			))
-			.into()
 		})
 	}
 
 	#[cfg(target_os = "linux")]
-	pub async fn verify(&self) -> Result<Platform, AnyError> {
+	pub async fn verify(&self) -> Result<Platform, CodeError> {
 		let (is_nixos, gnu_a, gnu_b, or_musl) = tokio::join!(
 			check_is_nixos(),
 			check_glibc_version(),
@@ -64,7 +62,7 @@ impl PreReqChecker {
 		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
 			return Ok(if cfg!(target_arch = "x86_64") {
 				Platform::LinuxX64
-			} else if cfg!(target_arch = "armhf") {
+			} else if cfg!(target_arch = "arm") {
 				Platform::LinuxARM32
 			} else {
 				Platform::LinuxARM64
@@ -96,16 +94,16 @@ impl PreReqChecker {
 			.collect::<Vec<String>>()
 			.join("\n");
 
-		Err(AnyError::from(SetupError(format!(
-			"This machine not meet {}'s prerequisites, expected either...\n{}",
-			QUALITYLESS_SERVER_NAME, bullets,
-		))))
+		Err(CodeError::PrerequisitesFailed {
+			bullets,
+			name: QUALITYLESS_SERVER_NAME,
+		})
 	}
 }
 
 #[allow(dead_code)]
 async fn check_musl_interpreter() -> Result<(), String> {
-	const MUSL_PATH: &str = if cfg!(target_platform = "aarch64") {
+	const MUSL_PATH: &str = if cfg!(target_arch = "aarch64") {
 		"/lib/ld-musl-aarch64.so.1"
 	} else {
 		"/lib/ld-musl-x86_64.so.1"
@@ -143,8 +141,8 @@ async fn check_glibc_version() -> Result<(), String> {
 			Ok(())
 		} else {
 			Err(format!(
-				"find GLIBC >= 2.17 (but found {} instead) for GNU environments",
-				v
+				"find GLIBC >= {} (but found {} instead) for GNU environments",
+				*MIN_LDD_VERSION, v
 			))
 		};
 	}
@@ -203,7 +201,8 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<(), String
 
 	if !all_versions.iter().any(|v| &*MIN_CXX_VERSION >= v) {
 		return Err(format!(
-			"find GLIBCXX >= 3.4.18 (but found {} instead) for GNU environments",
+			"find GLIBCXX >= {} (but found {} instead) for GNU environments",
+			*MIN_CXX_VERSION,
 			all_versions
 				.iter()
 				.map(String::from)

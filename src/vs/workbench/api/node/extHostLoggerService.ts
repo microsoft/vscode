@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger, ILoggerOptions, LogLevel } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerOptions, ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostLoggerService as BaseExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerService';
 import { Schemas } from 'vs/base/common/network';
@@ -18,6 +18,16 @@ export class ExtHostLoggerService extends BaseExtHostLoggerService {
 			return new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, !!options?.donotUseFormatters, logLevel);
 		}
 		return super.doCreateLogger(resource, logLevel, options);
+	}
+
+	override registerLogger(resource: ILoggerResource): void {
+		super.registerLogger(resource);
+		this._proxy.$registerLogger(resource);
+	}
+
+	override deregisterLogger(resource: URI): void {
+		super.deregisterLogger(resource);
+		this._proxy.$deregisterLogger(resource);
 	}
 
 }

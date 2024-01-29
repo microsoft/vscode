@@ -5,12 +5,12 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { API } from '../tsServer/api';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
-import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageIds';
+import * as fileSchemes from '../configuration/fileSchemes';
+import { isTypeScriptDocument } from '../configuration/languageIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
@@ -68,7 +68,7 @@ export default class FileConfigurationManager extends Disposable {
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -161,6 +161,7 @@ export default class FileConfigurationManager extends Disposable {
 			placeOpenBraceOnNewLineForFunctions: config.get<boolean>('placeOpenBraceOnNewLineForFunctions'),
 			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
 			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
+			indentSwitchCase: config.get<boolean>('indentSwitchCase'),
 		};
 	}
 
@@ -186,13 +187,17 @@ export default class FileConfigurationManager extends Disposable {
 			provideRefactorNotApplicableReason: true,
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
-			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			includeCompletionsWithSnippetText: true,
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
+			// @ts-expect-error until 5.3 #56090
+			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			disableLineTextInReferences: true,
+			interactiveInlayHints: true,
 			...getInlayHintsPreferences(config),
 		};
 
