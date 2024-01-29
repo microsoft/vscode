@@ -676,7 +676,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			async showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor> {
 				if (URI.isUri(documentOrUri) && documentOrUri.scheme === Schemas.vscodeRemote && !documentOrUri.authority) {
-					extHostLogService.error(`Extension '${extension.identifier.value}' called 'showTextDocument()' with an invalid 'vscode-remote' URI that has no authority.`);
+					extHostApiDeprecation.report('workspace.showTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
 				}
 				const document = await (URI.isUri(documentOrUri)
 					? Promise.resolve(workspace.openTextDocument(documentOrUri))
@@ -1008,7 +1008,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return uriPromise.then(uri => {
 					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
-						extHostLogService.error(`Extension '${extension.identifier.value}' called 'openTextDocument()' with an invalid 'vscode-remote' URI that has no authority.`);
+						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
 					}
 					return extHostDocuments.ensureDocumentData(uri).then(documentData => {
 						return documentData.document;
