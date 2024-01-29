@@ -4,12 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { mark } from 'vs/base/common/performance';
-import { URI } from 'vs/base/common/uri';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLogService, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
 import { BasePty } from 'vs/workbench/contrib/terminal/common/basePty';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -68,6 +63,10 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		this._startBarrier.wait().then(_ => {
 			this._remoteTerminalChannel.input(this.id, data);
 		});
+	}
+
+	processBinary(e: string): Promise<void> {
+		return this._remoteTerminalChannel.processBinary(this.id, e);
 	}
 
 	resize(cols: number, rows: number): void {
