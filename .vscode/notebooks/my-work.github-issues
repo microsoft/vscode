@@ -7,7 +7,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "// list of repos we work in\r\n$REPOS=repo:microsoft/lsprotocol repo:microsoft/monaco-editor repo:microsoft/vscode repo:microsoft/vscode-anycode repo:microsoft/vscode-autopep8 repo:microsoft/vscode-black-formatter repo:microsoft/vscode-copilot repo:microsoft/vscode-copilot-release repo:microsoft/vscode-dev repo:microsoft/vscode-dev-chrome-launcher repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-extension-telemetry repo:microsoft/vscode-flake8 repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-hexeditor repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-isort repo:microsoft/vscode-js-debug repo:microsoft/vscode-jupyter repo:microsoft/vscode-jupyter-internal repo:microsoft/vscode-l10n repo:microsoft/vscode-livepreview repo:microsoft/vscode-markdown-languageservice repo:microsoft/vscode-markdown-tm-grammar repo:microsoft/vscode-mypy repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-pylint repo:microsoft/vscode-python repo:microsoft/vscode-python-debugger repo:microsoft/vscode-python-tools-extension-template repo:microsoft/vscode-references-view repo:microsoft/vscode-remote-release repo:microsoft/vscode-remote-repositories-github repo:microsoft/vscode-remote-tunnels repo:microsoft/vscode-remotehub repo:microsoft/vscode-settings-sync-server repo:microsoft/vscode-unpkg repo:microsoft/vscode-vsce\r\n\r\n// current milestone name\r\n$MILESTONE=milestone:\"December / January 2024\"\r"
+    "value": "// list of repos we work in\n$REPOS=repo:microsoft/lsprotocol repo:microsoft/monaco-editor repo:microsoft/vscode repo:microsoft/vscode-anycode repo:microsoft/vscode-autopep8 repo:microsoft/vscode-black-formatter repo:microsoft/vscode-copilot repo:microsoft/vscode-copilot-release repo:microsoft/vscode-dev repo:microsoft/vscode-dev-chrome-launcher repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-extension-telemetry repo:microsoft/vscode-flake8 repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-hexeditor repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-isort repo:microsoft/vscode-js-debug repo:microsoft/vscode-jupyter repo:microsoft/vscode-jupyter-internal repo:microsoft/vscode-l10n repo:microsoft/vscode-livepreview repo:microsoft/vscode-markdown-languageservice repo:microsoft/vscode-markdown-tm-grammar repo:microsoft/vscode-mypy repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-pylint repo:microsoft/vscode-python repo:microsoft/vscode-python-debugger repo:microsoft/vscode-python-tools-extension-template repo:microsoft/vscode-references-view repo:microsoft/vscode-remote-release repo:microsoft/vscode-remote-repositories-github repo:microsoft/vscode-remote-tunnels repo:microsoft/vscode-remotehub repo:microsoft/vscode-settings-sync-server repo:microsoft/vscode-unpkg repo:microsoft/vscode-vsce\n\n// current milestone name\n$MILESTONE=milestone:\"February 2024\"\n"
   },
   {
     "kind": 1,
@@ -17,7 +17,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE assignee:@me is:open\r"
+    "value": "$REPOS $MILESTONE assignee:@me is:open\n"
   },
   {
     "kind": 1,
@@ -32,7 +32,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open label:bug\r"
+    "value": "$REPOS assignee:@me is:open label:bug\n"
   },
   {
     "kind": 1,
@@ -42,7 +42,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open label:debt,engineering\r"
+    "value": "$REPOS assignee:@me is:open label:debt,engineering\n"
   },
   {
     "kind": 1,
@@ -52,7 +52,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open label:perf,perf-startup,perf-bloat,freeze-slow-crash-leak\r"
+    "value": "$REPOS assignee:@me is:open label:perf,perf-startup,perf-bloat,freeze-slow-crash-leak\n"
   },
   {
     "kind": 1,
@@ -62,12 +62,12 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open label:feature-request milestone:Backlog sort:reactions-+1-desc\r"
+    "value": "$REPOS assignee:@me is:open label:feature-request milestone:Backlog sort:reactions-+1-desc\n"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open milestone:\"Backlog Candidates\"\r"
+    "value": "$REPOS assignee:@me is:open milestone:\"Backlog Candidates\"\n"
   },
   {
     "kind": 1,
@@ -82,7 +82,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode is:open assignee:@me label:triage-needed\r"
+    "value": "repo:microsoft/vscode is:open assignee:@me label:triage-needed\n"
   },
   {
     "kind": 1,
@@ -92,7 +92,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open type:issue -label:bug -label:\"info-needed\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream -label:polish -label:testplan-item -label:error-telemetry -label:engineering\r"
+    "value": "$REPOS assignee:@me is:open type:issue -label:bug -label:\"info-needed\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream -label:polish -label:testplan-item -label:error-telemetry -label:engineering\n"
   },
   {
     "kind": 1,
@@ -112,7 +112,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open type:issue no:milestone -label:info-needed -label:triage-needed\r"
+    "value": "$REPOS assignee:@me is:open type:issue no:milestone -label:info-needed -label:triage-needed\n"
   },
   {
     "kind": 1,
@@ -122,7 +122,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS assignee:@me is:open label:\"info-needed\"\r"
+    "value": "$REPOS assignee:@me is:open label:\"info-needed\"\n"
   },
   {
     "kind": 1,
@@ -137,7 +137,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS author:@me is:open is:pr review:approved\r"
+    "value": "$REPOS author:@me is:open is:pr review:approved\n"
   },
   {
     "kind": 1,
@@ -147,7 +147,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS author:@me is:open is:pr review:required\r"
+    "value": "$REPOS author:@me is:open is:pr review:required\n"
   },
   {
     "kind": 1,
@@ -157,6 +157,6 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS author:@me is:open is:pr review:changes_requested\r"
+    "value": "$REPOS author:@me is:open is:pr review:changes_requested\n"
   }
 ]
