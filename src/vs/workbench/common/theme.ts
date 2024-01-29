@@ -189,7 +189,7 @@ export const TAB_Drag_And_Drop_Between_Indicator = registerColor('tab.dragAndDro
 	light: TAB_INACTIVE_FOREGROUND,
 	hcDark: activeContrastBorder,
 	hcLight: activeContrastBorder
-}, localize('tabDragAndDropBetweenIndicator', "Indicator between tabs to indicate that a tab can be dropped on the editor group between two tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('tabDragAndDropBetweenIndicator', "Indicator between tabs to indicate that a tab can be dropped between two tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 //#endregion
 
