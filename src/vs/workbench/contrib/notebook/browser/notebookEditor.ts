@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { mainWindow } from 'vs/base/browser/window';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -213,7 +212,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(group.windowId)?.window ?? mainWindow);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(group.windowId, true).window);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');

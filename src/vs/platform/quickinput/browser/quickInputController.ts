@@ -183,7 +183,11 @@ export class QuickInputController extends Disposable {
 		}));
 		this._register(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
+			// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/203675
 			setTimeout(() => {
+				if (!this.controller) {
+					return;
+				}
 				inputBox.setFocus();
 				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 					list.clearFocus();
