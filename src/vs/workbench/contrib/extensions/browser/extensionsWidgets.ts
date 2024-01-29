@@ -83,10 +83,6 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
-			return;
-		}
-
 		const installLabel = InstallCountWidget.getInstallLabel(this.extension, this.small);
 		if (!installLabel) {
 			return;
@@ -144,10 +140,6 @@ export class RatingsWidget extends ExtensionWidget {
 		this.container.title = '';
 
 		if (!this.extension) {
-			return;
-		}
-
-		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 

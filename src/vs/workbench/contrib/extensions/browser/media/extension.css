@@ -166,6 +166,9 @@
 	font-size: 100%;
 }
 
+.extension-list-item:not(.compact) > .details > .header-container > .header > .runtime-status,
+.extension-list-item.compact > .details > .header-container > .header > .extension-install-count,
+.extension-list-item.compact > .details > .header-container > .header > .extension-ratings,
 .extension-list-item.compact > .details > .description {
 	display: none;
 }
