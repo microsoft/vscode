@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import { IMdParser } from '../../markdownEngine';
 import { ITextDocument } from '../../types/textDocument';
 import { Mime } from '../../util/mimes';
-import { createInsertUriListEdit } from './shared';
 import { Schemes } from '../../util/schemes';
+import { createInsertUriListEdit } from './shared';
 
 export enum PasteUrlAsMarkdownLink {
 	Always = 'always',
@@ -59,7 +59,7 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const edit = createInsertUriListEdit(document, ranges, uriText);
+		const edit = createInsertUriListEdit(document, ranges, uriText, { preserveAbsoluteUris: true });
 		if (!edit) {
 			return;
 		}
@@ -212,8 +212,10 @@ const externalUriSchemes: ReadonlySet<string> = new Set([
 export function findValidUriInText(text: string): string | undefined {
 	const trimmedUrlList = text.trim();
 
-	// Uri must consist of a single sequence of characters without spaces
-	if (!/^\S+$/.test(trimmedUrlList)) {
+	if (
+		!/^\S+$/.test(trimmedUrlList) // Uri must consist of a single sequence of characters without spaces
+		|| !trimmedUrlList.includes(':') // And it must have colon somewhere for the scheme. We will verify the schema again later
+	) {
 		return;
 	}
 
@@ -225,7 +227,21 @@ export function findValidUriInText(text: string): string | undefined {
 		return;
 	}
 
-	if (!externalUriSchemes.has(uri.scheme.toLowerCase()) || uri.authority.length <= 1) {
+	// `Uri.parse` is lenient and will return a `file:` uri even for non-uri text such as `abc`
+	// Make sure that the resolved scheme starts the original text
+	if (!trimmedUrlList.toLowerCase().startsWith(uri.scheme.toLowerCase() + ':')) {
+		return;
+	}
+
+	// Only enable for an allow list of schemes. Otherwise this can be accidentally activated for non-uri text
+	// such as `c:\abc` or `value:foo`
+	if (!externalUriSchemes.has(uri.scheme.toLowerCase())) {
+		return;
+	}
+
+	// Some part of the uri must not be empty
+	// This disables the feature for text such as `http:`
+	if (!uri.authority && uri.path.length < 2 && !uri.query && !uri.fragment) {
 		return;
 	}
 
