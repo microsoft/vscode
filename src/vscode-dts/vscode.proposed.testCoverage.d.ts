@@ -26,6 +26,9 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return Coverage metadata for all files involved in the test.
 		 */
+		// @API - pass something into the provide method:
+		// (1) have TestController#coverageProvider: TestCoverageProvider
+		// (2) pass TestRun into this method
 		provideFileCoverage(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
@@ -117,6 +120,9 @@ declare module 'vscode' {
 			functionCoverage?: CoveredCount,
 		);
 	}
+
+	// @API are StatementCoverage and BranchCoverage etc really needed
+	// or is a generic type with a kind-property enough
 
 	/**
 	 * Contains coverage information for a single statement or line.

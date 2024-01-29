@@ -37,6 +37,7 @@ declare module 'vscode' {
 		 *   the data provider, it will replace the variable in its tree.
 		 *   Otherwise, the items will be shown as children of the variable.
 		 */
+		// @API don't return TreeDataProvider but a reference to it, like its ids
 		visualization?: Command | TreeDataProvider<unknown>;
 
 		/**
