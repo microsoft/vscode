@@ -43,6 +43,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -1051,8 +1052,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._toggleSelectionFind.onChange(() => {
 			if (this._toggleSelectionFind.checked) {
 				if (this._codeEditor.hasModel()) {
-					const selections = this._codeEditor.getSelections();
-					selections.map(selection => {
+					let selections = this._codeEditor.getSelections();
+					selections = selections.map(selection => {
 						if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 							selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1));
 						}
@@ -1060,7 +1061,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 							return selection;
 						}
 						return null;
-					}).filter(element => !!element);
+					}).filter((element): element is Selection => !!element);
 
 					if (selections.length) {
 						this._state.change({ searchScope: selections as Range[] }, true);
