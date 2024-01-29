@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, WebContents } from 'electron';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
+import { hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
@@ -61,6 +63,9 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 			// Disable Menu
 			window.setMenu(null);
+			if ((isWindows || isLinux) && hasNativeTitlebar(this.configurationService)) {
+				window.setAutoHideMenuBar(true); // Fix for https://github.com/microsoft/vscode/issues/200615
+			}
 
 			// Lifecycle
 			this.lifecycleMainService.registerAuxWindow(this);
