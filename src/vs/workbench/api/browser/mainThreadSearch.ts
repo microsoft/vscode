@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, resultIsMatch, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
-import { DeferredPromise } from 'vs/base/common/async';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -145,42 +144,6 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		}, err => {
 			this._searches.delete(search.id);
 			return Promise.reject(err);
-		});
-	}
-
-	async hasResult(query: ITextQuery | IFileQuery, token: CancellationToken = CancellationToken.None): Promise<boolean> {
-		const retPromise = new DeferredPromise<boolean>();
-		if (!query.folderQueries.length) {
-			throw new Error('Empty folderQueries');
-		}
-
-		const disposables = new DisposableStore();
-		const conditionalTokenCts = disposables.add(new CancellationTokenSource());
-		disposables.add(token.onCancellationRequested(() =>
-			conditionalTokenCts.cancel()
-		));
-
-		const search = new SearchOperation((match: IFileMatch) => {
-			if (match.results && match.results.length) {
-				retPromise.complete(true);
-			}
-		});
-
-		this._searches.set(search.id, search);
-
-		(query.type === QueryType.File
-			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, conditionalTokenCts.token)
-			: this._proxy.$provideTextSearchResults(this._handle, search.id, query, conditionalTokenCts.token))
-			.then(() => retPromise.complete(false))
-			.finally(() => {
-				this._searches.delete(search.id);
-				disposables.dispose();
-			});
-
-
-		return retPromise.p.then((ret) => {
-			conditionalTokenCts.cancel();
-			return ret;
 		});
 	}
 
