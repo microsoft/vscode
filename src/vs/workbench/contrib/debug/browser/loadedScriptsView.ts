@@ -12,7 +12,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE, CONTEXT_DEBUG_STATE, LOADED_SCRIPTS_VIEW_ID, getStateLabel, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE, LOADED_SCRIPTS_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
