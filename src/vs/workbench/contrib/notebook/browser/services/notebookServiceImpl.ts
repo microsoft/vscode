@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { toAction } from 'vs/base/common/actions';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { PixelRatio } from 'vs/base/browser/browser';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -45,6 +44,8 @@ import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/ext
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { INotebookDocument, INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { $window } from 'vs/base/browser/window';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -603,7 +604,7 @@ export class NotebookService extends Disposable implements INotebookService {
 							// there is a `::before` or `::after` text decoration whose position is above or below current line
 							// we at least make sure that the editor top padding is at least one line
 							const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight + 2);
+							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance($window).value).lineHeight + 2);
 							decorationTriggeredAdjustment = true;
 							break;
 						}

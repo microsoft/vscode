@@ -1187,7 +1187,7 @@ class ZoomStatusEntry extends Disposable {
 
 	private updateZoomLevelLabel(targetWindowId: number): void {
 		if (this.zoomLevelLabel) {
-			const targetWindow = getWindowById(targetWindowId)?.window ?? mainWindow;
+			const targetWindow = getWindowById(targetWindowId, true).window;
 			const zoomFactor = Math.round(getZoomFactor(targetWindow) * 100);
 			const zoomLevel = getZoomLevel(targetWindow);
 
