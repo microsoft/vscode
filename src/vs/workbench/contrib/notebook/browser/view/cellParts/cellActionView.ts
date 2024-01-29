@@ -42,12 +42,13 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 		}
 	}
 }
-export class SubmenuActionViewWithLabel extends SubmenuEntryActionViewItem {
+export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 	private _actionLabel?: HTMLAnchorElement;
 
 	constructor(
 		action: SubmenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
+		readonly renderLabel: boolean,
 		readonly subActionProvider: IActionProvider,
 		readonly subActionViewItemProvider: IActionViewItemProvider | undefined,
 		@IKeybindingService _keybindingService: IKeybindingService,
@@ -84,13 +85,17 @@ export class SubmenuActionViewWithLabel extends SubmenuEntryActionViewItem {
 					element.classList.add(...iconClasses);
 				}
 
-				this._actionLabel.classList.add('notebook-label');
-				this._actionLabel.innerText = MenuItemAction.label(primaryAction.item, { renderShortTitle: true });
-				this._actionLabel.title = primaryAction.tooltip.length ? primaryAction.tooltip : primaryAction.label;
+				if (this.renderLabel) {
+					this._actionLabel.classList.add('notebook-label');
+					this._actionLabel.innerText = this._action.label;
+					this._actionLabel.title = primaryAction.tooltip.length ? primaryAction.tooltip : primaryAction.label;
+				}
 			} else {
-				this._actionLabel.classList.add('notebook-label');
-				this._actionLabel.innerText = this._action.label;
-				this._actionLabel.title = this._action.tooltip.length ? this._action.tooltip : this._action.label;
+				if (this.renderLabel) {
+					this._actionLabel.classList.add('notebook-label');
+					this._actionLabel.innerText = this._action.label;
+					this._actionLabel.title = this._action.tooltip.length ? this._action.tooltip : this._action.label;
+				}
 			}
 		}
 	}

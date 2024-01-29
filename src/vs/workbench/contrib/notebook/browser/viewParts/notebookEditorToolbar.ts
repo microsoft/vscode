@@ -21,7 +21,7 @@ import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controll
 import { NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelView';
-import { ActionViewWithLabel, SubmenuActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
+import { ActionViewWithLabel, UnifiedSubmenuActionView } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
@@ -86,7 +86,7 @@ class WorkbenchAlwaysLabelStrategy implements IActionLayoutStrategy {
 		}
 
 		if (action instanceof SubmenuItemAction && action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
-			return this.instantiationService.createInstance(SubmenuActionViewWithLabel, action, undefined, {
+			return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, true, {
 				getActions: () => {
 					return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
 				}
@@ -112,6 +112,7 @@ class WorkbenchNeverLabelStrategy implements IActionLayoutStrategy {
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
 		readonly editorToolbar: NotebookEditorWorkbenchToolbar,
+		readonly goToMenu: IMenu,
 		readonly instantiationService: IInstantiationService) { }
 
 	actionProvider(action: IAction): IActionViewItem | undefined {
@@ -125,7 +126,15 @@ class WorkbenchNeverLabelStrategy implements IActionLayoutStrategy {
 		}
 
 		if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+			if (action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
+				return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, false, {
+					getActions: () => {
+						return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
+					}
+				}, this.actionProvider.bind(this));
+			} else {
+				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+			}
 		}
 
 		return undefined;
@@ -147,6 +156,7 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
 		readonly editorToolbar: NotebookEditorWorkbenchToolbar,
+		readonly goToMenu: IMenu,
 		readonly instantiationService: IInstantiationService) { }
 
 	actionProvider(action: IAction): IActionViewItem | undefined {
@@ -157,14 +167,34 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
 		if (!a || a.renderLabel) {
-			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
+			if (action instanceof MenuItemAction) {
+				return this.instantiationService.createInstance(ActionViewWithLabel, action, undefined);
+			}
+
+			if (action instanceof SubmenuItemAction && action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
+				return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, true, {
+					getActions: () => {
+						return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
+					}
+				}, this.actionProvider.bind(this));
+			}
+
+			return undefined;
 		} else {
 			if (action instanceof MenuItemAction) {
 				this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 			}
 
 			if (action instanceof SubmenuItemAction) {
-				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+				if (action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
+					return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, false, {
+						getActions: () => {
+							return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
+						}
+					}, this.actionProvider.bind(this));
+				} else {
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+				}
 			}
 
 			return undefined;
@@ -411,10 +441,10 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 				this._strategy = new WorkbenchAlwaysLabelStrategy(this.notebookEditor, this, this._executeGoToActionsMenu, this.instantiationService);
 				break;
 			case RenderLabel.Never:
-				this._strategy = new WorkbenchNeverLabelStrategy(this.notebookEditor, this, this.instantiationService);
+				this._strategy = new WorkbenchNeverLabelStrategy(this.notebookEditor, this, this._executeGoToActionsMenu, this.instantiationService);
 				break;
 			case RenderLabel.Dynamic:
-				this._strategy = new WorkbenchDynamicLabelStrategy(this.notebookEditor, this, this.instantiationService);
+				this._strategy = new WorkbenchDynamicLabelStrategy(this.notebookEditor, this, this._executeGoToActionsMenu, this.instantiationService);
 				break;
 		}
 	}

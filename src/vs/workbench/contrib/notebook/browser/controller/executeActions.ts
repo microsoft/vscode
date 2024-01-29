@@ -636,7 +636,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 			id: REVEAL_RUNNING_CELL,
 			title: localize('revealRunningCell', "Go to Running Cell"),
 			tooltip: localize('revealRunningCell', "Go to Running Cell"),
-			shortTitle: localize('revealRunningCellShort', "Go To"),
+			shortTitle: localize('revealRunningCell', "Go to Running Cell"),
 			precondition: NOTEBOOK_HAS_RUNNING_CELL,
 			menu: [
 				{
@@ -711,7 +711,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 			id: REVEAL_LAST_FAILED_CELL,
 			title: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
 			tooltip: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
-			shortTitle: localize('revealLastFailedCellShort', "Go To"),
+			shortTitle: localize('revealLastFailedCellShort', "Go to Most Recently Failed Cell"),
 			precondition: NOTEBOOK_LAST_CELL_FAILED,
 			menu: [
 				{
