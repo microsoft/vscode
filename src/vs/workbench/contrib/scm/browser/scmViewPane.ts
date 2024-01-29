@@ -3006,11 +3006,13 @@ export class SCMViewPane extends ViewPane {
 		const element = e.element;
 		let context: any = element;
 		let actions: IAction[] = [];
+		let actionRunner: IActionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryContextMenu;
 			context = element.provider;
+			actionRunner = new RepositoryActionRunner(() => this.getSelectedRepositories());
 			actions = collectContextMenuActions(menu);
 		} else if (isSCMInput(element) || isSCMActionButton(element)) {
 			// noop
@@ -3032,11 +3034,18 @@ export class SCMViewPane extends ViewPane {
 				const menu = menus.getResourceFolderMenu(element.context);
 				actions = collectContextMenuActions(menu);
 			}
+		} else if (isSCMHistoryItemGroupTreeElement(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
+			const menu = element.direction === 'incoming' ?
+				menus.historyProviderMenu?.incomingHistoryItemGroupContextMenu :
+				menus.historyProviderMenu?.outgoingHistoryItemGroupContextMenu;
+
+			if (menu) {
+				actionRunner = new HistoryItemGroupActionRunner();
+				createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
+			}
 		}
 
-		const actionRunner = isSCMRepository(element) ?
-			new RepositoryActionRunner(() => this.getSelectedRepositories()) :
-			new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		actionRunner.onWillRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({
