@@ -2363,6 +2363,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		cell.focusedOutputId = undefined;
+
 		if (focusItem === 'editor') {
 			this.focusElement(cell);
 			this._list.focusView();
@@ -2408,7 +2410,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
-			cell.selectedOutputId = options?.outputId;
+			cell.focusedOutputId = options?.outputId;
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
 			}

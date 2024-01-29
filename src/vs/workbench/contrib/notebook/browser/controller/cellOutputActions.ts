@@ -48,9 +48,9 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 				return;
 			}
 
-			if (activeCell.selectedOutputId !== undefined) {
+			if (activeCell.focusedOutputId !== undefined) {
 				outputViewModel = activeCell.outputsViewModels.find(output => {
-					return output.model.outputId === activeCell.selectedOutputId;
+					return output.model.outputId === activeCell.focusedOutputId;
 				});
 			} else {
 				outputViewModel = activeCell.outputsViewModels.find(output => output.pickedMimeType?.isTrusted);
