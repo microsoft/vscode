@@ -266,7 +266,7 @@ function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, an
 	}
 
 	tree.reveal(focus[0]);
-	tree.domFocus();
+	tree.getHTMLElement().focus(); // domfocus() would focus stiky scroll dom and not the tree todo@benibenj
 	tree.setFocus(focus);
 	postRevealAction?.(focus[0]);
 }
@@ -718,7 +718,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.toggleExpand',
+	id: 'list.stickyScrolltoggleExpand',
 	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
 	when: WorkbenchTreeStickyScrollFocused,
 	primary: KeyCode.Space,
@@ -729,7 +729,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		revealFocusedStickyScroll(widget, focus => widget.setSelection([focus]));
+		revealFocusedStickyScroll(widget);
 	}
 });
 

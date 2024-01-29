@@ -702,13 +702,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		// Activity bar cannot be hidden
-		// This check must be called after state is set
-		// because canActivityBarBeHidden calls isVisible
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
-			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
-		}
-
 		// Window border
 		this.updateWindowsBorder(true);
 	}
@@ -1742,16 +1735,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (hidden && !this.canActivityBarBeHidden()) {
-			return;
-		}
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
-	}
-
-	private canActivityBarBeHidden(): boolean {
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
 	private setBannerHidden(hidden: boolean): void {

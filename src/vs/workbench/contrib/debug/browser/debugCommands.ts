@@ -224,7 +224,7 @@ async function navigateCallStack(debugService: IDebugService, down: boolean) {
 		}
 
 		if (nextVisibleFrame) {
-			debugService.focusStackFrame(nextVisibleFrame);
+			debugService.focusStackFrame(nextVisibleFrame, undefined, undefined, { preserveFocus: false });
 		}
 	}
 }

@@ -146,7 +146,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
-				tags: ['usesOnlineServices', 'FeatureInsight']
+				tags: ['usesOnlineServices']
 			},
 			'extensions.autoCheckUpdates': {
 				type: 'boolean',
@@ -992,7 +992,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			order: 1,
 		});
 
-		EXTENSION_CATEGORIES.map((category, index) => {
+		EXTENSION_CATEGORIES.forEach((category, index) => {
 			this.registerExtensionAction({
 				id: `extensions.actions.searchByCategory.${category}`,
 				title: category,

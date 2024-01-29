@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
 export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'string', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
+export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'string', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
 
 export interface ISpeechProviderMetadata {
 	readonly extension: ExtensionIdentifier;
@@ -146,6 +147,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private _activeSpeechToTextSession: ISpeechToTextSession | undefined = undefined;
 	get hasActiveSpeechToTextSession() { return !!this._activeSpeechToTextSession; }
 
+	private readonly speechToTextInProgress = SpeechToTextInProgress.bindTo(this.contextKeyService);
+
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
@@ -161,6 +164,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		const onSessionStoppedOrCanceled = () => {
 			if (session === this._activeSpeechToTextSession) {
 				this._activeSpeechToTextSession = undefined;
+				this.speechToTextInProgress.reset();
 				this._onDidEndSpeechToTextSession.fire();
 			}
 
@@ -176,6 +180,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
 					if (session === this._activeSpeechToTextSession) {
+						this.speechToTextInProgress.set(true);
 						this._onDidStartSpeechToTextSession.fire();
 					}
 					break;

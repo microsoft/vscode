@@ -402,7 +402,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected onTabContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
-		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
+		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 		this.editorPinnedContext.set(this.tabsModel.isPinned(editor));
 		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));
 		this.editorIsLastContext.set(this.tabsModel.isLast(editor));

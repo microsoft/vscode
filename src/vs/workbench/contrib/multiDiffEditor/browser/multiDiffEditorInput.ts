@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
+import { Schemas } from 'vs/base/common/network';
 import { deepClone } from 'vs/base/common/objects';
 import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { constObservable, mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
@@ -21,10 +22,11 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
+import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, IEditorSerializer, IResourceMultiDiffEditorInput, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
 import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { ObservableLazyStatefulPromise } from 'vs/workbench/contrib/multiDiffEditor/browser/utils';
@@ -241,20 +243,46 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	override readonly onDidChangeDirty = Event.fromObservableLight(this._isDirtyObservable);
 	override isDirty() { return this._isDirtyObservable.get(); }
 
-	override async save(group: number, options?: ISaveOptions | undefined): Promise<EditorInput | IUntypedEditorInput | undefined> {
+	override async save(group: number, options?: ISaveOptions | undefined): Promise<EditorInput> {
+		await this.doSaveOrRevert('save', group, options);
+		return this;
+	}
+
+	override  revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		return this.doSaveOrRevert('revert', group, options);
+	}
+
+	private async doSaveOrRevert(mode: 'save', group: GroupIdentifier, options?: ISaveOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'revert', group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'save' | 'revert', group: GroupIdentifier, options?: ISaveOptions | IRevertOptions): Promise<void> {
 		const items = this._viewModel.currentValue?.items.get();
 		if (items) {
 			await Promise.all(items.map(async item => {
 				const model = item.diffEditorViewModel.model;
+				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
 
 				await Promise.all([
-					this._textFileService.save(model.original.uri, options),
-					this._textFileService.save(model.modified.uri, options),
+					handleOriginal ? mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options) : Promise.resolve(),
+					mode === 'save' ? this._textFileService.save(model.modified.uri, options) : this._textFileService.revert(model.modified.uri, options),
 				]);
 			}));
 		}
 		return undefined;
 	}
+
+	override readonly closeHandler: IEditorCloseHandler = {
+
+		// TODO@bpasero TODO@hediet this is a workaround for
+		// not having a better way to figure out if the
+		// editors this input wraps around are opened or not
+
+		async confirm() {
+			return ConfirmResult.DONT_SAVE;
+		},
+		showConfirm() {
+			return false;
+		}
+	};
 }
 
 function isUriDirty(textFileService: ITextFileService, uri: URI) {

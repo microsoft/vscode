@@ -194,12 +194,24 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		if (this.environmentMainService.args['open-devtools'] === true) {
 			win.webContents.openDevTools();
 		}
+
+		// macOS: Window Fullscreen Transitions
+		if (isMacintosh) {
+			this._register(this.onDidEnterFullScreen(() => {
+				this.joinNativeFullScreenTransition?.complete(true);
+			}));
+
+			this._register(this.onDidLeaveFullScreen(() => {
+				this.joinNativeFullScreenTransition?.complete(true);
+			}));
+		}
 	}
 
 	constructor(
 		protected readonly configurationService: IConfigurationService,
 		protected readonly stateService: IStateService,
-		protected readonly environmentMainService: IEnvironmentMainService
+		protected readonly environmentMainService: IEnvironmentMainService,
+		protected readonly logService: ILogService
 	) {
 		super();
 	}
@@ -333,21 +345,18 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#region Fullscreen
 
-	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
-	// where on macOS the window will report a wrong state for `isFullScreen()` while
-	// transitioning into and out of native full screen.
-	protected transientIsNativeFullScreen: boolean | undefined = undefined;
-	protected joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
+	private transientIsNativeFullScreen: boolean | undefined = undefined;
+	private joinNativeFullScreenTransition: DeferredPromise<boolean> | undefined = undefined;
 
 	toggleFullScreen(): void {
-		this.setFullScreen(!this.isFullScreen);
+		this.setFullScreen(!this.isFullScreen, false);
 	}
 
-	protected setFullScreen(fullscreen: boolean): void {
+	protected setFullScreen(fullscreen: boolean, fromRestore: boolean): void {
 
 		// Set fullscreen state
 		if (useNativeFullScreen(this.configurationService)) {
-			this.setNativeFullScreen(fullscreen);
+			this.setNativeFullScreen(fullscreen, fromRestore);
 		} else {
 			this.setSimpleFullScreen(fullscreen);
 		}
@@ -365,31 +374,56 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		return Boolean(isFullScreen || isSimpleFullScreen);
 	}
 
-	private setNativeFullScreen(fullscreen: boolean): void {
+	private setNativeFullScreen(fullscreen: boolean, fromRestore: boolean): void {
 		const win = this.win;
 		if (win?.isSimpleFullScreen()) {
 			win?.setSimpleFullScreen(false);
 		}
 
-		this.doSetNativeFullScreen(fullscreen);
+		this.doSetNativeFullScreen(fullscreen, fromRestore);
 	}
 
-	private doSetNativeFullScreen(fullscreen: boolean): void {
+	private doSetNativeFullScreen(fullscreen: boolean, fromRestore: boolean): void {
 		if (isMacintosh) {
+
+			// macOS: Electron windows report `false` for `isFullScreen()` for as long
+			// as the fullscreen transition animation takes place. As such, we need to
+			// listen to the transition events and carry around an intermediate state
+			// for knowing if we are in fullscreen or not
+			// Refs: https://github.com/electron/electron/issues/35360
+
 			this.transientIsNativeFullScreen = fullscreen;
-			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
-			Promise.race([
-				this.joinNativeFullScreenTransition.p,
-				// still timeout after some time in case the transition is unusually slow
-				// this can easily happen for an OS update where macOS tries to reopen
-				// previous applications and that can take multiple seconds, probably due
-				// to security checks. its worth noting that if this takes more than
-				// 10 seconds, users would see a window that is not-fullscreen but without
-				// custom titlebar...
-				timeout(10000)
-			]).finally(() => {
+
+			const joinNativeFullScreenTransition = this.joinNativeFullScreenTransition = new DeferredPromise<boolean>();
+			(async () => {
+				const transitioned = await Promise.race([
+					joinNativeFullScreenTransition.p,
+					timeout(10000).then(() => false)
+				]);
+
+				if (this.joinNativeFullScreenTransition !== joinNativeFullScreenTransition) {
+					return; // another transition was requested later
+				}
+
 				this.transientIsNativeFullScreen = undefined;
-			});
+				this.joinNativeFullScreenTransition = undefined;
+
+				if (!transitioned && fullscreen && fromRestore) {
+
+					// We have seen requests for fullscreen failing eventually after some
+					// time, for example when an OS update was performed and windows restore.
+					// In those cases a user would find a window that is not in fullscreen
+					// but also does not show any custom titlebar (and thus window controls)
+					// because we think the window is in fullscreen.
+					//
+					// As a workaround in that case we emit a warning and leave fullscreen
+					// so that at least the window controls are back.
+
+					this.logService.warn('window: native macOS fullscreen transition did not happen within 10s from restoring');
+
+					this._onDidLeaveFullScreen.fire();
+				}
+			})();
 		}
 
 		const win = this.win;
@@ -399,7 +433,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private setSimpleFullScreen(fullscreen: boolean): void {
 		const win = this.win;
 		if (win?.isFullScreen()) {
-			this.doSetNativeFullScreen(false);
+			this.doSetNativeFullScreen(false, false);
 		}
 
 		win?.setSimpleFullScreen(fullscreen);
@@ -486,7 +520,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	constructor(
 		config: IWindowCreationOptions,
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
@@ -507,7 +541,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(configurationService, stateService, environmentMainService);
+		super(configurationService, stateService, environmentMainService, logService);
 
 		//#region create browser window
 		{
@@ -570,7 +604,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
-					this.setFullScreen(true);
+					this.setFullScreen(true, true);
 				}
 
 				// to reduce flicker from the default window size
@@ -682,16 +716,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// Window Fullscreen
 		this._register(this.onDidEnterFullScreen(() => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
-
-			this.joinNativeFullScreenTransition?.complete();
-			this.joinNativeFullScreenTransition = undefined;
 		}));
 
 		this._register(this.onDidLeaveFullScreen(() => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
-
-			this.joinNativeFullScreenTransition?.complete();
-			this.joinNativeFullScreenTransition = undefined;
 		}));
 
 		// Handle configuration changes
@@ -1384,8 +1412,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return { x, y, width, height };
 	}
 
-	protected override setFullScreen(fullscreen: boolean): void {
-		super.setFullScreen(fullscreen);
+	protected override setFullScreen(fullscreen: boolean, fromRestore: boolean): void {
+		super.setFullScreen(fullscreen, fromRestore);
 
 		// Events
 		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen', CancellationToken.None);

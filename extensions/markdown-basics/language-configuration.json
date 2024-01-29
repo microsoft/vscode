@@ -42,10 +42,6 @@
 				"string"
 			]
 		},
-		{
-			"open": "`",
-			"close": "`"
-		},
 	],
 	"surroundingPairs": [
 		[
