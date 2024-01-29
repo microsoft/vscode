@@ -89,7 +89,7 @@ const smartPasteLineRegexes = [
 	{ regex: /\$\$[\s\S]*?\$\$/gm }, // In a fenced math block
 	{ regex: /`[^`]*`/g }, // In inline code
 	{ regex: /\$[^$]*\$/g }, // In inline math
-	{ regex: /^[ ]{0,3}\[\w+\]:\s.*$/g }, // Block link definition (needed as tokens are not generated for these)
+	{ regex: /^[ ]{0,3}\[\w+\]:\s.*$/g, isWholeLine: true }, // Block link definition (needed as tokens are not generated for these)
 ];
 
 export async function shouldInsertMarkdownLinkByDefault(
@@ -124,6 +124,8 @@ export async function shouldInsertMarkdownLinkByDefault(
 	}
 }
 
+const textTokenTypes = new Set(['paragraph_open', 'inline', 'heading_open', 'ordered_list_open', 'bullet_list_open', 'list_item_open', 'blockquote_open']);
+
 async function shouldSmartPasteForSelection(
 	parser: IMdParser,
 	document: ITextDocument,
@@ -150,9 +152,29 @@ async function shouldSmartPasteForSelection(
 	if (token.isCancellationRequested) {
 		return false;
 	}
-	for (const token of tokens) {
-		if (token.map && token.map[0] <= selectedRange.start.line && token.map[1] > selectedRange.start.line) {
-			if (!['paragraph_open', 'inline', 'heading_open', 'ordered_list_open', 'bullet_list_open', 'list_item_open', 'blockquote_open'].includes(token.type)) {
+
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (!token.map) {
+			continue;
+		}
+		if (token.map[0] <= selectedRange.start.line && token.map[1] > selectedRange.start.line) {
+			if (!textTokenTypes.has(token.type)) {
+				return false;
+			}
+		}
+
+		// Special case for html such as:
+		//
+		// <b>
+		// |
+		// </b>
+		//
+		// In this case pasting will cause the html block to be created even though the cursor is not currently inside a block
+		if (token.type === 'html_block' && token.map[1] === selectedRange.start.line) {
+			const nextToken = tokens.at(i + 1);
+			// The next token does not need to be a html_block, but it must be on the next line
+			if (nextToken?.map?.[0] === selectedRange.end.line + 1) {
 				return false;
 			}
 		}
@@ -162,7 +184,15 @@ async function shouldSmartPasteForSelection(
 	const line = document.getText(new vscode.Range(selectedRange.start.line, 0, selectedRange.start.line, Number.MAX_SAFE_INTEGER));
 	for (const regex of smartPasteLineRegexes) {
 		for (const match of line.matchAll(regex.regex)) {
-			if (match.index !== undefined && selectedRange.start.character >= match.index && selectedRange.start.character <= match.index + match[0].length) {
+			if (match.index === undefined) {
+				continue;
+			}
+
+			if (regex.isWholeLine) {
+				return false;
+			}
+
+			if (selectedRange.start.character > match.index && selectedRange.start.character < match.index + match[0].length) {
 				return false;
 			}
 		}

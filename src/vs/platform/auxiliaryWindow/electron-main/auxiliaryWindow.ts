@@ -32,12 +32,12 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	constructor(
 		private readonly contents: WebContents,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStateService stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
-		super(configurationService, stateService, environmentMainService);
+		super(configurationService, stateService, environmentMainService, logService);
 
 		// Try to claim window
 		this.tryClaimWindow();
