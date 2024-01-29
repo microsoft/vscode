@@ -45,7 +45,7 @@ export class ShowAudioCueHelp extends Action2 {
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { audioCue: AudioCue }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => audioCueService.isCueEnabled(i.audioCue));
-		qp.onDidHide(() => {
+		qp.onDidAccept(() => {
 			const enabledCues = qp.selectedItems.map(i => i.audioCue);
 			const disabledCues = AudioCue.allAudioCues.filter(cue => !enabledCues.includes(cue));
 			for (const cue of enabledCues) {
@@ -60,6 +60,7 @@ export class ShowAudioCueHelp extends Action2 {
 					configurationService.updateValue(cue.settingsKey, 'off');
 				}
 			}
+			qp.hide();
 		});
 		qp.onDidChangeActive(() => {
 			audioCueService.playSound(qp.activeItems[0].audioCue.sound.getSound(true), true);
@@ -101,7 +102,7 @@ export class ShowAccessibilityAlertHelp extends Action2 {
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { audioCue: AudioCue }>();
 		qp.items = items;
 		qp.selectedItems = items.filter(i => audioCueService.isAlertEnabled(i.audioCue));
-		qp.onDidHide(() => {
+		qp.onDidAccept(() => {
 			const enabledAlerts = qp.selectedItems.map(i => i.audioCue);
 			const disabledAlerts = AudioCue.allAudioCues.filter(cue => !enabledAlerts.includes(cue));
 			for (const cue of enabledAlerts) {
@@ -116,6 +117,7 @@ export class ShowAccessibilityAlertHelp extends Action2 {
 					configurationService.updateValue(cue.alertSettingsKey!, false);
 				}
 			}
+			qp.hide();
 		});
 		qp.placeholder = localize('alert.help.placeholder', 'Select an alert to configure');
 		qp.canSelectMany = true;
