@@ -667,7 +667,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = true;
-							this.notebookEditor.focusNotebookCell(latestCell, 'output', { skipReveal: true, outputWebviewFocused: true });
+							this.notebookEditor.focusNotebookCell(latestCell, 'output', { outputId: resolvedResult.output.model.outputId, skipReveal: true, outputWebviewFocused: true });
 						}
 					}
 					break;
