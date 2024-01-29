@@ -498,7 +498,10 @@ export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 			return;
 		}
 
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
+		if (extensionStatus.activationTimes) {
+			append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
+			return;
+		}
 	}
 
 }
