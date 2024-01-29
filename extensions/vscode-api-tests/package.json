@@ -7,7 +7,6 @@
   "enabledApiProposals": [
     "authSession",
     "chatAgents2",
-    "chatVariables",
     "contribViewsRemote",
     "contribStatusBarItems",
     "createFileSystemWatcher",

@@ -8,7 +8,7 @@ import 'mocha';
 import { CancellationToken, chat, ChatAgentRequest, ChatVariableLevel, Disposable, interactive, InteractiveSession, ProviderResult } from 'vscode';
 import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../utils';
 
-suite.skip('chat', () => {
+suite('chat', () => {
 
 	let disposables: Disposable[] = [];
 	setup(() => {
@@ -48,9 +48,9 @@ suite.skip('chat', () => {
 	test('agent and slash command', async () => {
 		const deferred = getDeferredForRequest();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
-		const lastResult = await deferred.p;
-		assert.deepStrictEqual(lastResult.slashCommand, { name: 'hello', description: 'Hello' });
-		assert.strictEqual(lastResult.prompt, 'friend');
+		const request = await deferred.p;
+		assert.deepStrictEqual(request.subCommand, 'hello');
+		assert.strictEqual(request.prompt, 'friend');
 	});
 
 	test('agent and variable', async () => {
@@ -62,8 +62,8 @@ suite.skip('chat', () => {
 
 		const deferred = getDeferredForRequest();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent hi #myVar' });
-		const lastResult = await deferred.p;
-		assert.strictEqual(lastResult.prompt, 'hi [#myVar](values:myVar)');
-		assert.strictEqual(lastResult.variables['myVar'][0].value, 'myValue');
+		const request = await deferred.p;
+		assert.strictEqual(request.prompt, 'hi [#myVar](values:myVar)');
+		assert.strictEqual(request.variables['myVar'][0].value, 'myValue');
 	});
 });
