@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFullscreen, onDidChangeFullscreen, onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { isFullscreen, onDidChangeFullscreen } from 'vs/base/browser/browser';
 import { hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -77,12 +77,6 @@ export class AuxiliaryEditorPart {
 				hide(statusbarPart.container);
 			}
 
-			updateEditorPartHeight(fromEvent);
-		}
-
-		function updateEditorPartHeight(fromEvent: boolean): void {
-			editorPartContainer.style.height = `calc(100% - ${computeEditorPartHeightOffset()}px)`;
-
 			if (fromEvent) {
 				auxiliaryWindow.layout();
 			}
@@ -112,20 +106,7 @@ export class AuxiliaryEditorPart {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
 			titlebarPartVisible = true;
 
-			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
-			disposables.add(onDidChangeZoomLevel(targetWindowId => {
-				if (auxiliaryWindow.window.vscodeWindowId === targetWindowId && titlebarPartVisible) {
-
-					// This is a workaround for https://github.com/microsoft/vscode/issues/202377
-					// The title bar part prevents zooming in certain cases and when doing so,
-					// adjusts its size accordingly. This is however not reported from the
-					// `onDidchange` event that we listen to above, so we manually update the
-					// editor part height here.
-
-					updateEditorPartHeight(true);
-				}
-			}));
-
+			disposables.add(titlebarPart.onDidChange(() => auxiliaryWindow.layout()));
 			disposables.add(onDidChangeFullscreen(windowId => {
 				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
 					return; // ignore all but our window
@@ -140,7 +121,7 @@ export class AuxiliaryEditorPart {
 				if (titlebarPart && oldTitlebarPartVisible !== titlebarPartVisible) {
 					titlebarPart.container.style.display = titlebarPartVisible ? '' : 'none';
 
-					updateEditorPartHeight(true);
+					auxiliaryWindow.layout();
 				}
 			}));
 		} else {
@@ -173,8 +154,10 @@ export class AuxiliaryEditorPart {
 		}));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
-		// Layout
-		disposables.add(auxiliaryWindow.onDidLayout(dimension => {
+		// Layout: specifically `onWillLayout` to have a chance
+		// to build the aux editor part before other components
+		// have a chance to react.
+		disposables.add(auxiliaryWindow.onWillLayout(dimension => {
 			const titlebarPartHeight = titlebarPart?.height ?? 0;
 			titlebarPart?.layout(dimension.width, titlebarPartHeight, 0, 0);
 
