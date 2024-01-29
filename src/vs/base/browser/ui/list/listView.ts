@@ -24,6 +24,7 @@ import { IObservableValue } from 'vs/base/common/observableValue';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import { clamp } from 'vs/base/common/numbers';
 
 interface IItem<T> {
 	readonly id: string;
@@ -1371,7 +1372,8 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const relativePosition = browserEvent.offsetY / this.items[targetIndex].size;
-		return Math.floor(relativePosition / 0.25);
+		const sector = Math.floor(relativePosition / 0.25);
+		return clamp(sector, 0, 3);
 	}
 
 	private getItemIndexFromEventTarget(target: EventTarget | null): number | undefined {
