@@ -84,7 +84,8 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		this._outputViewModels = this.textModel.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 		this._register(this.textModel.onDidChangeOutputs((splice) => {
 			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
-			this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService)));
+			const removed = this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService)));
+			removed.forEach(vm => vm.dispose());
 
 			this._outputsTop = null;
 			this._onDidChangeOutputLayout.fire();
@@ -129,5 +130,13 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		this._ensureOutputsTop();
 
 		return this._outputsTop?.getTotalSum() ?? 0;
+	}
+
+	public override dispose(): void {
+		super.dispose();
+
+		this._outputViewModels.forEach(output => {
+			output.dispose();
+		});
 	}
 }

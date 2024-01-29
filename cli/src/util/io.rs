@@ -15,6 +15,8 @@ use tokio::{
 	time::sleep,
 };
 
+use super::ring_buffer::RingBuffer;
+
 pub trait ReportCopyProgress {
 	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64);
 }
@@ -132,8 +134,7 @@ pub fn tailf(file: File, n: usize) -> mpsc::UnboundedReceiver<TailEvent> {
 
 	// Read the initial "n" lines back from the request. initial_lines
 	// is a small ring buffer.
-	let mut initial_lines = Vec::with_capacity(n);
-	let mut initial_lines_i = 0;
+	let mut initial_lines = RingBuffer::new(n);
 	loop {
 		let mut line = String::new();
 		let bytes_read = match reader.read_line(&mut line) {
@@ -151,26 +152,11 @@ pub fn tailf(file: File, n: usize) -> mpsc::UnboundedReceiver<TailEvent> {
 		}
 
 		pos += bytes_read as u64;
-		if initial_lines.len() < initial_lines.capacity() {
-			initial_lines.push(line)
-		} else {
-			initial_lines[initial_lines_i] = line;
-		}
-
-		initial_lines_i = (initial_lines_i + 1) % n;
+		initial_lines.push(line);
 	}
 
-	// remove tail lines...
-	if initial_lines_i < initial_lines.len() {
-		for line in initial_lines.drain((initial_lines_i)..) {
-			tx.send(TailEvent::Line(line)).ok();
-		}
-	}
-	// then the remaining lines
-	if !initial_lines.is_empty() {
-		for line in initial_lines.drain(0..) {
-			tx.send(TailEvent::Line(line)).ok();
-		}
+	for line in initial_lines.into_iter() {
+		tx.send(TailEvent::Line(line)).ok();
 	}
 
 	// now spawn the poll process to keep reading new lines

@@ -11,7 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, IObservable, IReader, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { autorun, autorunWithStore, IObservable, IReader, observableValue, transaction } from 'vs/base/common/observable';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -20,6 +20,7 @@ import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBr
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,7 +39,7 @@ import { readTransientState, writeTransientState } from 'vs/workbench/contrib/co
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { deepMerge, PersistentStore, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { deepMerge, observableConfigValue, PersistentStore, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { ScrollSynchronizer } from 'vs/workbench/contrib/mergeEditor/browser/view/scrollSynchronizer';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
@@ -57,7 +58,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	static readonly ID = 'mergeEditor';
 
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _viewModel = observableValue<MergeEditorViewModel | undefined>('viewModel', undefined);
+	private readonly _viewModel = observableValue<MergeEditorViewModel | undefined>(this, undefined);
 
 	public get viewModel(): IObservable<MergeEditorViewModel | undefined> {
 		return this._viewModel;
@@ -66,13 +67,13 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private rootHtmlElement: HTMLElement | undefined;
 	private readonly _grid = this._register(new MutableDisposable<Grid<IView>>());
 	private readonly input1View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 1, this._viewModel));
-	private readonly baseView = observableValue<BaseCodeEditorView | undefined>('baseView', undefined);
-	private readonly baseViewOptions = observableValue<Readonly<ICodeEditorOptions> | undefined>('baseViewOptions', undefined);
+	private readonly baseView = observableValue<BaseCodeEditorView | undefined>(this, undefined);
+	private readonly baseViewOptions = observableValue<Readonly<ICodeEditorOptions> | undefined>(this, undefined);
 	private readonly input2View = this._register(this.instantiationService.createInstance(InputCodeEditorView, 2, this._viewModel));
 
 	private readonly inputResultView = this._register(this.instantiationService.createInstance(ResultCodeEditorView, this._viewModel));
 	private readonly _layoutMode = this.instantiationService.createInstance(MergeEditorLayoutStore);
-	private readonly _layoutModeObs = observableValue('layoutMode', this._layoutMode.value);
+	private readonly _layoutModeObs = observableValue(this, this._layoutMode.value);
 	private readonly _ctxIsMergeEditor: IContextKey<boolean> = ctxIsMergeEditor.bindTo(this.contextKeyService);
 	private readonly _ctxUsesColumnLayout: IContextKey<string> = ctxMergeEditorLayout.bindTo(this.contextKeyService);
 	private readonly _ctxShowBase: IContextKey<boolean> = ctxMergeEditorShowBase.bindTo(this.contextKeyService);
@@ -80,7 +81,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly _ctxResultUri: IContextKey<string> = ctxMergeResultUri.bindTo(this.contextKeyService);
 	private readonly _ctxBaseUri: IContextKey<string> = ctxMergeBaseUri.bindTo(this.contextKeyService);
 	private readonly _ctxShowNonConflictingChanges: IContextKey<boolean> = ctxMergeEditorShowNonConflictingChanges.bindTo(this.contextKeyService);
-	private readonly _inputModel = observableValue<IMergeEditorInputModel | undefined>('inputModel', undefined);
+	private readonly _inputModel = observableValue<IMergeEditorInputModel | undefined>(this, undefined);
 	public get inputModel(): IObservable<IMergeEditorInputModel | undefined> {
 		return this._inputModel;
 	}
@@ -98,9 +99,10 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this.inputResultView.editor,
 	);
 
-	protected readonly codeLensesVisible = observableFromEvent<boolean>(
-		this.configurationService.onDidChangeConfiguration,
-		() => /** @description codeLensesVisible */ this.configurationService.getValue('mergeEditor.showCodeLenses') ?? true
+	protected readonly codeLensesVisible = observableConfigValue<boolean>(
+		'mergeEditor.showCodeLenses',
+		true,
+		this.configurationService,
 	);
 
 	private readonly scrollSynchronizer = this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView, this._layoutModeObs));
@@ -172,7 +174,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		this.input1View.updateOptions(inputOptions);
 		this.input2View.updateOptions(inputOptions);
-		this.baseViewOptions.set(this.input2View.editor.getRawOptions(), undefined);
+		this.baseViewOptions.set({ ...this.input2View.editor.getRawOptions() }, undefined);
 		this.inputResultView.updateOptions(options);
 	}
 
@@ -236,6 +238,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		// Set the view zones before restoring view state!
 		// Otherwise scrolling will be off
 		this._sessionDisposables.add(autorunWithStore((reader, store) => {
+			/** @description update alignment view zones */
 			const baseView = this.baseView.read(reader);
 
 			this.inputResultView.editor.changeViewZones(resultViewZoneAccessor => {
@@ -281,7 +284,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 			});
 
 			this.scrollSynchronizer.updateScrolling();
-		}, 'update alignment view zones'));
+		}));
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {
@@ -301,17 +304,22 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		}
 
 		// word wrap special case - sync transient state from result model to input[1|2] models
-		const mirrorWordWrapTransientState = () => {
-			const state = readTransientState(model.resultTextModel, this._codeEditorService);
-			writeTransientState(model.input2.textModel, state, this._codeEditorService);
-			writeTransientState(model.input1.textModel, state, this._codeEditorService);
+		const mirrorWordWrapTransientState = (candidate: ITextModel) => {
+			const candidateState = readTransientState(candidate, this._codeEditorService);
+
+			writeTransientState(model.input2.textModel, candidateState, this._codeEditorService);
+			writeTransientState(model.input1.textModel, candidateState, this._codeEditorService);
+			writeTransientState(model.resultTextModel, candidateState, this._codeEditorService);
+
+			const baseTextModel = this.baseView.get()?.editor.getModel();
+			if (baseTextModel) {
+				writeTransientState(baseTextModel, candidateState, this._codeEditorService);
+			}
 		};
 		this._sessionDisposables.add(this._codeEditorService.onDidChangeTransientModelProperty(candidate => {
-			if (candidate === this.inputResultView.editor.getModel()) {
-				mirrorWordWrapTransientState();
-			}
+			mirrorWordWrapTransientState(candidate);
 		}));
-		mirrorWordWrapTransientState();
+		mirrorWordWrapTransientState(this.inputResultView.editor.getModel()!);
 
 		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
 		// TODO@jrieken@hediet this needs a better/cleaner solution
@@ -445,6 +453,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	override focus(): void {
+		super.focus();
+
 		(this.getControl() ?? this.inputResultView.editor).focus();
 	}
 
@@ -543,7 +553,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 						this.viewModel
 					)
 				);
-				this.baseViewDisposables.add(autorun('Update base view options', reader => {
+				this.baseViewDisposables.add(autorun(reader => {
+					/** @description Update base view options */
 					const options = this.baseViewOptions.read(reader);
 					if (options) {
 						baseView.updateOptions(options);
@@ -656,7 +667,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	private readonly showNonConflictingChangesStore = this.instantiationService.createInstance(PersistentStore<boolean>, 'mergeEditor/showNonConflictingChanges');
-	private readonly showNonConflictingChanges = observableValue('showNonConflictingChanges', this.showNonConflictingChangesStore.get() ?? false);
+	private readonly showNonConflictingChanges = observableValue(this, this.showNonConflictingChangesStore.get() ?? false);
 
 	public toggleShowNonConflictingChanges(): void {
 		this.showNonConflictingChanges.set(!this.showNonConflictingChanges.get(), undefined);

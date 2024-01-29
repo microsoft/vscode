@@ -14,13 +14,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { joinPath } from 'vs/base/common/resources';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IRequestContext } from 'vs/base/parts/request/common/request';
 
 abstract class RepoInfo {
 	abstract get base(): string;
@@ -98,7 +98,12 @@ export async function createSlowExtensionAction(
 	const requestService = accessor.get(IRequestService);
 	const instaService = accessor.get(IInstantiationService);
 	const url = `https://api.github.com/search/issues?q=is:issue+state:open+in:title+repo:${info.owner}/${info.repo}+%22Extension+causes+high+cpu+load%22`;
-	const res = await requestService.request({ url }, CancellationToken.None);
+	let res: IRequestContext;
+	try {
+		res = await requestService.request({ url }, CancellationToken.None);
+	} catch {
+		return undefined;
+	}
 	const rawText = await asText(res);
 	if (!rawText) {
 		return undefined;
@@ -151,11 +156,9 @@ class ReportExtensionSlowAction extends Action {
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues/new/?body=${body}&title=${title}`;
 		this._openerService.open(URI.parse(url));
 
-		this._dialogService.show(
-			Severity.Info,
+		this._dialogService.info(
 			localize('attach.title', "Did you attach the CPU-Profile?"),
-			undefined,
-			{ detail: localize('attach.msg', "This is a reminder to make sure that you have not forgotten to attach '{0}' to the issue you have just created.", path.fsPath) }
+			localize('attach.msg', "This is a reminder to make sure that you have not forgotten to attach '{0}' to the issue you have just created.", path.fsPath)
 		);
 	}
 }
@@ -186,11 +189,9 @@ class ShowExtensionSlowAction extends Action {
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues?utf8=✓&q=is%3Aissue+state%3Aopen+%22Extension+causes+high+cpu+load%22`;
 		this._openerService.open(URI.parse(url));
 
-		this._dialogService.show(
-			Severity.Info,
+		this._dialogService.info(
 			localize('attach.title', "Did you attach the CPU-Profile?"),
-			undefined,
-			{ detail: localize('attach.msg2', "This is a reminder to make sure that you have not forgotten to attach '{0}' to an existing performance issue.", path.fsPath) }
+			localize('attach.msg2', "This is a reminder to make sure that you have not forgotten to attach '{0}' to an existing performance issue.", path.fsPath)
 		);
 	}
 }

@@ -10,14 +10,16 @@ import { Constants } from 'vs/base/common/uint';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import 'vs/css!./media/callStackEditorContribution';
 
 export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hcDark: '#ffff0033', hcLight: '#ffff6673' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hcDark: '#7abd7a4d', hcLight: '#cee7ce73' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
@@ -27,6 +29,8 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'top-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -36,6 +40,8 @@ const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'focused-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -177,14 +183,3 @@ export class CallStackEditorContribution extends Disposable implements IEditorCo
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const topStackFrame = theme.getColor(topStackFrameColor);
-	if (topStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
-	}
-
-	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
-	if (focusedStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
-	}
-});

@@ -266,7 +266,7 @@ export class SettingsDocument {
 			const languageOverrideRange = languageOverridesRanges.find(range => range.contains(position));
 
 			/**
-			 *  Skip if suggestsions are for first language override range
+			 *  Skip if suggestions are for first language override range
 			 *  Since VSCode registers language overrides to the schema, JSON language server does suggestions for first language override.
 			 */
 			if (languageOverrideRange && !languageOverrideRange.isEqual(languageOverridesRanges[0])) {

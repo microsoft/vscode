@@ -22,12 +22,65 @@ const enum CharCode {
 
 let outputChannel: vscode.OutputChannel;
 
+const SLOWED_DOWN_CONNECTION_DELAY = 800;
+
 export function activate(context: vscode.ExtensionContext) {
 
 	let connectionPaused = false;
 	const connectionPausedEvent = new vscode.EventEmitter<boolean>();
 
-	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
+	let connectionSlowedDown = false;
+	const connectionSlowedDownEvent = new vscode.EventEmitter<boolean>();
+	const slowedDownConnections = new Set<Function>();
+	connectionSlowedDownEvent.event(slowed => {
+		if (!slowed) {
+			for (const cb of slowedDownConnections) {
+				cb();
+			}
+			slowedDownConnections.clear();
+		}
+	});
+
+	function getTunnelFeatures(): vscode.TunnelInformation['tunnelFeatures'] {
+		return {
+			elevation: true,
+			privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
+				{
+					id: 'public',
+					label: 'Public',
+					themeIcon: 'eye'
+				},
+				{
+					id: 'other',
+					label: 'Other',
+					themeIcon: 'circuit-board'
+				},
+				{
+					id: 'private',
+					label: 'Private',
+					themeIcon: 'eye-closed'
+				}
+			] : []
+		};
+	}
+
+	function maybeSlowdown(): Promise<void> | void {
+		if (connectionSlowedDown) {
+			return new Promise(resolve => {
+				const handle = setTimeout(() => {
+					resolve();
+					slowedDownConnections.delete(resolve);
+				}, SLOWED_DOWN_CONNECTION_DELAY);
+
+				slowedDownConnections.add(() => {
+					resolve();
+					clearTimeout(handle);
+				});
+			});
+		}
+	}
+
+	function doResolve(authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolverResult> {
 		if (connectionPaused) {
 			throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable('Not available right now');
 		}
@@ -150,7 +203,35 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			});
 		});
-		return serverPromise.then(serverAddr => {
+
+		return serverPromise.then((serverAddr): Promise<vscode.ResolverResult> => {
+			if (authority.includes('managed')) {
+				console.log('Connecting via a managed authority');
+				return Promise.resolve(new vscode.ManagedResolvedAuthority(async () => {
+					const remoteSocket = net.createConnection({ port: serverAddr.port });
+					const dataEmitter = new vscode.EventEmitter<Uint8Array>();
+					const closeEmitter = new vscode.EventEmitter<Error | undefined>();
+					const endEmitter = new vscode.EventEmitter<void>();
+
+					await new Promise((res, rej) => {
+						remoteSocket.on('data', d => dataEmitter.fire(d))
+							.on('error', err => { rej(); closeEmitter.fire(err); })
+							.on('close', () => endEmitter.fire())
+							.on('end', () => endEmitter.fire())
+							.on('connect', res);
+					});
+
+
+					return {
+						onDidReceiveMessage: dataEmitter.event,
+						onDidClose: closeEmitter.event,
+						onDidEnd: endEmitter.event,
+						send: d => remoteSocket.write(d),
+						end: () => remoteSocket.end(),
+					};
+				}, connectionToken));
+			}
+
 			return new Promise<vscode.ResolvedAuthority>((res, _rej) => {
 				const proxyServer = net.createServer(proxySocket => {
 					outputChannel.appendLine(`Proxy connection accepted`);
@@ -186,13 +267,15 @@ export function activate(context: vscode.ExtensionContext) {
 					connectionPausedEvent.event(_ => handleConnectionPause());
 					handleConnectionPause();
 
-					proxySocket.on('data', (data) => {
+					proxySocket.on('data', async (data) => {
+						await maybeSlowdown();
 						remoteReady = remoteSocket.write(data);
 						if (!remoteReady) {
 							proxySocket.pause();
 						}
 					});
-					remoteSocket.on('data', (data) => {
+					remoteSocket.on('data', async (data) => {
+						await maybeSlowdown();
 						localReady = proxySocket.write(data);
 						if (!localReady) {
 							remoteSocket.pause();
@@ -228,28 +311,7 @@ export function activate(context: vscode.ExtensionContext) {
 				proxyServer.listen(0, '127.0.0.1', () => {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
-					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken);
-					r.tunnelFeatures = {
-						elevation: true,
-						privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
-							{
-								id: 'public',
-								label: 'Public',
-								themeIcon: 'eye'
-							},
-							{
-								id: 'other',
-								label: 'Other',
-								themeIcon: 'circuit-board'
-							},
-							{
-								id: 'private',
-								label: 'Private',
-								themeIcon: 'eye-closed'
-							}
-						] : []
-					};
-					res(r);
+					res(new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken));
 				});
 				context.subscriptions.push({
 					dispose: () => {
@@ -264,12 +326,16 @@ export function activate(context: vscode.ExtensionContext) {
 		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
 			return vscode.Uri.file(uri.path);
 		},
-		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
+		resolve(_authority: string): Thenable<vscode.ResolverResult> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
 				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
 				cancellable: false
-			}, (progress) => doResolve(_authority, progress));
+			}, async (progress) => {
+				const rr = await doResolve(_authority, progress);
+				rr.tunnelFeatures = getTunnelFeatures();
+				return rr;
+			});
 		},
 		tunnelFactory,
 		showCandidatePort
@@ -281,6 +347,9 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.currentWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test', reuseWindow: true });
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.currentWindowManaged', () => {
+		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+managed', reuseWindow: true });
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+error' });
@@ -319,6 +388,22 @@ export function activate(context: vscode.ExtensionContext) {
 			pauseStatusBarEntry.hide();
 		}
 		connectionPausedEvent.fire(connectionPaused);
+	}));
+
+	const slowdownStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+	slowdownStatusBarEntry.text = 'Remote connection slowed down. Click to undo';
+	slowdownStatusBarEntry.command = 'vscode-testresolver.toggleConnectionSlowdown';
+	slowdownStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionSlowdown', () => {
+		if (!connectionSlowedDown) {
+			connectionSlowedDown = true;
+			slowdownStatusBarEntry.show();
+		} else {
+			connectionSlowedDown = false;
+			slowdownStatusBarEntry.hide();
+		}
+		connectionSlowedDownEvent.fire(connectionSlowedDown);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {

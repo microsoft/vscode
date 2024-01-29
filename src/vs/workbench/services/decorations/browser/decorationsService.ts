@@ -11,7 +11,8 @@ import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifec
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -20,7 +21,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { asArray, distinct } from 'vs/base/common/arrays';
-import { asCssValue, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
@@ -157,16 +158,15 @@ class DecorationRule {
 
 class DecorationStyles {
 
-	private readonly _styleElement = createStyleSheet();
-	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
+	private readonly _styleElement = createStyleSheet(undefined, undefined, this._dispoables);
+	private readonly _decorationRules = new Map<string, DecorationRule>();
 
 	constructor(private readonly _themeService: IThemeService) {
 	}
 
 	dispose(): void {
 		this._dispoables.dispose();
-		this._styleElement.remove();
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
@@ -236,7 +236,7 @@ class DecorationDataRequest {
 }
 
 function getColor(color: ColorIdentifier | undefined) {
-	return color ? asCssValue(color) : 'inherit';
+	return color ? asCssVariable(color) : 'inherit';
 }
 
 type DecorationEntry = Map<IDecorationsProvider, DecorationDataRequest | IDecorationData | null>;
@@ -267,6 +267,7 @@ export class DecorationsService implements IDecorationsService {
 	dispose(): void {
 		this._onDidChangeDecorations.dispose();
 		this._onDidChangeDecorationsDelayed.dispose();
+		this._data.clear();
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
@@ -373,15 +374,16 @@ export class DecorationsService implements IDecorationsService {
 			map.delete(provider);
 		}
 
-		const source = new CancellationTokenSource();
-		const dataOrThenable = provider.provideDecorations(uri, source.token);
+		const cts = new CancellationTokenSource();
+		const dataOrThenable = provider.provideDecorations(uri, cts.token);
 		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
 			// sync -> we have a result now
+			cts.dispose();
 			return this._keepItem(map, provider, uri, dataOrThenable);
 
 		} else {
 			// async -> we have a result soon
-			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
+			const request = new DecorationDataRequest(cts, Promise.resolve(dataOrThenable).then(data => {
 				if (map.get(provider) === request) {
 					this._keepItem(map, provider, uri, data);
 				}
@@ -389,6 +391,8 @@ export class DecorationsService implements IDecorationsService {
 				if (!isCancellationError(err) && map.get(provider) === request) {
 					map.delete(provider);
 				}
+			}).finally(() => {
+				cts.dispose();
 			}));
 
 			map.set(provider, request);

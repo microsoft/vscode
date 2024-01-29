@@ -5,11 +5,29 @@
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
+import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ConfigurationModelParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suiteSetup(() => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'ConfigurationModelParserTest',
+			'type': 'object',
+			'properties': {
+				'ConfigurationModelParserTest.windowSetting': {
+					'type': 'string',
+					'default': 'isSet',
+				}
+			}
+		});
+	});
 
 	test('parse configuration model with single override identifier', () => {
 		const testObject = new ConfigurationModelParser('');
@@ -35,10 +53,45 @@ suite('ConfigurationModelParser', () => {
 		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y', 'z'], keys: ['a'], contents: { 'a': 1 } }]));
 	});
 
+	test('parse configuration model with exclude option', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'a': 1, 'b': 2 }), { exclude: ['a'] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('a'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('b'), 2);
+	});
+
+	test('parse configuration model with exclude option even included', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'a': 1, 'b': 2 }), { exclude: ['a'], include: ['a'] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('a'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('b'), 2);
+	});
+
+	test('parse configuration model with scopes filter', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'ConfigurationModelParserTest.windowSetting': '1' }), { scopes: [ConfigurationScope.APPLICATION] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('ConfigurationModelParserTest.windowSetting'), undefined);
+	});
+
+	test('parse configuration model with include option', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'ConfigurationModelParserTest.windowSetting': '1' }), { include: ['ConfigurationModelParserTest.windowSetting'], scopes: [ConfigurationScope.APPLICATION] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('ConfigurationModelParserTest.windowSetting'), '1');
+	});
 
 });
 
 suite('ConfigurationModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('setValue for a key that has no sections and not defined', () => {
 		const testObject = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
@@ -355,6 +408,8 @@ suite('ConfigurationModel', () => {
 
 suite('CustomConfigurationModel', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('simple merge using models', () => {
 		const base = new ConfigurationModelParser('base');
 		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
@@ -462,6 +517,8 @@ suite('CustomConfigurationModel', () => {
 });
 
 suite('Configuration', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Test inspect for overrideIdentifiers', () => {
 		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
@@ -623,6 +680,8 @@ suite('Configuration', () => {
 });
 
 suite('ConfigurationChangeEvent', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('changeEvent affecting keys with new configuration', () => {
 		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());

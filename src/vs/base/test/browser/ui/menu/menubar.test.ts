@@ -5,7 +5,9 @@
 
 import * as assert from 'assert';
 import { $ } from 'vs/base/browser/dom';
+import { unthemedMenuStyles } from 'vs/base/browser/ui/menu/menu';
 import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
 	let i;
@@ -60,12 +62,13 @@ function validateMenuBarItem(menubar: MenuBar, menubarContainer: HTMLElement, la
 }
 
 suite('Menubar', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const container = $('.container');
 
 	const menubar = new MenuBar(container, {
 		enableMnemonics: true,
 		visibility: 'visible'
-	});
+	}, unthemedMenuStyles);
 
 	test('English File menu renders mnemonics', function () {
 		validateMenuBarItem(menubar, container, '&File', 'File', 'F');

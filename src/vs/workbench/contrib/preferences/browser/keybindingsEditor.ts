@@ -26,16 +26,16 @@ import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDIN
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
@@ -47,12 +47,16 @@ import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultKeybindingLabelStyles, defaultToggleStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { isString } from 'vs/base/common/types';
-import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { CompletionItemKind } from 'vs/editor/common/languages';
+import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const $ = DOM.$;
 
@@ -111,7 +115,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
@@ -128,6 +133,23 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.sortByPrecedenceAction = new Action(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, localize('sortByPrecedeneLabel', "Sort by Precedence (Highest first)"), ThemeIcon.asClassName(keybindingsSortIcon));
 		this.sortByPrecedenceAction.checked = false;
 		this.overflowWidgetsDomNode = $('.keybindings-overflow-widgets-container.monaco-editor');
+	}
+
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (this.searchWidget.hasFocus()) {
+					this.focusKeybindings();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.searchWidget.hasFocus()) {
+					this.focusSearch();
+				}
+			}
+		}));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -164,6 +186,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	}
 
 	override focus(): void {
+		super.focus();
+
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
 			this.selectEntry(activeKeybindingEntry);
@@ -332,7 +356,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			recordEnter: true,
 			quoteRecordedKeys: true,
 			history: this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] || [],
-			inputBoxStyles: defaultInputBoxStyles
+			inputBoxStyles: getInputBoxStyle({
+				inputBorder: settingsTextInputBorder
+			})
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;
@@ -397,17 +423,11 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
 		const recordingBadge = DOM.append(container, DOM.$('.recording-badge.monaco-count-badge.long.disabled'));
 		recordingBadge.textContent = localize('recording', "Recording Keys");
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			const color = colors.badgeForeground ? colors.badgeForeground.toString() : '';
 
-			recordingBadge.style.backgroundColor = background;
-			recordingBadge.style.borderWidth = border ? '1px' : '';
-			recordingBadge.style.borderStyle = border ? 'solid' : '';
-			recordingBadge.style.borderColor = border;
-			recordingBadge.style.color = color ? color.toString() : '';
-		}));
+		recordingBadge.style.backgroundColor = asCssVariable(badgeBackground);
+		recordingBadge.style.color = asCssVariable(badgeForeground);
+		recordingBadge.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
+
 		return recordingBadge;
 	}
 
@@ -477,7 +497,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			{
 				identityProvider: { getId: (e: IKeybindingItemEntry) => e.id },
 				horizontalScrolling: false,
-				accessibilityProvider: new AccessibilityProvider(),
+				accessibilityProvider: new AccessibilityProvider(this.configurationService),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IKeybindingItemEntry) => e.keybindingItem.commandLabel || e.keybindingItem.command },
 				overrideStyles: {
 					listBackground: editorBackground
@@ -1055,7 +1075,6 @@ class WhenInputWidget extends Disposable {
 		parent: HTMLElement,
 		keybindingsEditor: KeybindingsEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -1068,10 +1087,11 @@ class WhenInputWidget extends Disposable {
 				}
 				return result;
 			},
-			triggerCharacters: ['!'],
+			triggerCharacters: ['!', ' '],
+			wordDefinition: /[a-zA-Z.]+/,
+			alwaysShowSuggestions: true,
 		}, '', `keyboardshortcutseditor#wheninput`, { focusContextKey, overflowWidgetsDomNode: keybindingsEditor.overflowWidgetsDomNode }));
 
-		this._register(attachSuggestEnabledInputBoxStyler(this.input, themeService, {}));
 		this._register((DOM.addDisposableListener(this.input.element, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
 		this._register(toDisposable(() => focusContextKey.reset()));
 
@@ -1181,16 +1201,24 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 
 class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingItemEntry> {
 
+	constructor(private readonly configurationService: IConfigurationService) { }
+
 	getWidgetAriaLabel(): string {
 		return localize('keybindingsLabel', "Keybindings");
 	}
 
-	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		let ariaLabel = keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
-		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
-		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
-		ariaLabel += ', ' + (isString(keybindingItemEntry.keybindingItem.source) ? keybindingItemEntry.keybindingItem.source : keybindingItemEntry.keybindingItem.source.description ?? keybindingItemEntry.keybindingItem.source.identifier.value);
-		return ariaLabel;
+	getAriaLabel({ keybindingItem }: IKeybindingItemEntry): string {
+		const ariaLabel = [
+			keybindingItem.commandLabel ? keybindingItem.commandLabel : keybindingItem.command,
+			keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No keybinding assigned"),
+			keybindingItem.when ? keybindingItem.when : localize('noWhen', "No when context"),
+			isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.description ?? keybindingItem.source.identifier.value,
+		];
+		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
+			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "use space or enter to change the keybinding.");
+			ariaLabel.push(kbEditorAriaLabel);
+		}
+		return ariaLabel.join(', ');
 	}
 }
 

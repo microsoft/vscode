@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -19,7 +19,7 @@ import { IBaseCellEditorOptions, ICellViewModel } from 'vs/workbench/contrib/not
 import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export class CellEditorOptions extends CellContentPart {
@@ -134,7 +134,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbers',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{

@@ -6,10 +6,14 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "chatAgents2",
     "contribViewsRemote",
+    "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentPaste",
     "editorInsets",
     "extensionRuntime",
     "extensionsAny",
@@ -17,32 +21,37 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "interactive",
+    "mappedEditsProvider",
     "notebookCellExecutionState",
-    "notebookControllerKind",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
+    "readonlyMessage",
+    "languageStatusText",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
+    "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
     "tunnels",
-    "envShellEvent",
     "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeItemCheckbox",
+    "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "testingActiveProfile",
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],
@@ -156,6 +165,12 @@
         ]
       }
     ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
+      }
+    ],
     "notebooks": [
       {
         "type": "notebookCoreTest",
@@ -185,7 +200,19 @@
           }
         ]
       }
-    ]
+    ],
+    "statusBarItems": {
+      "id": "myStaticItem",
+      "alignment": "right",
+      "priority": 17,
+      "name": "My Static Item",
+      "text": "Hello $(globe)",
+      "tooltip": "Hover World",
+      "accessibilityInformation": {
+        "label": "Hello World",
+        "role": "button"
+      }
+    }
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
@@ -193,7 +220,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

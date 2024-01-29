@@ -19,7 +19,7 @@ import { IKeybindingItemEntry, KeybindingMatches, KeybindingMatch, IKeybindingIt
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
 import { isEmptyObject, isString } from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
@@ -163,9 +163,9 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	override async resolve(actionLabels = new Map<string, string>()): Promise<void> {
-		const extensions = new Map<string, IExtensionDescription>();
+		const extensions = new ExtensionIdentifierMap<IExtensionDescription>();
 		for (const extension of this.extensionService.extensions) {
-			extensions.set(ExtensionIdentifier.toKey(extension.identifier), extension);
+			extensions.set(extension.identifier, extension);
 		}
 
 		this._keybindingItemsSortedByPrecedence = [];
@@ -216,13 +216,13 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, actions: Map<string, string>, extensions: Map<string, IExtensionDescription>): IKeybindingItem {
+	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, actions: Map<string, string>, extensions: ExtensionIdentifierMap<IExtensionDescription>): IKeybindingItem {
 		const menuCommand = MenuRegistry.getCommand(command);
 		const editorActionLabel = actions.get(command);
 		let source: string | IExtensionDescription = SOURCE_USER;
 		if (keybindingItem.isDefault) {
 			const extensionId = keybindingItem.extensionId ?? (keybindingItem.resolvedKeybinding ? undefined : menuCommand?.source?.id);
-			source = extensionId ? extensions.get(ExtensionIdentifier.toKey(extensionId)) ?? SOURCE_EXTENSION : SOURCE_SYSTEM;
+			source = extensionId ? extensions.get(extensionId) ?? SOURCE_EXTENSION : SOURCE_SYSTEM;
 		}
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,

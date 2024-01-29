@@ -7,14 +7,14 @@ import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { commonPrefixLength } from 'vs/base/common/arrays';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
-	dispose(): void { }
+	abstract dispose(): void;
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
 }
@@ -51,7 +51,7 @@ export class BreadcrumbsWidget {
 	private readonly _items = new Array<BreadcrumbsItem>();
 	private readonly _nodes = new Array<HTMLDivElement>();
 	private readonly _freeNodes = new Array<HTMLDivElement>();
-	private readonly _separatorIcon: CSSIcon;
+	private readonly _separatorIcon: ThemeIcon;
 
 	private _enabled: boolean = true;
 	private _focusedItemIdx: number = -1;
@@ -63,7 +63,7 @@ export class BreadcrumbsWidget {
 	constructor(
 		container: HTMLElement,
 		horizontalScrollbarSize: number,
-		separatorIcon: CSSIcon,
+		separatorIcon: ThemeIcon,
 		styles: IBreadcrumbsWidgetStyles
 	) {
 		this._domNode = document.createElement('div');
@@ -123,7 +123,7 @@ export class BreadcrumbsWidget {
 
 	private _updateDimensions(dim: dom.Dimension): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.add(dom.modify(() => {
+		disposables.add(dom.modify(dom.getWindow(this._domNode), () => {
 			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
@@ -133,8 +133,8 @@ export class BreadcrumbsWidget {
 	}
 
 	private _updateScrollbar(): IDisposable {
-		return dom.measure(() => {
-			dom.measure(() => { // double RAF
+		return dom.measure(dom.getWindow(this._domNode), () => {
+			dom.measure(dom.getWindow(this._domNode), () => { // double RAF
 				this._scrollable.setRevealOnScroll(false);
 				this._scrollable.scanDomNode();
 				this._scrollable.setRevealOnScroll(true);
@@ -177,14 +177,7 @@ export class BreadcrumbsWidget {
 	}
 
 	isDOMFocused(): boolean {
-		let candidate = document.activeElement;
-		while (candidate) {
-			if (this._domNode === candidate) {
-				return true;
-			}
-			candidate = candidate.parentElement;
-		}
-		return false;
+		return dom.isAncestorOfActiveElement(this._domNode);
 	}
 
 	getFocused(): BreadcrumbsItem {
@@ -340,7 +333,7 @@ export class BreadcrumbsWidget {
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
-		const iconContainer = dom.$(CSSIcon.asCSSSelector(this._separatorIcon));
+		const iconContainer = dom.$(ThemeIcon.asCSSSelector(this._separatorIcon));
 		container.appendChild(iconContainer);
 	}
 

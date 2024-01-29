@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomFactor } from 'vs/base/browser/browser';
+import { getZoomFactor, isChrome } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -87,11 +87,12 @@ export class MouseWheelClassifier {
 	}
 
 	public acceptStandardWheelEvent(e: StandardWheelEvent): void {
-		const osZoomFactor = window.devicePixelRatio / getZoomFactor();
-		if (platform.isWindows || platform.isLinux) {
-			// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
+		if (isChrome) {
+			const targetWindow = dom.getWindow(e.browserEvent);
+			const pageZoomFactor = getZoomFactor(targetWindow);
+			// On Chrome, the incoming delta events are multiplied with the OS zoom factor.
 			// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
-			this.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
+			this.accept(Date.now(), e.deltaX * pageZoomFactor, e.deltaY * pageZoomFactor);
 		} else {
 			this.accept(Date.now(), e.deltaX, e.deltaY);
 		}
@@ -373,6 +374,9 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardWheelEvent): void {
+		if (e.browserEvent?.defaultPrevented) {
+			return;
+		}
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
@@ -388,7 +392,13 @@ export abstract class AbstractScrollableElement extends Widget {
 			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
 
 			if (this._options.scrollPredominantAxis) {
-				if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+				if (this._options.scrollYToX && deltaX + deltaY === 0) {
+					// when configured to map Y to X and we both see
+					// no dominant axis and X and Y are competing with
+					// identical values into opposite directions, we
+					// ignore the delta as we cannot make a decision then
+					deltaX = deltaY = 0;
+				} else if (Math.abs(deltaY) >= Math.abs(deltaX)) {
 					deltaX = 0;
 				} else {
 					deltaY = 0;
@@ -567,7 +577,7 @@ export class ScrollableElement extends AbstractScrollableElement {
 		const scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 0,
-			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(callback)
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
 		});
 		super(element, options, scrollable);
 		this._register(scrollable);
@@ -612,19 +622,19 @@ export class DomScrollableElement extends AbstractScrollableElement {
 		const scrollable = new Scrollable({
 			forceIntegerValues: false, // See https://github.com/microsoft/vscode/issues/139877
 			smoothScrollDuration: 0,
-			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(callback)
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
 		});
 		super(element, options, scrollable);
 		this._register(scrollable);
 		this._element = element;
-		this.onScroll((e) => {
+		this._register(this.onScroll((e) => {
 			if (e.scrollTopChanged) {
 				this._element.scrollTop = e.scrollTop;
 			}
 			if (e.scrollLeftChanged) {
 				this._element.scrollLeft = e.scrollLeft;
 			}
-		});
+		}));
 		this.scanDomNode();
 	}
 

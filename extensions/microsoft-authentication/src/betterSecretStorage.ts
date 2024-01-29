@@ -81,11 +81,13 @@ export class BetterTokenStorage<T> {
 		return tokens.get(key);
 	}
 
-	async getAll(): Promise<T[]> {
+	async getAll(predicate?: (item: T) => boolean): Promise<T[]> {
 		const tokens = await this.getTokens();
 		const values = new Array<T>();
 		for (const [_, value] of tokens) {
-			values.push(value);
+			if (!predicate || predicate(value)) {
+				values.push(value);
+			}
 		}
 		return values;
 	}
@@ -141,11 +143,13 @@ export class BetterTokenStorage<T> {
 		this._operationInProgress = false;
 	}
 
-	async deleteAll(): Promise<void> {
+	async deleteAll(predicate?: (item: T) => boolean): Promise<void> {
 		const tokens = await this.getTokens();
 		const promises = [];
-		for (const [key] of tokens) {
-			promises.push(this.delete(key));
+		for (const [key, value] of tokens) {
+			if (!predicate || predicate(value)) {
+				promises.push(this.delete(key));
+			}
 		}
 		await Promise.all(promises);
 	}
@@ -236,11 +240,8 @@ export class BetterTokenStorage<T> {
 				},
 				err => {
 					Logger.error(err);
-					resolve(tokens);
-				}).then(resolve, err => {
-					Logger.error(err);
-					resolve(tokens);
-				});
+					return tokens;
+				}).then(resolve);
 		});
 		this._operationInProgress = false;
 	}

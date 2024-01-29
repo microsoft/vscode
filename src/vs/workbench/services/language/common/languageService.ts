@@ -107,7 +107,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 	},
 	activationEventsGenerator: (languageContributions, result) => {
 		for (const languageContribution of languageContributions) {
-			if (languageContribution.id) {
+			if (languageContribution.id && languageContribution.configuration) {
 				result.push(`onLanguage:${languageContribution.id}`);
 			}
 		}
@@ -178,10 +178,11 @@ export class WorkbenchLanguageService extends LanguageService {
 			this.updateMime();
 		});
 
-		this.onDidEncounterLanguage((languageId) => {
+		this._register(this.onDidRequestRichLanguageFeatures((languageId) => {
+			// extension activation
 			this._extensionService.activateByEvent(`onLanguage:${languageId}`);
 			this._extensionService.activateByEvent(`onLanguage`);
-		});
+		}));
 	}
 
 	private updateMime(): void {

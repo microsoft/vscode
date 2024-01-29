@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class ViewModel implements IViewModel {
@@ -17,7 +17,8 @@ export class ViewModel implements IViewModel {
 	private _focusedThread: IThread | undefined;
 	private selectedExpression: { expression: IExpression; settingWatch: boolean } | undefined;
 	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
-	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined; explicit: boolean }>();
+	private readonly _onDidFocusThread = new Emitter<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }>();
+	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>();
 	private readonly _onDidSelectExpression = new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>();
 	private readonly _onDidEvaluateLazyExpression = new Emitter<IExpressionContainer>();
 	private readonly _onWillUpdateViews = new Emitter<void>();
@@ -25,6 +26,7 @@ export class ViewModel implements IViewModel {
 	private loadedScriptsSupportedContextKey!: IContextKey<boolean>;
 	private stepBackSupportedContextKey!: IContextKey<boolean>;
 	private focusedSessionIsAttach!: IContextKey<boolean>;
+	private focusedSessionIsNoDebug!: IContextKey<boolean>;
 	private restartFrameSupportedContextKey!: IContextKey<boolean>;
 	private stepIntoTargetsSupported!: IContextKey<boolean>;
 	private jumpToCursorSupported!: IContextKey<boolean>;
@@ -42,6 +44,7 @@ export class ViewModel implements IViewModel {
 			this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
 			this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
 			this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
+			this.focusedSessionIsNoDebug = CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG.bindTo(contextKeyService);
 			this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
 			this.stepIntoTargetsSupported = CONTEXT_STEP_INTO_TARGETS_SUPPORTED.bindTo(contextKeyService);
 			this.jumpToCursorSupported = CONTEXT_JUMP_TO_CURSOR_SUPPORTED.bindTo(contextKeyService);
@@ -74,6 +77,8 @@ export class ViewModel implements IViewModel {
 	setFocus(stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined, explicit: boolean): void {
 		const shouldEmitForStackFrame = this._focusedStackFrame !== stackFrame;
 		const shouldEmitForSession = this._focusedSession !== session;
+		const shouldEmitForThread = this._focusedThread !== thread;
+
 
 		this._focusedStackFrame = stackFrame;
 		this._focusedThread = thread;
@@ -93,13 +98,18 @@ export class ViewModel implements IViewModel {
 			this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
 			const attach = !!session && isSessionAttach(session);
 			this.focusedSessionIsAttach.set(attach);
+			this.focusedSessionIsNoDebug.set(!!session && !!session.configuration.noDebug);
 		});
 
 		if (shouldEmitForSession) {
 			this._onDidFocusSession.fire(session);
 		}
+
+		// should not call onDidFocusThread if onDidFocusStackFrame is called.
 		if (shouldEmitForStackFrame) {
-			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
+			this._onDidFocusStackFrame.fire({ stackFrame, explicit, session });
+		} else if (shouldEmitForThread) {
+			this._onDidFocusThread.fire({ thread, explicit, session });
 		}
 	}
 
@@ -107,7 +117,11 @@ export class ViewModel implements IViewModel {
 		return this._onDidFocusSession.event;
 	}
 
-	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined; explicit: boolean }> {
+	get onDidFocusThread(): Event<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }> {
+		return this._onDidFocusThread.event;
+	}
+
+	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }> {
 		return this._onDidFocusStackFrame.event;
 	}
 

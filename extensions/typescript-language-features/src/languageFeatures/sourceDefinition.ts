@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
+import { isSupportedLanguageMode } from '../configuration/languageIds';
+import { API } from '../tsServer/api';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { isSupportedLanguageMode } from '../utils/languageIds';
-import * as typeConverters from '../utils/typeConverters';
 
 
 class SourceDefinitionCommand implements Command {
@@ -41,7 +41,7 @@ class SourceDefinitionCommand implements Command {
 			return;
 		}
 
-		const openedFiledPath = this.client.toOpenedFilePath(document);
+		const openedFiledPath = this.client.toOpenTsFilePath(document);
 		if (!openedFiledPath) {
 			vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. Unknown file type."));
 			return;

@@ -16,10 +16,9 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { isMacintosh } from 'vs/base/common/platform';
 import { DeletedElement, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, ModifiedElement } from 'vs/workbench/contrib/notebook/browser/diff/diffComponents';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -27,18 +26,20 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
 	private readonly lineHeight: number;
 
 	constructor(
+		targetWindow: Window,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
 	}
 
 	getHeight(element: DiffElementViewModelBase): number {
@@ -169,6 +170,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IThemeService protected readonly themeService: IThemeService,
+		@IAccessibilityService protected readonly accessibilityService: IAccessibilityService
 	) { }
 
 	get templateId() {
@@ -189,7 +191,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, cellToolbarContainer, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
 					return item;
 				}
 
@@ -314,17 +316,16 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<DiffElementViewModelBase>,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 	}
 
 	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
 		return new NotebookMouseController(this);
 	}
 
-	getAbsoluteTopOfElement(element: DiffElementViewModelBase): number {
+	getCellViewScrollTop(element: DiffElementViewModelBase): number {
 		const index = this.indexOf(element);
 		// if (index === undefined || index < 0 || index >= this.length) {
 		// 	this._getViewIndexUpperBound(element);
@@ -367,11 +368,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			}
+			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
 		}
 
 		if (styles.listFocusBackground) {
@@ -447,11 +444,11 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
-		if (styles.listDropBackground) {
+		if (styles.listDropOverBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropOverBackground} !important; color: inherit !important; }
 			`);
 		}
 

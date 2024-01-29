@@ -9,10 +9,10 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IPagedModel } from 'vs/base/common/paging';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemable } from 'vs/base/common/styler';
 import 'vs/css!./list';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list';
 import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List, TypeNavigationMode } from './listWidget';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -109,7 +109,7 @@ export interface IPagedListOptions<T> {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
-	readonly additionalScrollHeight?: number;
+	readonly paddingBottom?: number;
 }
 
 function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: IPagedListOptions<T>): IListOptions<number> {
@@ -119,7 +119,7 @@ function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: I
 	};
 }
 
-export class PagedList<T> implements IThemable, IDisposable {
+export class PagedList<T> implements IDisposable {
 
 	private list: List<number>;
 	private _model!: IPagedModel<T>;
@@ -145,7 +145,7 @@ export class PagedList<T> implements IThemable, IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return this.list.getHTMLElement() === document.activeElement;
+		return isActiveElement(this.getHTMLElement());
 	}
 
 	domFocus(): void {

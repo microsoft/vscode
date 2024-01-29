@@ -54,7 +54,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.textFiles'));
+		this._register(this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.textFiles')));
 	}
 
 	private onBeforeShutdown(): boolean {

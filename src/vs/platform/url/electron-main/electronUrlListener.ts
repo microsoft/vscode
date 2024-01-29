@@ -6,13 +6,14 @@
 import { app, Event as ElectronEvent } from 'electron';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IURLService } from 'vs/platform/url/common/url';
+import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 /**
@@ -25,25 +26,27 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
  *            that calls VSCode with the `open-url` command line argument
  *            (https://github.com/microsoft/vscode/pull/56727)
  */
-export class ElectronURLListener {
+export class ElectronURLListener extends Disposable {
 
-	private uris: { uri: URI; url: string }[] = [];
+	private uris: IProtocolUrl[] = [];
 	private retryCount = 0;
-	private flushDisposable: IDisposable = Disposable.None;
-	private readonly disposables = new DisposableStore();
 
 	constructor(
-		initialUrisToHandle: { uri: URI; url: string }[],
+		initialProtocolUrls: IProtocolUrl[] | undefined,
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
 		environmentMainService: IEnvironmentMainService,
 		productService: IProductService,
 		private readonly logService: ILogService
 	) {
-		logService.trace('ElectronURLListener initialUrisToHandle:', initialUrisToHandle.map(initialUri => initialUri.url));
+		super();
 
-		// the initial set of URIs we need to handle once the window is ready
-		this.uris = initialUrisToHandle;
+		if (initialProtocolUrls) {
+			logService.trace('ElectronURLListener initialUrisToHandle:', initialProtocolUrls.map(url => url.originalUrl));
+
+			// the initial set of URIs we need to handle once the window is ready
+			this.uris = initialProtocolUrls;
+		}
 
 		// Windows: install as protocol handler
 		if (isWindows) {
@@ -61,7 +64,7 @@ export class ElectronURLListener {
 				return url;
 			});
 
-		this.disposables.add(onOpenElectronUrl(url => {
+		this._register(onOpenElectronUrl(url => {
 			const uri = this.uriFromRawUrl(url);
 			if (!uri) {
 				return;
@@ -82,7 +85,7 @@ export class ElectronURLListener {
 		} else {
 			logService.trace('ElectronURLListener: waiting for window to be ready to handle URLs...');
 
-			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
+			this._register(Event.once(windowsMainService.onDidSignalReadyWindow)(() => this.flush()));
 		}
 	}
 
@@ -103,14 +106,14 @@ export class ElectronURLListener {
 
 		this.logService.trace('ElectronURLListener#flush(): flushing URLs');
 
-		const uris: { uri: URI; url: string }[] = [];
+		const uris: IProtocolUrl[] = [];
 
 		for (const obj of this.uris) {
-			const handled = await this.urlService.open(obj.uri, { originalUrl: obj.url });
+			const handled = await this.urlService.open(obj.uri, { originalUrl: obj.originalUrl });
 			if (handled) {
-				this.logService.trace('ElectronURLListener#flush(): URL was handled', obj.url);
+				this.logService.trace('ElectronURLListener#flush(): URL was handled', obj.originalUrl);
 			} else {
-				this.logService.trace('ElectronURLListener#flush(): URL was not yet handled', obj.url);
+				this.logService.trace('ElectronURLListener#flush(): URL was not yet handled', obj.originalUrl);
 
 				uris.push(obj);
 			}
@@ -121,11 +124,6 @@ export class ElectronURLListener {
 		}
 
 		this.uris = uris;
-		this.flushDisposable = disposableTimeout(() => this.flush(), 500);
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		this.flushDisposable.dispose();
+		disposableTimeout(() => this.flush(), 500, this._store);
 	}
 }

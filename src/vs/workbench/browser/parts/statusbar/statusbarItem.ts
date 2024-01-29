@@ -8,9 +8,10 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStatusbarEntry, ShowTooltipCommand } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, ShowTooltipCommand, StatusbarEntryKinds } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { addDisposableListener, EventType, hide, show, append, EventHelper } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -37,6 +38,8 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly commandMouseListener = this._register(new MutableDisposable());
 	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
+	private readonly focusListener = this._register(new MutableDisposable());
+	private readonly focusOutListener = this._register(new MutableDisposable());
 
 	private hover: ICustomHover | undefined = undefined;
 
@@ -66,6 +69,7 @@ export class StatusbarEntryItem extends Disposable {
 		this.labelContainer = document.createElement('a');
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 		this.labelContainer.setAttribute('role', 'button');
+		this.labelContainer.className = 'statusbar-item-label';
 		this._register(Gesture.addTarget(this.labelContainer)); // enable touch
 
 		// Label (with support for progress)
@@ -118,6 +122,16 @@ export class StatusbarEntryItem extends Disposable {
 			} else {
 				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
+			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
+				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
+					EventHelper.stop(e);
+					this.hover?.show(false);
+				});
+				this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, e => {
+					EventHelper.stop(e);
+					this.hover?.hide();
+				});
+			}
 		}
 
 		// Update: Command
@@ -136,6 +150,10 @@ export class StatusbarEntryItem extends Disposable {
 						EventHelper.stop(e);
 
 						this.executeCommand(command);
+					} else if (event.equals(KeyCode.Escape) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
+						EventHelper.stop(e);
+
+						this.hover?.hide();
 					}
 				});
 
@@ -154,6 +172,21 @@ export class StatusbarEntryItem extends Disposable {
 			}
 		}
 
+		const hasBackgroundColor = !!entry.backgroundColor || (entry.kind && entry.kind !== 'standard');
+
+		// Update: Kind
+		if (!this.entry || entry.kind !== this.entry.kind) {
+			for (const kind of StatusbarEntryKinds) {
+				this.container.classList.remove(`${kind}-kind`);
+			}
+
+			if (entry.kind && entry.kind !== 'standard') {
+				this.container.classList.add(`${entry.kind}-kind`);
+			}
+
+			this.container.classList.toggle('has-background-color', hasBackgroundColor);
+		}
+
 		// Update: Foreground
 		if (!this.entry || entry.color !== this.entry.color) {
 			this.applyColor(this.labelContainer, entry.color);
@@ -161,7 +194,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
-			this.container.classList.toggle('has-background-color', !!entry.backgroundColor);
+			this.container.classList.toggle('has-background-color', hasBackgroundColor);
 			this.applyColor(this.container, entry.backgroundColor, true);
 		}
 

@@ -5,7 +5,7 @@
 
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, trackFocus } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, trackFocus } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
@@ -29,11 +29,11 @@ export interface IPaneOptions {
 }
 
 export interface IPaneStyles {
-	dropBackground?: Color;
-	headerForeground?: Color;
-	headerBackground?: Color;
-	headerBorder?: Color;
-	leftBorder?: Color;
+	readonly dropBackground: string | undefined;
+	readonly headerForeground: string | undefined;
+	readonly headerBackground: string | undefined;
+	readonly headerBorder: string | undefined;
+	readonly leftBorder: string | undefined;
 }
 
 /**
@@ -58,11 +58,18 @@ export abstract class Pane extends Disposable implements IView {
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
+	private _collapsible = true;
 	private _bodyRendered = false;
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private _ariaHeaderLabel: string;
-	private styles: IPaneStyles = {};
+	private styles: IPaneStyles = {
+		dropBackground: undefined,
+		headerBackground: undefined,
+		headerBorder: undefined,
+		headerForeground: undefined,
+		leftBorder: undefined
+	};
 	private animationTimer: number | undefined = undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
@@ -88,9 +95,8 @@ export abstract class Pane extends Disposable implements IView {
 		return this.element;
 	}
 
-	private _dropBackground: Color | undefined;
-	get dropBackground(): Color | undefined {
-		return this._dropBackground;
+	get dropBackground(): string | undefined {
+		return this.styles.dropBackground;
 	}
 
 	get minimumBodySize(): number {
@@ -149,6 +155,10 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	setExpanded(expanded: boolean): boolean {
+		if (!expanded && !this.collapsible) {
+			return false;
+		}
+
 		if (this._expanded === !!expanded) {
 			return false;
 		}
@@ -165,11 +175,11 @@ export abstract class Pane extends Disposable implements IView {
 			}
 
 			if (typeof this.animationTimer === 'number') {
-				clearTimeout(this.animationTimer);
+				getWindow(this.element).clearTimeout(this.animationTimer);
 			}
 			append(this.element, this.body);
 		} else {
-			this.animationTimer = window.setTimeout(() => {
+			this.animationTimer = getWindow(this.element).setTimeout(() => {
 				this.body.remove();
 			}, 200);
 		}
@@ -191,6 +201,19 @@ export abstract class Pane extends Disposable implements IView {
 		this._headerVisible = !!visible;
 		this.updateHeader();
 		this._onDidChange.fire(undefined);
+	}
+
+	get collapsible(): boolean {
+		return this._collapsible;
+	}
+
+	set collapsible(collapsible: boolean) {
+		if (this._collapsible === !!collapsible) {
+			return;
+		}
+
+		this._collapsible = !!collapsible;
+		this.updateHeader();
 	}
 
 	get orientation(): Orientation {
@@ -294,15 +317,23 @@ export abstract class Pane extends Disposable implements IView {
 	protected updateHeader(): void {
 		const expanded = !this.headerVisible || this.isExpanded();
 
+		if (this.collapsible) {
+			this.header.setAttribute('tabindex', '0');
+			this.header.setAttribute('role', 'button');
+		} else {
+			this.header.removeAttribute('tabindex');
+			this.header.removeAttribute('role');
+		}
+
 		this.header.style.lineHeight = `${this.headerSize}px`;
 		this.header.classList.toggle('hidden', !this.headerVisible);
 		this.header.classList.toggle('expanded', expanded);
+		this.header.classList.toggle('not-collapsible', !this.collapsible);
 		this.header.setAttribute('aria-expanded', String(expanded));
 
-		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : '';
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
+		this.header.style.color = this.collapsible ? this.styles.headerForeground ?? '' : '';
+		this.header.style.backgroundColor = (this.collapsible ? this.styles.headerBackground : 'transparent') ?? '';
 		this.header.style.borderTop = this.styles.headerBorder && this.orientation === Orientation.VERTICAL ? `1px solid ${this.styles.headerBorder}` : '';
-		this._dropBackground = this.styles.dropBackground;
 		this.element.style.borderLeft = this.styles.leftBorder && this.orientation === Orientation.HORIZONTAL ? `1px solid ${this.styles.leftBorder}` : '';
 	}
 
@@ -349,9 +380,9 @@ class PaneDraggable extends Disposable {
 			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElement.textContent || '');
 		}
 
-		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
+		const dragImage = append(this.pane.element.ownerDocument.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
-		setTimeout(() => document.body.removeChild(dragImage), 0);
+		setTimeout(() => this.pane.element.ownerDocument.body.removeChild(dragImage), 0);
 
 		this.context.draggable = this;
 	}
@@ -416,7 +447,7 @@ class PaneDraggable extends Disposable {
 		let backgroundColor: string | null = null;
 
 		if (this.dragOverCounter > 0) {
-			backgroundColor = (this.pane.dropBackground || PaneDraggable.DefaultDragOverBackgroundColor).toString();
+			backgroundColor = this.pane.dropBackground ?? PaneDraggable.DefaultDragOverBackgroundColor.toString();
 		}
 
 		this.pane.dropTargetElement.style.backgroundColor = backgroundColor || '';
@@ -605,12 +636,12 @@ export class PaneView extends Disposable {
 
 	private setupAnimation(): void {
 		if (typeof this.animationTimer === 'number') {
-			window.clearTimeout(this.animationTimer);
+			getWindow(this.element).clearTimeout(this.animationTimer);
 		}
 
 		this.element.classList.add('animated');
 
-		this.animationTimer = window.setTimeout(() => {
+		this.animationTimer = getWindow(this.element).setTimeout(() => {
 			this.animationTimer = undefined;
 			this.element.classList.remove('animated');
 		}, 200);
@@ -622,7 +653,7 @@ export class PaneView extends Disposable {
 
 	private focusPrevious(): void {
 		const headers = this.getPaneHeaderElements();
-		const index = headers.indexOf(document.activeElement as HTMLElement);
+		const index = headers.indexOf(this.element.ownerDocument.activeElement as HTMLElement);
 
 		if (index === -1) {
 			return;
@@ -633,7 +664,7 @@ export class PaneView extends Disposable {
 
 	private focusNext(): void {
 		const headers = this.getPaneHeaderElements();
-		const index = headers.indexOf(document.activeElement as HTMLElement);
+		const index = headers.indexOf(this.element.ownerDocument.activeElement as HTMLElement);
 
 		if (index === -1) {
 			return;

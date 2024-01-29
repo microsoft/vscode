@@ -37,7 +37,7 @@ export class ReleaseNotesManager {
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -58,7 +58,7 @@ export class ReleaseNotesManager {
 			}
 			const html = await this.renderBody(this._lastText);
 			if (this._currentReleaseNotes) {
-				this._currentReleaseNotes.webview.html = html;
+				this._currentReleaseNotes.webview.setHtml(html);
 			}
 		});
 
@@ -75,14 +75,16 @@ export class ReleaseNotesManager {
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
-			this._currentReleaseNotes.webview.html = html;
+			this._currentReleaseNotes.webview.setHtml(html);
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.openWebview(
 				{
+					title,
 					options: {
 						tryRestoreScrollPosition: true,
 						enableFindWidget: true,
+						disableServiceWorker: true,
 					},
 					contentOptions: {
 						localResourceRoots: [],
@@ -108,7 +110,7 @@ export class ReleaseNotesManager {
 				this._currentReleaseNotes = undefined;
 			}));
 
-			this._currentReleaseNotes.webview.html = html;
+			this._currentReleaseNotes.webview.setHtml(html);
 		}
 
 		return true;
@@ -256,8 +258,6 @@ export class ReleaseNotesManager {
 					container.appendChild(label);
 
 					const beforeElement = document.querySelector("body > h1")?.nextElementSibling;
-					console.log(beforeElement);
-
 					if (beforeElement) {
 						document.body.insertBefore(container, beforeElement);
 					} else {

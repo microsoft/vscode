@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { LanguageDescription } from '../configuration/languageDescription';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { DocumentSelector } from '../utils/documentSelector';
-import { LanguageDescription } from '../utils/languageDescription';
-import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
 
@@ -49,7 +49,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 			return undefined;
 		}
 
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}
@@ -103,7 +103,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 export function templateToSnippet(template: string): vscode.SnippetString {
 	// TODO: use append placeholder
 	let snippetIndex = 1;
-	template = template.replace(/\$/g, '\\$');
+	template = template.replace(/\$/g, '\\$'); // CodeQL [SM02383] This is only used for text which is put into the editor. It is not for rendered html
 	template = template.replace(/^[ \t]*(?=(\/|[ ]\*))/gm, '');
 	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
 	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)[ \t]*$/gm, (_param, type, post) => {

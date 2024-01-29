@@ -20,7 +20,7 @@ type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
 
 const foldingRangeLimit: FoldingLimitReporter = {
 	limit: 5000,
-	report: () => { }
+	update: () => { }
 };
 
 export class FoldingModel implements IDisposable {

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CSSIcon } from 'vs/base/common/codicons';
 import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const iconStartMarker = '$(';
 
-const iconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
+const iconsRegex = new RegExp(`\\$\\(${ThemeIcon.iconNameExpression}(?:${ThemeIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
 
 const escapeIconsRegex = new RegExp(`(\\\\)?${iconsRegex.source}`, 'g');
 export function escapeIcons(text: string): string {
@@ -23,6 +23,10 @@ export function markdownEscapeEscapedIcons(text: string): string {
 }
 
 const stripIconsRegex = new RegExp(`(\\s)?(\\\\)?${iconsRegex.source}(\\s)?`, 'g');
+
+/**
+ * Takes a label with icons (`$(iconId)xyz`)  and strips the icons out (`xyz`)
+ */
 export function stripIcons(text: string): string {
 	if (text.indexOf(iconStartMarker) === -1) {
 		return text;
@@ -32,13 +36,28 @@ export function stripIcons(text: string): string {
 }
 
 
+/**
+ * Takes a label with icons (`$(iconId)xyz`), removes the icon syntax adds whitespace so that screen readers can read the text better.
+ */
+export function getCodiconAriaLabel(text: string | undefined) {
+	if (!text) {
+		return '';
+	}
+
+	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
+}
+
+
 export interface IParsedLabelWithIcons {
 	readonly text: string;
 	readonly iconOffsets?: readonly number[];
 }
 
-const _parseIconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameCharacter}+\\)`, 'g');
+const _parseIconsRegex = new RegExp(`\\$\\(${ThemeIcon.iconNameCharacter}+\\)`, 'g');
 
+/**
+ * Takes a label with icons (`abc $(iconId)xyz`) and returns the text (`abc xyz`) and the offsets of the icons (`[3]`)
+ */
 export function parseLabelWithIcons(input: string): IParsedLabelWithIcons {
 
 	_parseIconsRegex.lastIndex = 0;

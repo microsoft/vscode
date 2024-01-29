@@ -64,10 +64,9 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		@IDecorationsService private readonly _decorationsService: IDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		//
 		this._disposables = [
 			this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('problems')) {
+				if (e.affectsConfiguration('problems.visibility')) {
 					this._updateEnablement();
 				}
 			}),
@@ -81,16 +80,26 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
-		if (value.decorations.enabled === this._enabled) {
+		const problem = this._configurationService.getValue('problems.visibility');
+		if (problem === undefined) {
 			return;
 		}
-		this._enabled = value.decorations.enabled;
+		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
+		const shouldEnable = (problem && value.decorations.enabled);
+
+		if (shouldEnable === this._enabled) {
+			if (!problem || !value.decorations.enabled) {
+				this._provider?.dispose();
+				this._provider = undefined;
+			}
+			return;
+		}
+
+		this._enabled = shouldEnable as boolean;
 		if (this._enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
 			this._provider = this._decorationsService.registerDecorationsProvider(provider);
 		} else if (this._provider) {
-			this._enabled = value.decorations.enabled;
 			this._provider.dispose();
 		}
 	}
@@ -102,7 +111,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#problems.visibility#` when it is off."),
 			'type': 'boolean',
 			'default': true
 		}

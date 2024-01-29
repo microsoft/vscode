@@ -12,7 +12,7 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions, validatePropert
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -188,7 +188,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 	}
 });
 
-const extensionConfigurations: Map<string, IConfigurationNode[]> = new Map<string, IConfigurationNode[]>();
+const extensionConfigurations: ExtensionIdentifierMap<IConfigurationNode[]> = new ExtensionIdentifierMap<IConfigurationNode[]>();
 
 configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
@@ -198,9 +198,8 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
 		const removedConfigurations: IConfigurationNode[] = [];
 		for (const extension of removed) {
-			const key = ExtensionIdentifier.toKey(extension.description.identifier);
-			removedConfigurations.push(...(extensionConfigurations.get(key) || []));
-			extensionConfigurations.delete(key);
+			removedConfigurations.push(...(extensionConfigurations.get(extension.description.identifier) || []));
+			extensionConfigurations.delete(extension.description.identifier);
 		}
 		_configDelta.removedConfigurations = removedConfigurations;
 	}
@@ -289,7 +288,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			} else {
 				configurations.push(...handleConfiguration(value, extension));
 			}
-			extensionConfigurations.set(ExtensionIdentifier.toKey(extension.description.identifier), configurations);
+			extensionConfigurations.set(extension.description.identifier, configurations);
 			addedConfigurations.push(...configurations);
 		}
 

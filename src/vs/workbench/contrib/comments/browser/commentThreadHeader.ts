@@ -17,10 +17,11 @@ import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/co
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
@@ -116,8 +117,9 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		if (!actions.length) {
 			return;
 		}
+		const event = new StandardMouseEvent(dom.getWindow(this._headElement), e);
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => e,
+			getAnchor: () => event,
 			getActions: () => actions,
 			actionRunner: new ActionRunner(),
 			getActionsContext: () => {

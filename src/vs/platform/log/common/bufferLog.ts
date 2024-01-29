@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractMessageLogger, DEFAULT_LOG_LEVEL, ILogger, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
+import { AbstractMessageLogger, DEFAULT_LOG_LEVEL, ILogger, log, LogLevel } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
 	message: string;
 }
 
-export class BufferLogService extends AbstractMessageLogger implements ILogService {
+export class BufferLogger extends AbstractMessageLogger {
 
 	declare readonly _serviceBrand: undefined;
 	private buffer: ILog[] = [];
@@ -44,6 +44,7 @@ export class BufferLogService extends AbstractMessageLogger implements ILogServi
 
 	override dispose(): void {
 		this._logger?.dispose();
+		super.dispose();
 	}
 
 	override flush(): void {

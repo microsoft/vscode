@@ -7,7 +7,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +19,7 @@ export function getLocale(extension: IGalleryExtension): string | undefined {
 export const ILanguagePackService = createDecorator<ILanguagePackService>('languagePackService');
 
 export interface ILanguagePackItem extends IQuickPickItem {
-	readonly extensionId: string;
+	readonly extensionId?: string;
 	readonly galleryExtension?: IGalleryExtension;
 }
 
@@ -27,7 +27,7 @@ export interface ILanguagePackService {
 	readonly _serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
-	getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
+	getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
@@ -37,7 +37,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		super();
 	}
 
-	abstract getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
+	abstract getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 
 	abstract getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
 
@@ -68,10 +68,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 			};
 		});
 
-		allFromMarketplace.push({
-			...this.createQuickPickItem('en', 'English'),
-			extensionId: 'default',
-		});
+		allFromMarketplace.push(this.createQuickPickItem('en', 'English'));
 
 		return allFromMarketplace;
 	}

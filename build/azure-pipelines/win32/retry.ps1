@@ -6,7 +6,7 @@ function Retry
 	)
 	$retry = 0
 
-	while ($retry++ -lt 3) {
+	while ($retry++ -lt 5) {
 		try {
 			& $cmd
 			return

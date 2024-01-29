@@ -38,6 +38,7 @@ class CheckoutStatusBar {
 
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 		repository.onDidRunGitStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
+		repository.onDidChangeBranchProtection(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
 	get command(): Command | undefined {
@@ -69,7 +70,7 @@ class CheckoutStatusBar {
 		}
 
 		// Branch
-		if (this.repository.HEAD.type !== RefType.Tag) {
+		if (this.repository.HEAD.type === RefType.Head && this.repository.HEAD.name) {
 			return this.repository.isBranchProtected() ? '$(lock)' : '$(git-branch)';
 		}
 

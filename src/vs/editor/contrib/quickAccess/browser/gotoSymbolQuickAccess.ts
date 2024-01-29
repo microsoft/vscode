@@ -6,6 +6,7 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMatch } from 'vs/base/common/filters';
 import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,14 +14,14 @@ import { format, trim } from 'vs/base/common/strings';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
+import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol } from 'vs/editor/common/languages';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
 import { localize } from 'vs/nls';
 import { IQuickInputButton, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Position } from 'vs/editor/common/core/position';
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind;
@@ -242,7 +243,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const openSideBySideDirection = this.options?.openSideBySideDirection?.();
 		if (openSideBySideDirection) {
 			buttons = [{
-				iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+				iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
 				tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 			}];
 		}
@@ -315,7 +316,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				kind: symbol.kind,
 				score: symbolScore,
 				label: symbolLabelWithIcon,
-				ariaLabel: symbolLabel,
+				ariaLabel: getAriaLabelForSymbol(symbol.name, symbol.kind),
 				description: containerLabel,
 				highlights: deprecated ? undefined : {
 					label: symbolMatches,

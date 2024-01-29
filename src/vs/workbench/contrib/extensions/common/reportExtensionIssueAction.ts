@@ -25,7 +25,7 @@ export class ReportExtensionIssueAction extends Action {
 
 	override async run(): Promise<void> {
 		await this.issueService.openReporter({
-			extensionId: this.extension.id,
+			extensionId: this.extension.identifier.value,
 		});
 	}
 }

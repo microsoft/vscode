@@ -15,12 +15,14 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 const $ = DOM.$;
 
@@ -34,6 +36,11 @@ export interface ISettingOverrideClickEvent {
 
 interface SettingIndicator {
 	element: HTMLElement;
+	/**
+	 * The element to focus on when navigating with keyboard.
+	 * When undefined, use {@link element} instead.
+	 */
+	focusElement?: HTMLElement;
 	label: SimpleIconLabel;
 	disposables: DisposableStore;
 }
@@ -65,9 +72,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private readonly profilesEnabled: boolean;
 
+	private readonly keybindingListeners: DisposableStore = new DisposableStore();
+	private focusedIndex = 0;
+
 	constructor(
 		container: HTMLElement,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -86,10 +96,14 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
-		hoverPosition: HoverPosition.BELOW,
-		showPointer: true,
-		compact: false,
-		trapFocus: true
+		trapFocus: true,
+		position: {
+			hoverPosition: HoverPosition.BELOW,
+		},
+		appearance: {
+			showPointer: true,
+			compact: false,
+		}
 	};
 
 	private addHoverDisposables(disposables: DisposableStore, element: HTMLElement, showHover: (focus: boolean) => IHoverWidget | undefined) {
@@ -122,7 +136,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createWorkspaceTrustIndicator(): SettingIndicator {
 		const workspaceTrustElement = $('span.setting-indicator.setting-item-workspace-trust');
-		workspaceTrustElement.tabIndex = 0;
 		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
 		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
 
@@ -163,7 +176,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createSyncIgnoredIndicator(): SettingIndicator {
 		const syncIgnoredElement = $('span.setting-indicator.setting-item-ignored');
-		syncIgnoredElement.tabIndex = 0;
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Not synced');
 
@@ -187,7 +199,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createDefaultOverrideIndicator(): SettingIndicator {
 		const defaultOverrideIndicator = $('span.setting-indicator.setting-item-default-overridden');
-		defaultOverrideIndicator.tabIndex = 0;
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
 		defaultOverrideLabel.text = localize('defaultOverriddenLabel', "Default value changed");
 
@@ -214,7 +225,56 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			}
 			DOM.append(this.indicatorsContainerElement, indicatorsToShow[indicatorsToShow.length - 1].element);
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
+			this.resetIndicatorNavigationKeyBindings(indicatorsToShow);
 		}
+	}
+
+	private resetIndicatorNavigationKeyBindings(indicators: SettingIndicator[]) {
+		this.keybindingListeners.clear();
+		this.indicatorsContainerElement.role = indicators.length >= 1 ? 'toolbar' : 'button';
+		if (!indicators.length) {
+			return;
+		}
+		const firstElement = indicators[0].focusElement ?? indicators[0].element;
+		firstElement.tabIndex = 0;
+		this.keybindingListeners.add(DOM.addDisposableListener(this.indicatorsContainerElement, 'keydown', (e) => {
+			const ev = new StandardKeyboardEvent(e);
+			let handled = true;
+			if (ev.equals(KeyCode.Home)) {
+				this.focusIndicatorAt(indicators, 0);
+			} else if (ev.equals(KeyCode.End)) {
+				this.focusIndicatorAt(indicators, indicators.length - 1);
+			} else if (ev.equals(KeyCode.RightArrow)) {
+				const indexToFocus = (this.focusedIndex + 1) % indicators.length;
+				this.focusIndicatorAt(indicators, indexToFocus);
+			} else if (ev.equals(KeyCode.LeftArrow)) {
+				const indexToFocus = this.focusedIndex ? this.focusedIndex - 1 : indicators.length - 1;
+				this.focusIndicatorAt(indicators, indexToFocus);
+			} else {
+				handled = false;
+			}
+
+			if (handled) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+	}
+
+	private focusIndicatorAt(indicators: SettingIndicator[], index: number) {
+		if (index === this.focusedIndex) {
+			return;
+		}
+		const indicator = indicators[index];
+		const elementToFocus = indicator.focusElement ?? indicator.element;
+		elementToFocus.tabIndex = 0;
+		elementToFocus.focus();
+
+		const currentlyFocusedIndicator = indicators[this.focusedIndex];
+		const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
+		previousFocusedElement.tabIndex = -1;
+
+		this.focusedIndex = index;
 	}
 
 	updateWorkspaceTrust(element: SettingsTreeSettingElement) {
@@ -244,9 +304,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	dispose() {
-		const indicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator,
-		this.syncIgnoredIndicator, this.defaultOverrideIndicator];
-		for (const indicator of indicators) {
+		this.keybindingListeners.dispose();
+		for (const indicator of this.allIndicators) {
 			indicator.disposables.dispose();
 		}
 	}
@@ -254,7 +313,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
-		this.scopeOverridesIndicator.element.tabIndex = 0;
+		this.scopeOverridesIndicator.focusElement = this.scopeOverridesIndicator.element;
 		if (element.hasPolicyValue) {
 			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
 			this.scopeOverridesIndicator.element.style.display = 'inline';
@@ -277,14 +336,11 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				}, focus);
 			};
 			this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
-		} else if (this.profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
-			// If the setting is an application-scoped setting, there are no overrides so we can use this
-			// indicator to display that information instead.
+		} else if (this.profilesEnabled && element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			const applicationSettingText = localize('applicationSetting', "Applies to all profiles");
-			this.scopeOverridesIndicator.label.text = applicationSettingText;
+			this.scopeOverridesIndicator.label.text = localize('applicationSetting', "Applies to all profiles");
 
 			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
 			const showHover = (focus: boolean) => {
@@ -302,7 +358,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
-				this.scopeOverridesIndicator.element.removeAttribute('tabIndex');
 				this.scopeOverridesIndicator.disposables.clear();
 
 				const prefaceText = element.isConfigured ?
@@ -312,6 +367,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 				const overriddenScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
+				view.tabIndex = -1;
+				this.scopeOverridesIndicator.focusElement = view;
 				const onClickOrKeydown = (e: UIEvent) => {
 					const [scope, language] = overriddenScope.split(':');
 					onDidClickOverrideElement.fire({
@@ -399,9 +456,13 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				return this.hoverService.showHover({
 					content: defaultOverrideHoverContent,
 					target: this.defaultOverrideIndicator.element,
-					hoverPosition: HoverPosition.BELOW,
-					showPointer: true,
-					compact: false
+					position: {
+						hoverPosition: HoverPosition.BELOW,
+					},
+					appearance: {
+						showPointer: true,
+						compact: false
+					}
 				}, focus);
 			};
 			this.addHoverDisposables(this.defaultOverrideIndicator.disposables, this.defaultOverrideIndicator.element, showHover);
@@ -445,7 +506,7 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 	return localizedScope;
 }
 
-export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
+export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
 	// Add workspace trust text
@@ -453,10 +514,9 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value not applied"));
 	}
 
-	const profilesEnabled = userDataProfilesService.isEnabled();
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
-	} else if (profilesEnabled && element.matchesScope(ConfigurationTarget.APPLICATION, false)) {
+	} else if (userDataProfilesService.isEnabled() && element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {
 		// Add other overrides text

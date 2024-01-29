@@ -106,9 +106,10 @@ export class TestTestCollection extends TestItemCollection<TestTestItem> {
  * roots/stubs.
  */
 export const getInitializedMainTestCollection = async (singleUse = testStubs.nested()) => {
-	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t, l));
+	const c = new MainThreadTestCollection({ asCanonicalUri: u => u }, async (t, l) => singleUse.expand(t, l));
 	await singleUse.expand(singleUse.root.id, Infinity);
 	c.apply(singleUse.collectDiff());
+	singleUse.dispose();
 	return c;
 };
 

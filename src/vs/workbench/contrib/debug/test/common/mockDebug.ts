@@ -6,15 +6,15 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
 import { URI as uri } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { AdapterEndEvent, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IConfig, IConfigurationManager, IDataBreakpoint, IDebugger, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEvaluate, IExceptionBreakpoint, IExceptionInfo, IExpression, IFunctionBreakpoint, IInstructionBreakpoint, ILaunch, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IReplElementSource, IStackFrame, IThread, IViewModel, LoadedSourceEvent, State } from 'vs/workbench/contrib/debug/common/debug';
+import { AdapterEndEvent, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IConfig, IConfigurationManager, IDataBreakpoint, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, ILaunch, IMemoryRegion, INewReplElementData, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, IViewModel, LoadedSourceEvent, State } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, Expression, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 
@@ -33,7 +33,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	get onDidEndSession(): Event<IDebugSession> {
+	get onDidEndSession(): Event<{ session: IDebugSession; restart: boolean }> {
 		throw new Error('not implemented');
 	}
 
@@ -61,6 +61,10 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
+	sendBreakpoints(modelUri: uri, sourceModified?: boolean | undefined, session?: IDebugSession | undefined): Promise<any> {
+		throw new Error('not implemented');
+	}
+
 	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): Promise<IBreakpoint[]> {
 		throw new Error('not implemented');
 	}
@@ -81,7 +85,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void> {
+	addInstructionBreakpoint(instructionReference: string, offset: number, address: bigint, condition?: string, hitCondition?: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -112,6 +116,11 @@ export class MockDebugService implements IDebugService {
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+
+	updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void> {
+		throw new Error('not implemented');
+	}
+
 	removeDataBreakpoints(id?: string | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -252,7 +261,7 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve(undefined);
 	}
 
-	appendToRepl(data: string | IExpression, severity: Severity, isImportant?: boolean, source?: IReplElementSource): void { }
+	appendToRepl(data: INewReplElementData): void { }
 
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
@@ -666,34 +675,7 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 
 export class MockDebugStorage extends DebugStorage {
 
-	constructor() {
-		super(undefined as any, undefined as any, undefined as any);
+	constructor(storageService: IStorageService) {
+		super(storageService, undefined as any, undefined as any, new NullLogService());
 	}
-
-	override loadBreakpoints(): Breakpoint[] {
-		return [];
-	}
-
-	override loadFunctionBreakpoints(): FunctionBreakpoint[] {
-		return [];
-	}
-
-	override loadExceptionBreakpoints(): ExceptionBreakpoint[] {
-		return [];
-
-	}
-
-	override loadDataBreakpoints(): DataBreakpoint[] {
-		return [];
-
-	}
-
-	override loadWatchExpressions(): Expression[] {
-		return [];
-
-	}
-
-	override storeWatchExpressions(_watchExpressions: (IExpression & IEvaluate)[]): void { }
-
-	override storeBreakpoints(_debugModel: IDebugModel): void { }
 }

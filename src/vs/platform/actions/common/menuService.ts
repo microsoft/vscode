@@ -58,10 +58,7 @@ class PersistedMenuHideState {
 			this._data = Object.create(null);
 		}
 
-		this._disposables.add(_storageService.onDidChangeValue(e => {
-			if (e.key !== PersistedMenuHideState._key) {
-				return;
-			}
+		this._disposables.add(_storageService.onDidChangeValue(StorageScope.PROFILE, PersistedMenuHideState._key, this._disposables)(() => {
 			if (!this._ignoreChangeEvent) {
 				try {
 					const raw = _storageService.get(PersistedMenuHideState._key, StorageScope.PROFILE, '{}');
@@ -95,8 +92,11 @@ class PersistedMenuHideState {
 
 	updateHidden(menu: MenuId, commandId: string, hidden: boolean): void {
 		const hiddenByDefault = this._isHiddenByDefault(menu, commandId);
+		if (hiddenByDefault) {
+			hidden = !hidden;
+		}
 		const entries = this._data[menu.id];
-		if (hidden === !hiddenByDefault) {
+		if (!hidden) {
 			// remove and cleanup
 			if (entries) {
 				const idx = entries.indexOf(commandId);
@@ -428,7 +428,7 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 		id: `toggle/${menu.id}/${id}`,
 		label: title,
 		get checked() { return !states.isHidden(menu, id); },
-		run() { states.updateHidden(menu, id, !this.checked); }
+		run() { states.updateHidden(menu, id, !!this.checked); }
 	});
 
 	return {

@@ -6,7 +6,8 @@
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { splice, tail2 } from 'vs/base/common/arrays';
-import { Delayer, MicrotaskDelay } from 'vs/base/common/async';
+import { Delayer } from 'vs/base/common/async';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -237,7 +238,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const nodesToInsertIterator = Iterable.map(toInsert, el => this.createTreeNode(el, parentNode, parentNode.visible ? TreeVisibility.Visible : TreeVisibility.Hidden, revealed, treeListElementsToInsert, onDidCreateNode));
 
 		const lastIndex = location[location.length - 1];
-		const lastHadChildren = parentNode.children.length > 0;
 
 		// figure out what's the visible child start index right before the
 		// splice point
@@ -315,11 +315,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
-
-		const currentlyHasChildren = parentNode.children.length > 0;
-		if (lastHadChildren !== currentlyHasChildren) {
-			this.setCollapsible(location.slice(0, -1), currentlyHasChildren);
-		}
 
 		let node: IIndexTreeNode<T, TFilterData> | undefined = parentNode;
 

@@ -6,14 +6,13 @@
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
+import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { Counter } from 'vs/base/common/numbers';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -30,15 +29,17 @@ import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
-import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
+import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+import { revive } from 'vs/base/common/marshalling';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
 	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
 	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 }
 
 function isFolderEqual(folderA: URI, folderB: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): boolean {
@@ -462,10 +463,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
 		return this._proxy.$startFileSearch(
-			withUndefinedAsNull(includePattern),
-			withUndefinedAsNull(folder),
-			withUndefinedAsNull(excludePatternOrDisregardExcludes),
-			withUndefinedAsNull(maxResults),
+			includePattern ?? null,
+			folder ?? null,
+			excludePatternOrDisregardExcludes ?? null,
+			maxResults ?? null,
 			token
 		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
@@ -510,7 +511,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 
 			const uri = URI.revive(p.resource);
-			p.results!.forEach(result => {
+			p.results!.forEach(rawResult => {
+				const result: ITextSearchResult<URI> = revive(rawResult);
 				if (resultIsMatch(result)) {
 					callback(<vscode.TextSearchMatch>{
 						uri,
@@ -541,7 +543,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		try {
 			const result = await this._proxy.$startTextSearch(
 				query,
-				withUndefinedAsNull(folder),
+				folder ?? null,
 				queryOptions,
 				requestId,
 				token);
@@ -557,12 +559,28 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._activeSearchCallbacks[requestId]?.(result);
 	}
 
+	async save(uri: URI): Promise<URI | undefined> {
+		const result = await this._proxy.$save(uri, { saveAs: false });
+
+		return URI.revive(result);
+	}
+
+	async saveAs(uri: URI): Promise<URI | undefined> {
+		const result = await this._proxy.$save(uri, { saveAs: true });
+
+		return URI.revive(result);
+	}
+
 	saveAll(includeUntitled?: boolean): Promise<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._proxy.$resolveProxy(url);
+	}
+
+	loadCertificates(): Promise<string[]> {
+		return this._proxy.$loadCertificates();
 	}
 
 	// --- trust ---
@@ -653,6 +671,77 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		return result;
 	}
+
+	private readonly _onWillCreateEditSessionIdentityEvent = new AsyncEmitter<vscode.EditSessionIdentityWillCreateEvent>();
+
+	getOnWillCreateEditSessionIdentityEvent(extension: IExtensionDescription): Event<vscode.EditSessionIdentityWillCreateEvent> {
+		return (listener, thisArg, disposables) => {
+			const wrappedListener: IExtensionListener<vscode.EditSessionIdentityWillCreateEvent> = function wrapped(e) { listener.call(thisArg, e); };
+			wrappedListener.extension = extension;
+			return this._onWillCreateEditSessionIdentityEvent.event(wrappedListener, undefined, disposables);
+		};
+	}
+
+	// main thread calls this to trigger participants
+	async $onWillCreateEditSessionIdentity(workspaceFolder: UriComponents, token: CancellationToken, timeout: number): Promise<void> {
+		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
+
+		if (folder === undefined) {
+			throw new Error('Unable to resolve workspace folder');
+		}
+
+		await this._onWillCreateEditSessionIdentityEvent.fireAsync({ workspaceFolder: folder }, token, async (thenable: Promise<unknown>, listener) => {
+			const now = Date.now();
+			await Promise.resolve(thenable);
+			if (Date.now() - now > timeout) {
+				this._logService.warn('SLOW edit session create-participant', (<IExtensionListener<vscode.EditSessionIdentityWillCreateEvent>>listener).extension.identifier);
+			}
+		});
+
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+	}
+
+	// --- canonical uri identity ---
+
+	private readonly _canonicalUriProviders = new Map<string, vscode.CanonicalUriProvider>();
+
+	// called by ext host
+	registerCanonicalUriProvider(scheme: string, provider: vscode.CanonicalUriProvider) {
+		if (this._canonicalUriProviders.has(scheme)) {
+			throw new Error(`A provider has already been registered for scheme ${scheme}`);
+		}
+
+		this._canonicalUriProviders.set(scheme, provider);
+		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
+		const handle = this._providerHandlePool++;
+		this._proxy.$registerCanonicalUriProvider(handle, outgoingScheme);
+
+		return toDisposable(() => {
+			this._canonicalUriProviders.delete(scheme);
+			this._proxy.$unregisterCanonicalUriProvider(handle);
+		});
+	}
+
+	async provideCanonicalUri(uri: URI, options: vscode.CanonicalUriRequestOptions, cancellationToken: CancellationToken): Promise<URI | undefined> {
+		const provider = this._canonicalUriProviders.get(uri.scheme);
+		if (!provider) {
+			return undefined;
+		}
+
+		const result = await provider.provideCanonicalUri?.(URI.revive(uri), options, cancellationToken);
+		if (!result) {
+			return undefined;
+		}
+
+		return result;
+	}
+
+	// called by main thread
+	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
+		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
+	}
 }
 
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
@@ -675,3 +764,9 @@ function parseSearchInclude(include: string | IRelativePatternDto | undefined | 
 		folder: includeFolder
 	};
 }
+
+interface IExtensionListener<E> {
+	extension: IExtensionDescription;
+	(e: E): any;
+}
+

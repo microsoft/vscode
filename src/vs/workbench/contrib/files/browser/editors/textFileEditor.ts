@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { mark } from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IAction, toAction } from 'vs/base/common/actions';
@@ -34,6 +35,8 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An implementation of editor for file system resources.
@@ -59,7 +62,8 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		@IPathService private readonly pathService: IPathService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService protected readonly preferencesService: IPreferencesService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
@@ -95,6 +99,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 	}
 
 	override async setInput(input: FileEditorInput, options: IFileEditorInputOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		mark('code/willSetInputToTextFileEditor');
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -144,10 +149,16 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			// was already asked for being readonly or not. The rationale is that
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
-			control.updateOptions({ readOnly: textFileModel.isReadonly() });
+			control.updateOptions(this.getReadonlyConfiguration(textFileModel.isReadonly()));
+
+			if (control.handleInitialized) {
+				control.handleInitialized();
+			}
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}
+
+		mark('code/didSetInputToTextFileEditor');
 	}
 
 	protected async handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
@@ -192,8 +203,12 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			throw createTooLargeFileError(this.group, input, options, message, this.preferencesService);
 		}
 
-		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && await this.pathService.hasValidBasename(input.preferredResource)) {
+		// Offer to create a file from the error if we have a file not found and the name is valid and not readonly
+		if (
+			(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND &&
+			!this.filesConfigurationService.isReadonly(input.preferredResource) &&
+			await this.pathService.hasValidBasename(input.preferredResource)
+		) {
 			const fileNotFoundError = createEditorOpenError(new FileOperationError(localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found."), FileOperationResult.FILE_NOT_FOUND), [
 				toAction({
 					id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {
@@ -280,6 +295,14 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 
 		// Clear Model
 		this.editorControl?.setModel(null);
+	}
+
+	protected override createEditorControl(parent: HTMLElement, initialOptions: ICodeEditorOptions): void {
+		mark('code/willCreateTextFileEditorControl');
+
+		super.createEditorControl(parent, initialOptions);
+
+		mark('code/didCreateTextFileEditorControl');
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {

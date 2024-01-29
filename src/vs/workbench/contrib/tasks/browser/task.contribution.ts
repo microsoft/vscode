@@ -145,16 +145,12 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 
 	private _ignoreEventForUpdateRunningTasksCount(event: ITaskEvent): boolean {
-		if (!this._taskService.inTerminal()) {
+		if (!this._taskService.inTerminal() || event.kind === TaskEventKind.Changed) {
 			return false;
 		}
 
 		if ((isString(event.group) ? event.group : event.group?._id) !== TaskGroup.Build._id) {
 			return true;
-		}
-
-		if (!event.__task) {
-			return false;
 		}
 
 		return event.__task.configurationProperties.problemMatchers === undefined || event.__task.configurationProperties.problemMatchers.length === 0;
@@ -351,6 +347,39 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	},
 	when: TaskExecutionSupportedContext
 });
+
+class UserTasksGlobalActionContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor() {
+		super();
+		this.registerActions();
+	}
+
+	private registerActions() {
+		const id = 'workbench.action.tasks.openUserTasks';
+		const title = nls.localize('userTasks', "User Tasks");
+		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 6
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 6
+		}));
+	}
+}
+workbenchRegistry.registerWorkbenchContribution(UserTasksGlobalActionContribution, LifecyclePhase.Restored);
+
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
@@ -375,7 +404,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: TasksQuickAccessProvider.PREFIX,
 	contextKey: tasksPickerContextKey,
 	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task") }]
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), commandCenterOrder: 60 }]
 });
 
 // tasks.json validation
@@ -505,11 +534,6 @@ configurationRegistry.registerConfiguration({
 			default: 'on',
 			restricted: true
 		},
-		[TaskSettingId.ShowDecorations]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks. {0} will take precedence over this setting", '`#terminal.integrated.shellIntegration.decorationsEnabled#`'),
-			default: true
-		},
 		[TaskSettingId.Reconnection]: {
 			type: 'boolean',
 			description: nls.localize('task.reconnection', "On window reload, reconnect to tasks that have problem matchers."),
@@ -528,6 +552,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('task.SaveBeforeRun.prompt', 'Prompts whether to save editors before running.'),
 			],
 			default: 'always',
+		},
+		[TaskSettingId.VerboseLogging]: {
+			type: 'boolean',
+			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),
+			default: false
 		},
 	}
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveWindow } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -29,7 +29,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
-import { parentOriginHash } from 'vs/workbench/browser/iframe';
+import { parentOriginHash } from 'vs/base/browser/iframe';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -37,9 +37,11 @@ import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/web
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { $window } from 'vs/base/browser/window';
 
 interface WebviewContent {
 	readonly html: string;
+	readonly title: string | undefined;
 	readonly options: WebviewContentOptions;
 	readonly state: string | undefined;
 }
@@ -101,7 +103,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (!this._focused) {
 			return false;
 		}
-		if (document.activeElement && document.activeElement !== this.element) {
+		if ($window.document.activeElement && $window.document.activeElement !== this.element) {
 			// looks like https://github.com/microsoft/vscode/issues/132641
 			// where the focus is actually not in the `<iframe>`
 			return false;
@@ -143,7 +145,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
@@ -159,13 +160,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? this.id;
 
-		this._encodedWebviewOriginPromise = parentOriginHash(window.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
+		this._encodedWebviewOriginPromise = parentOriginHash($window.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 
 		this._options = initInfo.options;
 		this.extension = initInfo.extension;
 
 		this._content = {
 			html: '',
+			title: initInfo.title,
 			options: initInfo.contentOptions,
 			state: undefined
 		};
@@ -178,8 +180,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._element = this._createElement(initInfo.options, initInfo.contentOptions);
 
-
-		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
+		const subscription = this._register(addDisposableListener(initInfo.codeWindow ?? getActiveWindow(), 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -260,6 +261,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._register(this.on('fatal-error', (e) => {
 			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+			this._onFatalError.fire({ message: e.message });
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
@@ -324,6 +326,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
 		this._register(_accessibilityService.onDidChangeReducedMotion(() => this.style()));
 		this._register(_accessibilityService.onDidChangeScreenReaderOptimized(() => this.style()));
+		this._register(contextMenuService.onDidShowContextMenu(() => this._send('set-context-menu-visible', { visible: true })));
+		this._register(contextMenuService.onDidHideContextMenu(() => this._send('set-context-menu-visible', { visible: false })));
 
 		this._confirmBeforeClose = configurationService.getValue<string>('window.confirmBeforeClose');
 
@@ -402,6 +406,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur = this._onDidBlur.event;
 
+	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
+	public readonly onFatalError = this._onFatalError.event;
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
@@ -454,8 +461,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
-			parentOrigin: window.origin,
+			parentOrigin: $window.origin,
 		};
+
+		if (this._options.disableServiceWorker) {
+			params.disableServiceWorker = 'true';
+		}
 
 		if (this._environmentService.remoteAuthority) {
 			params.remoteAuthority = this._environmentService.remoteAuthority;
@@ -490,7 +501,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}));
 		}
 
-		for (const node of [element, window]) {
+		for (const node of [element, $window]) {
 			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
@@ -587,13 +598,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}));
 	}
 
-	public set html(value: string) {
-		this.doUpdateContent({
-			html: value,
-			options: this._content.options,
-			state: this._content.state,
-		});
-		this._onDidHtmlChange.fire(value);
+	public setHtml(html: string) {
+		this.doUpdateContent({ ...this._content, html });
+		this._onDidHtmlChange.fire(html);
+	}
+
+	public setTitle(title: string) {
+		this._content = { ...this._content, title };
+		this._send('set-title', title);
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
@@ -604,11 +616,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			return;
 		}
 
-		this.doUpdateContent({
-			html: this._content.html,
-			options: options,
-			state: this._content.state,
-		});
+		this.doUpdateContent({ ...this._content, options });
 	}
 
 	public set localResourcesRoot(resources: readonly URI[]) {
@@ -619,11 +627,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	public set state(state: string | undefined) {
-		this._content = {
-			html: this._content.html,
-			options: this._content.options,
-			state,
-		};
+		this._content = { ...this._content, state };
 	}
 
 	public set initialScrollProgress(value: number) {
@@ -638,6 +642,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		const allowScripts = !!this._content.options.allowScripts;
 		this._send('content', {
 			contents: this._content.html,
+			title: this._content.title,
 			options: {
 				allowMultipleAPIAcquire: !!this._content.options.allowMultipleAPIAcquire,
 				allowScripts: allowScripts,
@@ -679,7 +684,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			get: () => this.element,
 		});
 		// And re-dispatch
-		window.dispatchEvent(emulatedKeyboardEvent);
+		$window.dispatchEvent(emulatedKeyboardEvent);
 	}
 
 	windowDidDragStart(): void {
@@ -821,7 +826,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
-			if (document.activeElement && document.activeElement !== this.element && document.activeElement?.tagName !== 'BODY') {
+			if ($window.document.activeElement && $window.document.activeElement !== this.element && $window.document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 

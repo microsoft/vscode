@@ -217,5 +217,12 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 				}
 			}
 		}
+	},
+	activationEventsGenerator: (walkthroughContributions, result) => {
+		for (const walkthroughContribution of walkthroughContributions) {
+			if (walkthroughContribution.id) {
+				result.push(`onWalkthrough:${walkthroughContribution.id}`);
+			}
+		}
 	}
 });

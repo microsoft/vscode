@@ -237,7 +237,7 @@ class HistoryItem {
 	}
 }
 
-class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem>{
+class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem> {
 
 	private readonly _onDidChangeTreeData = new vscode.EventEmitter<HistoryItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -268,7 +268,7 @@ class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem>{
 			vscode.commands.registerCommand('_references-view.showHistoryItem', async (item) => {
 				if (item instanceof HistoryItem) {
 					const position = item.anchor.guessedTrackedPosition() ?? item.input.location.range.start;
-					return vscode.commands.executeCommand('vscode.open', item.input.location.uri, { selection: new vscode.Range(position, position) });
+					await vscode.commands.executeCommand('vscode.open', item.input.location.uri, { selection: new vscode.Range(position, position) });
 				}
 			}),
 			vscode.commands.registerCommand('references-view.pickFromHistory', async () => {

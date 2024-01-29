@@ -5,7 +5,7 @@
 
 import { decodeKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandHandler, ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -66,7 +66,7 @@ export const enum KeybindingWeight {
 
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+	metadata?: ICommandMetadata | null;
 }
 
 export interface IKeybindingsRegistry {
@@ -76,6 +76,9 @@ export interface IKeybindingsRegistry {
 	getDefaultKeybindings(): IKeybindingItem[];
 }
 
+/**
+ * Stores all built-in and extension-provided keybindings (but not ones that user defines themselves)
+ */
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _coreKeybindings: LinkedList<IKeybindingItem>;

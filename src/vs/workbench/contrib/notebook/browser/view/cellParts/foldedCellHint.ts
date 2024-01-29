@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { CellEditState, CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -32,8 +33,8 @@ export class FoldedCellHint extends CellContentPart {
 		if (element.isInputCollapsed || element.getEditState() === CellEditState.Editing) {
 			DOM.hide(this._container);
 		} else if (element.foldingState === CellFoldingState.Collapsed) {
-			const idx = this._notebookEditor._getViewModel().getCellIndex(element);
-			const length = this._notebookEditor._getViewModel().getFoldedLength(idx);
+			const idx = this._notebookEditor.getViewModel().getCellIndex(element);
+			const length = this._notebookEditor.getViewModel().getFoldedLength(idx);
 			DOM.reset(this._container, this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
 			DOM.show(this._container);
 
@@ -54,7 +55,7 @@ export class FoldedCellHint extends CellContentPart {
 
 	private getHiddenCellHintButton(element: MarkupCellViewModel): HTMLElement {
 		const expandIcon = DOM.$('span.cell-expand-part-button');
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 		this._register(DOM.addDisposableListener(expandIcon, DOM.EventType.CLICK, () => {
 			const controller = this._notebookEditor.getContribution<FoldingController>(FoldingController.id);
 			const idx = this._notebookEditor.getCellIndex(element);

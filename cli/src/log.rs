@@ -8,14 +8,15 @@ use opentelemetry::{
 	sdk::trace::{Tracer, TracerProvider},
 	trace::{SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait},
 };
+use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::{env, path::Path, sync::Arc};
 use std::{
 	io::Write,
 	sync::atomic::{AtomicU32, Ordering},
 };
+use std::{path::Path, sync::Arc};
 
-const NO_COLOR_ENV: &str = "NO_COLOR";
+use crate::constants::COLORS_ENABLED;
 
 static INSTANCE_COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -25,21 +26,18 @@ pub fn next_counter() -> u32 {
 }
 
 // Log level
-#[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+#[derive(
+	clap::ValueEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize, Default,
+)]
 pub enum Level {
 	Trace = 0,
 	Debug,
+	#[default]
 	Info,
 	Warn,
 	Error,
 	Critical,
 	Off,
-}
-
-impl Default for Level {
-	fn default() -> Self {
-		Level::Info
-	}
 }
 
 impl fmt::Display for Level {
@@ -70,7 +68,7 @@ impl Level {
 	}
 
 	pub fn color_code(&self) -> Option<&str> {
-		if env::var(NO_COLOR_ENV).is_ok() || !atty::is(atty::Stream::Stdout) {
+		if !*COLORS_ENABLED {
 			return None;
 		}
 
@@ -105,7 +103,7 @@ pub fn new_rpc_prefix() -> String {
 // Base logger implementation
 #[derive(Clone)]
 pub struct Logger {
-	tracer: Tracer,
+	tracer: Arc<Tracer>,
 	sink: Vec<Box<dyn LogSink>>,
 	prefix: Option<String>,
 }
@@ -135,6 +133,7 @@ impl Clone for Box<dyn LogSink> {
 	}
 }
 
+/// The basic log sink that writes output to stdout, with colors when relevant.
 #[derive(Clone)]
 pub struct StdioLogSink {
 	level: Level,
@@ -160,9 +159,21 @@ pub struct FileLogSink {
 	file: Arc<std::sync::Mutex<std::fs::File>>,
 }
 
+const FILE_LOG_SIZE_LIMIT: u64 = 1024 * 1024 * 10; // 10MB
+
 impl FileLogSink {
 	pub fn new(level: Level, path: &Path) -> std::io::Result<Self> {
-		let file = std::fs::File::create(path)?;
+		// Truncate the service log occasionally to avoid growing infinitely
+		if matches!(path.metadata(), Ok(m) if m.len() > FILE_LOG_SIZE_LIMIT) {
+			// ignore errors, can happen if another process is writing right now
+			let _ = std::fs::remove_file(path);
+		}
+
+		let file = std::fs::OpenOptions::new()
+			.append(true)
+			.create(true)
+			.open(path)?;
+
 		Ok(Self {
 			level,
 			file: Arc::new(std::sync::Mutex::new(file)),
@@ -176,7 +187,7 @@ impl LogSink for FileLogSink {
 			return;
 		}
 
-		let line = format(level, prefix, message);
+		let line = format(level, prefix, message, false);
 
 		// ignore any errors, not much we can do if logging fails...
 		self.file.lock().unwrap().write_all(line.as_bytes()).ok();
@@ -188,7 +199,7 @@ impl LogSink for FileLogSink {
 impl Logger {
 	pub fn test() -> Self {
 		Self {
-			tracer: TracerProvider::builder().build().tracer("codeclitest"),
+			tracer: Arc::new(TracerProvider::builder().build().tracer("codeclitest")),
 			sink: vec![],
 			prefix: None,
 		}
@@ -196,7 +207,7 @@ impl Logger {
 
 	pub fn new(tracer: Tracer, level: Level) -> Self {
 		Self {
-			tracer,
+			tracer: Arc::new(tracer),
 			sink: vec![Box::new(StdioLogSink { level })],
 			prefix: None,
 		}
@@ -247,6 +258,17 @@ impl Logger {
 		}
 	}
 
+	/// Creates a new logger with the sink replace with the given sink.
+	pub fn with_sink<T>(&self, sink: T) -> Logger
+	where
+		T: LogSink + 'static,
+	{
+		Logger {
+			sink: vec![Box::new(sink)],
+			..self.clone()
+		}
+	}
+
 	pub fn get_download_logger<'a>(&'a self, prefix: &'static str) -> DownloadLogger<'a> {
 		DownloadLogger {
 			prefix,
@@ -282,29 +304,75 @@ impl<'a> crate::util::io::ReportCopyProgress for DownloadLogger<'a> {
 	}
 }
 
-pub fn format(level: Level, prefix: &str, message: &str) -> String {
+fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String {
 	let current = Local::now();
 	let timestamp = current.format("%Y-%m-%d %H:%M:%S").to_string();
 
 	let name = level.name().unwrap();
 
-	if let Some(c) = level.color_code() {
-		format!(
-			"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\n",
-			timestamp, c, name, prefix, message
-		)
-	} else {
-		format!("[{}] {} {}{}\n", timestamp, name, prefix, message)
+	if use_colors {
+		if let Some(c) = level.color_code() {
+			return format!(
+				"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\n",
+				timestamp, c, name, prefix, message
+			);
+		}
 	}
+
+	format!("[{}] {} {}{}\n", timestamp, name, prefix, message)
 }
 
 pub fn emit(level: Level, prefix: &str, message: &str) {
-	let line = format(level, prefix, message);
-	if level == Level::Trace {
+	let line = format(level, prefix, message, *COLORS_ENABLED);
+	if level == Level::Trace && *COLORS_ENABLED {
 		print!("\x1b[2m{}\x1b[0m", line);
 	} else {
 		print!("{}", line);
 	}
+}
+
+/// Installs the logger instance as the global logger for the 'log' service.
+/// Replaces any existing registered logger. Note that the logger will be leaked/
+pub fn install_global_logger(log: Logger) {
+	log::set_logger(Box::leak(Box::new(RustyLogger(log))))
+		.map(|()| log::set_max_level(log::LevelFilter::Debug))
+		.expect("expected to make logger");
+}
+
+/// Logger that uses the common rust "log" crate and directs back to one of
+/// our managed loggers.
+struct RustyLogger(Logger);
+
+impl log::Log for RustyLogger {
+	fn enabled(&self, metadata: &log::Metadata) -> bool {
+		metadata.level() <= log::Level::Debug
+	}
+
+	fn log(&self, record: &log::Record) {
+		if !self.enabled(record.metadata()) {
+			return;
+		}
+
+		// exclude noisy log modules:
+		let src = match record.module_path() {
+			Some("russh::cipher" | "russh::negotiation" | "russh::kex::dh") => return,
+			Some(s) => s,
+			None => "<unknown>",
+		};
+
+		self.0.emit(
+			match record.level() {
+				log::Level::Debug => Level::Debug,
+				log::Level::Error => Level::Error,
+				log::Level::Info => Level::Info,
+				log::Level::Trace => Level::Trace,
+				log::Level::Warn => Level::Warn,
+			},
+			&format!("[{}] {}", src, record.args()),
+		);
+	}
+
+	fn flush(&self) {}
 }
 
 #[macro_export]

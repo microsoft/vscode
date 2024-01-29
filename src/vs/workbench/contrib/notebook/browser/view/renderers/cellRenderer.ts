@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -17,7 +17,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { localize } from 'vs/nls';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -25,6 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellChatPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatPart';
 import { CellComments } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellComments';
 import { CellContextKeyPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
@@ -55,20 +56,17 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 	private readonly lineHeight: number;
 
 	constructor(
+		targetWindow: Window,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
 	}
 
 	getHeight(element: CellViewModel): number {
 		return element.getHeight(this.lineHeight);
-	}
-
-	hasDynamicHeight(element: CellViewModel): boolean {
-		return element.hasDynamicHeight();
 	}
 
 	getDynamicHeight(element: CellViewModel): number | null {
@@ -95,7 +93,7 @@ abstract class AbstractCellRenderer {
 		configurationService: IConfigurationService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
-		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		language: string,
 		protected dndController: CellDragAndDropController | undefined
 	) {
@@ -115,7 +113,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		notebookEditor: INotebookEditorDelegate,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
-		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -145,7 +143,9 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
+		const cellChatPart = DOM.append(editorPart, $('.cell-chat-part'));
 		const cellInputCollapsedContainer = DOM.append(codeInnerContent, $('.input-collapse-container'));
+		cellInputCollapsedContainer.style.display = 'none';
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		editorPart.style.display = 'none';
 		const cellCommentPartContainer = DOM.append(container, $('.cell-comment-container'));
@@ -165,7 +165,8 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			this.notebookEditor));
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 
-		const cellParts = new CellPartsCollection([
+		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), [
+			templateDisposables.add(scopedInstaService.createInstance(CellChatPart, this.notebookEditor, cellChatPart)),
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, undefined)),
 			templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom)),
 			templateDisposables.add(new FoldedCellHint(this.notebookEditor, DOM.append(container, $('.notebook-folded-hint')))),
@@ -234,7 +235,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		notebookEditor: INotebookEditorDelegate,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
 		dndController: CellDragAndDropController,
-		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -260,9 +261,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		// This is also the drag handle
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
+		const cellChatPart = DOM.append(container, $('.cell-chat-part'));
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const cellInputCollapsedContainer = DOM.append(cellContainer, $('.input-collapse-container'));
+		cellInputCollapsedContainer.style.display = 'none';
 		const executionOrderLabel = DOM.append(focusIndicatorLeft.domNode, $('div.execution-count-label'));
 		executionOrderLabel.title = localize('cellExecutionOrderCountLabel', 'Execution Order');
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
@@ -308,8 +311,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.notebookEditor));
 
 		const focusIndicatorPart = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
-		const cellParts = new CellPartsCollection([
+		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), [
 			focusIndicatorPart,
+			templateDisposables.add(scopedInstaService.createInstance(CellChatPart, this.notebookEditor, cellChatPart)),
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor)),
 			templateDisposables.add(scopedInstaService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)),

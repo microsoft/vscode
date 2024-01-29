@@ -13,7 +13,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';

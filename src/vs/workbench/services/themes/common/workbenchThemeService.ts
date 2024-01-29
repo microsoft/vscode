@@ -40,6 +40,31 @@ export enum ThemeSettings {
 	DETECT_HC = 'window.autoDetectHighContrast'
 }
 
+export enum ThemeSettingDefaults {
+	COLOR_THEME_DARK = 'Default Dark Modern',
+	COLOR_THEME_LIGHT = 'Default Light Modern',
+	COLOR_THEME_HC_DARK = 'Default High Contrast',
+	COLOR_THEME_HC_LIGHT = 'Default High Contrast Light',
+
+	COLOR_THEME_DARK_OLD = 'Default Dark+',
+	COLOR_THEME_LIGHT_OLD = 'Default Light+',
+
+	FILE_ICON_THEME = 'vs-seti',
+	PRODUCT_ICON_THEME = 'Default',
+}
+
+export const COLOR_THEME_DARK_INITIAL_COLORS = {
+	'activityBar.background': '#181818',
+	'statusBar.background': '#181818',
+	'statusBar.noFolderBackground': '#1f1f1f',
+};
+
+export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
+	'activityBar.background': '#f8f8f8',
+	'statusBar.background': '#f8f8f8',
+	'statusBar.noFolderBackground': '#f8f8f8'
+};
+
 export interface IWorkbenchTheme {
 	readonly id: string;
 	readonly label: string;
@@ -76,6 +101,8 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
+
+	hasUpdatedDefaultThemes(): boolean;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;

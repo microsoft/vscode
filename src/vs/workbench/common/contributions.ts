@@ -6,7 +6,7 @@
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { runWhenIdle, IdleDeadline, DeferredPromise } from 'vs/base/common/async';
+import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from 'vs/base/common/async';
 import { mark } from 'vs/base/common/performance';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -44,6 +44,12 @@ export interface IWorkbenchContributionsRegistry {
 	 * Starts the registry by providing the required services.
 	 */
 	start(accessor: ServicesAccessor): void;
+
+	/**
+	 * A promise that resolves when all contributions up to the `Restored`
+	 * phase have been instantiated.
+	 */
+	readonly whenRestored: Promise<void>;
 }
 
 class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
@@ -54,7 +60,9 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 	private environmentService: IEnvironmentService | undefined;
 
 	private readonly contributions = new Map<LifecyclePhase, IConstructorSignature<IWorkbenchContribution>[]>();
+
 	private readonly pendingRestoredContributions = new DeferredPromise<void>();
+	readonly whenRestored = this.pendingRestoredContributions.p;
 
 	registerWorkbenchContribution(contribution: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 
@@ -155,7 +163,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				this.safeCreateContribution(instantiationService, logService, environmentService, contribution, phase);
 				if (idle.timeRemaining() < 1) {
 					// time is up -> reschedule
-					runWhenIdle(instantiateSome, forcedTimeout);
+					runWhenGlobalIdle(instantiateSome, forcedTimeout);
 					break;
 				}
 			}
@@ -169,7 +177,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 			}
 		};
 
-		runWhenIdle(instantiateSome, forcedTimeout);
+		runWhenGlobalIdle(instantiateSome, forcedTimeout);
 	}
 
 	private safeCreateContribution(instantiationService: IInstantiationService, logService: ILogService, environmentService: IEnvironmentService, contribution: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase): void {

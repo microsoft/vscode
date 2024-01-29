@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
@@ -13,6 +14,9 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('combineTextEditInfos', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	for (let seed = 0; seed < 50; seed++) {
 		test('test' + seed, () => {
 			runTest(seed);
@@ -72,11 +76,7 @@ function getRandomEdit(textModel: TextModel, rangeOffsetStart: number, rng: Mers
 	const lineCount = rng.nextIntRange(0, 3);
 	const columnCount = rng.nextIntRange(0, 5);
 
-	return {
-		startOffset: positionToLength(textModel.getPositionAt(offsetStart)),
-		endOffset: positionToLength(textModel.getPositionAt(offsetEnd)),
-		newLength: toLength(lineCount, columnCount)
-	};
+	return new TextEditInfo(positionToLength(textModel.getPositionAt(offsetStart)), positionToLength(textModel.getPositionAt(offsetEnd)), toLength(lineCount, columnCount));
 }
 
 function toEdit(editInfo: TextEditInfo): ISingleEditOperation {

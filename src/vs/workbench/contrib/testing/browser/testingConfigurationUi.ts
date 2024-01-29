@@ -9,7 +9,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { QuickPickInput, IQuickPickItem, IQuickInputService, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { testingUpdateProfiles } from 'vs/workbench/contrib/testing/browser/icons';
 import { testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';

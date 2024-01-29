@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
@@ -15,6 +15,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView';
 import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
@@ -23,7 +24,7 @@ import { ResultCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/v
 export class MergeEditorViewModel extends Disposable {
 	private readonly manuallySetActiveModifiedBaseRange = observableValue<
 		{ range: ModifiedBaseRange | undefined; counter: number }
-	>('manuallySetActiveModifiedBaseRange', { range: undefined, counter: 0 });
+	>(this, { range: undefined, counter: 0 });
 
 	private readonly attachedHistory = this._register(new AttachedHistory(this.model.resultTextModel));
 
@@ -85,15 +86,16 @@ export class MergeEditorViewModel extends Disposable {
 		}));
 	}
 
-	public readonly shouldUseAppendInsteadOfAccept = observableFromEvent<boolean>(
-		this.configurationService.onDidChangeConfiguration,
-		() => /** @description appendVsAccept */ this.configurationService.getValue('mergeEditor.shouldUseAppendInsteadOfAccept') ?? false
+	public readonly shouldUseAppendInsteadOfAccept = observableConfigValue<boolean>(
+		'mergeEditor.shouldUseAppendInsteadOfAccept',
+		false,
+		this.configurationService,
 	);
 
 	private counter = 0;
 	private readonly lastFocusedEditor = derivedObservableWithWritableCache<
 		{ view: CodeEditorView | undefined; counter: number }
-	>('lastFocusedEditor', (reader, lastValue) => {
+	>(this, (reader, lastValue) => {
 		const editors = [
 			this.inputCodeEditorView1,
 			this.inputCodeEditorView2,
@@ -104,7 +106,7 @@ export class MergeEditorViewModel extends Disposable {
 		return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
 	});
 
-	public readonly baseShowDiffAgainst = derived<1 | 2 | undefined>('baseShowDiffAgainst', reader => {
+	public readonly baseShowDiffAgainst = derived<1 | 2 | undefined>(this, reader => {
 		const lastFocusedEditor = this.lastFocusedEditor.read(reader);
 		if (lastFocusedEditor.view === this.inputCodeEditorView1) {
 			return 1;
@@ -114,7 +116,7 @@ export class MergeEditorViewModel extends Disposable {
 		return undefined;
 	});
 
-	public readonly selectionInBase = derived('selectionInBase', (reader) => {
+	public readonly selectionInBase = derived(this, reader => {
 		const sourceEditor = this.lastFocusedEditor.read(reader).view;
 		if (!sourceEditor) {
 			return undefined;
@@ -152,9 +154,9 @@ export class MergeEditorViewModel extends Disposable {
 		}
 	}
 
-	public readonly activeModifiedBaseRange = derived(
-		'activeModifiedBaseRange',
+	public readonly activeModifiedBaseRange = derived(this,
 		(reader) => {
+			/** @description activeModifiedBaseRange */
 			const focusedEditor = this.lastFocusedEditor.read(reader);
 			const manualRange = this.manuallySetActiveModifiedBaseRange.read(reader);
 			if (manualRange.counter > focusedEditor.counter) {

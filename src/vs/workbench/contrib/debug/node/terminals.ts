@@ -6,7 +6,6 @@
 import * as cp from 'child_process';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
-// import { IProcessTreeNode } from 'windows-process-tree';
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -31,7 +30,7 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-			const windowsProcessTree = await import('windows-process-tree');
+			const windowsProcessTree = await import('@vscode/windows-process-tree');
 			return new Promise<boolean>(resolve => {
 				windowsProcessTree.getProcessTree(processId, processTree => {
 					resolve(!!processTree && processTree.children.length > 0);

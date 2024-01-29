@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./viewLines';
-import * as platform from 'vs/base/common/platform';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import * as platform from 'vs/base/common/platform';
+import { Constants } from 'vs/base/common/uint';
+import 'vs/css!./viewLines';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
 import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { DomReadingContext, ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
+import { ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition, HorizontalRange } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Constants } from 'vs/base/common/uint';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
 class LastRenderedData {
 
@@ -363,7 +364,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			return null;
 		}
 
-		let column = this._visibleLines.getVisibleLine(lineNumber).getColumnOfNodeOffset(lineNumber, spanNode, offset);
+		let column = this._visibleLines.getVisibleLine(lineNumber).getColumnOfNodeOffset(spanNode, offset);
 		const minColumn = this._context.viewModel.getLineMinColumn(lineNumber);
 		if (column < minColumn) {
 			column = minColumn;
@@ -404,7 +405,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			return -1;
 		}
 
-		return this._visibleLines.getVisibleLine(lineNumber).getWidth();
+		const context = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
+		const result = this._visibleLines.getVisibleLine(lineNumber).getWidth(context);
+		this._updateLineWidthsSlowIfDomDidLayout(context);
+
+		return result;
 	}
 
 	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
@@ -438,7 +443,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			}
 
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
-			const endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.viewModel.getLineMaxColumn(lineNumber);
+			const continuesInNextLine = lineNumber !== range.endLineNumber;
+			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
 			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
 
 			if (!visibleRangesForLine) {
@@ -454,8 +460,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				}
 			}
 
-			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, HorizontalRange.from(visibleRangesForLine.ranges));
+			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, HorizontalRange.from(visibleRangesForLine.ranges), continuesInNextLine);
 		}
+
+		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
 
 		if (visibleRangesLen === 0) {
 			return null;
@@ -475,7 +483,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			return null;
 		}
 
-		return this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot));
+		const domReadingContext = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
+		const result = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
+		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
+
+		return result;
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
@@ -505,6 +517,23 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._updateLineWidths(false);
 	}
 
+	/**
+	 * Update the line widths using DOM layout information after someone else
+	 * has caused a synchronous layout.
+	 */
+	private _updateLineWidthsSlowIfDomDidLayout(domReadingContext: DomReadingContext): void {
+		if (!domReadingContext.didDomLayout) {
+			// only proceed if we just did a layout
+			return;
+		}
+		if (this._asyncUpdateLineWidths.isScheduled()) {
+			// reading widths is not scheduled => widths are up-to-date
+			return;
+		}
+		this._asyncUpdateLineWidths.cancel();
+		this._updateLineWidthsSlow();
+	}
+
 	private _updateLineWidths(fast: boolean): boolean {
 		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
 		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
@@ -520,7 +549,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				continue;
 			}
 
-			localMaxLineWidth = Math.max(localMaxLineWidth, visibleLine.getWidth());
+			localMaxLineWidth = Math.max(localMaxLineWidth, visibleLine.getWidth(null));
 		}
 
 		if (allWidthsComputed && rendStartLineNumber === 1 && rendEndLineNumber === this._context.viewModel.getLineCount()) {
@@ -544,7 +573,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
 			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
 			if (visibleLine.needsMonospaceFontCheck()) {
-				const lineWidth = visibleLine.getWidth();
+				const lineWidth = visibleLine.getWidth(null);
 				if (lineWidth > longestWidth) {
 					longestWidth = lineWidth;
 					longestLineNumber = lineNumber;
@@ -614,6 +643,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		if (!this._updateLineWidthsFast()) {
 			// Computing the width of some lines would be slow => delay it
 			this._asyncUpdateLineWidths.schedule();
+		} else {
+			this._asyncUpdateLineWidths.cancel();
 		}
 
 		if (platform.isLinux && !this._asyncCheckMonospaceFontAssumptions.isScheduled()) {

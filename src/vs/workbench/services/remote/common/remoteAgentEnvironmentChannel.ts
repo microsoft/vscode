@@ -5,36 +5,23 @@
 
 import * as platform from 'vs/base/common/platform';
 import * as performance from 'vs/base/common/performance';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionHostExitInfo } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Mutable } from 'vs/base/common/types';
+import { revive } from 'vs/base/common/marshalling';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IGetEnvironmentDataArguments {
 	remoteAuthority: string;
+	profile?: string;
 }
 
 export interface IGetExtensionHostExitInfoArguments {
 	remoteAuthority: string;
 	reconnectionToken: string;
-}
-
-export interface IScanExtensionsArguments {
-	language: string;
-	remoteAuthority: string;
-	extensionDevelopmentPath: UriComponents[] | undefined;
-	skipExtensions: ExtensionIdentifier[];
-}
-
-export interface IScanSingleExtensionArguments {
-	language: string;
-	remoteAuthority: string;
-	isBuiltin: boolean;
-	extensionLocation: UriComponents;
 }
 
 export interface IRemoteAgentEnvironmentDTO {
@@ -43,7 +30,6 @@ export interface IRemoteAgentEnvironmentDTO {
 	appRoot: UriComponents;
 	settingsPath: UriComponents;
 	logsPath: UriComponents;
-	extensionsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
 	globalStorageHome: UriComponents;
 	workspaceStorageHome: UriComponents;
@@ -53,13 +39,18 @@ export interface IRemoteAgentEnvironmentDTO {
 	arch: string;
 	marks: performance.PerformanceMark[];
 	useHostProxy: boolean;
+	profiles: {
+		all: UriDto<IUserDataProfile[]>;
+		home: UriComponents;
+	};
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
 
-	static async getEnvironmentData(channel: IChannel, remoteAuthority: string): Promise<IRemoteAgentEnvironment> {
+	static async getEnvironmentData(channel: IChannel, remoteAuthority: string, profile: string | undefined): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
-			remoteAuthority
+			remoteAuthority,
+			profile
 		};
 
 		const data = await channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
@@ -70,7 +61,6 @@ export class RemoteExtensionEnvironmentChannelClient {
 			appRoot: URI.revive(data.appRoot),
 			settingsPath: URI.revive(data.settingsPath),
 			logsPath: URI.revive(data.logsPath),
-			extensionsPath: URI.revive(data.extensionsPath),
 			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
 			globalStorageHome: URI.revive(data.globalStorageHome),
 			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
@@ -79,7 +69,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 			os: data.os,
 			arch: data.arch,
 			marks: data.marks,
-			useHostProxy: data.useHostProxy
+			useHostProxy: data.useHostProxy,
+			profiles: revive(data.profiles)
 		};
 	}
 
@@ -89,39 +80,6 @@ export class RemoteExtensionEnvironmentChannelClient {
 			reconnectionToken
 		};
 		return channel.call<IExtensionHostExitInfo | null>('getExtensionHostExitInfo', args);
-	}
-
-	static async whenExtensionsReady(channel: IChannel): Promise<void> {
-		await channel.call<void>('whenExtensionsReady');
-	}
-
-	static async scanExtensions(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath: URI[] | undefined, skipExtensions: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
-		const args: IScanExtensionsArguments = {
-			language: platform.language,
-			remoteAuthority,
-			extensionDevelopmentPath,
-			skipExtensions
-		};
-
-		const extensions = await channel.call<IExtensionDescription[]>('scanExtensions', args);
-		extensions.forEach(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); });
-
-		return extensions;
-	}
-
-	static async scanSingleExtension(channel: IChannel, remoteAuthority: string, isBuiltin: boolean, extensionLocation: URI): Promise<IExtensionDescription | null> {
-		const args: IScanSingleExtensionArguments = {
-			language: platform.language,
-			remoteAuthority,
-			isBuiltin,
-			extensionLocation
-		};
-
-		const extension = await channel.call<IExtensionDescription | null>('scanSingleExtension', args);
-		if (extension) {
-			(<Mutable<IExtensionDescription>>extension).extensionLocation = URI.revive(extension.extensionLocation);
-		}
-		return extension;
 	}
 
 	static getDiagnosticInfo(channel: IChannel, options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {

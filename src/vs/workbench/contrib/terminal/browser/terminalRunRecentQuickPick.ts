@@ -13,8 +13,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { asCssValue, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
@@ -26,6 +26,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -43,6 +45,7 @@ export async function showRunRecentQuickPick(
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
+	const accessibleViewService = accessor.get(IAccessibleViewService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -207,9 +210,9 @@ export async function showRunRecentQuickPick(
 		title: 'Fuzzy search',
 		icon: commandHistoryFuzzySearchIcon,
 		isChecked: filterMode === 'fuzzy',
-		inputActiveOptionBorder: asCssValue(inputActiveOptionBorder),
-		inputActiveOptionForeground: asCssValue(inputActiveOptionForeground),
-		inputActiveOptionBackground: asCssValue(inputActiveOptionBackground)
+		inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+		inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+		inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
 	});
 	fuzzySearchToggle.onChange(() => {
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
@@ -277,6 +280,7 @@ export async function showRunRecentQuickPick(
 		showWithPinnedItems(storageService, runRecentStorageKey, quickPick, true);
 		quickPick.onDidHide(() => {
 			terminalInRunCommandPicker.set(false);
+			accessibleViewService.showLastProvider(AccessibleViewProviderId.Terminal);
 			r();
 		});
 	});

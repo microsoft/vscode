@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows, platform } from 'vs/base/common/platform';
 import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import type * as WindowsProcessTreeType from 'windows-process-tree';
+import type * as WindowsProcessTreeType from '@vscode/windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;
@@ -35,7 +35,6 @@ const SHELL_EXECUTABLES = [
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
-	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | undefined;
 	private _shellType: TerminalShellType | undefined;
 	get shellType(): TerminalShellType | undefined { return this._shellType; }
@@ -55,13 +54,11 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform}`);
 		}
 
-		this._isDisposed = false;
-
 		this._startMonitoringShell();
 	}
 
 	private async _startMonitoringShell(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		this.checkShell();
@@ -112,16 +109,11 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		return this.traverseTree(tree.children[favouriteChild]);
 	}
 
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
-	}
-
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
 	async getShellName(): Promise<string> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return Promise.resolve('');
 		}
 		// Prevent multiple requests at once, instead return current request
@@ -129,7 +121,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			return this._currentRequest;
 		}
 		if (!windowsProcessTree) {
-			windowsProcessTree = await import('windows-process-tree');
+			windowsProcessTree = await import('@vscode/windows-process-tree');
 		}
 		this._currentRequest = new Promise<string>(resolve => {
 			windowsProcessTree.getProcessTree(this._rootProcessId, tree => {

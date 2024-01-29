@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as objects from 'vs/base/common/objects';
 import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
-import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -35,6 +35,7 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { getActiveDocument } from 'vs/base/browser/dom';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -121,6 +122,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 	private autoCompletePathSegment: string = '';
 	private activeItem: FileQuickPickItem | undefined;
 	private userHome!: URI;
+	private trueHome!: URI;
 	private isWindows: boolean = false;
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
@@ -167,6 +169,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
+		this.trueHome = await this.getUserHome(true);
 		const newOptions = this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
@@ -178,6 +181,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
+		this.trueHome = await this.getUserHome(true);
 		this.requiresTrailing = true;
 		const newOptions = this.getOptions(options, true);
 		if (!newOptions) {
@@ -248,8 +252,10 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		return this.remoteAgentEnvironment;
 	}
 
-	protected getUserHome(): Promise<URI> {
-		return this.pathService.userHome({ preferLocal: this.scheme === Schemas.file });
+	protected getUserHome(trueHome = false): Promise<URI> {
+		return trueHome
+			? this.pathService.userHome({ preferLocal: this.scheme === Schemas.file })
+			: this.fileDialogService.preferredHome(this.scheme);
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
@@ -278,7 +284,6 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.sortByLabel = false;
-			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
@@ -308,7 +313,6 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			this.filePickBox.title = this.options.title;
 			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
-			this.filePickBox.items = [];
 
 			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
 				if (uri) {
@@ -552,7 +556,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 	}
 
 	private tildaReplace(value: string): URI {
-		const home = this.userHome;
+		const home = this.trueHome;
 		if ((value.length > 0) && (value[0] === '~')) {
 			return resources.joinPath(home, value.substring(1));
 		}
@@ -674,7 +678,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			this.activeItem = quickPickItem;
 			if (force) {
 				// clear any selected text
-				document.execCommand('insertText', false, '');
+				getActiveDocument().execCommand('insertText', false, '');
 			}
 			return false;
 		} else if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
@@ -710,7 +714,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 
 	private insertText(wholeValue: string, insertText: string) {
 		if (this.filePickBox.inputHasFocus()) {
-			document.execCommand('insertText', false, insertText);
+			getActiveDocument().execCommand('insertText', false, insertText);
 			if (this.filePickBox.value !== wholeValue) {
 				this.filePickBox.value = wholeValue;
 				this.handleValueChange(wholeValue);
@@ -774,7 +778,6 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 				}
 				this.filePickBox.show();
 				this.hidden = false;
-				this.filePickBox.items = this.filePickBox.items;
 				prompt.dispose();
 			});
 			prompt.onDidChangeValue(() => {
@@ -822,6 +825,9 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 				return this.yesNoPrompt(uri, message);
 			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
+				return Promise.resolve(false);
+			} else if (statDirname.readonly || statDirname.locked) {
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateReadonlyFolder', 'This folder cannot be used as a save destination. Please choose another folder');
 				return Promise.resolve(false);
 			}
 		} else { // open
@@ -875,9 +881,8 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 					return false;
 				}
 
+				this.filePickBox.itemActivation = ItemActivation.NONE;
 				this.filePickBox.items = items;
-				this.filePickBox.activeItems = [<FileQuickPickItem>this.filePickBox.items[0]];
-				this.filePickBox.activeItems = [];
 
 				// the user might have continued typing while we were updating. Only update the input box if it doesn't match the directory.
 				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && force) {
@@ -996,11 +1001,10 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 
 	private filterFile(file: URI): boolean {
 		if (this.options.filters) {
-			const ext = resources.extname(file);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
 					const testExt = this.options.filters[i].extensions[j];
-					if ((testExt === '*') || (ext === ('.' + testExt))) {
+					if ((testExt === '*') || (file.path.endsWith('.' + testExt))) {
 						return true;
 					}
 				}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileSystemProviderCapabilities, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, FileSystemProviderErrorCode, IFileSystemProviderWithFileReadWriteCapability, createFileSystemProviderError } from 'vs/platform/files/common/files';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -22,9 +22,9 @@ export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadW
 			if (res.status === 200) {
 				return new Uint8Array(await res.arrayBuffer());
 			}
-			throw new FileSystemProviderError(res.statusText, FileSystemProviderErrorCode.Unknown);
+			throw createFileSystemProviderError(res.statusText, FileSystemProviderErrorCode.Unknown);
 		} catch (err) {
-			throw new FileSystemProviderError(err, FileSystemProviderErrorCode.Unknown);
+			throw createFileSystemProviderError(err, FileSystemProviderErrorCode.Unknown);
 		}
 	}
 

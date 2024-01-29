@@ -20,11 +20,13 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ConsoleMainLogger, LogService } from 'vs/platform/log/common/log';
+import { ConsoleMainLogger } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { InMemoryTestStateMainService } from 'vs/platform/test/electron-main/workbenchTestServices';
+import { LogService } from 'vs/platform/log/common/logService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 flakySuite('BackupMainService', () => {
 
@@ -612,4 +614,6 @@ flakySuite('BackupMainService', () => {
 			assert.strictEqual(found, 2);
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
