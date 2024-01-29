@@ -195,6 +195,10 @@ suite('createEditAddingLinksForUriList', () => {
 			assert.strictEqual(
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('[ref]: '), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 7, 0, 7)], noopToken),
 				false);
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('[ref]: '), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 0)], noopToken),
+				false);
 		});
 
 		test('Smart should be disabled in html blocks', async () => {
@@ -235,11 +239,24 @@ suite('createEditAddingLinksForUriList', () => {
 		test('Smart should be disabled in inline code', async () => {
 			assert.strictEqual(
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('``'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 1, 0, 1)], noopToken),
-				false);
+				false,
+				'Should be disabled inside of inline code');
 
 			assert.strictEqual(
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('``'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 0)], noopToken),
-				false);
+				true,
+				'Should be enabled when cursor is outside but next to inline code');
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('`a`'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 3, 0, 3)], noopToken),
+				true,
+				'Should be enabled when cursor is outside but next to inline code');
+		});
+
+		test('Smart should be enabled when pasting over inline code ', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('`xyz`'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 5)], noopToken),
+				true);
 		});
 
 		test('Smart should be disabled in inline math', async () => {

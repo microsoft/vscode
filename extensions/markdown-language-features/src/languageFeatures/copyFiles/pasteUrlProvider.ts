@@ -89,7 +89,7 @@ const smartPasteLineRegexes = [
 	{ regex: /\$\$[\s\S]*?\$\$/gm }, // In a fenced math block
 	{ regex: /`[^`]*`/g }, // In inline code
 	{ regex: /\$[^$]*\$/g }, // In inline math
-	{ regex: /^[ ]{0,3}\[\w+\]:\s.*$/g }, // Block link definition (needed as tokens are not generated for these)
+	{ regex: /^[ ]{0,3}\[\w+\]:\s.*$/g, isWholeLine: true }, // Block link definition (needed as tokens are not generated for these)
 ];
 
 export async function shouldInsertMarkdownLinkByDefault(
@@ -184,7 +184,15 @@ async function shouldSmartPasteForSelection(
 	const line = document.getText(new vscode.Range(selectedRange.start.line, 0, selectedRange.start.line, Number.MAX_SAFE_INTEGER));
 	for (const regex of smartPasteLineRegexes) {
 		for (const match of line.matchAll(regex.regex)) {
-			if (match.index !== undefined && selectedRange.start.character >= match.index && selectedRange.start.character <= match.index + match[0].length) {
+			if (match.index === undefined) {
+				continue;
+			}
+
+			if (regex.isWholeLine) {
+				return false;
+			}
+
+			if (selectedRange.start.character > match.index && selectedRange.start.character < match.index + match[0].length) {
 				return false;
 			}
 		}
