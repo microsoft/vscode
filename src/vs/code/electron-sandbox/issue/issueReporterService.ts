@@ -15,6 +15,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { URI } from 'vs/base/common/uri';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
@@ -249,7 +250,8 @@ export class IssueReporter extends Disposable {
 	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
 		try {
 			if (extension.command?.uri) {
-				extension.bugsUrl = extension.command.uri;
+				const uri = URI.revive(extension.command.uri);
+				extension.bugsUrl = uri.toString();
 			} else {
 				const uri = await this.issueMainService.$getIssueReporterUri(extension.id);
 				extension.bugsUrl = uri.toString(true);
@@ -958,7 +960,8 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (selectedExtension?.command?.uri) {
-			issueUrl = selectedExtension.command.uri;
+			const uri = URI.revive(selectedExtension.command.uri);
+			issueUrl = uri.toString();
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
