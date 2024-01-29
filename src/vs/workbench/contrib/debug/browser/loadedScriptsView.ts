@@ -779,7 +779,6 @@ registerAction2(class Collapse extends ViewAction<LoadedScriptsView> {
 			title: nls.localize('collapse', "Collapse All"),
 			f1: false,
 			icon: Codicon.collapseAll,
-			precondition: CONTEXT_DEBUG_STATE.isEqualTo(getStateLabel(State.Stopped)),
 			menu: {
 				id: MenuId.ViewTitle,
 				order: 30,
