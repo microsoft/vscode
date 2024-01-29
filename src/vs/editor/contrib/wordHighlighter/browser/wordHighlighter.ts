@@ -491,6 +491,7 @@ class WordHighlighter {
 
 	private _stopAll(): void {
 		// Remove any existing decorations
+		// TODO: @Yoyokrazy - this triggers as notebooks scroll, causing highlights to disappear momentarily.
 		this._removeAllDecorations();
 
 		// Cancel any renderDecorationsTimer
@@ -608,7 +609,7 @@ class WordHighlighter {
 	private _run(): void {
 
 		let workerRequestIsValid;
-		if (!this.editor.hasWidgetFocus()) { // no focus (new nb cell, etc)
+		if (!this.editor.hasTextFocus()) { // no focus (new nb cell, etc)
 			if (WordHighlighter.query === null) {
 				// no previous query, nothing to highlight
 				return;
