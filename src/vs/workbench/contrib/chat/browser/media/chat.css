@@ -13,6 +13,10 @@
 	display: none !important;
 }
 
+.interactive-session .interactive-input-part .chat-input-placeholder {
+	color: var(--vscode-input-placeholderForeground, red);
+}
+
 .interactive-item-container {
 	padding: 16px 20px;
 	display: flex;

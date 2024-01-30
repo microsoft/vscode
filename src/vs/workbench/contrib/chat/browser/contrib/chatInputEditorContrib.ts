@@ -10,9 +10,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -54,6 +54,8 @@ class InputEditorDecorations extends Disposable {
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
+	private readonly placeholderDecorations: IEditorDecorationsCollection;
+
 	constructor(
 		private readonly widget: IChatWidget,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -65,6 +67,7 @@ class InputEditorDecorations extends Disposable {
 		super();
 
 		this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {});
+		this.placeholderDecorations = this.widget.inputEditor.createDecorationsCollection();
 
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateRegisteredDecorationTypes()));
 		this.updateRegisteredDecorationTypes();
@@ -132,134 +135,139 @@ class InputEditorDecorations extends Disposable {
 			return;
 		}
 
-		if (!inputValue) {
-			const viewModelPlaceholder = this.widget.viewModel?.inputPlaceholder;
-			const placeholder = viewModelPlaceholder ?? '';
-			const decoration: IDecorationOptions[] = [
-				{
-					range: {
-						startLineNumber: 1,
-						endLineNumber: 1,
-						startColumn: 1,
-						endColumn: 1000
+		// if (!inputValue) {
+		const viewModelPlaceholder = this.widget.viewModel?.inputPlaceholder;
+		const placeholder = viewModelPlaceholder ?? '';
+		const decoration: IModelDeltaDecoration[] = [
+			{
+				range: {
+					startLineNumber: 1,
+					endLineNumber: 1,
+					startColumn: 1,
+					endColumn: 1000
+				},
+				options: {
+					description: decorationDescription,
+					after: {
+						content: placeholder,
+						inlineClassName: 'chat-input-placeholder'
 					},
-					renderOptions: {
-						after: {
-							contentText: placeholder,
-							color: this.getPlaceholderColor()
-						}
-					}
 				}
-			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
-			return;
-		}
-
-		const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(viewModel.sessionId, inputValue)).parts;
-
-		let placeholderDecoration: IDecorationOptions[] | undefined;
-		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
-		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
-		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
-
-		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
-			const partIdx = parsedRequest.indexOf(part);
-			if (parsedRequest.length > partIdx + 2) {
-				return false;
 			}
+		];
+		this.placeholderDecorations.set(decoration);
+		return;
+		// }
 
-			const nextPart = parsedRequest[partIdx + 1];
-			return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
-		};
+		// const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(viewModel.sessionId, inputValue)).parts;
 
-		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
-		if (onlyAgentAndWhitespace) {
-			// Agent reference with no other text - show the placeholder
-			if (agentPart.agent.metadata.description && exactlyOneSpaceAfterPart(agentPart)) {
-				placeholderDecoration = [{
-					range: {
-						startLineNumber: agentPart.editorRange.startLineNumber,
-						endLineNumber: agentPart.editorRange.endLineNumber,
-						startColumn: agentPart.editorRange.endColumn + 1,
-						endColumn: 1000
-					},
-					renderOptions: {
-						after: {
-							contentText: agentPart.agent.metadata.description,
-							color: this.getPlaceholderColor(),
-						}
-					}
-				}];
-			}
-		}
+		// let placeholderDecoration: IModelDeltaDecoration[] | undefined;
+		// const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		// const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
+		// const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
 
-		const onlyAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
-		if (onlyAgentCommandAndWhitespace) {
-			// Agent reference and subcommand with no other text - show the placeholder
-			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent.id, agentSubcommandPart.command.name));
-			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
-			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
-				placeholderDecoration = [{
-					range: {
-						startLineNumber: agentSubcommandPart.editorRange.startLineNumber,
-						endLineNumber: agentSubcommandPart.editorRange.endLineNumber,
-						startColumn: agentSubcommandPart.editorRange.endColumn + 1,
-						endColumn: 1000
-					},
-					renderOptions: {
-						after: {
-							contentText: shouldRenderFollowupPlaceholder ? agentSubcommandPart.command.followupPlaceholder : agentSubcommandPart.command.description,
-							color: this.getPlaceholderColor(),
-						}
-					}
-				}];
-			}
-		}
+		// const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
+		// 	const partIdx = parsedRequest.indexOf(part);
+		// 	if (parsedRequest.length > partIdx + 2) {
+		// 		return false;
+		// 	}
 
-		const onlySlashCommandAndWhitespace = slashCommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashCommandPart);
-		if (onlySlashCommandAndWhitespace) {
-			// Command reference with no other text - show the placeholder
-			if (slashCommandPart.slashCommand.detail && exactlyOneSpaceAfterPart(slashCommandPart)) {
-				placeholderDecoration = [{
-					range: {
-						startLineNumber: slashCommandPart.editorRange.startLineNumber,
-						endLineNumber: slashCommandPart.editorRange.endLineNumber,
-						startColumn: slashCommandPart.editorRange.endColumn + 1,
-						endColumn: 1000
-					},
-					renderOptions: {
-						after: {
-							contentText: slashCommandPart.slashCommand.detail,
-							color: this.getPlaceholderColor(),
-						}
-					}
-				}];
-			}
-		}
+		// 	const nextPart = parsedRequest[partIdx + 1];
+		// 	return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
+		// };
 
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+		// const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
+		// if (onlyAgentAndWhitespace) {
+		// 	// Agent reference with no other text - show the placeholder
+		// 	if (agentPart.agent.metadata.description && exactlyOneSpaceAfterPart(agentPart)) {
+		// 		placeholderDecoration = [{
+		// 			range: {
+		// 				startLineNumber: agentPart.editorRange.startLineNumber,
+		// 				endLineNumber: agentPart.editorRange.endLineNumber,
+		// 				startColumn: agentPart.editorRange.endColumn + 1,
+		// 				endColumn: 1000
+		// 			},
+		// 			options: {
+		// 				description: decorationDescription,
+		// 				after: {
+		// 					content: agentPart.agent.metadata.description,
+		// 					inlineClassName: 'chat-input-placeholder'
+		// 				}
+		// 			}
+		// 		}];
+		// 	}
+		// }
 
-		const textDecorations: IDecorationOptions[] | undefined = [];
-		if (agentPart) {
-			textDecorations.push({ range: agentPart.editorRange });
-			if (agentSubcommandPart) {
-				textDecorations.push({ range: agentSubcommandPart.editorRange });
-			}
-		}
+		// const onlyAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
+		// if (onlyAgentCommandAndWhitespace) {
+		// 	// Agent reference and subcommand with no other text - show the placeholder
+		// 	const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent.id, agentSubcommandPart.command.name));
+		// 	const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
+		// 	if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+		// 		placeholderDecoration = [{
+		// 			range: {
+		// 				startLineNumber: agentSubcommandPart.editorRange.startLineNumber,
+		// 				endLineNumber: agentSubcommandPart.editorRange.endLineNumber,
+		// 				startColumn: agentSubcommandPart.editorRange.endColumn + 1,
+		// 				endColumn: 1000
+		// 			},
+		// 			options: {
+		// 				description: decorationDescription,
+		// 				after: {
+		// 					content: (shouldRenderFollowupPlaceholder ? agentSubcommandPart.command.followupPlaceholder : agentSubcommandPart.command.description) ?? '',
+		// 					inlineClassName: 'chat-input-placeholder'
+		// 				}
+		// 			}
+		// 		}];
+		// 	}
+		// }
 
-		if (slashCommandPart) {
-			textDecorations.push({ range: slashCommandPart.editorRange });
-		}
+		// const onlySlashCommandAndWhitespace = slashCommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashCommandPart);
+		// if (onlySlashCommandAndWhitespace) {
+		// 	// Command reference with no other text - show the placeholder
+		// 	if (slashCommandPart.slashCommand.detail && exactlyOneSpaceAfterPart(slashCommandPart)) {
+		// 		placeholderDecoration = [{
+		// 			range: {
+		// 				startLineNumber: slashCommandPart.editorRange.startLineNumber,
+		// 				endLineNumber: slashCommandPart.editorRange.endLineNumber,
+		// 				startColumn: slashCommandPart.editorRange.endColumn + 1,
+		// 				endColumn: 1000
+		// 			},
+		// 			options: {
+		// 				description: decorationDescription,
+		// 				after: {
+		// 					content: slashCommandPart.slashCommand.detail,
+		// 					inlineClassName: 'chat-input-placeholder'
+		// 				}
+		// 			}
+		// 		}];
+		// 	}
+		// }
 
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
+		// // this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+		// // this.placeholderDecorations.set(placeholderDecoration ?? []);
 
-		const varDecorations: IDecorationOptions[] = [];
-		const variableParts = parsedRequest.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
-		for (const variable of variableParts) {
-			varDecorations.push({ range: variable.editorRange });
-		}
+		// const textDecorations: IDecorationOptions[] | undefined = [];
+		// if (agentPart) {
+		// 	textDecorations.push({ range: agentPart.editorRange });
+		// 	if (agentSubcommandPart) {
+		// 		textDecorations.push({ range: agentSubcommandPart.editorRange });
+		// 	}
+		// }
 
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
+		// if (slashCommandPart) {
+		// 	textDecorations.push({ range: slashCommandPart.editorRange });
+		// }
+
+		// // this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
+
+		// const varDecorations: IDecorationOptions[] = [];
+		// const variableParts = parsedRequest.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
+		// for (const variable of variableParts) {
+		// 	varDecorations.push({ range: variable.editorRange });
+		// }
+
+		// this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
 	}
 }
 
