@@ -445,7 +445,6 @@ export class InlineCompletionsModel extends Disposable {
 			.getLineContent(primaryPosition.lineNumber)
 			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
 		const secondaryEditText = completion.text.substring(primaryPosition.column - completion.range.startColumn);
-		const primaryEdit = EditOperation.replaceMove(completion.range, completion.text);
 		const edits = [
 			new SingleTextEdit(completion.range, completion.text),
 			...secondaryPositions.map(pos => {
@@ -464,7 +463,6 @@ export class InlineCompletionsModel extends Disposable {
 				lengthOfText(edit.text ?? '')
 			)
 		));
-		* /
 
 		return {
 			edits,
