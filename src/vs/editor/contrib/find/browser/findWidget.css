@@ -22,6 +22,7 @@
 	border-bottom: 1px solid var(--vscode-widget-border);
 	border-bottom-left-radius: 4px;
 	border-bottom-right-radius: 4px;
+	background-color: var(--vscode-editorWidget-background);
 }
 
 .monaco-workbench.reduce-motion .monaco-editor .find-widget {
@@ -234,7 +235,7 @@
 
 .monaco-editor .currentFindMatch {
 	background-color: var(--vscode-editor-findMatchBackground);
-	border: 2px solid var(--vscode-editor-findMatchBorder );
+	border: 2px solid var(--vscode-editor-findMatchBorder);
 	padding: 1px;
 	box-sizing: border-box;
 }
@@ -243,13 +244,9 @@
 	background-color: var(--vscode-editor-findRangeHighlightBackground);
 }
 
-.find-widget {
-	background-color: var(--vscode-editorWidget-background);
-}
-
 .monaco-editor .find-widget .monaco-sash {
 	left: 0 !important;
-	background-color: var(--vscode-editorWidget-resizeBorder, --vscode-editorWidget-border);
+	background-color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
 }
 
 .monaco-editor.hc-black .find-widget .button:before {
@@ -279,8 +276,6 @@
 .monaco-editor.findMatch {
 	background-color: var(--vscode-editorWidget-background);
 }
-
-
 
 /* Close button position. */
 .monaco-editor .find-widget > .button.codicon-widget-close {
