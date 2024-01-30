@@ -35,10 +35,34 @@ const audioCueFeatureBase: IConfigurationPropertySchema = {
 const alertFeatureBase: IConfigurationPropertySchema = {
 	'type': 'boolean',
 	'default': true,
-	'tags': ['accessibility']
+	'tags': ['accessibility'],
+	required: ['audioCue']
+};
+
+const signalFeatureBase: IConfigurationPropertySchema = {
+	'type': 'object',
+	'tags': ['accessibility'],
+	additionalProperties: true,
+	default: {
+		audioCue: 'auto',
+		alert: true
+	}
+};
+
+const defaultNoAlert: IConfigurationPropertySchema = {
+	'type': 'object',
+	'tags': ['accessibility'],
+	additionalProperties: true,
+	'default': {
+		'audioCue': 'auto',
+	}
 };
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'signals',
+	order: 100,
+	title: localize('signals', "Signals"),
+	type: 'object',
 	'properties': {
 		'signals.debouncePositionChanges': {
 			'description': localize('signals.debouncePositionChanges', "Whether or not position changes should be debounced"),
@@ -47,6 +71,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['accessibility']
 		},
 		'signals.lineHasBreakpoint': {
+			...signalFeatureBase,
 			'description': localize('signals.lineHasBreakpoint', "Plays a signal when the active line has a breakpoint."),
 			'properties': {
 				'audioCue': {
@@ -57,9 +82,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					'description': localize('signals.lineHasBreakpoint.alert', "Alerts when the active line has a breakpoint."),
 					...alertFeatureBase
 				},
-			}
+			},
 		},
 		'signals.lineHasInlineSuggestion': {
+			...signalFeatureBase,
 			'description': localize('signals.lineHasInlineSuggestion', "Plays a signal when the active line has an inline suggestion."),
 			'properties': {
 				'audioCue': {
@@ -73,6 +99,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.lineHasError': {
+			...signalFeatureBase,
 			'description': localize('signals.lineHasError', "Plays a signal when the active line has an error."),
 			'properties': {
 				'audioCue': {
@@ -83,9 +110,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					'description': localize('signals.lineHasError.alert', "Alerts when the active line has an error."),
 					...alertFeatureBase
 				},
-			}
+			},
 		},
 		'signals.lineHasFoldedArea': {
+			...signalFeatureBase,
 			'description': localize('signals.lineHasFoldedArea', "Plays a signal when the active line has a folded area that can be unfolded."),
 			'properties': {
 				'audioCue': {
@@ -99,6 +127,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.lineHasWarning': {
+			...signalFeatureBase,
 			'description': localize('signals.lineHasWarning', "Plays a signal when the active line has a warning."),
 			'properties': {
 				'audioCue': {
@@ -112,6 +141,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 		},
 		'signals.onDebugBreak': {
+			...signalFeatureBase,
 			'description': localize('signals.onDebugBreak', "Plays a signal when the debugger stopped on a breakpoint."),
 			'properties': {
 				'audioCue': {
@@ -125,6 +155,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.noInlayHints': {
+			...signalFeatureBase,
 			'description': localize('signals.noInlayHints', "Plays a signal when trying to read a line with inlay hints that has no inlay hints."),
 			'properties': {
 				'audioCue': {
@@ -138,6 +169,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.taskCompleted': {
+			...signalFeatureBase,
 			'description': localize('signals.taskCompleted', "Plays a signal when a task is completed."),
 			'properties': {
 				'audioCue': {
@@ -151,6 +183,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.taskFailed': {
+			...signalFeatureBase,
 			'description': localize('signals.taskFailed', "Plays a signal when a task fails (non-zero exit code)."),
 			'properties': {
 				'audioCue': {
@@ -164,6 +197,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.terminalCommandFailed': {
+			...signalFeatureBase,
 			'description': localize('signals.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code)."),
 			'properties': {
 				'audioCue': {
@@ -177,6 +211,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.terminalQuickFix': {
+			...signalFeatureBase,
 			'description': localize('signals.terminalQuickFix', "Plays a signal when terminal Quick Fixes are available."),
 			'properties': {
 				'audioCue': {
@@ -190,6 +225,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.terminalBell': {
+			...signalFeatureBase,
 			'description': localize('signals.terminalBell', "Plays a signal when the terminal bell is ringing."),
 			'properties': {
 				'audioCue': {
@@ -200,49 +236,40 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					'description': localize('signals.terminalBell.alert', "Alerts when the terminal bell is ringing."),
 					...alertFeatureBase
 				},
-			},
-			default: 'on'
+			}
 		},
 		'signals.diffLineInserted': {
+			...defaultNoAlert,
 			'description': localize('signals.diffLineInserted', "Plays a signal when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
 				'audioCue': {
 					'description': localize('signals.diffLineInserted.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 					...audioCueFeatureBase
-				},
-				'alert': {
-					'description': localize('signals.diffLineInserted.alert', "Alerts when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
-					...alertFeatureBase
-				},
+				}
 			}
 		},
 		'signals.diffLineDeleted': {
+			...defaultNoAlert,
 			'description': localize('signals.diffLineDeleted', "Plays a signal when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
 				'audioCue': {
 					'description': localize('signals.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
 					...audioCueFeatureBase
-				},
-				'alert': {
-					'description': localize('signals.diffLineDeleted.alert', "Alerts when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
-					...alertFeatureBase
-				},
+				}
 			}
 		},
 		'signals.diffLineModified': {
+			...defaultNoAlert,
 			'description': localize('signals.diffLineModified', "Plays a signal when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
 				'audioCue': {
 					'description': localize('signals.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
 					...audioCueFeatureBase
-				},
-				'alert': {
-					'description': localize('signals.diffLineModified.alert', "Alerts when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
-					...alertFeatureBase
-				},
+				}
 			}
 		},
 		'signals.notebookCellCompleted': {
+			...signalFeatureBase,
 			'description': localize('signals.notebookCellCompleted', "Plays a signal when a notebook cell execution is successfully completed."),
 			'properties': {
 				'audioCue': {
@@ -256,6 +283,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.notebookCellFailed': {
+			...signalFeatureBase,
 			'description': localize('signals.notebookCellFailed', "Plays a signal when a notebook cell execution fails."),
 			'properties': {
 				'audioCue': {
@@ -269,19 +297,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			}
 		},
 		'signals.chatRequestSent': {
+			...signalFeatureBase,
 			'description': localize('signals.chatRequestSent', "Plays a signal when a chat request is made."),
 			'properties': {
-				'audioCue': {
+				'signals.chatRequestSent.audioCue': {
 					'description': localize('signals.chatRequestSent.audioCue', "Plays an audio cue when a chat request is made."),
 					...audioCueFeatureBase
 				},
-				'alert': {
+				'signals.chatRequestSent.alert': {
 					'description': localize('signals.chatRequestSent.alert', "Alerts when a chat request is made."),
 					...alertFeatureBase
 				},
-			},
+			}
 		},
 		'signals.chatResponsePending': {
+			...signalFeatureBase,
 			'description': localize('signals.chatResponsePending', "Plays a signal on loop while the response is pending."),
 			'properties': {
 				'audioCue': {
@@ -295,19 +325,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 		},
 		'signals.chatResponseReceived': {
+			...defaultNoAlert,
 			'description': localize('signals.chatResponseReceived', "Plays a signal on loop while the response has been received."),
 			'properties': {
-				'audioCue': {
+				'signals.chatResponseReceived.audioCue': {
 					'description': localize('signals.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
 					...audioCueFeatureBase
-				},
-				'alert': {
-					'description': localize('signals.chatResponseReceived.alert', "Alerts on loop while the response has been received."),
-					...alertFeatureBase
 				},
 			},
 		},
 		'signals.clear': {
+			...signalFeatureBase,
 			'description': localize('signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
 			'properties': {
 				'audioCue': {
@@ -321,6 +349,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 		},
 		'signals.save': {
+			'type': 'object',
+			'tags': ['accessibility'],
+			additionalProperties: true,
 			'markdownDescription': localize('signals.save', "Plays a signal when a file is saved."),
 			'properties': {
 				'audioCue': {
@@ -345,9 +376,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 						localize('signals.save.alert.never', "Never plays the audio cue.")
 					],
 				},
+			},
+			default: {
+				'audioCue': 'never',
+				'alert': 'never'
 			}
 		},
 		'signals.format': {
+			'type': 'object',
+			'tags': ['accessibility'],
+			additionalProperties: true,
 			'markdownDescription': localize('signals.format', "Plays a signal when a file or notebook is formatted."),
 			'properties': {
 				'audioCue': {
@@ -372,6 +410,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 						localize('signals.format.alert.never', "Never plays the alert.")
 					],
 				},
+			},
+			default: {
+				'audioCue': 'never',
+				'alert': 'never'
 			}
 		},
 	}
@@ -516,3 +558,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 registerAction2(ShowAudioCueHelp);
 registerAction2(ShowAccessibilityAlertHelp);
+

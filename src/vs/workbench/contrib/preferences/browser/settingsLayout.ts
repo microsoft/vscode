@@ -227,6 +227,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['audioCues.*']
 				},
 				{
+					id: 'features/signals',
+					label: localize('signals', 'Signals'),
+					settings: ['signals.*']
+				},
+				{
 					id: 'features/mergeEditor',
 					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']

@@ -61,15 +61,36 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		const audioCuesConfig = this.configurationService.getValue<{ [key: string]: boolean }>('audioCues');
 		for (const entry in audioCuesConfig) {
 			if (entry) {
+				console.log('cue ', entry);
 				this.configurationService.updateValue('audioCues.' + entry, undefined);
-				if (entry === 'debouncePositionChanges') {
+				if (entry === 'volume' || entry === 'enabled') {
+					// ignore, these are audio cue settings
+				} else if (entry === 'debouncePositionChanges') {
 					this.configurationService.updateValue('signals.' + entry, audioCuesConfig[entry]);
 				} else {
 					this.configurationService.updateValue('signals.' + entry + '.' + 'audioCue', audioCuesConfig[entry]);
 				}
 			}
 		}
-		// do this for alerts as well
+		const alertsConfig = this.configurationService.getValue<{ [key: string]: boolean }>('accessibility.alert');
+		for (let entry in alertsConfig) {
+			if (entry) {
+				console.log('alert ', entry);
+				if (entry === 'warning') {
+					entry = 'lineHasWarning';
+				} else if (entry === 'error') {
+					entry = 'lineHasError';
+				} else if (entry === 'foldedArea') {
+					entry = 'lineHasFoldedArea';
+				} else if (entry === 'breakpoint') {
+					entry = 'onDebugBreak';
+				}
+				this.configurationService.updateValue('accessibility.alert.' + entry, undefined);
+				this.configurationService.updateValue('signals.' + entry + '.' + 'alert', alertsConfig[entry]);
+			}
+		}
+		const signals = this.configurationService.getValue<{ [key: string]: boolean }>('signals');
+		console.log(JSON.stringify(signals));
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
