@@ -1171,27 +1171,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		} else {
 			dropTarget = undefined;
 		}
-		this.updateDropTarget(dropTarget);
 
-		// Outline
-		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		if (activeContrastBorderColor && isDND) {
-			element.style.outlineWidth = '2px';
-			element.style.outlineStyle = 'dashed';
-			element.style.outlineColor = activeContrastBorderColor;
-			element.style.outlineOffset = isTab ? '-5px' : '-3px';
-		} else {
-			element.style.outlineWidth = '';
-			element.style.outlineStyle = '';
-			element.style.outlineColor = activeContrastBorderColor || '';
-			element.style.outlineOffset = '';
-		}
+		this.updateDropTarget(dropTarget);
 	}
 
 	private dropTarget: { leftElement: HTMLElement | undefined; rightElement: HTMLElement | undefined } | undefined;
-	private updateDropTarget(target: { leftElement: HTMLElement | undefined; rightElement: HTMLElement | undefined } | undefined): void {
+	private updateDropTarget(newTarget: { leftElement: HTMLElement | undefined; rightElement: HTMLElement | undefined } | undefined): void {
 		const oldTargets = this.dropTarget;
-		if (oldTargets === target || oldTargets && target && oldTargets.leftElement === target.leftElement && oldTargets.rightElement === target.rightElement) {
+		if (oldTargets === newTarget || oldTargets && newTarget && oldTargets.leftElement === newTarget.leftElement && oldTargets.rightElement === newTarget.rightElement) {
 			return;
 		}
 
@@ -1203,12 +1190,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldTargets.rightElement?.classList.remove(dropClassRight);
 		}
 
-		if (target) {
-			target.leftElement?.classList.add(dropClassLeft);
-			target.rightElement?.classList.add(dropClassRight);
+		if (newTarget) {
+			newTarget.leftElement?.classList.add(dropClassLeft);
+			newTarget.rightElement?.classList.add(dropClassRight);
 		}
 
-		this.dropTarget = target;
+		this.dropTarget = newTarget;
 	}
 
 	private getTabDragOverLocation(e: DragEvent, tab: HTMLElement): 'left' | 'right' {
