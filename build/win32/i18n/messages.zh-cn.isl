@@ -1,9 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=将“通过 %1 打开”操作添加到 Windows 资源管理器文件上下文菜单
-AddContextMenuFolders=将“通过 %1 打开”操作添加到 Windows 资源管理器目录上下文菜单
-AssociateWithFiles=将 %1 注册为受支持的文件类型的编辑器
-AddToPath=添加到 PATH (重启后生效)
-RunAfter=安装后运行 %1
-Other=其他:
-SourceFile=%1 源文件
-OpenWithCodeContextMenu=通过 %1 打开
+AddContextMenuFiles=锟斤拷锟斤拷通锟斤拷 %1 锟津开★拷锟斤拷锟斤拷锟斤拷锟接碉拷 Windows 锟斤拷源锟斤拷锟斤拷锟斤拷锟侥硷拷锟斤拷锟斤拷锟侥菜碉拷
+AddContextMenuFolders=锟斤拷锟斤拷通锟斤拷 %1 锟津开★拷锟斤拷锟斤拷锟斤拷锟接碉拷 Windows 锟斤拷源锟斤拷锟斤拷锟斤拷目录锟斤拷锟斤拷锟侥菜碉拷
+AssociateWithFiles=锟斤拷 %1 注锟斤拷为锟斤拷支锟街碉拷锟侥硷拷锟斤拷锟酵的编辑锟斤拷
+AddToPath=锟斤拷锟接碉拷 PATH (锟斤拷锟斤拷锟斤拷锟斤拷效)
+RunAfter=锟斤拷装锟斤拷锟斤拷锟斤拷 %1
+Other=锟斤拷锟斤拷:
+SourceFile=%1 源锟侥硷拷
+OpenWithCodeContextMenu=通锟斤拷 %1 锟斤拷
+UpdatingVisualStudioCode=锟斤拷锟斤拷 Visual Studio Code...

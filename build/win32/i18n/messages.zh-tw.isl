@@ -1,9 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=±N [¥H %1 ¶}±Ò] °Ê§@¥[¤J Windows ÀÉ®×Á`ºÞÀÉ®×ªº¾Þ§@¥\¯àªí¤¤
-AddContextMenuFolders=±N [¥H %1 ¶}±Ò] °Ê§@¥[¤J Windows ÀÉ®×Á`ºÞ¥Ø¿ýªº¾Þ§@¥\¯àªí¤¤
-AssociateWithFiles=°w¹ï¤ä´©ªºÀÉ®×Ãþ«¬±N %1 µù¥U¬°½s¿è¾¹
-AddToPath=¥[¤J PATH ¤¤ (­«·s±Ò°Ê«á¥Í®Ä)
-RunAfter=¦w¸Ë«á°õ¦æ %1
-Other=¨ä¥L:
-SourceFile=%1 ¨Ó·½ÀÉ®×
-OpenWithCodeContextMenu=¥H %1 ¶}±Ò
+AddContextMenuFiles=ï¿½N [ï¿½H %1 ï¿½}ï¿½ï¿½] ï¿½Ê§@ï¿½[ï¿½J Windows ï¿½É®ï¿½ï¿½`ï¿½ï¿½ï¿½É®×ªï¿½ï¿½Þ§@ï¿½\ï¿½ï¿½ï¿½ï¿½ï¿½
+AddContextMenuFolders=ï¿½N [ï¿½H %1 ï¿½}ï¿½ï¿½] ï¿½Ê§@ï¿½[ï¿½J Windows ï¿½É®ï¿½ï¿½`ï¿½Þ¥Ø¿ï¿½ï¿½ï¿½ï¿½Þ§@ï¿½\ï¿½ï¿½ï¿½ï¿½ï¿½
+AssociateWithFiles=ï¿½wï¿½ï¿½ä´©ï¿½ï¿½ï¿½É®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½N %1 ï¿½ï¿½ï¿½Uï¿½ï¿½ï¿½sï¿½è¾¹
+AddToPath=ï¿½[ï¿½J PATH ï¿½ï¿½ (ï¿½ï¿½ï¿½sï¿½Ò°Ê«ï¿½Í®ï¿½)
+RunAfter=ï¿½wï¿½Ë«ï¿½ï¿½ï¿½ï¿½ %1
+Other=ï¿½ï¿½L:
+SourceFile=%1 ï¿½Ó·ï¿½ï¿½É®ï¿½
+OpenWithCodeContextMenu=ï¿½H %1 ï¿½}ï¿½ï¿½
+UpdatingVisualStudioCode=ï¿½ï¿½ï¿½É®ï¿½ Visual Studio Code ï¿½É®ï¿½...

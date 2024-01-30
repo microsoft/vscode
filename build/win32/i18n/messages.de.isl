@@ -1,9 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=Aktion "Mit %1 öffnen" dem Dateikontextmenü von Windows-Explorer hinzufügen
-AddContextMenuFolders=Aktion "Mit %1 öffnen" dem Verzeichniskontextmenü von Windows-Explorer hinzufügen
-AssociateWithFiles=%1 als Editor für unterstützte Dateitypen registrieren
-AddToPath=Zu PATH hinzufügen (nach dem Neustart verfügbar)
-RunAfter=%1 nach der Installation ausführen
+AddContextMenuFiles=Aktion "Mit %1 ï¿½ffnen" dem Dateikontextmenï¿½ von Windows-Explorer hinzufï¿½gen
+AddContextMenuFolders=Aktion "Mit %1 ï¿½ffnen" dem Verzeichniskontextmenï¿½ von Windows-Explorer hinzufï¿½gen
+AssociateWithFiles=%1 als Editor fï¿½r unterstï¿½tzte Dateitypen registrieren
+AddToPath=Zu PATH hinzufï¿½gen (nach dem Neustart verfï¿½gbar)
+RunAfter=%1 nach der Installation ausfï¿½hren
 Other=Andere:
 SourceFile=%1-Quelldatei
-OpenWithCodeContextMenu=Mit %1 öffnen
+OpenWithCodeContextMenu=Mit %1 ï¿½ffnen
+UpdatingVisualStudioCode="Visual Studio Code wird aktualisiert..."

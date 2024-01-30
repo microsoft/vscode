@@ -1,9 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=Windows Gezgini baðlam menüsüne "%1 Ýle Aç" eylemini ekle
-AddContextMenuFolders=Windows Gezgini dizin baðlam menüsüne "%1 Ýle Aç" eylemini ekle
-AssociateWithFiles=%1 uygulamasýný desteklenen dosya türleri için bir düzenleyici olarak kayýt et
-AddToPath=PATH'e ekle (yeniden baþlattýktan sonra kullanýlabilir)
-RunAfter=Kurulumdan sonra %1 uygulamasýný çalýþtýr.
-Other=Diðer:
-SourceFile=%1 Kaynak Dosyasý
-OpenWithCodeContextMenu=%1 Ýle Aç
+AddContextMenuFiles=Windows Gezgini baï¿½lam menï¿½sï¿½ne "%1 ï¿½le Aï¿½" eylemini ekle
+AddContextMenuFolders=Windows Gezgini dizin baï¿½lam menï¿½sï¿½ne "%1 ï¿½le Aï¿½" eylemini ekle
+AssociateWithFiles=%1 uygulamasï¿½nï¿½ desteklenen dosya tï¿½rleri iï¿½in bir dï¿½zenleyici olarak kayï¿½t et
+AddToPath=PATH'e ekle (yeniden baï¿½lattï¿½ktan sonra kullanï¿½labilir)
+RunAfter=Kurulumdan sonra %1 uygulamasï¿½nï¿½ ï¿½alï¿½ï¿½tï¿½r.
+Other=Diï¿½er:
+SourceFile=%1 Kaynak Dosyasï¿½
+OpenWithCodeContextMenu=%1 ï¿½le Aï¿½
+UpdatingVisualStudioCode=Visual Studio Code gï¿½ncelleniyor...

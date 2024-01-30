@@ -1,9 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=ƒGƒNƒXƒvƒ[ƒ‰[‚Ìƒtƒ@ƒCƒ‹ ƒRƒ“ƒeƒLƒXƒg ƒƒjƒ…[‚É [%1 ‚ÅŠJ‚­] ƒAƒNƒVƒ‡ƒ“‚ð’Ç‰Á‚·‚é
-AddContextMenuFolders=ƒGƒNƒXƒvƒ[ƒ‰[‚ÌƒfƒBƒŒƒNƒgƒŠ ƒRƒ“ƒeƒLƒXƒg ƒƒjƒ…[‚É [%1 ‚ÅŠJ‚­] ƒAƒNƒVƒ‡ƒ“‚ð’Ç‰Á‚·‚é
-AssociateWithFiles=ƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚éƒtƒ@ƒCƒ‹‚ÌŽí—Þ‚ÌƒGƒfƒBƒ^[‚Æ‚µ‚ÄA%1 ‚ð“o˜^‚·‚é
-AddToPath=PATH ‚Ö‚Ì’Ç‰ÁiÄ‹N“®Œã‚ÉŽg—p‰Â”\j
-RunAfter=ƒCƒ“ƒXƒg[ƒ‹Œã‚É %1 ‚ðŽÀs‚·‚é
-Other=‚»‚Ì‘¼:
-SourceFile=%1 ƒ\[ƒX ƒtƒ@ƒCƒ‹
-OpenWithCodeContextMenu=%1 ‚ÅŠJ‚­
+AddContextMenuFiles=ï¿½Gï¿½Nï¿½Xï¿½vï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½[ï¿½Ìƒtï¿½@ï¿½Cï¿½ï¿½ ï¿½Rï¿½ï¿½ï¿½eï¿½Lï¿½Xï¿½g ï¿½ï¿½ï¿½jï¿½ï¿½ï¿½[ï¿½ï¿½ [%1 ï¿½ÅŠJï¿½ï¿½] ï¿½Aï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½
+AddContextMenuFolders=ï¿½Gï¿½Nï¿½Xï¿½vï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½[ï¿½Ìƒfï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½ ï¿½Rï¿½ï¿½ï¿½eï¿½Lï¿½Xï¿½g ï¿½ï¿½ï¿½jï¿½ï¿½ï¿½[ï¿½ï¿½ [%1 ï¿½ÅŠJï¿½ï¿½] ï¿½Aï¿½Nï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½
+AssociateWithFiles=ï¿½Tï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ÌŽï¿½Þ‚ÌƒGï¿½fï¿½Bï¿½^ï¿½[ï¿½Æ‚ï¿½ï¿½ÄA%1 ï¿½ï¿½oï¿½^ï¿½ï¿½ï¿½ï¿½
+AddToPath=PATH ï¿½Ö‚Ì’Ç‰ï¿½ï¿½iï¿½Ä‹Nï¿½ï¿½ï¿½ï¿½ÉŽgï¿½pï¿½Â”\ï¿½j
+RunAfter=ï¿½Cï¿½ï¿½ï¿½Xï¿½gï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ %1 ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½ï¿½
+Other=ï¿½ï¿½ï¿½Ì‘ï¿½:
+SourceFile=%1 ï¿½\ï¿½[ï¿½X ï¿½tï¿½@ï¿½Cï¿½ï¿½
+OpenWithCodeContextMenu=%1 ï¿½ÅŠJï¿½ï¿½
+UpdatingVisualStudioCode=Visual Studio Code ï¿½Ìƒï¿½ï¿½Xï¿½gï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½...
