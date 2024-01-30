@@ -1415,11 +1415,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 						canvas.width = imageToCopy.naturalWidth;
 						canvas.height = imageToCopy.naturalHeight;
 						const context = canvas.getContext('2d');
-						context?.drawImage(imageToCopy, 0, 0);
+						context!.drawImage(imageToCopy, 0, 0);
 
 						canvas.toBlob((blob) => {
 							if (blob) {
 								resolve(blob);
+							} else {
+								console.error('No blob data to write to clipboard');
 							}
 							canvas.remove();
 						}, 'image/png');
@@ -1428,7 +1430,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
-
 		} catch (e) {
 			console.error('Could not copy image:', e);
 		}
