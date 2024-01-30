@@ -116,11 +116,10 @@ suite('Contributions', () => {
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
-		registry.start(instantiationService);
-
-		accessor.lifecycleService.phase = LifecyclePhase.Ready;
+		accessor.lifecycleService.phase = LifecyclePhase.Restored;
 
 		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.BlockRestore);
+		registry.start(instantiationService);
 
 		await aCreatedPromise.p;
 		assert.ok(aCreated);
