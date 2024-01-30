@@ -25,7 +25,7 @@ type LogChannelQuickPickItem = IQuickPickItem & { id: string; resource: URI; ext
 export class SetLogLevelAction extends Action {
 
 	static readonly ID = 'workbench.action.setLogLevel';
-	static readonly TITLE = { value: nls.localize('setLogLevel', "Set Log Level..."), original: 'Set Log Level...' };
+	static readonly TITLE = nls.localize2('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -162,7 +162,7 @@ export class SetLogLevelAction extends Action {
 export class OpenWindowSessionLogFileAction extends Action {
 
 	static readonly ID = 'workbench.action.openSessionLogFile';
-	static readonly TITLE = { value: nls.localize('openSessionLogFile', "Open Window Log File (Session)..."), original: 'Open Window Log File (Session)...' };
+	static readonly TITLE = nls.localize2('openSessionLogFile', "Open Window Log File (Session)...");
 
 	constructor(id: string, label: string,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,

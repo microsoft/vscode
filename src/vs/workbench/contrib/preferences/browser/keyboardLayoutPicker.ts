@@ -104,7 +104,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: KEYBOARD_LAYOUT_OPEN_PICKER,
-			title: { value: nls.localize('keyboard.chooseLayout', "Change Keyboard Layout"), original: 'Change Keyboard Layout' },
+			title: nls.localize2('keyboard.chooseLayout', "Change Keyboard Layout"),
 			f1: true
 		});
 	}
