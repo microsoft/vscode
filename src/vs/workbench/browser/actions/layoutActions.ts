@@ -1110,13 +1110,13 @@ class MoveFocusedViewAction extends Action2 {
 			const destination = quickPick.selectedItems[0];
 
 			if (destination.id === '_.panel.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Panel, this.desc.id);
+				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.sidebar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar, this.desc.id);
+				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Sidebar, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.auxiliarybar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.AuxiliaryBar, this.desc.id);
+				viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.AuxiliaryBar, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
 				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!, undefined, this.desc.id);

@@ -567,11 +567,11 @@ export class IssueMainService implements IIssueMainService {
 				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
 			}
 
-			if (state.width! > displayBounds.width) {
+			if (state.width > displayBounds.width) {
 				state.width = displayBounds.width; // prevent window from exceeding display bounds width
 			}
 
-			if (state.height! > displayBounds.height) {
+			if (state.height > displayBounds.height) {
 				state.height = displayBounds.height; // prevent window from exceeding display bounds height
 			}
 		}

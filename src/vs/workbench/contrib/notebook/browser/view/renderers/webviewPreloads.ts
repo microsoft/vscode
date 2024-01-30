@@ -498,7 +498,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
 		const cellOutputContainer = $window.document.getElementById(cellOrOutputId) ??
-			(alternateId ? $window.document.getElementById(alternateId!) : undefined);
+			(alternateId ? $window.document.getElementById(alternateId) : undefined);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains($window.document.activeElement)) {
 				return;

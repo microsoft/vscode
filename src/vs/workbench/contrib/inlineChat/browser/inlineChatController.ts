@@ -503,7 +503,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._historyUpdate(input);
 
-		const refer = this._session.session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
+		const refer = this._session.session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
 		if (refer) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.debugName);
 			this._editor.setSelection(this._session.wholeRange.value);

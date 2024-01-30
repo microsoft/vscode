@@ -1552,8 +1552,8 @@ export class SettingsEditor2 extends EditorPane {
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters!.add(tag));
 			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
-			parsedQuery.featureFilters!.forEach(feature => this.viewState.featureFilters!.add(feature));
-			parsedQuery.idFilters!.forEach(id => this.viewState.idFilters!.add(id));
+			parsedQuery.featureFilters.forEach(feature => this.viewState.featureFilters!.add(feature));
+			parsedQuery.idFilters.forEach(id => this.viewState.idFilters!.add(id));
 			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
 

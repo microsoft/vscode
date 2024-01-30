@@ -146,7 +146,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 			} else if (referenceCount === 1 && altAction) {
 				// already at the only result, run alternative
 				SymbolNavigationAction._activeAlternativeCommands.add(this.desc.id);
-				instaService.invokeFunction((accessor) => altAction!.runEditorCommand(accessor, editor, arg, range).finally(() => {
+				instaService.invokeFunction((accessor) => altAction.runEditorCommand(accessor, editor, arg, range).finally(() => {
 					SymbolNavigationAction._activeAlternativeCommands.delete(this.desc.id);
 				}));
 

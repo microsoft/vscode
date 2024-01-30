@@ -401,11 +401,11 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				// This should be true, if the model is changing
 				const now = Date.now();
 				const wordCount = countWords(_model.response.asString());
-				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
+				const timeDiff = now - this._contentUpdateTimings.loadingStartTime;
 				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (timeDiff / 1000);
 				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
 				this._contentUpdateTimings = {
-					loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
+					loadingStartTime: this._contentUpdateTimings.loadingStartTime,
 					lastUpdateTime: now,
 					impliedWordLoadRate,
 					lastWordCount: wordCount
