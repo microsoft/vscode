@@ -296,14 +296,14 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 *
 	 * @param view An initial view for this Grid.
 	 */
-	constructor(view: T | GridView, options: IGridOptions = {}) {
+	constructor(container: HTMLElement | undefined, view: T | GridView, options: IGridOptions = {}) {
 		super();
 
 		if (view instanceof GridView) {
 			this.gridview = view;
 			this.gridview.getViewMap(this.views);
 		} else {
-			this.gridview = new GridView(options);
+			this.gridview = new GridView(container, options);
 		}
 
 		this._register(this.gridview);
@@ -805,7 +805,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 	 * @param deserializer A deserializer which can revive each view.
 	 * @returns A new {@link SerializableGrid} instance.
 	 */
-	static deserialize<T extends ISerializableView>(json: ISerializedGrid, deserializer: IViewDeserializer<T>, options: IGridOptions = {}): SerializableGrid<T> {
+	static deserialize<T extends ISerializableView>(container: HTMLElement | undefined, json: ISerializedGrid, deserializer: IViewDeserializer<T>, options: IGridOptions = {}): SerializableGrid<T> {
 		if (typeof json.orientation !== 'number') {
 			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
 		} else if (typeof json.width !== 'number') {
@@ -814,8 +814,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid JSON: \'height\' property must be a number.');
 		}
 
-		const gridview = GridView.deserialize(json, deserializer, options);
-		const result = new SerializableGrid<T>(gridview, options);
+		const gridview = GridView.deserialize(container, json, deserializer, options);
+		const result = new SerializableGrid<T>(container, gridview, options);
 
 		return result;
 	}
@@ -826,8 +826,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 	 * @param gridDescriptor A grid descriptor in which leaf nodes point to actual views.
 	 * @returns A new {@link SerializableGrid} instance.
 	 */
-	static from<T extends ISerializableView>(gridDescriptor: GridDescriptor<T>, options: IGridOptions = {}): SerializableGrid<T> {
-		return SerializableGrid.deserialize(createSerializedGrid(gridDescriptor), { fromJSON: view => view }, options);
+	static from<T extends ISerializableView>(container: HTMLElement | undefined, gridDescriptor: GridDescriptor<T>, options: IGridOptions = {}): SerializableGrid<T> {
+		return SerializableGrid.deserialize(container, createSerializedGrid(gridDescriptor), { fromJSON: view => view }, options);
 	}
 
 	/**

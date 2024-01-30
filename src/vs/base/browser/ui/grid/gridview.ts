@@ -408,6 +408,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	constructor(
+		container: HTMLElement | undefined,
 		readonly orientation: Orientation,
 		readonly layoutController: LayoutController,
 		styles: IGridViewStyles,
@@ -422,6 +423,9 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = orthogonalSize;
 
 		this.element = $('.monaco-grid-branch-node');
+		if (container) {
+			container.appendChild(this.element);
+		}
 
 		if (!childDescriptors) {
 			// Normal behavior, we have no children yet, just set up the splitview
@@ -948,7 +952,7 @@ function flipNode(node: LeafNode, size: number, orthogonalSize: number): LeafNod
 function flipNode(node: Node, size: number, orthogonalSize: number): Node;
 function flipNode(node: Node, size: number, orthogonalSize: number): Node {
 	if (node instanceof BranchNode) {
-		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.splitviewProportionalLayout, size, orthogonalSize, node.edgeSnapping);
+		const result = new BranchNode(undefined, orthogonal(node.orientation), node.layoutController, node.styles, node.splitviewProportionalLayout, size, orthogonalSize, node.edgeSnapping);
 
 		let totalSize = 0;
 
@@ -1068,7 +1072,11 @@ export class GridView implements IDisposable {
 		}
 
 		this._root = root;
-		this.element.appendChild(root.element);
+		if (root.element.parentElement) {
+			console.log('GridView.root already has a parent', root.element);
+		} else {
+			this.element.appendChild(root.element);
+		}
 		this.onDidSashResetRelay.input = root.onDidSashReset;
 		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
 		this._onDidScroll.input = root.onDidScroll;
@@ -1165,12 +1173,15 @@ export class GridView implements IDisposable {
 	 * @remarks It's the caller's responsibility to append the
 	 * {@link GridView.element} to the page's DOM.
 	 */
-	constructor(options: IGridViewOptions = {}) {
+	constructor(container: HTMLElement | undefined, options: IGridViewOptions = {}) {
 		this.element = $('.monaco-grid-view');
+		if (container) {
+			container.appendChild(this.element);
+		}
 		this.styles = options.styles || defaultStyles;
 		this.proportionalLayout = typeof options.proportionalLayout !== 'undefined' ? !!options.proportionalLayout : true;
 		this.layoutController = new LayoutController(false);
-		this.root = new BranchNode(Orientation.VERTICAL, this.layoutController, this.styles, this.proportionalLayout);
+		this.root = new BranchNode(this.element, Orientation.VERTICAL, this.layoutController, this.styles, this.proportionalLayout);
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -1237,7 +1248,7 @@ export class GridView implements IDisposable {
 			const oldChild = grandParent.removeChild(parentIndex);
 			oldChild.dispose();
 
-			const newParent = new BranchNode(parent.orientation, parent.layoutController, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize, grandParent.edgeSnapping);
+			const newParent = new BranchNode(grandParent.element, parent.orientation, parent.layoutController, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize, grandParent.edgeSnapping);
 			grandParent.addChild(newParent, parent.size, parentIndex);
 
 			const newSibling = new LeafNode(parent.view, grandParent.orientation, this.layoutController, parent.size);
@@ -1701,7 +1712,7 @@ export class GridView implements IDisposable {
 	 * @param deserializer A deserializer which can revive each view.
 	 * @returns A new {@link GridView} instance.
 	 */
-	static deserialize<T extends ISerializableView>(json: ISerializedGridView, deserializer: IViewDeserializer<T>, options: IGridViewOptions = {}): GridView {
+	static deserialize<T extends ISerializableView>(container: HTMLElement | undefined, json: ISerializedGridView, deserializer: IViewDeserializer<T>, options: IGridViewOptions = {}): GridView {
 		if (typeof json.orientation !== 'number') {
 			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
 		} else if (typeof json.width !== 'number') {
@@ -1715,28 +1726,28 @@ export class GridView implements IDisposable {
 		const orientation = json.orientation;
 		const height = json.height;
 
-		const result = new GridView(options);
-		result._deserialize(json.root as ISerializedBranchNode, orientation, deserializer, height);
+		const result = new GridView(container, options);
+		result._deserialize(container, json.root as ISerializedBranchNode, orientation, deserializer, height);
 
 		return result;
 	}
 
-	private _deserialize(root: ISerializedBranchNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): void {
-		this.root = this._deserializeNode(root, orientation, deserializer, orthogonalSize) as BranchNode;
+	private _deserialize(container: HTMLElement | undefined, root: ISerializedBranchNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): void {
+		this.root = this._deserializeNode(container, root, orientation, deserializer, orthogonalSize) as BranchNode;
 	}
 
-	private _deserializeNode(node: ISerializedNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): Node {
+	private _deserializeNode(container: HTMLElement | undefined, node: ISerializedNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): Node {
 		let result: Node;
 		if (node.type === 'branch') {
 			const serializedChildren = node.data as ISerializedNode[];
 			const children = serializedChildren.map(serializedChild => {
 				return {
-					node: this._deserializeNode(serializedChild, orthogonal(orientation), deserializer, node.size),
+					node: this._deserializeNode(container, serializedChild, orthogonal(orientation), deserializer, node.size),
 					visible: (serializedChild as { visible?: boolean }).visible
 				} as INodeDescriptor;
 			});
 
-			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);
+			result = new BranchNode(container, orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);
 		} else {
 			result = new LeafNode(deserializer.fromJSON(node.data), orientation, this.layoutController, orthogonalSize, node.size);
 			if (node.maximized && !this.maximizedNode) {

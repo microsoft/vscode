@@ -14,7 +14,7 @@ suite('Gridview', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createGridView(): GridView {
-		const gridview = store.add(new GridView());
+		const gridview = store.add(new GridView(undefined));
 		const container = $('.container');
 
 		container.style.position = 'absolute';

@@ -614,7 +614,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 			width = this._grid.value.width;
 			height = this._grid.value.height;
 		}
-		this._grid.value = SerializableGrid.from<any>({
+		this._grid.value = SerializableGrid.from<any>(undefined, {
 			orientation: Orientation.VERTICAL,
 			size: 100,
 			groups: descriptor,

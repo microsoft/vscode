@@ -1149,7 +1149,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Grid Widget (no previous UI state or failed to restore)
 		if (!this.gridWidget || restoreError) {
 			const initialGroup = this.doCreateGroupView();
-			this.doSetGridWidget(new SerializableGrid(initialGroup));
+			this.doSetGridWidget(new SerializableGrid(this.gridWidgetView.element, initialGroup));
 
 			// Ensure a group is active
 			this.doSetGroupActive(initialGroup);
@@ -1199,7 +1199,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Create new
 		const groupViews: IEditorGroupView[] = [];
-		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
+		const gridWidget = SerializableGrid.deserialize(this.gridWidgetView.element, serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroupModel | null) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {

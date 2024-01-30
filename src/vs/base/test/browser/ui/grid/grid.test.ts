@@ -77,7 +77,7 @@ suite('Grid', function () {
 
 	test('empty', () => {
 		const view1 = store.add(new TestView(100, Number.MAX_VALUE, 100, Number.MAX_VALUE));
-		const gridview = store.add(new Grid(view1));
+		const gridview = store.add(new Grid(undefined, view1));
 		container.appendChild(gridview.element);
 		gridview.layout(800, 600);
 
@@ -86,7 +86,7 @@ suite('Grid', function () {
 
 	test('two views vertically', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 		assert.deepStrictEqual(view1.size, [800, 600]);
@@ -99,7 +99,7 @@ suite('Grid', function () {
 
 	test('two views horizontally', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -113,7 +113,7 @@ suite('Grid', function () {
 
 	test('simple layout', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -148,7 +148,7 @@ suite('Grid', function () {
 
 	test('another simple layout with automatic size distribution', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -192,7 +192,7 @@ suite('Grid', function () {
 
 	test('another simple layout with split size distribution', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -236,7 +236,7 @@ suite('Grid', function () {
 
 	test('3/2 layout with split', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -271,7 +271,7 @@ suite('Grid', function () {
 
 	test('sizing should be correct after branch demotion #50564', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -297,7 +297,7 @@ suite('Grid', function () {
 
 	test('sizing should be correct after branch demotion #50675', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -323,7 +323,7 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on single view layout', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -341,7 +341,7 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on simple layout', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -385,7 +385,7 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on a complex layout', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -426,7 +426,7 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on another simple layout', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -448,7 +448,7 @@ suite('Grid', function () {
 
 	test('getNeighborViews should only return immediate neighbors', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -467,7 +467,7 @@ suite('Grid', function () {
 
 	test('hiding splitviews and restoring sizes', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -521,7 +521,7 @@ suite('Grid', function () {
 
 	test('hasMaximizedView', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -559,7 +559,7 @@ suite('Grid', function () {
 
 	test('Changes to the grid unmaximize the view', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -606,7 +606,7 @@ suite('Grid', function () {
 
 	test('Changes to the grid sizing unmaximize the view', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new Grid(view1));
+		const grid = store.add(new Grid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -726,7 +726,7 @@ suite('SerializableGrid', function () {
 
 	test('serialize empty', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
@@ -753,7 +753,7 @@ suite('SerializableGrid', function () {
 
 	test('serialize simple layout', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
@@ -807,7 +807,7 @@ suite('SerializableGrid', function () {
 
 	test('deserialize empty', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
@@ -815,7 +815,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 		grid2.layout(800, 600);
 
 		assert.deepStrictEqual(nodesToNames(grid2.getViews()), ['view1']);
@@ -823,7 +823,7 @@ suite('SerializableGrid', function () {
 
 	test('deserialize simple layout', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -844,7 +844,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -865,7 +865,7 @@ suite('SerializableGrid', function () {
 
 	test('deserialize simple layout with scaling', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -886,7 +886,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -904,7 +904,7 @@ suite('SerializableGrid', function () {
 
 	test('deserialize 4 view layout (ben issue #2)', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
@@ -921,7 +921,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -938,7 +938,7 @@ suite('SerializableGrid', function () {
 
 	test('deserialize 2 view layout (ben issue #3)', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -950,7 +950,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -963,7 +963,7 @@ suite('SerializableGrid', function () {
 
 	test('deserialize simple view layout #50609', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 
 		grid.layout(800, 600);
@@ -980,7 +980,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 
 		const view2Copy = deserializer.getView('view2');
 		const view3Copy = deserializer.getView('view3');
@@ -1042,7 +1042,7 @@ suite('SerializableGrid', function () {
 			}
 		};
 
-		const grid = store.add(SerializableGrid.deserialize(serializedGrid, deserializer));
+		const grid = store.add(SerializableGrid.deserialize(undefined, serializedGrid, deserializer));
 		assert.strictEqual(views.length, 3);
 
 		// should not throw
@@ -1067,7 +1067,7 @@ suite('SerializableGrid', function () {
 		const d = createView();
 
 		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2, data: a }, { size: 0.2, data: b }, { size: 0.6, groups: [{ data: c }, { data: d }] }] };
-		const grid = SerializableGrid.from(gridDescriptor);
+		const grid = SerializableGrid.from(undefined, gridDescriptor);
 
 		assert.deepStrictEqual(nodesToArrays(grid.getViews()), [a, b, [c, d]]);
 		grid.dispose();
@@ -1075,7 +1075,7 @@ suite('SerializableGrid', function () {
 
 	test('serialize should store visibility and previous size', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
@@ -1162,7 +1162,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -1202,7 +1202,7 @@ suite('SerializableGrid', function () {
 
 	test('serialize should store visibility and previous size even for first leaf', function () {
 		const view1 = store.add(new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
-		const grid = store.add(new SerializableGrid(view1));
+		const grid = store.add(new SerializableGrid(undefined, view1));
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
@@ -1271,7 +1271,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer(store);
-		const grid2 = store.add(SerializableGrid.deserialize(json, deserializer));
+		const grid2 = store.add(SerializableGrid.deserialize(undefined, json, deserializer));
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
