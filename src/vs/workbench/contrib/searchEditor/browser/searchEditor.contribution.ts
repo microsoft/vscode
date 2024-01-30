@@ -303,7 +303,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
+				when: ContextKeyExpr.and(SearchConstants.SearchContext.HasSearchResults, SearchConstants.SearchContext.SearchViewFocusedKey),
 				weight: KeybindingWeight.WorkbenchContrib,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Enter
@@ -424,7 +424,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleCaseSensitiveKeybinding)
 		});
 	}
@@ -443,7 +443,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleWholeWordKeybinding)
 		});
 	}
@@ -462,7 +462,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleRegexKeybinding)
 		});
 	}
