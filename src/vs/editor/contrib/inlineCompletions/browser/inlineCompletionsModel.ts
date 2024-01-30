@@ -497,8 +497,7 @@ export class InlineCompletionsModel extends Disposable {
 					} else {
 						rangeLength = edit.range.endColumn;
 					}
-					const lastLineLength = splitText[splitText.length - 1].length;
-					columnDelta += lastLineLength - rangeLength;
+					columnDelta = splitText[splitText.length - 1].length - rangeLength;
 				}
 				editStartPositions[j] = position.delta(numberOfLinesToAdd, columnDelta);
 			}
