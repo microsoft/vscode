@@ -218,8 +218,6 @@ export class SettingsEditor2 extends EditorPane {
 
 	private installedExtensionIds: string[] = [];
 
-	private userIsSearching = false;
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
@@ -546,7 +544,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		// Do not select all if the user is already searching.
-		this.searchWidget.focus(selectAll && !this.userIsSearching);
+		this.searchWidget.focus(selectAll && !this.searchInputDelayer.isTriggered);
 	}
 
 	clearSearchResults(): void {
@@ -627,11 +625,9 @@ export class SettingsEditor2 extends EditorPane {
 		this.countElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		this._register(this.searchWidget.onInputDidChange(() => {
-			this.userIsSearching = true;
 			const searchVal = this.searchWidget.getValue();
 			clearInputAction.enabled = !!searchVal;
 			this.searchInputDelayer.trigger(() => {
-				this.userIsSearching = false;
 				this.onSearchInputChanged();
 			});
 		}));
