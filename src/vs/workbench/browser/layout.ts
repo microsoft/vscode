@@ -47,7 +47,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { mainWindow } from 'vs/base/browser/window';
+import { isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { CustomTitleBarVisibility } from '../../platform/window/common/window';
 
 //#region Layout Implementation
@@ -415,12 +415,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
 			if (isWeb && menuBarVisibility === 'toggle') {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
 			else if (this.state.runtime.mainWindowFullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
 			// Move layout call to any time the menubar
@@ -470,7 +470,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (hasCustomTitlebar(this.configurationService)) {
 
 			// Propagate to grid
-			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 
 			this.updateWindowsBorder(true);
 		}
@@ -1209,7 +1209,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.shouldShowTitleBar();
+				return shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 			case Parts.SIDEBAR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
 			case Parts.PANEL_PART:
@@ -1225,84 +1225,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			default:
 				return false; // any other part cannot be hidden
 		}
-	}
-
-	private shouldShowTitleBar(): boolean {
-
-		if (!hasCustomTitlebar(this.configurationService)) {
-			return false;
-		}
-
-		const nativeTitleBarEnabled = hasNativeTitlebar(this.configurationService);
-		const showCustomTitleBar = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && this.state.runtime.mainWindowFullscreen) {
-			return false;
-		}
-
-		if (!this.isTitleBarEmpty()) {
-			return true;
-		}
-
-		// Hide custom title bar when native title bar enabled and custom title bar is empty
-		if (nativeTitleBarEnabled) {
-			return false;
-		}
-
-		// macOS desktop does not need a title bar when full screen
-		if (isMacintosh && isNative) {
-			return !this.state.runtime.mainWindowFullscreen;
-		}
-
-		// non-fullscreen native must show the title bar
-		if (isNative && !this.state.runtime.mainWindowFullscreen) {
-			return true;
-		}
-
-		// if WCO is visible, we have to show the title bar
-		if (isWCOEnabled() && !this.state.runtime.mainWindowFullscreen) {
-			return true;
-		}
-
-		// remaining behavior is based on menubar visibility
-		switch (getMenuBarVisibility(this.configurationService)) {
-			case 'classic':
-				return !this.state.runtime.mainWindowFullscreen || this.state.runtime.menuBar.toggled;
-			case 'compact':
-			case 'hidden':
-				return false;
-			case 'toggle':
-				return this.state.runtime.menuBar.toggled;
-			case 'visible':
-				return true;
-			default:
-				return isWeb ? false : !this.state.runtime.mainWindowFullscreen || this.state.runtime.menuBar.toggled;
-		}
-	}
-
-	private isTitleBarEmpty(): boolean {
-		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
-			return false;
-		}
-
-		// with the activity bar on top, we should always show
-		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
-			return false;
-		}
-
-		// with the editor actions on top, we should always show
-		const editorActionsLocation = this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION);
-		const editorTabsMode = this.configurationService.getValue<EditorTabsMode>(LayoutSettings.EDITOR_TABS_MODE);
-		if (editorActionsLocation === EditorActionsLocation.TITLEBAR || editorActionsLocation === EditorActionsLocation.DEFAULT && editorTabsMode === EditorTabsMode.NONE) {
-			return false;
-		}
-
-		// with the layout actions on top, we should always show
-		if (this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
-			return false;
-		}
-
-		return true;
 	}
 
 	private shouldShowBannerFirst(): boolean {
@@ -2087,14 +2009,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	updateMenubarVisibility(skipLayout: boolean): void {
-		const shouldShowTitleBar = this.shouldShowTitleBar();
+		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
 	}
 
 	updateCustomTitleBarVisibility(): void {
-		const shouldShowTitleBar = this.shouldShowTitleBar();
+		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 		const titlebarVisible = this.isVisible(Parts.TITLEBAR_PART);
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
@@ -2252,7 +2174,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.moveView(this.bannerPartView, Sizing.Distribute, this.titleBarPartView, shouldBannerBeFirst ? Direction.Up : Direction.Down);
 		}
 
-		this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
+		this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 	}
 
 	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {
@@ -2495,6 +2417,87 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.disposed = true;
 	}
+}
+
+export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
+
+	if (!hasCustomTitlebar(configurationService)) {
+		return false;
+	}
+
+	const inFullscreen = isFullscreen(window);
+	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
+
+	const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+	if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+		return false;
+	}
+
+	if (!isTitleBarEmpty(configurationService)) {
+		return true;
+	}
+
+	// Hide custom title bar when native title bar enabled and custom title bar is empty
+	if (nativeTitleBarEnabled) {
+		return false;
+	}
+
+	// macOS desktop does not need a title bar when full screen
+	if (isMacintosh && isNative) {
+		return !inFullscreen;
+	}
+
+	// non-fullscreen native must show the title bar
+	if (isNative && !inFullscreen) {
+		return true;
+	}
+
+	// if WCO is visible, we have to show the title bar
+	if (isWCOEnabled() && !inFullscreen) {
+		return true;
+	}
+
+	// remaining behavior is based on menubar visibility
+	const menuBarVisibility = !isAuxiliaryWindow(window) ? getMenuBarVisibility(configurationService) : 'hidden';
+	switch (menuBarVisibility) {
+		case 'classic':
+			return !inFullscreen || !!menuBarToggled;
+		case 'compact':
+		case 'hidden':
+			return false;
+		case 'toggle':
+			return !!menuBarToggled;
+		case 'visible':
+			return true;
+		default:
+			return isWeb ? false : !inFullscreen || !!menuBarToggled;
+	}
+}
+
+function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+	// with the command center enabled, we should always show
+	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
+		return false;
+	}
+
+	// with the activity bar on top, we should always show
+	if (configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+		return false;
+	}
+
+	// with the editor actions on top, we should always show
+	const editorActionsLocation = configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION);
+	const editorTabsMode = configurationService.getValue<EditorTabsMode>(LayoutSettings.EDITOR_TABS_MODE);
+	if (editorActionsLocation === EditorActionsLocation.TITLEBAR || editorActionsLocation === EditorActionsLocation.DEFAULT && editorTabsMode === EditorTabsMode.NONE) {
+		return false;
+	}
+
+	// with the layout actions on top, we should always show
+	if (configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
+		return false;
+	}
+
+	return true;
 }
 
 type ZenModeConfiguration = {
