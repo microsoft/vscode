@@ -129,7 +129,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.AuxWindowUnsupported;
+		let capabilities = EditorInputCapabilities.None;
 
 		if (this.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;
@@ -181,7 +181,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		// if a short auto save is configured, treat this as being saved
-		return this.filesConfigurationService.isShortAutoSaveDelayConfigured(this);
+		return this.filesConfigurationService.hasShortAutoSaveDelay(this);
 	}
 
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {

@@ -22,7 +22,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
@@ -303,7 +303,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
+				when: ContextKeyExpr.and(SearchConstants.SearchContext.HasSearchResults, SearchConstants.SearchContext.SearchViewFocusedKey),
 				weight: KeybindingWeight.WorkbenchContrib,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Enter
@@ -424,7 +424,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleCaseSensitiveKeybinding)
 		});
 	}
@@ -443,7 +443,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleWholeWordKeybinding)
 		});
 	}
@@ -462,7 +462,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleRegexKeybinding)
 		});
 	}

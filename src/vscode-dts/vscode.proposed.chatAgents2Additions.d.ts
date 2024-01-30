@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgent2 {
+	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
 		supportIssueReporting?: boolean;
 	}
@@ -26,7 +26,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSlashCommand;
+		command?: ChatAgentSubCommand;
 	}
 
 	export interface ChatAgentVulnerability {
@@ -43,7 +43,7 @@ declare module 'vscode' {
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
 
-	export interface ChatAgent2 {
+	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		/**
 		 * Provide a set of variables that can only be used with this agent.
 		 */
@@ -70,7 +70,7 @@ declare module 'vscode' {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
+		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentExtendedHandler): ChatAgent2<TResult>;
 	}
 
 	/*
@@ -117,7 +117,7 @@ declare module 'vscode' {
 	export interface ChatAgentSessionFollowupAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'followUp';
-		followup: ChatAgentReplyFollowup;
+		followup: ChatAgentFollowup;
 	}
 
 	export interface ChatAgentBugReportAction {
@@ -128,5 +128,12 @@ declare module 'vscode' {
 	export interface ChatAgentUserActionEvent {
 		readonly result: ChatAgentResult2;
 		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentSessionFollowupAction | ChatAgentBugReportAction;
+	}
+
+	export interface ChatVariableValue {
+		/**
+		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
+		 */
+		kind?: string;
 	}
 }

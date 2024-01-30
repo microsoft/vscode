@@ -27,7 +27,6 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStyleOverride, defaultFindWidgetStyles, defaultListStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
@@ -123,8 +122,9 @@ export const WorkbenchListScrollAtBottomContextKey = ContextKeyExpr.or(
 	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('both'));
 
 export const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
+export const WorkbenchTreeStickyScrollFocused = new RawContextKey<boolean>('treestickyScrollFocused', false);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
-export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
+export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey), WorkbenchTreeStickyScrollFocused.negate());
 export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
@@ -1193,6 +1193,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private treeElementCanExpand: IContextKey<boolean>;
 	private treeElementHasChild: IContextKey<boolean>;
 	private treeFindOpen: IContextKey<boolean>;
+	private treeStickyScrollFocused: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
 
@@ -1232,6 +1233,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.treeElementHasChild = WorkbenchTreeElementHasChild.bindTo(this.contextKeyService);
 
 		this.treeFindOpen = WorkbenchTreeFindOpen.bindTo(this.contextKeyService);
+		this.treeStickyScrollFocused = WorkbenchTreeStickyScrollFocused.bindTo(this.contextKeyService);
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -1278,6 +1280,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 			tree.onDidChangeCollapseState(updateCollapseContextKeys),
 			tree.onDidChangeModel(updateCollapseContextKeys),
 			tree.onDidChangeFindOpenState(enabled => this.treeFindOpen.set(enabled)),
+			tree.onDidChangeStickyScrollFocused(focused => this.treeStickyScrollFocused.set(focused)),
 			configurationService.onDidChangeConfiguration(e => {
 				let newOptions: IAbstractTreeOptionsUpdate = {};
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
@@ -1480,7 +1483,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
+			default: true,
 			description: localize('sticky scroll', "Controls whether sticky scrolling is enabled in trees."),
 		},
 		[treeStickyScrollMaxElements]: {

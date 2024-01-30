@@ -1581,7 +1581,29 @@ declare namespace monaco.editor {
 	 */
 	export enum GlyphMarginLane {
 		Left = 1,
-		Right = 2
+		Center = 2,
+		Right = 3
+	}
+
+	export interface IGlyphMarginLanesModel {
+		/**
+		 * The number of lanes that should be rendered in the editor.
+		 */
+		readonly requiredLanes: number;
+		/**
+		 * Gets the lanes that should be rendered starting at a given line number.
+		 */
+		getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+		/**
+		 * Resets the model and ensures it can contain at least `maxLine` lines.
+		 */
+		reset(maxLine: number): void;
+		/**
+		 * Registers that a lane should be visible at the Range in the model.
+		 * @param persist - if true, notes that the lane should always be visible,
+		 * even on lines where there's no specific request for that lane.
+		 */
+		push(lane: GlyphMarginLane, range: Range, persist?: boolean): void;
 	}
 
 	/**
@@ -1610,6 +1632,11 @@ declare namespace monaco.editor {
 		 * The position in the glyph margin.
 		 */
 		position: GlyphMarginLane;
+		/**
+		 * Whether the glyph margin lane in {@link position} should be rendered even
+		 * outside of this decoration's range.
+		 */
+		persistLane?: boolean;
 	}
 
 	/**
@@ -1666,6 +1693,10 @@ declare namespace monaco.editor {
 		 */
 		hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 		/**
+		 * Array of MarkdownString to render as the line number message.
+		 */
+		lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;
+		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
@@ -1704,6 +1735,10 @@ declare namespace monaco.editor {
 		 * Controls the tooltip text of the line decoration.
 		 */
 		linesDecorationsTooltip?: string | null;
+		/**
+		 * If set, the decoration will be rendered on the line number.
+		 */
+		lineNumberClassName?: string | null;
 		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 		 */
@@ -2904,6 +2939,7 @@ declare namespace monaco.editor {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
 		readonly affectsGlyphMargin: boolean;
+		readonly affectsLineNumber: boolean;
 	}
 
 	export interface IModelOptionsChangedEvent {
@@ -4467,6 +4503,10 @@ declare namespace monaco.editor {
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
 		keepOnBlur?: boolean;
+		/**
+		 * Font family for inline suggestions.
+		 */
+		fontFamily?: string | 'default';
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -5448,6 +5488,7 @@ declare namespace monaco.editor {
 		readonly isAfterLines: boolean;
 		readonly glyphMarginLeft: number;
 		readonly glyphMarginWidth: number;
+		readonly glyphMarginLane?: GlyphMarginLane;
 		readonly lineNumbersWidth: number;
 		readonly offsetX: number;
 	}
@@ -5608,6 +5649,11 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		readonly onDidChangeCursorSelection: IEvent<ICursorSelectionChangedEvent>;
+		/**
+		 * An event emitted when the model of this editor is about to change (e.g. from `editor.setModel()`).
+		 * @event
+		 */
+		readonly onWillChangeModel: IEvent<IModelChangedEvent>;
 		/**
 		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 		 * @event
@@ -7057,6 +7103,7 @@ declare namespace monaco.languages {
 		isPreferred?: boolean;
 		isAI?: boolean;
 		disabled?: string;
+		ranges?: IRange[];
 	}
 
 	export enum CodeActionTriggerType {
@@ -7725,6 +7772,11 @@ declare namespace monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
+	}
+
+	export interface CommentAuthorInformation {
+		name: string;
+		iconPath?: UriComponents;
 	}
 
 	export interface PendingCommentThread {

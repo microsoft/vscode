@@ -48,7 +48,7 @@ export class StatusbarViewModel extends Disposable {
 		if (hiddenRaw) {
 			try {
 				const hiddenArray: string[] = JSON.parse(hiddenRaw);
-				this.hidden = new Set(hiddenArray);
+				this.hidden = new Set(hiddenArray.filter(entry => !entry.startsWith('status.workspaceTrust.'))); // TODO@bpasero remove this migration eventually
 			} catch (error) {
 				// ignore parsing errors
 			}

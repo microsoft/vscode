@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
+import { ShowAccessibilityAlertHelp, ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -165,3 +165,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerAction2(ShowAudioCueHelp);
+registerAction2(ShowAccessibilityAlertHelp);

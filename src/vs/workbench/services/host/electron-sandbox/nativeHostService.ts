@@ -94,7 +94,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return Event.latch(emitter.event, undefined, this._store);
 	}
 
-	readonly onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, id => hasWindow(id), this._store);
+	readonly onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;

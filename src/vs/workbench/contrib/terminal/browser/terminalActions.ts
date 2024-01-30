@@ -20,7 +20,7 @@ import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/a
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -64,6 +64,8 @@ import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleVi
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { TerminalVoiceSession } from 'vs/workbench/contrib/terminal/browser/terminalVoice';
+import { HasSpeechProvider } from 'vs/workbench/contrib/speech/common/speechService';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -809,8 +811,12 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
-		run: async (c, accessor) => {
+		run: async (c, accessor, args) => {
 			let icon: TerminalIcon | undefined;
+			if (c.groupService.lastAccessedMenu === 'inline-tab') {
+				getResourceOrActiveInstance(c, args)?.changeIcon();
+				return;
+			}
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
 				icon = await terminal.changeIcon(icon);
 			}
@@ -829,9 +835,13 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
-		run: async (c, accessor) => {
+		run: async (c, accessor, args) => {
 			let color: string | undefined;
 			let i = 0;
+			if (c.groupService.lastAccessedMenu === 'inline-tab') {
+				getResourceOrActiveInstance(c, args)?.changeColor();
+				return;
+			}
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
 				const skipQuickPick = i !== 0;
 				// Always show the quickpick on the first iteration
@@ -1641,6 +1651,34 @@ export function registerTerminalActions() {
 			}
 		}
 	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StartVoice,
+		title: {
+			value: localize('workbench.action.startTerminalVoice', "Start Terminal Voice"),
+			original: 'Start Terminal Voice'
+		},
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalVoiceSession.getInstance(instantiationService).start();
+		}
+	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StopVoice,
+		title: {
+			value: localize('workbench.action.stopTerminalVoice', "Stop Terminal Voice"),
+			original: 'Stop Terminal Voice'
+		},
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalVoiceSession.getInstance(instantiationService).stop(true);
+		}
+	});
 }
 
 interface IRemoteTerminalPick extends IQuickPickItem {
@@ -1696,7 +1734,7 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	for (const selection of selections) {
 		result.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
 	}
-	return result;
+	return result.filter(r => !!r);
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {
@@ -1902,7 +1940,9 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {
 	let instance: ITerminalInstance | undefined = resource as ITerminalInstance;
-	if (!instance) {
+	// Check if the 'instance' does not exist or if 'instance.rename' is not defined
+	if (!instance || !instance?.rename) {
+		// If not, obtain the resource instance using 'getResourceOrActiveInstance'
 		instance = getResourceOrActiveInstance(c, resource);
 	}
 

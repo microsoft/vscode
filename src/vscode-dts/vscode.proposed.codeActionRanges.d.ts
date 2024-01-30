@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// https://github.com/microsoft/vscode/issues/193160 @connor4312
-
 declare module 'vscode' {
-	export interface TestRunProfile {
-		/**
-		 * Whether this profile is currently selected as a default by the user
-		 */
-		readonly isSelected: boolean;
 
+	export interface CodeAction {
 		/**
-		 * Fired when a user has changed whether this is a selected profile. The
-		 * event contains the new value of {@link isSelected}
+		 *
+		 * The range to which this Code Action applies to, which will be highlighted.
+		 *
+		 * Ex: A refactoring action will highlight the range of text that will be affected.
 		 */
-		onDidChangeSelected: Event<boolean>;
+		ranges?: Range[];
 	}
 }

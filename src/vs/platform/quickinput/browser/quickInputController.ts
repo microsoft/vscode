@@ -150,7 +150,7 @@ export class QuickInputController extends Disposable {
 		}));
 
 		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const customButton = this._register(new Button(customButtonContainer, this.styles.button));
+		const customButton = this._register(new Button(customButtonContainer, { ...this.styles.button, supportIcons: true }));
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
@@ -183,7 +183,11 @@ export class QuickInputController extends Disposable {
 		}));
 		this._register(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
+			// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/203675
 			setTimeout(() => {
+				if (!this.controller) {
+					return;
+				}
 				inputBox.setFocus();
 				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 					list.clearFocus();

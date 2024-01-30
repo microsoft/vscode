@@ -7,10 +7,9 @@ import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
 import {
-	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, UninstallExtensionEvent
+	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService, IExtensionTipsService, getTargetPlatform,
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -188,10 +187,6 @@ suite('ExtensionRecommendationsService Test', () => {
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;
 	let testObject: ExtensionRecommendationsService;
-	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<UninstallExtensionEvent>,
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
 	let promptedEmitter: Emitter<void>;
 	let onModelAddedEvent: Emitter<ITextModel>;
@@ -207,10 +202,6 @@ suite('ExtensionRecommendationsService Test', () => {
 		disposableStore = new DisposableStore();
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		promptedEmitter = disposableStore.add(new Emitter<void>());
-		installEvent = disposableStore.add(new Emitter<InstallExtensionEvent>());
-		didInstallEvent = disposableStore.add(new Emitter<readonly InstallExtensionResult[]>());
-		uninstallEvent = disposableStore.add(new Emitter<UninstallExtensionEvent>());
-		didUninstallEvent = disposableStore.add(new Emitter<DidUninstallExtensionEvent>());
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 		instantiationService.stub(ILifecycleService, disposableStore.add(new TestLifecycleService()));
@@ -218,11 +209,11 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
-			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
+		instantiationService.stub(IWorkbenchExtensionManagementService, {
+			onInstallExtension: Event.None,
+			onDidInstallExtensions: Event.None,
+			onUninstallExtension: Event.None,
+			onDidUninstallExtension: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
@@ -230,7 +221,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
 			extensions: [],
 			async whenInstalledExtensionsRegistered() { return true; }
@@ -241,12 +232,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IWorkspaceTagsService, new NoOpWorkspaceTagsService());
 		instantiationService.stub(IStorageService, disposableStore.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IProductService, <Partial<IProductService>>{
-			extensionTips: {
-				'ms-dotnettools.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
-				'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
-				'lukehoban.Go': '**/*.go'
-			},
+		instantiationService.stub(IProductService, {
 			extensionRecommendations: {
 				'ms-python.python': {
 					onFileOpen: [
@@ -293,7 +279,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		onModelAddedEvent = new Emitter<ITextModel>();
 
-		instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{});
+		instantiationService.stub(IEnvironmentService, {});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));

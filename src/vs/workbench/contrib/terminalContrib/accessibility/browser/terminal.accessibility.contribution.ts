@@ -324,8 +324,8 @@ registerTerminalAction({
 });
 
 registerTerminalAction({
-	id: TerminalCommandId.ScrollToBottom,
-	title: localize2('workbench.action.terminal.scrollToBottom', 'Scroll to Bottom'),
+	id: TerminalCommandId.ScrollToBottomAccessibleView,
+	title: localize2('workbench.action.terminal.scrollToBottomAccessibleView', 'Scroll to Accessible View Bottom'),
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.End,
@@ -344,8 +344,8 @@ registerTerminalAction({
 });
 
 registerTerminalAction({
-	id: TerminalCommandId.ScrollToTop,
-	title: localize2('workbench.action.terminal.scrollToTop', 'Scroll to Top'),
+	id: TerminalCommandId.ScrollToTopAccessibleView,
+	title: localize2('workbench.action.terminal.scrollToTopAccessibleView', 'Scroll to Accessible View Top'),
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.Home,

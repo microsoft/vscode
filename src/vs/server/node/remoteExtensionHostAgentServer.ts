@@ -204,7 +204,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		// https://tools.ietf.org/html/rfc6455#section-4
 		const requestNonce = req.headers['sec-websocket-key'];
-		const hash = crypto.createHash('sha1');
+		const hash = crypto.createHash('sha1');// CodeQL [SM04514] SHA1 must be used here to respect the WebSocket protocol specification
 		hash.update(requestNonce + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
 		const responseNonce = hash.digest('base64');
 

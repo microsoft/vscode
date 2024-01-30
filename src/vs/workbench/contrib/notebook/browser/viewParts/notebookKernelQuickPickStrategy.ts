@@ -600,7 +600,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				await this._selecteKernel(notebook, selectedKernelPickItem.kernel);
 				return true;
 			} else if (isGroupedKernelsPick(selectedKernelPickItem)) {
-				await this._selectOneKernel(notebook, selectedKernelPickItem.source, selectedKernelPickItem.kernels);
+				await this._selectOneKernel(notebook, selectedKernelPickItem.label, selectedKernelPickItem.kernels);
 				return true;
 			} else if (isSourcePick(selectedKernelPickItem)) {
 				// selected explicilty, it should trigger the execution?

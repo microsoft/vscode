@@ -739,6 +739,21 @@ function registerOpenEditorAPICommands(): void {
 
 		await editorService.openEditor({ resources: editor, label: title });
 	});
+
+	CommandsRegistry.registerCommand('_workbench.openMultiDiffEditor', async (accessor: ServicesAccessor, options: OpenMultiFileDiffEditorOptions) => {
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor({
+			multiDiffSource: options.multiDiffSourceUri ? URI.revive(options.multiDiffSourceUri) : undefined,
+			resources: options.resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } })),
+			label: options.title,
+		});
+	});
+}
+
+interface OpenMultiFileDiffEditorOptions {
+	title: string;
+	multiDiffSourceUri?: UriComponents;
+	resources?: { originalUri: UriComponents; modifiedUri: UriComponents }[];
 }
 
 function registerOpenEditorAtIndexCommands(): void {

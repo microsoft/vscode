@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -524,4 +525,135 @@ suite('Instantiation Service', () => {
 
 		dispose([d1, d3]);
 	});
+
+
+	test('Capture event before init, use after init', function () {
+		const A = createDecorator<A>('A');
+		interface A {
+			_serviceBrand: undefined;
+			onDidDoIt: Event<any>;
+			doIt(): void;
+			noop(): void;
+		}
+
+		let created = false;
+		class AImpl implements A {
+			_serviceBrand: undefined;
+			_doIt = 0;
+
+			_onDidDoIt = new Emitter<this>();
+			onDidDoIt: Event<this> = this._onDidDoIt.event;
+
+			constructor() {
+				created = true;
+			}
+
+			doIt(): void {
+				this._doIt += 1;
+				this._onDidDoIt.fire(this);
+			}
+
+			noop(): void {
+			}
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[A, new SyncDescriptor(AImpl, undefined, true)],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(@A public readonly a: A) {
+				// eager subscribe -> NO service instance
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+		let eventCount = 0;
+
+		// subscribing to event doesn't trigger instantiation
+		const listener = (e: any) => {
+			assert.ok(e instanceof AImpl);
+			eventCount++;
+		};
+
+		const event = c.a.onDidDoIt;
+
+		// const d1 = c.a.onDidDoIt(listener);
+		assert.strictEqual(created, false);
+
+		c.a.noop();
+		assert.strictEqual(created, true);
+
+		const d1 = event(listener);
+
+		c.a.doIt();
+
+
+		// instantiation happens on first call
+		assert.strictEqual(eventCount, 1);
+
+		dispose(d1);
+	});
+
+	test('Dispose early event listener', function () {
+		const A = createDecorator<A>('A');
+		interface A {
+			_serviceBrand: undefined;
+			onDidDoIt: Event<any>;
+			doIt(): void;
+		}
+		let created = false;
+		class AImpl implements A {
+			_serviceBrand: undefined;
+			_doIt = 0;
+
+			_onDidDoIt = new Emitter<this>();
+			onDidDoIt: Event<this> = this._onDidDoIt.event;
+
+			constructor() {
+				created = true;
+			}
+
+			doIt(): void {
+				this._doIt += 1;
+				this._onDidDoIt.fire(this);
+			}
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[A, new SyncDescriptor(AImpl, undefined, true)],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(@A public readonly a: A) {
+				// eager subscribe -> NO service instance
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+		let eventCount = 0;
+
+		// subscribing to event doesn't trigger instantiation
+		const listener = (e: any) => {
+			assert.ok(e instanceof AImpl);
+			eventCount++;
+		};
+
+		const d1 = c.a.onDidDoIt(listener);
+		assert.strictEqual(created, false);
+		assert.strictEqual(eventCount, 0);
+
+		c.a.doIt();
+
+		// instantiation happens on first call
+		assert.strictEqual(created, true);
+		assert.strictEqual(eventCount, 1);
+
+		dispose(d1);
+
+		c.a.doIt();
+		assert.strictEqual(eventCount, 1);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

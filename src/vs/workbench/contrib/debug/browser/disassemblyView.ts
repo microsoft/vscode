@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/browser';
-import { $, Dimension, addStandardDisposableListener, append } from 'vs/base/browser/dom';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { $, Dimension, addStandardDisposableListener, append, getWindowById } from 'vs/base/browser/dom';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { binarySearch2 } from 'vs/base/common/arrays';
@@ -82,7 +82,7 @@ export class DisassemblyView extends EditorPane {
 	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
 
 	// Used in instruction renderer
-	private _fontInfo: BareFontInfo;
+	private _fontInfo: BareFontInfo | undefined;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _previousDebuggingState: State;
@@ -104,12 +104,7 @@ export class DisassemblyView extends EditorPane {
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));
 		this._previousDebuggingState = _debugService.state;
-		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
 		this._register(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor')) {
-				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
-			}
-
 			if (e.affectsConfiguration('debug')) {
 				// show/hide source code requires changing height which WorkbenchTable doesn't support dynamic height, thus force a total reload.
 				const newValue = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
@@ -123,7 +118,24 @@ export class DisassemblyView extends EditorPane {
 		}));
 	}
 
-	get fontInfo() { return this._fontInfo; }
+	get fontInfo() {
+		if (!this._fontInfo) {
+			this._fontInfo = this.createFontInfo();
+
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('editor')) {
+					this._fontInfo = this.createFontInfo();
+				}
+			}));
+		}
+
+		return this._fontInfo;
+	}
+
+	private createFontInfo() {
+		const window = getWindowById(this.group?.windowId, true).window;
+		return BareFontInfo.createFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(window).value);
+	}
 
 	get currentInstructionAddresses() {
 		return this._debugService.getModel().getSessions(false).

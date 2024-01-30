@@ -8,7 +8,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, VIEWLET_ID, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { NotificationPriority } from 'vs/platform/notification/common/notification';
 
 export class DebugProgressContribution implements IWorkbenchContribution {

@@ -77,7 +77,7 @@ export function getColorStyleContent(colorTheme: IColorTheme, editor?: boolean):
 		if (color) {
 			if (editor) {
 				css += (
-					`.monaco-workbench .show-file-icons .product-icon.terminal-tab.${colorClass}::before,` +
+					`.monaco-workbench .show-file-icons .predefined-file-icon.terminal-tab.${colorClass}::before,` +
 					`.monaco-workbench .show-file-icons .file-icon.terminal-tab.${colorClass}::before` +
 					`{ color: ${color} !important; }`
 				);
