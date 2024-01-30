@@ -1125,7 +1125,7 @@ export class SearchView extends ViewPane {
 
 	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }, editor?: IEditor): boolean {
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
-		if (!seedSearchStringFromSelection) {
+		if (!seedSearchStringFromSelection || seedSearchStringFromSelection === 'never') {
 			return false;
 		}
 
