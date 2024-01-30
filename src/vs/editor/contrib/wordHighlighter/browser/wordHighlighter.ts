@@ -429,6 +429,7 @@ class WordHighlighter {
 
 	private _removeAllDecorations(): void {
 		const currentEditors = this.codeEditorService.listCodeEditors();
+		const deleteURI = [];
 		// iterate over editors and store models in currentModels
 		for (const editor of currentEditors) {
 			if (!editor.hasModel()) {
@@ -441,7 +442,7 @@ class WordHighlighter {
 			}
 
 			editor.removeDecorations(currentDecorationIDs);
-			WordHighlighter.storedDecorations.delete(editor.getModel().uri);
+			deleteURI.push(editor.getModel().uri);
 
 			const editorHighlighterContrib = WordHighlighterContribution.get(editor);
 			if (!editorHighlighterContrib?.wordHighlighter) {
@@ -453,13 +454,17 @@ class WordHighlighter {
 				editorHighlighterContrib.wordHighlighter._hasWordHighlights.set(false);
 			}
 		}
+
+		for (const uri of deleteURI) {
+			WordHighlighter.storedDecorations.delete(uri);
+		}
 	}
 
 	private _stopSingular(): void {
 		// Remove any existing decorations + a possible query, and re - run to update decorations
 		this._removeSingleDecorations();
 
-		if (this.editor.hasWidgetFocus()) {
+		if (this.editor.hasTextFocus()) {
 			if (this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell && WordHighlighter.query?.modelInfo?.model.uri.scheme !== Schemas.vscodeNotebookCell) { // clear query if focused non-nb editor
 				WordHighlighter.query = null;
 				this._run();
@@ -489,9 +494,10 @@ class WordHighlighter {
 		}
 	}
 
-	private _stopAll(): void {
+	private _stopAll() {
 		// Remove any existing decorations
-		// TODO: @Yoyokrazy - this triggers as notebooks scroll, causing highlights to disappear momentarily.
+		// TODO: @Yoyokrazy -- this triggers as notebooks scroll, causing highlights to disappear momentarily.
+		// maybe a nb type check?
 		this._removeAllDecorations();
 
 		// Cancel any renderDecorationsTimer
@@ -684,6 +690,7 @@ class WordHighlighter {
 			// a) there is no stored query model, but there is a word. This signals the editor that drove the highlight is disposed (cell out of viewport, etc)
 			// b) the queried model is not the current model. This signals that the editor that drove the highlight is still in the viewport, but we are highlighting a different cell
 			// otherwise, we send null in place of the word, and the model and selection are used to compute the word
+			// TODO: @Yoyokrazy -- investigate this logic for sendWord
 			const sendWord = (!WordHighlighter.query.modelInfo && WordHighlighter.query.word) ||
 				(WordHighlighter.query.modelInfo?.model.uri !== this.model.uri)
 				? true : false;
@@ -747,6 +754,9 @@ class WordHighlighter {
 				const newDocumentHighlights = this.workerRequestValue.get(uri);
 				if (newDocumentHighlights) {
 					for (const highlight of newDocumentHighlights) {
+						if (!highlight.range) {
+							continue;
+						}
 						newDecorations.push({
 							range: highlight.range,
 							options: getHighlightDecorationOptions(highlight.kind)
