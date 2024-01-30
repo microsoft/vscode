@@ -121,7 +121,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: SymbolsQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
 	contextKey: 'inWorkspaceSymbolsPicker',
-	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.ShowAllSymbolsActionId }]
+	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.SearchCommandIds.ShowAllSymbolsActionId }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -132,7 +132,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	helpEntries: [
 		{
 			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
-			commandId: Constants.QuickTextSearchActionId,
+			commandId: Constants.SearchCommandIds.QuickTextSearchActionId,
 			commandCenterOrder: 65,
 		}
 	]
