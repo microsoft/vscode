@@ -5,13 +5,27 @@
 
 set -e
 
+# Do not remove this check.
+# Provides a way to skip the server requirements check from
+# outside the install flow. A system process can create this
+# file before the server is downloaded and installed.
+#
+# This check is duplicated between code-server-linux.sh and here
+# since remote container calls into this script directly quite early
+# before the usual server startup flow.
+if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
+	echo "!!! WARNING: Skipping server pre-requisite check !!!"
+	echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
+	exit 0
+fi
+
 BITNESS=$(getconf LONG_BIT)
 ARCH=$(uname -m)
 found_required_glibc=0
 found_required_glibcxx=0
 
 # Extract the ID value from /etc/os-release
-OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed 's/ID=//')"
+OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed -n '1s/ID=//p')"
 if [ "$OS_ID" = "nixos" ]; then
   echo "Warning: NixOS detected, skipping GLIBC check"
   exit 0
@@ -64,7 +78,7 @@ if [ -n "$libstdcpp_path" ]; then
     fi
 fi
 
-if [ -n "$(ldd --version | grep -v musl)" ]; then
+if [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
     if [ -f /usr/lib64/libc.so.6 ]; then
         # Typical path
         libc_path='/usr/lib64/libc.so.6'
@@ -96,7 +110,16 @@ if [ -n "$(ldd --version | grep -v musl)" ]; then
         fi
     fi
 else
-    echo "Warning: musl detected, skipping GLIBC check"
+    if [ "$OS_ID" = "alpine" ]; then
+        musl_version=$(ldd --version 2>&1 | grep "Version" | awk '{print $NF}')
+        if [ "$(printf '%s\n' "1.2.3" "$musl_version" | sort -V | head -n1)" != "1.2.3" ]; then
+            echo "Error: Unsupported alpine distribution. Please refer to our supported distro section https://aka.ms/vscode-remote/linux for additional information."
+            exit 99
+        fi
+    else
+        echo "Warning: musl detected, skipping GLIBC check"
+    fi
+
     found_required_glibc=1
 fi
 
