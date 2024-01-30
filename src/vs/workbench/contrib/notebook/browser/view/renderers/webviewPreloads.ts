@@ -1394,20 +1394,50 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		try {
-			const image = $window.document.getElementById(outputId)?.querySelector('img')
-				?? $window.document.getElementById(altOutputId)?.querySelector('img');
+			const outputElement = $window.document.getElementById(outputId)
+				?? $window.document.getElementById(altOutputId);
+			let image = outputElement?.querySelector('img');
+
+			if (!image) {
+				const svgs = outputElement?.querySelectorAll('svg')
+					?? outputElement?.querySelectorAll('svg');
+
+				if (svgs) {
+					let SvgElement: SVGSVGElement | undefined = undefined;
+
+					const svgArray = Array.from(svgs);
+					for (let i = 0; i < svgArray.length; i++) {
+						let candidate = svgArray[i].parentElement;
+						while (candidate && candidate !== outputElement) {
+							if (svgArray[i].tagName.toLowerCase() === 'button') {
+								continue;
+							}
+							candidate = candidate.parentElement;
+						}
+						SvgElement = svgArray[i];
+					}
+
+					if (SvgElement) {
+						image = new Image();
+						// Set the Image object's src to the SVG data
+						image.src = 'data:image/svg+xml,' + encodeURIComponent(SvgElement.outerHTML);
+					}
+				}
+			}
+
 			if (image) {
+				const imageToCopy = image;
 				await navigator.clipboard.write([new ClipboardItem({
 					'image/png': new Promise((resolve) => {
 						const canvas = document.createElement('canvas');
-						if (canvas !== null) {
-							canvas.width = image.naturalWidth;
-							canvas.height = image.naturalHeight;
-							const context = canvas.getContext('2d');
-							context?.drawImage(image, 0, 0);
-						}
+						canvas.width = imageToCopy.naturalWidth;
+						canvas.height = imageToCopy.naturalHeight;
+						const context = canvas.getContext('2d');
+						context?.drawImage(imageToCopy, 0, 0);
+
 						canvas.toBlob((blob) => {
 							if (blob) {
+								console.log(`image blob size ${blob.size}, type: ${blob.type}`);
 								resolve(blob);
 							}
 							canvas.remove();
@@ -1417,6 +1447,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
+
 		} catch (e) {
 			console.error('Could not copy image:', e);
 		}
