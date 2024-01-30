@@ -140,7 +140,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
+	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePattern: string, maxResults: number | null, shouldUseExcludes: boolean, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 
@@ -148,11 +148,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			includeFolder ? [includeFolder] : workspace.folders,
 			{
 				maxResults: maxResults ?? undefined,
-				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
+				disregardExcludeSettings: shouldUseExcludes,
 				disregardSearchExcludeSettings: true,
 				disregardIgnoreFiles: true,
 				includePattern: includePattern ?? undefined,
-				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
+				excludePattern: excludePattern,
 				_reason: 'startFileSearch'
 			});
 

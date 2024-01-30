@@ -446,17 +446,47 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	findFiles(include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
-		let excludePatternOrDisregardExcludes: string | false | undefined = undefined;
-		if (exclude === null) {
-			excludePatternOrDisregardExcludes = false;
-		} else if (exclude) {
+		let excludeString: string = '';
+		let disregardExcludes = false;
+		if (exclude === undefined) {
+			disregardExcludes = true;
+		} else if (exclude !== null) {
 			if (typeof exclude === 'string') {
-				excludePatternOrDisregardExcludes = exclude;
+				excludeString = exclude;
 			} else {
-				excludePatternOrDisregardExcludes = exclude.pattern;
+				excludeString = exclude.pattern;
 			}
 		}
+		return this._findFilesImpl(include, excludeString, maxResults, extensionId, disregardExcludes, token);
+	}
 
+	findFiles2(include: vscode.GlobPattern | undefined,
+		exclude: vscode.GlobPattern | {
+			useDefaultExclude: boolean;
+			additionalExclude?: vscode.GlobPattern | undefined;
+		} | undefined,
+		maxResults: number | undefined,
+		extensionId: ExtensionIdentifier,
+		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+		const globToStr = (glob: vscode.GlobPattern): string => {
+			if (glob instanceof vscode.RelativePattern) {
+				return glob.pattern;
+			} else {
+				return glob;
+			}
+		};
+		let excludeString: string = '';
+		let disregardExcludes = false;
+		if (exclude instanceof vscode.RelativePattern || typeof exclude === 'string') {
+			excludeString = globToStr(exclude);
+		} else {
+			excludeString = globToStr(exclude?.additionalExclude ?? '');
+			disregardExcludes = exclude?.useDefaultExclude ?? false;
+		}
+		return this._findFilesImpl(include, excludeString, maxResults, extensionId, disregardExcludes, token);
+	}
+
+	private _findFilesImpl(include: vscode.GlobPattern | undefined, exclude: string, maxResults: number | undefined, extensionId: ExtensionIdentifier, shouldUseExcludes: boolean = false, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		if (token && token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
@@ -465,8 +495,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._proxy.$startFileSearch(
 			includePattern ?? null,
 			folder ?? null,
-			excludePatternOrDisregardExcludes ?? null,
+			exclude,
 			maxResults ?? null,
+			shouldUseExcludes,
 			token
 		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);

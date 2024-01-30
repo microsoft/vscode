@@ -938,6 +938,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// Note, undefined/null have different meanings on "exclude"
 				return extHostWorkspace.findFiles(include, exclude, maxResults, extension.identifier, token);
 			},
+			findFiles2: (include, exclude, maxResults?, token?) => {
+				return extHostWorkspace.findFiles2(include, exclude, maxResults, extension.identifier, token);
+			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'findTextInFiles');
 				let options: vscode.FindTextInFilesOptions;
