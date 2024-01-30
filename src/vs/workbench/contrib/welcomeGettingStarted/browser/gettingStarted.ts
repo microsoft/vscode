@@ -1440,6 +1440,7 @@ export class GettingStartedPage extends EditorPane {
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
 							'role': 'checkbox',
 							'tabindex': '0',
+							'aria-checked': step.done ? 'true' : 'false'
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
