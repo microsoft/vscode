@@ -209,12 +209,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	private readonly isAlertEnabledCache = new Cache((event: { readonly cue: AudioCue; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-				e.affectsConfiguration(event.cue.settingsKey)
+				e.affectsConfiguration(event.cue.alertSettingsKey!)
 			),
 			() => event.cue.alertSettingsKey ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(event.cue.alertSettingsKey) : false
 		);
 		return derived(reader => {
-			/** @description audio cue enabled */
+			/** @description alert enabled */
 			const setting = settingObservable.read(reader);
 			if (
 				!this.screenReaderAttached.read(reader)
@@ -226,6 +226,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}, JSON.stringify);
 
 	public isAlertEnabled(cue: AudioCue, userGesture?: boolean): boolean {
+		if (!cue.alertSettingsKey) {
+			return false;
+		}
 		return this.isAlertEnabledCache.get({ cue, userGesture }).get() ?? false;
 	}
 
