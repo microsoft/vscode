@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { EndOfLinePreference, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
@@ -307,7 +307,7 @@ export class InlineCompletionsModel extends Disposable {
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			const edits = this._getEdits(editor, completion.toSingleTextEdit());
-			editor.executeEdits('inlineSuggestion.accept', [...edits.edits, ...completion.additionalTextEdits]);
+			editor.executeEdits('inlineSuggestion.accept', [...edits.edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)), ...completion.additionalTextEdits]);
 			editor.setSelections(edits.editorSelections, 'inlineCompletionAccept');
 		}
 
@@ -414,7 +414,7 @@ export class InlineCompletionsModel extends Disposable {
 				);
 				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
 				const edits = this._getEdits(editor, singleTextEdit);
-				editor.executeEdits('inlineSuggestion.accept', edits.edits);
+				editor.executeEdits('inlineSuggestion.accept', edits.edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
 				editor.setSelections(edits.editorSelections, 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
@@ -435,7 +435,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	private _getEdits(editor: ICodeEditor, completion: SingleTextEdit): { edits: IIdentifiedSingleEditOperation[]; editorSelections: Selection[] } {
+	private _getEdits(editor: ICodeEditor, completion: SingleTextEdit): { edits: SingleTextEdit[]; editorSelections: Selection[] } {
 
 		const selections = editor.getSelections() ?? [];
 		const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
@@ -447,81 +447,68 @@ export class InlineCompletionsModel extends Disposable {
 		const secondaryEditText = completion.text.substring(primaryPosition.column - completion.range.startColumn);
 		const primaryEdit = EditOperation.replaceMove(completion.range, completion.text);
 		const edits = [
-			primaryEdit,
+			new SingleTextEdit(completion.range, completion.text),
 			...secondaryPositions.map(pos => {
 				const textAfterSecondaryCursor = this.textModel
 					.getLineContent(pos.lineNumber)
 					.substring(pos.column - 1);
 				const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
 				const range = Range.fromPositions(pos, pos.delta(0, l));
-				return EditOperation.replaceMove(range, secondaryEditText);
+				return new SingleTextEdit(range, secondaryEditText);
 			})
 		];
-
-		// editor selections
-		let numberOfLinesAdded = 0;
-		const sortedEdits = edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-		let primarySelection: Selection | undefined = undefined;
-		const editorSelections: Selection[] = [];
-
-		for (let i = 0; i < sortedEdits.length; i++) {
-			const edit = sortedEdits[i];
-			const text = edit.text!;
-			const numberOfLinesOfText = splitLines(text).length;
-			// But we want to remove from that the number of lines that were previously used
-			const numberOfLinesOfRange = edit.range.endLineNumber - edit.range.startLineNumber;
-			numberOfLinesAdded += numberOfLinesOfText - numberOfLinesOfRange - 1;
-
-			let numberOfColumnsAdded = 0;
-			if (numberOfLinesOfText === 1) {
-				// If only one line of text is added, then it could be we need to update also the column of the final editor selection
-				const otherEditsEndingOnSameLine = sortedEdits.slice(0, i).filter(edit => edit.range.endLineNumber === i);
-				if (otherEditsEndingOnSameLine.length > 0) {
-					// If there are other edits with range end line number ending on the same line then need to update the column
-					for (let j = otherEditsEndingOnSameLine.length - 1; j >= 0; j--) {
-						// need to iterate in reverse order, in case the next text has a new line
-						const otherEdit = otherEditsEndingOnSameLine[j];
-						const otherEditText = splitLines(otherEdit.text!);
-						if (otherEditText.length === 1) {
-							numberOfColumnsAdded += otherEditText[otherEditText.length - 1].length - otherEdit.range.endColumn;
-							break;
-						} else {
-							numberOfColumnsAdded += otherEditText.length - (otherEdit.range.endColumn - otherEdit.range.startColumn);
-						}
-					}
-				}
-			}
-			console.log('numberOfLinesAdded', numberOfLinesAdded);
-			console.log('numberOfColumnsAdded : ', numberOfColumnsAdded);
-
-			const editorSelection = Selection.fromPositions(
-				addPositions(
-					Position.lift({ lineNumber: edit.range.startLineNumber + numberOfLinesAdded, column: edit.range.startColumn + numberOfColumnsAdded }),
-					lengthOfText(edit.text ?? '')
-				)
-			);
-			if (edit === primaryEdit) {
-				primarySelection = editorSelection;
-			} else {
-				editorSelections.push(editorSelection);
-			}
-		}
-
-		editorSelections.unshift(primarySelection!);
-
-		/*
-		const editorSelections = edits.map(edit => Selection.fromPositions(
+		const positions = this._getEditStartPositions(edits);
+		const editorSelections = edits.map((edit: SingleTextEdit, index: number) => Selection.fromPositions(
 			addPositions(
-				Position.lift({ lineNumber: edit.range.startLineNumber, column: edit.range.startColumn }),
+				positions[index],
 				lengthOfText(edit.text ?? '')
 			)
 		));
-		*/
+		* /
 
 		return {
 			edits,
 			editorSelections
 		};
+	}
+
+	private _getEditStartPositions(edits: SingleTextEdit[]): Position[] {
+
+		if (!edits.length) {
+			return [];
+		}
+
+		const primaryEdit = edits[0];
+		const sortedEdits = edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		const indexOfPrimaryEdit = sortedEdits.indexOf(primaryEdit);
+		const editStartPositions = sortedEdits.map(edit => edit.range.getStartPosition());
+
+		for (let i = 0; i < sortedEdits.length; i++) {
+
+			const edit = sortedEdits[i];
+			const splitText = splitLines(edit.text!);
+			const numberOfLinesToAdd = splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
+
+			for (let j = i + 1; j < editStartPositions.length; j++) {
+				const position = editStartPositions[j];
+				let columnDelta = 0;
+				if (position.lineNumber === edit.range.endLineNumber) {
+					let rangeLength;
+					if (edit.range.startLineNumber === edit.range.endLineNumber) {
+						rangeLength = edit.range.endColumn - edit.range.startColumn;
+					} else {
+						rangeLength = edit.range.endColumn;
+					}
+					const lastLineLength = splitText[splitText.length - 1].length;
+					columnDelta += lastLineLength - rangeLength;
+				}
+				editStartPositions[j] = position.delta(numberOfLinesToAdd, columnDelta);
+			}
+		}
+
+		const primaryPosition = editStartPositions.splice(indexOfPrimaryEdit, 1)[0];
+		editStartPositions.unshift(primaryPosition);
+		return editStartPositions;
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
