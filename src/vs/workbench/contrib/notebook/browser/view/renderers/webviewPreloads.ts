@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as DOM from 'vs/base/browser/window';
+import { promiseWithResolvers } from 'vs/base/common/async';
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
@@ -800,12 +801,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		getOutputItem(outputId: string, mime: string) {
 			const requestId = this._requestPool++;
 
-			let resolve: ((x: webviewMessages.OutputItemEntry | undefined) => void) | undefined;
-			const p = new Promise<webviewMessages.OutputItemEntry | undefined>(r => resolve = r);
-			this._requests.set(requestId, { resolve: resolve! });
+			const { promise, resolve } = promiseWithResolvers<webviewMessages.OutputItemEntry | undefined>();
+			this._requests.set(requestId, { resolve });
 
 			postNotebookMessage<webviewMessages.IGetOutputItemMessage>('getOutputItem', { requestId, outputId, mime });
-			return p;
+			return promise;
 		}
 
 		resolveOutputItem(requestId: number, output: webviewMessages.OutputItemEntry | undefined) {
@@ -2254,12 +2254,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.id = id;
 			this._content = { value: content, version: 0, metadata: metadata };
 
-			let resolve: () => void;
-			let reject: () => void;
-			this.ready = new Promise<void>((res, rej) => {
-				resolve = res;
-				reject = rej;
-			});
+			const { promise, resolve, reject } = promiseWithResolvers<void>();
+			this.ready = promise;
 
 			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
 			this.outputItem = Object.freeze<ExtendedOutputItem>({

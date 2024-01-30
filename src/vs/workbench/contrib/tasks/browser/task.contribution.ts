@@ -39,6 +39,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { isString } from 'vs/base/common/types';
+import { promiseWithResolvers } from 'vs/base/common/async';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -68,7 +69,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 
 	private _registerListeners(): void {
 		let promise: Promise<void> | undefined = undefined;
-		let resolver: (value?: void | Thenable<void>) => void;
+		let resolve: (value?: void | Thenable<void>) => void;
 		this._taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
 				this._updateRunningTasksStatus();
@@ -80,9 +81,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 						this._activeTasksCount++;
 						if (this._activeTasksCount === 1) {
 							if (!promise) {
-								promise = new Promise<void>((resolve) => {
-									resolver = resolve;
-								});
+								({ promise, resolve } = promiseWithResolvers<void>());
 							}
 						}
 						break;
@@ -92,8 +91,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 						if (this._activeTasksCount > 0) {
 							this._activeTasksCount--;
 							if (this._activeTasksCount === 0) {
-								if (promise && resolver!) {
-									resolver!();
+								if (promise && resolve) {
+									resolve!();
 								}
 							}
 						}
@@ -101,8 +100,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 					case TaskEventKind.Terminated:
 						if (this._activeTasksCount !== 0) {
 							this._activeTasksCount = 0;
-							if (promise && resolver!) {
-								resolver!();
+							if (promise && resolve) {
+								resolve!();
 							}
 						}
 						break;
