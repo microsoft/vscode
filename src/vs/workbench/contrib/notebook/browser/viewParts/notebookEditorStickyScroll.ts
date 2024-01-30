@@ -437,33 +437,28 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 			return new Map();
 		}
 
-		if (!entry.parent) {
-			// if the cell is a top level header, only render once we have scrolled past the bottom of the cell
-			// todo: (polish) figure out what padding value to use here. need to account properly for bottom insert cell toolbar, cell toolbar, and md cell bottom padding
-			if (sectionBottom > editorScrollTop) {
-				return new Map();
-			}
+		const nextCell = notebookEditor.cellAt(currentIndex + 1);
+		if (!nextCell) {
+			const sectionBottom = notebookEditor.getLayoutInfo().scrollHeight;
+			const linesToRender = Math.floor((sectionBottom) / 22);
+			const newMap = NotebookStickyScroll.checkCollapsedStickyLines(cellEntry, linesToRender, notebookEditor);
+			return newMap;
 		}
-	}
+		const nextCellEntry = NotebookStickyScroll.getVisibleOutlineEntry(currentIndex + 1, notebookOutlineEntries);
+		if (!nextCellEntry) {
+			return new Map();
+		}
 
-	// if we are here, the cell is a code cell.
-	// check next cell, if markdown, that means this is the end of the section
-	if (nextCell && i + 1 < visibleRange.end) {
-		if (nextCell.cellKind === CellKind.Markup) {
-			// this is the end of the section
-			// store the bottom scroll position of this cell
-			sectionBottom = notebookCellList.getCellViewScrollBottom(cell);
-			// compute sticky scroll height
-			const entry = NotebookStickyScroll.getVisibleOutlineEntry(i, notebookOutlineEntries);
-			if (!entry) {
-				return new Map();
-			}
-			// check if we can render this section of sticky
-			const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(entry!);
+		// check next cell, if markdown with non level 7 entry, that means this is the end of the section (new header) ---------------------
+		if (nextCell.cellKind === CellKind.Markup && nextCellEntry.level !== 7) {
+			const sectionBottom = notebookCellList.getCellViewScrollTop(nextCell);
+			const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(cellEntry);
+			const nextSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(nextCellEntry);
+
+			// case: we can render the all sticky lines for the current section ------------------------------------------------------------
 			if (editorScrollTop + currentSectionStickyHeight < sectionBottom) {
 				const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
-				let newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> = new Map();
-				newMap = NotebookStickyScroll.renderStickyLines(entry, domNode, linesToRender, newMap, notebookEditor);
+				const newMap = NotebookStickyScroll.checkCollapsedStickyLines(cellEntry, linesToRender, notebookEditor);
 				return newMap;
 			}
 
