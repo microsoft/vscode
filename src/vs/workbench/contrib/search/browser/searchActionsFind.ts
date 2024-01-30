@@ -54,7 +54,7 @@ export interface IFindInFilesArgs {
 registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.RestrictSearchToFolderId,
+			id: Constants.SearchCommandIds.RestrictSearchToFolderId,
 			title: {
 				value: nls.localize('restrictResultsToFolder', "Restrict Search to Folder"),
 				original: 'Restrict Search to Folder'
@@ -62,7 +62,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ResourceFolderFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ResourceFolderFocusKey),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
 			},
 			menu: [
@@ -70,7 +70,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 					id: MenuId.SearchContext,
 					group: 'search',
 					order: 3,
-					when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
+					when: ContextKeyExpr.and(Constants.SearchContext.ResourceFolderFocusKey)
 				}
 			]
 		});
@@ -83,7 +83,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ExcludeFolderFromSearchId,
+			id: Constants.SearchCommandIds.ExcludeFolderFromSearchId,
 			title: {
 				value: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search"),
 				original: 'Exclude Folder from Search'
@@ -94,7 +94,7 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 					id: MenuId.SearchContext,
 					group: 'search',
 					order: 4,
-					when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
+					when: ContextKeyExpr.and(Constants.SearchContext.ResourceFolderFocusKey)
 				}
 			]
 		});
@@ -109,7 +109,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.RevealInSideBarForSearchResults,
+			id: Constants.SearchCommandIds.RevealInSideBarForSearchResults,
 			title: {
 				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
 				original: 'Reveal in Explorer View'
@@ -117,7 +117,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
-				when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
+				when: ContextKeyExpr.and(Constants.SearchContext.FileFocusKey, Constants.SearchContext.HasSearchResults),
 				group: 'search_3',
 				order: 1
 			}]
@@ -167,7 +167,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.FindInFilesActionId,
+			id: Constants.SearchCommandIds.FindInFilesActionId,
 			title: {
 				value: nls.localize('findInFiles', "Find in Files"),
 				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
@@ -221,7 +221,7 @@ registerAction2(class FindInFolderAction extends Action2 {
 	// from explorer
 	constructor() {
 		super({
-			id: Constants.FindInFolderId,
+			id: Constants.SearchCommandIds.FindInFolderId,
 			title: {
 				value: nls.localize('findInFolder', "Find in Folder..."),
 				original: 'Find in Folder...'
@@ -251,7 +251,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 	// from explorer
 	constructor() {
 		super({
-			id: Constants.FindInWorkspaceId,
+			id: Constants.SearchCommandIds.FindInWorkspaceId,
 			title: {
 				value: nls.localize('findInWorkspace', "Find in Workspace..."),
 				original: 'Find in Workspace...'

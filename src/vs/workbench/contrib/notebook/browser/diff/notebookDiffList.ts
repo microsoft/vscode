@@ -26,7 +26,7 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -35,10 +35,11 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Di
 	private readonly lineHeight: number;
 
 	constructor(
+		targetWindow: Window,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
 	}
 
 	getHeight(element: DiffElementViewModelBase): number {

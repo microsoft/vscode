@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/par
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1171,28 +1171,16 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return 1;
 		}
 
-		if (isSCMViewSeparator(one)) {
-			if (!isSCMHistoryItemGroupTreeElement(other) && !isSCMResourceGroup(other)) {
-				throw new Error('Invalid comparison');
-			}
-
-			return 0;
+		if (isSCMResourceGroup(one)) {
+			return isSCMResourceGroup(other) ? 0 : -1;
 		}
 
-		if (isSCMResourceGroup(one)) {
-			if (!isSCMResourceGroup(other)) {
-				throw new Error('Invalid comparison');
-			}
-
-			return 0;
+		if (isSCMViewSeparator(one)) {
+			return isSCMResourceGroup(other) ? 1 : -1;
 		}
 
 		if (isSCMHistoryItemGroupTreeElement(one)) {
-			if (!isSCMHistoryItemGroupTreeElement(other) && !isSCMResourceGroup(other) && !isSCMViewSeparator(other)) {
-				throw new Error('Invalid comparison');
-			}
-
-			return 0;
+			return isSCMHistoryItemGroupTreeElement(other) ? 0 : 1;
 		}
 
 		if (isSCMHistoryItemTreeElement(one)) {
@@ -1651,8 +1639,7 @@ abstract class RepositorySortAction extends ViewAction<SCMViewPane> {
 					group: '1_sort'
 				},
 				{
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', REPOSITORIES_VIEW_PANE_ID),
+					id: MenuId.SCMSourceControlTitle,
 					group: '1_sort',
 				},
 			]
@@ -2027,7 +2014,7 @@ class SCMInputWidgetEditorOptions {
 
 		// editor.wordWrap
 		const wordWrapConfig = this.configurationService.inspect('editor.wordWrap', { overrideIdentifier: 'scminput' });
-		const wordWrap = wordWrapConfig.overrideIdentifiers?.includes('scminput') ? EditorOptions.wordWrap.validate(wordWrapConfig) : 'on';
+		const wordWrap = wordWrapConfig.overrideIdentifiers?.includes('scminput') ? EditorOptions.wordWrap.validate(wordWrapConfig.value) : 'on';
 
 		return { rulers, wordWrap };
 	}
@@ -3019,11 +3006,13 @@ export class SCMViewPane extends ViewPane {
 		const element = e.element;
 		let context: any = element;
 		let actions: IAction[] = [];
+		let actionRunner: IActionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryContextMenu;
 			context = element.provider;
+			actionRunner = new RepositoryActionRunner(() => this.getSelectedRepositories());
 			actions = collectContextMenuActions(menu);
 		} else if (isSCMInput(element) || isSCMActionButton(element)) {
 			// noop
@@ -3045,11 +3034,18 @@ export class SCMViewPane extends ViewPane {
 				const menu = menus.getResourceFolderMenu(element.context);
 				actions = collectContextMenuActions(menu);
 			}
+		} else if (isSCMHistoryItemGroupTreeElement(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
+			const menu = element.direction === 'incoming' ?
+				menus.historyProviderMenu?.incomingHistoryItemGroupContextMenu :
+				menus.historyProviderMenu?.outgoingHistoryItemGroupContextMenu;
+
+			if (menu) {
+				actionRunner = new HistoryItemGroupActionRunner();
+				createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
+			}
 		}
 
-		const actionRunner = isSCMRepository(element) ?
-			new RepositoryActionRunner(() => this.getSelectedRepositories()) :
-			new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		actionRunner.onWillRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({

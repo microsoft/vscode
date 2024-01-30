@@ -811,8 +811,12 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
-		run: async (c, accessor) => {
+		run: async (c, accessor, args) => {
 			let icon: TerminalIcon | undefined;
+			if (c.groupService.lastAccessedMenu === 'inline-tab') {
+				getResourceOrActiveInstance(c, args)?.changeIcon();
+				return;
+			}
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
 				icon = await terminal.changeIcon(icon);
 			}
@@ -831,9 +835,13 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
-		run: async (c, accessor) => {
+		run: async (c, accessor, args) => {
 			let color: string | undefined;
 			let i = 0;
+			if (c.groupService.lastAccessedMenu === 'inline-tab') {
+				getResourceOrActiveInstance(c, args)?.changeColor();
+				return;
+			}
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
 				const skipQuickPick = i !== 0;
 				// Always show the quickpick on the first iteration
@@ -1726,7 +1734,7 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	for (const selection of selections) {
 		result.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
 	}
-	return result;
+	return result.filter(r => !!r);
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {

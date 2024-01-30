@@ -49,7 +49,7 @@ suite('vscode API - debug', function () {
 		disposeAll(toDispose);
 	});
 
-	test.skip('start debugging', async function () {
+	test('start debugging', async function () {
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;
 		let initializedReceived: () => void;

@@ -24,7 +24,7 @@ import { IDiffEditor, IEditorContribution, IEditorDecorationsCollection } from '
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider, MultiDocumentHighlightProvider } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -65,6 +65,8 @@ export function getOccurrencesAcrossMultipleModels(registry: LanguageFeatureRegi
 	// (good = none empty array)
 	return first<ResourceMap<DocumentHighlight[]> | null | undefined>(orderedByScore.map(provider => () => {
 		const filteredModels = otherModels.filter(otherModel => {
+			return shouldSynchronizeModel(otherModel);
+		}).filter(otherModel => {
 			return score(provider.selector, otherModel.uri, otherModel.getLanguageId(), true, undefined, undefined) > 0;
 		});
 
@@ -489,6 +491,7 @@ class WordHighlighter {
 
 	private _stopAll(): void {
 		// Remove any existing decorations
+		// TODO: @Yoyokrazy - this triggers as notebooks scroll, causing highlights to disappear momentarily.
 		this._removeAllDecorations();
 
 		// Cancel any renderDecorationsTimer
@@ -606,7 +609,7 @@ class WordHighlighter {
 	private _run(): void {
 
 		let workerRequestIsValid;
-		if (!this.editor.hasWidgetFocus()) { // no focus (new nb cell, etc)
+		if (!this.editor.hasTextFocus()) { // no focus (new nb cell, etc)
 			if (WordHighlighter.query === null) {
 				// no previous query, nothing to highlight
 				return;

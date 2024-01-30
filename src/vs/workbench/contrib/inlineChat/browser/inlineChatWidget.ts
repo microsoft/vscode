@@ -41,7 +41,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ExpansionState, HunkData } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
@@ -54,7 +54,6 @@ import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { editorForeground, inputBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Lazy } from 'vs/base/common/lazy';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -246,7 +245,6 @@ export class InlineChatWidget {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -749,36 +747,32 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	async showEditsPreview(textModel0: ITextModel, textModelN: ITextModel) {
+	showEditsPreview(hunks: HunkData, textModel0: ITextModel, textModelN: ITextModel) {
 
-		this._elements.previewDiff.classList.remove('hidden');
-
-		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		if (!diff || diff.changes.length === 0) {
+		if (hunks.size === 0) {
 			this.hideEditsPreview();
 			return;
 		}
 
+		this._elements.previewDiff.classList.remove('hidden');
+
 		this._previewDiffEditor.value.setModel({ original: textModel0, modified: textModelN });
 
 		// joined ranges
-		let originalLineRange = diff.changes[0].original;
-		let modifiedLineRange = diff.changes[0].modified;
-		for (let i = 1; i < diff.changes.length; i++) {
-			originalLineRange = originalLineRange.join(diff.changes[i].original);
-			modifiedLineRange = modifiedLineRange.join(diff.changes[i].modified);
+		let originalLineRange: LineRange | undefined;
+		let modifiedLineRange: LineRange | undefined;
+		for (const item of hunks.getInfo()) {
+			const [first0] = item.getRanges0();
+			const [firstN] = item.getRangesN();
+
+			originalLineRange = !originalLineRange ? LineRange.fromRangeInclusive(first0) : originalLineRange.join(LineRange.fromRangeInclusive(first0));
+			modifiedLineRange = !modifiedLineRange ? LineRange.fromRangeInclusive(firstN) : modifiedLineRange.join(LineRange.fromRangeInclusive(firstN));
 		}
 
-		// apply extra padding
-		const pad = 3;
-		const newStartLine = Math.max(1, originalLineRange.startLineNumber - pad);
-		modifiedLineRange = new LineRange(newStartLine, modifiedLineRange.endLineNumberExclusive);
-		originalLineRange = new LineRange(newStartLine, originalLineRange.endLineNumberExclusive);
-
-		const newEndLineModified = Math.min(modifiedLineRange.endLineNumberExclusive + pad, textModelN.getLineCount());
-		modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, newEndLineModified);
-		const newEndLineOriginal = Math.min(originalLineRange.endLineNumberExclusive + pad, textModel0.getLineCount());
-		originalLineRange = new LineRange(originalLineRange.startLineNumber, newEndLineOriginal);
+		if (!originalLineRange || !modifiedLineRange) {
+			this.hideEditsPreview();
+			return;
+		}
 
 		const hiddenOriginal = invertLineRange(originalLineRange, textModel0);
 		const hiddenModified = invertLineRange(modifiedLineRange, textModelN);

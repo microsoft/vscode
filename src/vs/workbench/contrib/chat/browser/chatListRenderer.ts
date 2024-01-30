@@ -26,6 +26,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { FileAccess } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
+import { basename } from 'vs/base/common/path';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -39,11 +40,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind, FileType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -52,7 +51,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { annotateSpecialMarkdownContent, convertParsedRequestToMarkdown, extractVulnerabilitiesFromText, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
+import { ChatMarkdownDecorationsRenderer, annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -110,6 +109,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
 
 	private readonly renderer: MarkdownRenderer;
+	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
 
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatReplyFollowup>());
 	readonly onDidClickFollowup: Event<IChatReplyFollowup> = this._onDidClickFollowup.event;
@@ -139,12 +139,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IProductService productService: IProductService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
@@ -342,7 +341,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (isRequestVM(element)) {
 			const markdown = 'kind' in element.message ?
 				element.message.message :
-				convertParsedRequestToMarkdown(element.message);
+				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
 			this.basicRenderElement([{ content: new MarkdownString(markdown), kind: 'markdownContent' }], element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
@@ -528,8 +527,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return true;
 		}
 
-		disposables.clear();
-
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 		let isFullyRendered = false;
 		if (element.isCanceled) {
@@ -610,6 +607,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.clear();
 				this.basicRenderElement(renderableResponse, element, index, templateData);
 			} else if (!isFullyRendered) {
+				disposables.clear();
 				this.renderContentReferencesIfNeeded(element, templateData, disposables);
 				let hasRenderedOneMarkdownBlock = false;
 				partsToRender.forEach((partToRender, index) => {
@@ -879,7 +877,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
 
-		walkTreeAndAnnotateReferenceLinks(result.element, this.keybindingService);
+		this.markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element);
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {
@@ -1164,6 +1162,17 @@ class ContentReferencesListPool extends Disposable {
 			[new ContentReferencesListRenderer(resourceLabels)],
 			{
 				alwaysConsumeMouseWheel: false,
+				accessibilityProvider: {
+					getAriaLabel: (element: IChatContentReference) => {
+						if (URI.isUri(element.reference)) {
+							return basename(element.reference.path);
+						} else {
+							return basename(element.reference.uri.path);
+						}
+					},
+
+					getWidgetAriaLabel: () => localize('usedReferences', "Used References")
+				},
 			});
 
 		return list;

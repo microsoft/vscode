@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionBar, ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -40,6 +39,7 @@ import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '
 import { Codicon } from 'vs/base/common/codicons';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { clamp } from 'vs/base/common/numbers';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -60,6 +60,8 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private readonly stopActionViewItemDisposables = this._register(new DisposableStore());
 	/** coordinate of the debug toolbar per aux window */
 	private readonly auxWindowCoordinates = new WeakMap<CodeWindow, { x: number; y: number | undefined }>();
+
+	private readonly trackPixelRatioListener = this._register(new MutableDisposable());
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -185,7 +187,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.setYCoordinate()));
-		this._register(browser.PixelRatio.onDidChange(() => this.setYCoordinate()));
 
 		const resizeListener = this._register(new MutableDisposable());
 
@@ -196,7 +197,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			// `then` clause to avoid any races due to quickly switching windows.
 			this.layoutService.whenActiveContainerStylesLoaded.then(() => {
 				if (this.isBuilt) {
-					this.layoutService.activeContainer.appendChild(this.$el);
+					this.doShowInActiveContainer();
 					this.setCoordinates();
 				}
 
@@ -311,12 +312,17 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.layoutService.activeContainer.appendChild(this.$el);
+			this.doShowInActiveContainer();
 		}
 
 		this.isVisible = true;
 		dom.show(this.$el);
 		this.setCoordinates();
+	}
+
+	private doShowInActiveContainer(): void {
+		this.layoutService.activeContainer.appendChild(this.$el);
+		this.trackPixelRatioListener.value = PixelRatio.getInstance(dom.getWindow(this.$el)).onDidChange(() => this.setYCoordinate());
 	}
 
 	private hide(): void {

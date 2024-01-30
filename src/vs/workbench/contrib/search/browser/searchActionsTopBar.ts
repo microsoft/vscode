@@ -26,7 +26,7 @@ registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.ClearSearchHistoryCommandId,
+			id: Constants.SearchCommandIds.ClearSearchHistoryCommandId,
 			title: {
 				value: nls.localize('clearSearchHistoryLabel', "Clear Search History"),
 				original: 'Clear Search History'
@@ -45,7 +45,7 @@ registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
 registerAction2(class CancelSearchAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.CancelSearchActionId,
+			id: Constants.SearchCommandIds.CancelSearchActionId,
 			title: {
 				value: nls.localize('CancelSearchAction.label', "Cancel Search"),
 				original: 'Cancel Search'
@@ -56,7 +56,7 @@ registerAction2(class CancelSearchAction extends Action2 {
 			precondition: SearchStateKey.isEqualTo(SearchUIState.Idle).negate(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, WorkbenchListFocusContextKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, WorkbenchListFocusContextKey),
 				primary: KeyCode.Escape,
 			},
 			menu: [{
@@ -75,13 +75,13 @@ registerAction2(class CancelSearchAction extends Action2 {
 registerAction2(class RefreshAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.RefreshSearchResultsActionId,
+			id: Constants.SearchCommandIds.RefreshSearchResultsActionId,
 			title: {
 				value: nls.localize('RefreshAction.label', "Refresh"),
 				original: 'Refresh'
 			},
 			icon: searchRefreshIcon,
-			precondition: Constants.ViewHasSearchPatternKey,
+			precondition: Constants.SearchContext.ViewHasSearchPatternKey,
 			category,
 			f1: true,
 			menu: [{
@@ -100,7 +100,7 @@ registerAction2(class RefreshAction extends Action2 {
 registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.CollapseSearchResultsActionId,
+			id: Constants.SearchCommandIds.CollapseSearchResultsActionId,
 			title: {
 				value: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
 				original: 'Collapse All'
@@ -108,12 +108,12 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 			category,
 			icon: searchCollapseAllIcon,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.HasSearchResults.negate(), Constants.ViewHasSomeCollapsibleKey)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.SearchContext.HasSearchResults.negate(), Constants.SearchContext.ViewHasSomeCollapsibleKey)),
 			}]
 		});
 	}
@@ -125,7 +125,7 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 registerAction2(class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ExpandSearchResultsActionId,
+			id: Constants.SearchCommandIds.ExpandSearchResultsActionId,
 			title: {
 				value: nls.localize('ExpandAllAction.label', "Expand All"),
 				original: 'Expand All'
@@ -133,12 +133,12 @@ registerAction2(class ExpandAllAction extends Action2 {
 			category,
 			icon: searchExpandAllIcon,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey.toNegated()),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey.toNegated()),
 			}]
 		});
 	}
@@ -150,7 +150,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 registerAction2(class ClearSearchResultsAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ClearSearchResultsActionId,
+			id: Constants.SearchCommandIds.ClearSearchResultsActionId,
 			title: {
 				value: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
 				original: 'Clear Search Results'
@@ -158,7 +158,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 			category,
 			icon: searchClearIcon,
 			f1: true,
-			precondition: ContextKeyExpr.or(Constants.HasSearchResults, Constants.ViewHasSearchPatternKey, Constants.ViewHasReplacePatternKey, Constants.ViewHasFilePatternKey),
+			precondition: ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSearchPatternKey, Constants.SearchContext.ViewHasReplacePatternKey, Constants.SearchContext.ViewHasFilePatternKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -176,7 +176,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 registerAction2(class ViewAsTreeAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ViewAsTreeActionId,
+			id: Constants.SearchCommandIds.ViewAsTreeActionId,
 			title: {
 				value: nls.localize('ViewAsTreeAction.label', "View as Tree"),
 				original: 'View as Tree'
@@ -184,12 +184,12 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 			category,
 			icon: searchShowAsList,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.InTreeViewKey.toNegated()),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.InTreeViewKey.toNegated()),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.InTreeViewKey.toNegated()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.InTreeViewKey.toNegated()),
 			}]
 		});
 	}
@@ -204,7 +204,7 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 registerAction2(class ViewAsListAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ViewAsListActionId,
+			id: Constants.SearchCommandIds.ViewAsListActionId,
 			title: {
 				value: nls.localize('ViewAsListAction.label', "View as List"),
 				original: 'View as List'
@@ -212,12 +212,12 @@ registerAction2(class ViewAsListAction extends Action2 {
 			category,
 			icon: searchShowAsTree,
 			f1: true,
-			precondition: ContextKeyExpr.and(Constants.HasSearchResults, Constants.InTreeViewKey),
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.InTreeViewKey),
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.InTreeViewKey),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.InTreeViewKey),
 			}]
 		});
 	}

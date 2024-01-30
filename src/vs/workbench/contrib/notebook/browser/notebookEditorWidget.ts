@@ -17,11 +17,10 @@ import 'vs/css!./media/notebookCellOutput';
 import 'vs/css!./media/notebookEditorStickyScroll';
 import 'vs/css!./media/notebookKernelActionViewItem';
 import 'vs/css!./media/notebookOutline';
-
-import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, SequencerByKey } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -102,6 +101,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 const $ = DOM.$;
 
@@ -579,7 +579,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
+		const targetWindow = DOM.getWindow(this.getDomNode());
+		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
 	}
 
 	private _createBody(parent: HTMLElement): void {
@@ -890,7 +891,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._register(renderer);
 		});
 
-		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate);
+		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate, DOM.getWindow(this.getDomNode()));
 		this._register(this._listDelegate);
 
 		const createNotebookAriaLabel = () => {
@@ -1079,7 +1080,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					return;
 				}
 
-				if (this._dimension) {
+				if (this._dimension && this._isVisible) {
 					if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
 						this.layout(this._dimension);
 						this.setScrollTop(this.scrollTop + sizeDelta);
@@ -1374,7 +1375,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				throw new Error('Notebook output webview object is not created successfully.');
 			}
 
-			await this._webview.createWebview();
+			await this._webview.createWebview(this.creationOptions.codeWindow ?? mainWindow);
 			if (!this._webview.webview) {
 				throw new Error('Notebook output webview element was not created successfully.');
 			}
@@ -2362,6 +2363,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		cell.focusedOutputId = undefined;
+
 		if (focusItem === 'editor') {
 			this.focusElement(cell);
 			this._list.focusView();
@@ -2407,6 +2410,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
+			cell.focusedOutputId = options?.outputId;
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
 			}

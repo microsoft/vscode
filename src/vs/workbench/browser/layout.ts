@@ -126,8 +126,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangeZenMode = this._register(new Emitter<boolean>());
 	readonly onDidChangeZenMode = this._onDidChangeZenMode.event;
 
-	private readonly _onDidChangeCenteredLayout = this._register(new Emitter<boolean>());
-	readonly onDidChangeCenteredLayout = this._onDidChangeCenteredLayout.event;
+	private readonly _onDidChangeMainEditorCenteredLayout = this._register(new Emitter<boolean>());
+	readonly onDidChangeMainEditorCenteredLayout = this._onDidChangeMainEditorCenteredLayout.event;
 
 	private readonly _onDidChangePanelAlignment = this._register(new Emitter<PanelAlignment>());
 	readonly onDidChangePanelAlignment = this._onDidChangePanelAlignment.event;
@@ -338,7 +338,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
-			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
+			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
 		});
 
 		// Configuration changes
@@ -371,9 +371,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(onDidChangeFullscreen(windowId => this.onFullscreenChanged(windowId)));
 
 		// Group changes
-		this._register(this.editorGroupService.mainPart.onDidAddGroup(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
-		this._register(this.editorGroupService.mainPart.onDidRemoveGroup(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
-		this._register(this.editorGroupService.mainPart.onDidChangeGroupMaximized(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
+		this._register(this.editorGroupService.mainPart.onDidAddGroup(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
+		this._register(this.editorGroupService.mainPart.onDidRemoveGroup(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
+		this._register(this.editorGroupService.mainPart.onDidChangeGroupMaximized(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
 
 		// Prevent workbench from scrolling #55456
 		this._register(addDisposableListener(this.mainContainer, EventType.SCROLL, () => this.mainContainer.scrollTop = 0));
@@ -511,7 +511,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Centered Layout
 		this.editorGroupService.whenRestored.then(() => {
-			this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
+			this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED), skipLayout);
 		});
 	}
 
@@ -700,13 +700,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
 			}
-		}
-
-		// Activity bar cannot be hidden
-		// This check must be called after state is set
-		// because canActivityBarBeHidden calls isVisible
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
-			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
 		}
 
 		// Window border
@@ -1076,7 +1069,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Restore Main Editor Center Mode
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED)) {
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED)) {
 			this.centerMainEditorLayout(true, true);
 		}
 
@@ -1638,11 +1631,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isMainEditorLayoutCentered(): boolean {
-		return this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED);
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED);
 	}
 
 	centerMainEditorLayout(active: boolean, skipLayout?: boolean): void {
-		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_CENTERED, active);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED, active);
 
 		const activeMainEditor = this.mainPartEditorService.activeEditor;
 
@@ -1669,7 +1662,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		this._onDidChangeCenteredLayout.fire(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED));
+		this._onDidChangeMainEditorCenteredLayout.fire(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED));
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
@@ -1742,16 +1735,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		if (hidden && !this.canActivityBarBeHidden()) {
-			return;
-		}
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
-	}
-
-	private canActivityBarBeHidden(): boolean {
-		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
 	private setBannerHidden(hidden: boolean): void {
@@ -2564,7 +2550,7 @@ class InitializationStateKey<T extends StorageKeyType> extends WorkbenchLayoutSt
 const LayoutStateKeys = {
 
 	// Editor
-	EDITOR_CENTERED: new RuntimeStateKey<boolean>('editor.centered', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	MAIN_EDITOR_CENTERED: new RuntimeStateKey<boolean>('editor.centered', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 
 	// Zen Mode
 	ZEN_MODE_ACTIVE: new RuntimeStateKey<boolean>('zenMode.active', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),

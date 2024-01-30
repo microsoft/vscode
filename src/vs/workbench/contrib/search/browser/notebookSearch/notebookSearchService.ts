@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from 'vs/base/common/cancellation';
+import * as glob from 'vs/base/common/glob';
 import { ResourceSet, ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -12,13 +13,16 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
-import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
+import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, pathIncludedInQuery, ISearchService, IFolderQuery } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
+import { INotebookExclusiveDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 interface IOpenNotebookSearchResults {
 	results: ResourceMap<INotebookFileMatchWithModel | null>;
@@ -30,16 +34,19 @@ interface IClosedNotebookSearchResults {
 }
 export class NotebookSearchService implements INotebookSearchService {
 	declare readonly _serviceBrand: undefined;
+	private queryBuilder: QueryBuilder;
 	constructor(
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
+		this.queryBuilder = instantiationService.createInstance(QueryBuilder);
 	}
-
 
 	notebookSearch(query: ITextQuery, token: CancellationToken | undefined, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
 		openFilesToScan: ResourceSet;
@@ -109,14 +116,38 @@ export class NotebookSearchService implements INotebookSearchService {
 		};
 	}
 
+	private async doesFileExist(includes: string[], folderQueries: IFolderQuery<URI>[], token: CancellationToken): Promise<boolean> {
+		const promises: Promise<void>[] = includes.map(async includePattern => {
+			const query = this.queryBuilder.file(folderQueries.map(e => e.folder), {
+				includePattern: includePattern.startsWith('/') ? includePattern : '**/' + includePattern, // todo: find cleaner way to ensure that globs match all appropriate filetypes
+				exists: true
+			});
+			return this.searchService.fileSearch(
+				query,
+				token
+			).then((ret) => {
+				if (!ret.limitHit) {
+					throw Error('File not found');
+				}
+			});
+		});
+
+		return Promise.any(promises).then(() => true).catch(() => false);
+	}
+
 	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<IClosedNotebookSearchResults> {
 
 		const userAssociations = this.editorResolverService.getAllUserAssociations();
 		const allPriorityInfo: Map<string, NotebookPriorityInfo[]> = new Map();
 		const contributedNotebookTypes = this.notebookService.getContributedNotebookTypes();
 
+
 		userAssociations.forEach(association => {
 
+			// we gather the editor associations here, but cannot check them until we actually have the files that the glob matches
+			// this is because longer patterns take precedence over shorter ones, and even if there is a user association that
+			// specifies the exact same glob as a contributed notebook type, there might be another user association that is longer/more specific
+			// that still matches the path and should therefore take more precedence.
 			if (!association.filenamePattern) {
 				return;
 			}
@@ -140,14 +171,26 @@ export class NotebookSearchService implements INotebookSearchService {
 		} | undefined>[] = [];
 
 		contributedNotebookTypes.forEach((notebook) => {
-			promises.push((async () => {
-				const canResolve = await this.notebookService.canResolve(notebook.id);
-				if (!canResolve) {
-					return undefined;
-				}
-				const serializer = (await this.notebookService.withNotebookDataProvider(notebook.id)).serializer;
-				return await serializer.searchInNotebooks(textQuery, token, allPriorityInfo);
-			})());
+			if (notebook.selectors.length > 0) {
+				promises.push((async () => {
+					const includes = notebook.selectors.map((selector) => {
+						const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
+						return globPattern.toString();
+					});
+
+					const isInWorkspace = await this.doesFileExist(includes, textQuery.folderQueries, token);
+					if (isInWorkspace) {
+						const canResolve = await this.notebookService.canResolve(notebook.id);
+						if (!canResolve) {
+							return undefined;
+						}
+						const serializer = (await this.notebookService.withNotebookDataProvider(notebook.id)).serializer;
+						return await serializer.searchInNotebooks(textQuery, token, allPriorityInfo);
+					} else {
+						return undefined;
+					}
+				})());
+			}
 		});
 
 		const start = Date.now();

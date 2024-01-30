@@ -1077,6 +1077,10 @@ class StandaloneAudioService implements IAudioCueService {
 		return Event.None;
 	}
 
+	onAlertEnabledChanged(cue: AudioCue): Event<void> {
+		return Event.None;
+	}
+
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
 	playAudioCueLoop(cue: AudioCue): IDisposable {

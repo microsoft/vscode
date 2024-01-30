@@ -17,6 +17,7 @@ import { variablesViewIcon } from 'vs/workbench/contrib/notebook/browser/noteboo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
@@ -34,7 +35,7 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 	}
 
 	private handleInitEvent(configurationService: IConfigurationService) {
-		if (configurationService.getValue('notebook.experimental.notebookVariablesView')
+		if (configurationService.getValue(NotebookSetting.notebookVariablesView)
 			&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
 			if (this.initializeView()) {
 				this.listeners.forEach(listener => listener.dispose());
