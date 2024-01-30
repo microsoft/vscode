@@ -129,7 +129,7 @@ interface IWorkbenchContributionRegistration {
 	readonly ctor: IConstructorSignature<IWorkbenchContribution>;
 }
 
-class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
 
 	private static readonly BLOCK_BEFORE_RESTORE_WARN_THRESHOLD = 20;
 	private static readonly BLOCK_AFTER_RESTORE_WARN_THRESHOLD = 100;
@@ -172,7 +172,11 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 
 			// by id
 			if (typeof id === 'string') {
-				this.contributionsById.set(id, contribution);
+				if (!this.contributionsById.has(id)) {
+					this.contributionsById.set(id, contribution);
+				} else {
+					console.error(`IWorkbenchContributionsRegistry#registerWorkbenchContribution(): Can't register multiple contributions with same id '${id}'`);
+				}
 			}
 		}
 	}
