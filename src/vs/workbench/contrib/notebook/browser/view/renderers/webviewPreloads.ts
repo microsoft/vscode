@@ -1403,24 +1403,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 					?? outputElement?.querySelectorAll('svg');
 
 				if (svgs) {
-					let SvgElement: SVGSVGElement | undefined = undefined;
-
 					const svgArray = Array.from(svgs);
-					for (let i = 0; i < svgArray.length; i++) {
-						let candidate = svgArray[i].parentElement;
+					const matches = svgArray.filter(svg => {
+						let candidate = svg.parentElement;
 						while (candidate && candidate !== outputElement) {
-							if (svgArray[i].tagName.toLowerCase() === 'button') {
-								continue;
+							// Some buttons are added in the jupyter extension's image renderer that use SVGs
+							// so filter those out
+							if (candidate.tagName.toLowerCase() === 'button') {
+								return false;
 							}
 							candidate = candidate.parentElement;
 						}
-						SvgElement = svgArray[i];
-					}
+						return true;
+					});
 
-					if (SvgElement) {
+					if (matches && matches.length > 0) {
 						image = new Image();
-						// Set the Image object's src to the SVG data
-						image.src = 'data:image/svg+xml,' + encodeURIComponent(SvgElement.outerHTML);
+						image.src = 'data:image/svg+xml,' + encodeURIComponent(matches[0].outerHTML);
 					}
 				}
 			}
@@ -1437,7 +1436,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 						canvas.toBlob((blob) => {
 							if (blob) {
-								console.log(`image blob size ${blob.size}, type: ${blob.type}`);
 								resolve(blob);
 							}
 							canvas.remove();

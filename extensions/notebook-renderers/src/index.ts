@@ -86,6 +86,13 @@ function injectTitleForSvg(outputInfo: OutputItem, element: HTMLElement) {
 			const title = document.createElement('title');
 			title.innerText = altText;
 			svgElement.prepend(title);
+			svgElement.classList.add('output-image');
+
+			svgElement.setAttribute('data-vscode-context', JSON.stringify({
+				webviewSection: 'image',
+				outputId: outputInfo.id,
+				'preventDefaultContextMenuItems': true
+			}));
 		}
 	}
 }
