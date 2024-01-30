@@ -28,7 +28,7 @@
 
 	[z-index] 	[kind]
 			12  drag and drop overlay
-			11 	scrollbar
+			11 	scrollbar / tabs dnd border
 			10	active-tab border-bottom
 			9	tabs, title border bottom
 			8	sticky-tab
@@ -461,14 +461,16 @@
 
 /* Drag and drop target */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after ,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-right::before {
 	content: "";
 	position: absolute;
 	top: 0;
 	height: 100%;
 	width: 1px;
+	background-color: var(--vscode-tab-dragAndDropBorder);
 	pointer-events: none;
+	z-index: 11;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-right::before {
@@ -482,12 +484,7 @@
 /* Make drop target edge cases more visible (wrapped tabs & first/last) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(:last-child)::after {
-	right: 1px;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-right:first-child:before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row + .tab.drop-target-right::before {
-	left: 1px;
+	right: 0px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left::after,

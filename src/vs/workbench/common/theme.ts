@@ -182,14 +182,14 @@ export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorde
 
 //#endregion
 
-//#region Tab Drag and Drop Indicator
+//#region Tab Drag and Drop Border
 
-export const TAB_DRAG_AND_DROP_BETWEEEN_INDICATOR = registerColor('tab.dragAndDropBetweenIndicator', {
-	dark: TAB_INACTIVE_FOREGROUND,
-	light: TAB_INACTIVE_FOREGROUND,
+export const TAB_DRAG_AND_DROP_BORDER = registerColor('tab.dragAndDropBorder', {
+	dark: TAB_ACTIVE_FOREGROUND,
+	light: TAB_ACTIVE_FOREGROUND,
 	hcDark: activeContrastBorder,
 	hcLight: activeContrastBorder
-}, localize('tabDragAndDropBetweenIndicator', "Indicator between tabs to indicate that a tab can be dropped between two tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('tabDragAndDropBorder', "Border between tabs to indicate that a tab can be inserted between two tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 //#endregion
 
