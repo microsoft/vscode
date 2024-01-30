@@ -30,7 +30,7 @@ export function convertParsedRequestToMarkdown(accessor: ServicesAccessor, parse
 				|| undefined;
 			const title = uri ? encodeURIComponent(labelService.getUriLabel(uri, { relative: true })) : '';
 
-			result += `[${part.text}](${variableRefUrl}${title})`;
+			result += `[${part.text}](${variableRefUrl}?${title})`;
 		}
 	}
 
@@ -44,7 +44,7 @@ export function walkTreeAndAnnotateReferenceLinks(accessor: ServicesAccessor, el
 		const href = a.getAttribute('data-href');
 		if (href) {
 			if (href.startsWith(variableRefUrl)) {
-				const title = decodeURIComponent(href.slice(variableRefUrl.length));
+				const title = decodeURIComponent(href.slice(variableRefUrl.length + 1));
 				a.parentElement!.replaceChild(
 					renderResourceWidget(a.textContent!, title),
 					a);
