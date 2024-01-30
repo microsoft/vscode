@@ -456,13 +456,8 @@ export class InlineCompletionsModel extends Disposable {
 				return new SingleTextEdit(range, secondaryEditText);
 			})
 		];
-		const positions = this._getEditStartPositions(edits);
-		const editorSelections = edits.map((edit: SingleTextEdit, index: number) => Selection.fromPositions(
-			addPositions(
-				positions[index],
-				lengthOfText(edit.text ?? '')
-			)
-		));
+		const newRanges = this._getNewRanges(edits);
+		const editorSelections = newRanges.map(range => Selection.fromPositions(range.getEndPosition()));
 
 		return {
 			edits,
@@ -470,27 +465,48 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	}
 
-	private _getEditStartPositions(edits: SingleTextEdit[]): Position[] {
+	// todo: extract this function into a separate place, write some tests for this function
+	// todo: investigate that bug, that we previously saw inside of test 21, there appears to be a logical error somewhere that needs to be resolved
+	private _getNewRanges(edits: SingleTextEdit[]): Range[] {
 
-		if (!edits.length) {
+		if (edits.length === 0) {
 			return [];
 		}
 
-		const primaryEdit = edits[0];
-		const sortedEdits = edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-		const indexOfPrimaryEdit = sortedEdits.indexOf(primaryEdit);
-		const editStartPositions = sortedEdits.map(edit => edit.range.getStartPosition());
+		const sortIndices = Array.from(edits.keys()).sort((a, b) =>
+			Range.compareRangesUsingStarts(edits[a].range, edits[b].range)
+		);
+		const indexOfEdit = sortIndices.indexOf(0);
+		const firstEdit = edits[indexOfEdit];
+		const firstEditStartPosition = firstEdit.range.getStartPosition();
+		const rangesMap = new Map<number, Range>([[
+			0, Range.fromPositions(
+				firstEditStartPosition,
+				addPositions(
+					firstEdit.range.getStartPosition(),
+					lengthOfText(firstEdit.text)
+				))
+		]]);
 
-		for (let i = 0; i < sortedEdits.length; i++) {
+		for (let i = 0; i < edits.length; i++) {
 
-			const edit = sortedEdits[i];
+			const indexOfEdit = sortIndices.indexOf(i);
+			const edit = edits[indexOfEdit];
+			if (!edit) {
+				return [];
+			}
 			const splitText = splitLines(edit.text!);
 			const numberOfLinesToAdd = splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
 
-			for (let j = i + 1; j < editStartPositions.length; j++) {
-				const position = editStartPositions[j];
+			for (let j = i + 1; j < edits.length; j++) {
+				const indexOfEdit = sortIndices.indexOf(j);
+				const affectedEdit = edits[indexOfEdit];
+				const affectedRange = rangesMap.get(j) ?? affectedEdit?.range;
+				if (!affectedRange || !affectedEdit) {
+					return [];
+				}
 				let columnDelta = 0;
-				if (position.lineNumber === edit.range.endLineNumber) {
+				if (affectedRange.startLineNumber === edit.range.endLineNumber) {
 					let rangeLength;
 					if (edit.range.startLineNumber === edit.range.endLineNumber) {
 						rangeLength = edit.range.endColumn - edit.range.startColumn;
@@ -499,13 +515,20 @@ export class InlineCompletionsModel extends Disposable {
 					}
 					columnDelta = splitText[splitText.length - 1].length - rangeLength;
 				}
-				editStartPositions[j] = position.delta(numberOfLinesToAdd, columnDelta);
+				const rangeStart = affectedRange.getStartPosition().delta(numberOfLinesToAdd, columnDelta);
+				const rangeEnd = addPositions(
+					rangeStart,
+					lengthOfText(affectedEdit.text)
+				);
+				rangesMap.set(j, Range.fromPositions(rangeStart, rangeEnd));
 			}
 		}
 
-		const primaryPosition = editStartPositions.splice(indexOfPrimaryEdit, 1)[0];
-		editStartPositions.unshift(primaryPosition);
-		return editStartPositions;
+		const ranges = [];
+		for (let i = 0; i < edits.length; i++) {
+			ranges.push(rangesMap.get(i)!);
+		}
+		return ranges;
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
