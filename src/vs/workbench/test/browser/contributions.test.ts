@@ -80,6 +80,7 @@ suite('Contributions', () => {
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		accessor.lifecycleService.usePhases = true;
 		registry.start(instantiationService);
 
 		assert.throws(() => registry.getWorkbenchContribution('a'));
@@ -116,6 +117,7 @@ suite('Contributions', () => {
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		accessor.lifecycleService.usePhases = true;
 		accessor.lifecycleService.phase = LifecyclePhase.Restored;
 
 		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.BlockRestore);
@@ -130,6 +132,7 @@ suite('Contributions', () => {
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		accessor.lifecycleService.usePhases = true;
 		registry.start(instantiationService);
 
 		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.AfterRestored);

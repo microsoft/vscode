@@ -1310,6 +1310,7 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 	declare readonly _serviceBrand: undefined;
 
+	usePhases = false;
 	_phase!: LifecyclePhase;
 	get phase(): LifecyclePhase { return this._phase; }
 	set phase(value: LifecyclePhase) {
@@ -1330,6 +1331,9 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 	private readonly whenRestored = new DeferredPromise<void>();
 	private readonly whenEventually = new DeferredPromise<void>();
 	async when(phase: LifecyclePhase): Promise<void> {
+		if (!this.usePhases) {
+			return;
+		}
 		if (phase === LifecyclePhase.Starting) {
 			await this.whenStarted.p;
 		} else if (phase === LifecyclePhase.Ready) {
