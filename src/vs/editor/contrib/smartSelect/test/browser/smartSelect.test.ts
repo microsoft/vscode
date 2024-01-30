@@ -19,6 +19,7 @@ import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class StaticLanguageSelector implements ILanguageSelection {
 	readonly onDidChange: Event<string> = Event.None;
@@ -63,6 +64,8 @@ suite('SmartSelect', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
 		const uri = URI.file('test.js');

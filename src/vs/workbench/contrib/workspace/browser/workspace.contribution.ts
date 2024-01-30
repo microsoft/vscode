@@ -222,7 +222,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
  */
 export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchContribution {
 
-	private readonly entryId = `status.workspaceTrust.${this.workspaceContextService.getWorkspace().id}`;
+	private readonly entryId = `status.workspaceTrust`;
 
 	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
@@ -253,7 +253,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 			if (this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 				this.registerListeners();
-				this.createStatusbarEntry();
+				this.updateStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 				// Show modal dialog
 				if (this.hostService.hasFocus) {
@@ -555,12 +555,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	//#region Statusbar
 
-	private createStatusbarEntry(): void {
-		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkspaceTrusted());
-		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
-		this.statusbarService.updateEntryVisibility(this.entryId, false);
-	}
-
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
 
@@ -625,8 +619,15 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private updateStatusbarEntry(trusted: boolean): void {
-		this.statusbarEntryAccessor.value?.update(this.getStatusbarEntry(trusted));
-		this.statusbarService.updateEntryVisibility(this.entryId, !trusted);
+		if (trusted && this.statusbarEntryAccessor.value) {
+			this.statusbarEntryAccessor.clear();
+			return;
+		}
+
+		if (!trusted && !this.statusbarEntryAccessor.value) {
+			const entry = this.getStatusbarEntry(trusted);
+			this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+		}
 	}
 
 	//#endregion

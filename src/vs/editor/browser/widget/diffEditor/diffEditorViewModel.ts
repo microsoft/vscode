@@ -170,15 +170,20 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					.map(id => model.modified.getDecorationRange(id))
 					.map(r => r ? LineRange.fromRangeInclusive(r) : undefined);
 				const updatedLastUnchangedRegions = filterWithPrevious(
-					lastUnchangedRegions.regions.map((r, idx) =>
-						(!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) ? undefined :
-							new UnchangedRegion(
+					lastUnchangedRegions.regions
+						.map((r, idx) => {
+							if (!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) { return undefined; }
+							const length = lastUnchangedRegionsOrigRanges[idx]!.length;
+							return new UnchangedRegion(
 								lastUnchangedRegionsOrigRanges[idx]!.startLineNumber,
 								lastUnchangedRegionsModRanges[idx]!.startLineNumber,
-								lastUnchangedRegionsOrigRanges[idx]!.length,
-								r.visibleLineCountTop.get(),
-								r.visibleLineCountBottom.get(),
-							)).filter(isDefined),
+								length,
+								// The visible area can shrink by edits -> we have to account for this
+								Math.min(r.visibleLineCountTop.get(), length),
+								Math.min(r.visibleLineCountBottom.get(), length - r.visibleLineCountTop.get()),
+							);
+						}
+						).filter(isDefined),
 					(cur, prev) => !prev || (cur.modifiedLineNumber >= prev.modifiedLineNumber + prev.lineCount && cur.originalLineNumber >= prev.originalLineNumber + prev.lineCount)
 				);
 

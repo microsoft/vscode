@@ -287,10 +287,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for single modifier chord keybindings (e.g. shift shift)
 		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			if (this._keybindingHoldMode) {
-				this._keybindingHoldMode.complete();
-				this._keybindingHoldMode = null;
-			}
+			this._resetKeybindingHoldMode();
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
@@ -405,8 +402,21 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return undefined;
 		}
 		this._keybindingHoldMode = new DeferredPromise<void>();
+		const focusTracker = dom.trackFocus(dom.getWindow(undefined));
+		const listener = focusTracker.onDidBlur(() => this._resetKeybindingHoldMode());
+		this._keybindingHoldMode.p.finally(() => {
+			listener.dispose();
+			focusTracker.dispose();
+		});
 		this._log(`+ Enabled hold-mode for ${commandId}.`);
 		return this._keybindingHoldMode.p;
+	}
+
+	private _resetKeybindingHoldMode(): void {
+		if (this._keybindingHoldMode) {
+			this._keybindingHoldMode?.complete();
+			this._keybindingHoldMode = null;
+		}
 	}
 
 	public override customKeybindingsCount(): number {

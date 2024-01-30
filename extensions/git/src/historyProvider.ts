@@ -133,7 +133,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			historyItemChanges.push({
 				uri: historyItemUri,
 				originalUri: toGitUri(change.originalUri, historyItemParentId),
-				modifiedUri: toGitUri(change.originalUri, historyItemId),
+				modifiedUri: toGitUri(change.uri, historyItemId),
 				renameUri: change.renameUri,
 			});
 

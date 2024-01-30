@@ -52,7 +52,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			[LayoutSettings.EDITOR_ACTIONS_LOCATION]: {
 				'type': 'string',
 				'enum': [EditorActionsLocation.DEFAULT, EditorActionsLocation.TITLEBAR, EditorActionsLocation.HIDDEN],
-				'enumDescriptions': [
+				'markdownEnumDescriptions': [
 					localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'workbench.editor.editorActionsLocation.default' }, "Show editor actions in the window title bar when {0} is set to {1}. Otherwise, editor actions are shown in the editor tab bar.", '`#workbench.editor.showTabs#`', '`none`'),
 					localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'workbench.editor.editorActionsLocation.titleBar' }, "Show editor actions in the window title bar. If {0} is set to {1}, editor actions are hidden.", '`#window.customTitleBarVisibility#`', '`never`'),
 					localize('workbench.editor.editorActionsLocation.hidden', "Editor actions are not shown."),
@@ -505,7 +505,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
 					localize('workbench.activityBar.location.hide', "Hide the Activity Bar.")
 				],
-				tags: ['FeatureInsight']
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',

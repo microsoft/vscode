@@ -83,7 +83,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	get onDidChangeActiveDebugSession(): Event<vscode.DebugSession | undefined> { return this._onDidChangeActiveDebugSession.event; }
 
 	private _activeDebugSession: ExtHostDebugSession | undefined;
-	get activeDebugSession(): ExtHostDebugSession | undefined { return this._activeDebugSession; }
+	get activeDebugSession(): vscode.DebugSession | undefined { return this._activeDebugSession?.api; }
 
 	private readonly _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
 	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
@@ -258,7 +258,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		}
 
 		const visualizations = await provider.provideDebugVisualization({
-			session,
+			session: session.api,
 			variable: context.variable,
 			containerId: context.containerId,
 			frameId: context.frameId,
@@ -691,9 +691,9 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		}
 
 		if (focusDto.kind === 'thread') {
-			focus = new ThreadFocus(session, focusDto.threadId);
+			focus = new ThreadFocus(session.api, focusDto.threadId);
 		} else {
-			focus = new StackFrameFocus(session, focusDto.threadId, focusDto.frameId);
+			focus = new StackFrameFocus(session.api, focusDto.threadId, focusDto.frameId);
 		}
 
 		this._stackFrameFocus = <vscode.ThreadFocus | vscode.StackFrameFocus>focus;
@@ -763,20 +763,20 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	public async $acceptDebugSessionStarted(sessionDto: IDebugSessionDto): Promise<void> {
 		const session = await this.getSession(sessionDto);
-		this._onDidStartDebugSession.fire(session);
+		this._onDidStartDebugSession.fire(session.api);
 	}
 
 	public async $acceptDebugSessionTerminated(sessionDto: IDebugSessionDto): Promise<void> {
 		const session = await this.getSession(sessionDto);
 		if (session) {
-			this._onDidTerminateDebugSession.fire(session);
+			this._onDidTerminateDebugSession.fire(session.api);
 			this._debugSessions.delete(session.id);
 		}
 	}
 
 	public async $acceptDebugSessionActiveChanged(sessionDto: IDebugSessionDto | undefined): Promise<void> {
 		this._activeDebugSession = sessionDto ? await this.getSession(sessionDto) : undefined;
-		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
+		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession?.api);
 	}
 
 	public async $acceptDebugSessionNameChanged(sessionDto: IDebugSessionDto, name: string): Promise<void> {
@@ -787,7 +787,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	public async $acceptDebugSessionCustomEvent(sessionDto: IDebugSessionDto, event: any): Promise<void> {
 		const session = await this.getSession(sessionDto);
 		const ee: vscode.DebugSessionCustomEvent = {
-			session: session,
+			session: session.api,
 			event: event.event,
 			body: event.body
 		};
@@ -874,7 +874,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		const promises = this._trackerFactories
 			.filter(tuple => tuple.type === type || tuple.type === '*')
-			.map(tuple => asPromise<vscode.ProviderResult<vscode.DebugAdapterTracker>>(() => tuple.factory.createDebugAdapterTracker(session)).then(p => p, err => null));
+			.map(tuple => asPromise<vscode.ProviderResult<vscode.DebugAdapterTracker>>(() => tuple.factory.createDebugAdapterTracker(session.api)).then(p => p, err => null));
 
 		return Promise.race([
 			Promise.all(promises).then(result => {
@@ -901,7 +901,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		if (adapterDescriptorFactory) {
 			const extensionRegistry = await this._extensionService.getExtensionRegistry();
-			return asPromise(() => adapterDescriptorFactory.createDebugAdapterDescriptor(session, this.daExecutableFromPackage(session, extensionRegistry))).then(daDescriptor => {
+			return asPromise(() => adapterDescriptorFactory.createDebugAdapterDescriptor(session.api, this.daExecutableFromPackage(session, extensionRegistry))).then(daDescriptor => {
 				if (daDescriptor) {
 					return daDescriptor;
 				}
@@ -940,7 +940,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				if (!ds) {
 					const folder = await this.getFolder(dto.folderUri);
 					const parent = dto.parent ? this._debugSessions.get(dto.parent) : undefined;
-					ds = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration, parent);
+					ds = new ExtHostDebugSession(this._debugServiceProxy, dto.id, dto.type, dto.name, folder, dto.configuration, parent?.api);
 					this._debugSessions.set(ds.id, ds);
 					this._debugServiceProxy.$sessionCached(ds.id);
 				}
@@ -1003,7 +1003,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 }
 
-export class ExtHostDebugSession implements vscode.DebugSession {
+export class ExtHostDebugSession {
 
 	constructor(
 		private _debugServiceProxy: MainThreadDebugServiceShape,
@@ -1015,6 +1015,30 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 		private _parentSession: vscode.DebugSession | undefined) {
 	}
 
+	public get api(): vscode.DebugSession {
+		const that = this;
+		return Object.freeze({
+			id: that._id,
+			type: that._type,
+			get name() {
+				return that._name;
+			},
+			set name(name: string) {
+				that._name = name;
+				that._debugServiceProxy.$setDebugSessionName(that._id, name);
+			},
+			parentSession: that._parentSession,
+			workspaceFolder: that._workspaceFolder,
+			configuration: that._configuration,
+			customRequest(command: string, args: any): Promise<any> {
+				return that._debugServiceProxy.$customDebugAdapterRequest(that._id, command, args);
+			},
+			getDebugProtocolBreakpoint(breakpoint: vscode.Breakpoint): Promise<vscode.DebugProtocolBreakpoint | undefined> {
+				return that._debugServiceProxy.$getDebugProtocolBreakpoint(that._id, breakpoint.id);
+			}
+		});
+	}
+
 	public get id(): string {
 		return this._id;
 	}
@@ -1023,36 +1047,12 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 		return this._type;
 	}
 
-	public get name(): string {
-		return this._name;
-	}
-	public set name(name: string) {
-		this._name = name;
-		this._debugServiceProxy.$setDebugSessionName(this._id, name);
-	}
-
-	public get parentSession(): vscode.DebugSession | undefined {
-		return this._parentSession;
-	}
-
 	_acceptNameChanged(name: string) {
 		this._name = name;
 	}
 
-	public get workspaceFolder(): vscode.WorkspaceFolder | undefined {
-		return this._workspaceFolder;
-	}
-
 	public get configuration(): vscode.DebugConfiguration {
 		return this._configuration;
-	}
-
-	public customRequest(command: string, args: any): Promise<any> {
-		return this._debugServiceProxy.$customDebugAdapterRequest(this._id, command, args);
-	}
-
-	public getDebugProtocolBreakpoint(breakpoint: vscode.Breakpoint): Promise<vscode.DebugProtocolBreakpoint | undefined> {
-		return this._debugServiceProxy.$getDebugProtocolBreakpoint(this._id, breakpoint.id);
 	}
 }
 

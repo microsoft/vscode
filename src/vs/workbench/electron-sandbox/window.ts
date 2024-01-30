@@ -332,7 +332,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Window Zoom
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.zoomLevel')) {
+			if (e.affectsConfiguration('window.zoomLevel') || (e.affectsConfiguration('window.zoomPerWindow') && this.configurationService.getValue('window.zoomPerWindow') === false)) {
 				this.onDidChangeConfiguredWindowZoomLevel();
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
@@ -1187,7 +1187,7 @@ class ZoomStatusEntry extends Disposable {
 
 	private updateZoomLevelLabel(targetWindowId: number): void {
 		if (this.zoomLevelLabel) {
-			const targetWindow = getWindowById(targetWindowId)?.window ?? mainWindow;
+			const targetWindow = getWindowById(targetWindowId, true).window;
 			const zoomFactor = Math.round(getZoomFactor(targetWindow) * 100);
 			const zoomLevel = getZoomLevel(targetWindow);
 
