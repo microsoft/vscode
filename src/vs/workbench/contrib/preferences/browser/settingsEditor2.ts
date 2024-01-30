@@ -627,9 +627,7 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
 			clearInputAction.enabled = !!searchVal;
-			this.searchInputDelayer.trigger(() => {
-				this.onSearchInputChanged();
-			});
+			this.searchInputDelayer.trigger(() => this.onSearchInputChanged());
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
