@@ -199,6 +199,11 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 			throw new Error(`IWorkbenchContributionsRegistry#getContribution('${id}'): contribution with that identifier is unknown.`);
 		}
 
+		const phase = lifecycleService.phase;
+		if (phase < LifecyclePhase.Restored) {
+			logService.warn(`IWorkbenchContributionsRegistry#getContribution('${id}'): lazy contribution instantiated before LifecyclePhase.Restored!`);
+		}
+
 		this.safeCreateContribution(instantiationService, logService, environmentService, contribution, lifecycleService.phase);
 		this.contributionsById.delete(id);
 
