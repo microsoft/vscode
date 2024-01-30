@@ -1396,31 +1396,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		try {
 			const outputElement = $window.document.getElementById(outputId)
 				?? $window.document.getElementById(altOutputId);
+
 			let image = outputElement?.querySelector('img');
 
 			if (!image) {
-				const svgs = outputElement?.querySelectorAll('svg')
-					?? outputElement?.querySelectorAll('svg');
-
-				if (svgs) {
-					const svgArray = Array.from(svgs);
-					const matches = svgArray.filter(svg => {
-						let candidate = svg.parentElement;
-						while (candidate && candidate !== outputElement) {
-							// Some buttons are added in the jupyter extension's image renderer that use SVGs
-							// so filter those out
-							if (candidate.tagName.toLowerCase() === 'button') {
-								return false;
-							}
-							candidate = candidate.parentElement;
-						}
-						return true;
-					});
-
-					if (matches && matches.length > 0) {
-						image = new Image();
-						image.src = 'data:image/svg+xml,' + encodeURIComponent(matches[0].outerHTML);
-					}
+				const svgImage = outputElement?.querySelector('svg.output-image');
+				if (svgImage) {
+					image = new Image();
+					image.src = 'data:image/svg+xml,' + encodeURIComponent(svgImage.outerHTML);
 				}
 			}
 
