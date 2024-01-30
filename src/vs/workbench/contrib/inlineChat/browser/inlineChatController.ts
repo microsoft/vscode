@@ -924,7 +924,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxLastFeedbackKind.reset();
 		this._ctxSupportIssueReporting.reset();
 
-		this._zone.value.hide();
+		this._zone.rawValue?.hide();
 
 		// Return focus to the editor only if the current focus is within the editor widget
 		if (this._editor.hasWidgetFocus()) {
