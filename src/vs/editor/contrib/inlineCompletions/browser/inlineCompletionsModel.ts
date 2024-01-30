@@ -308,7 +308,7 @@ export class InlineCompletionsModel extends Disposable {
 		} else {
 			const edits = this._getEdits(editor, completion.toSingleTextEdit());
 			editor.executeEdits('inlineSuggestion.accept', [...edits.edits, ...completion.additionalTextEdits]);
-			editor.setSelections(edits.editorSelections, 'inlineCompletionPartialAccept');
+			editor.setSelections(edits.editorSelections, 'inlineCompletionAccept');
 		}
 
 		if (completion.command) {
