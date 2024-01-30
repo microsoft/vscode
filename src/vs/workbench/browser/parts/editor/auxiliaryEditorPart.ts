@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeFullscreen } from 'vs/base/browser/browser';
-import { detectFullscreen, hide, show } from 'vs/base/browser/dom';
+import { isFullscreen, onDidChangeFullscreen } from 'vs/base/browser/browser';
+import { hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
+import { hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart, IEditorPartUIState } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -77,12 +77,6 @@ export class AuxiliaryEditorPart {
 				hide(statusbarPart.container);
 			}
 
-			updateEditorPartHeight(fromEvent);
-		}
-
-		function updateEditorPartHeight(fromEvent: boolean): void {
-			editorPartContainer.style.height = `calc(100% - ${computeEditorPartHeightOffset()}px)`;
-
 			if (fromEvent) {
 				auxiliaryWindow.layout();
 			}
@@ -107,13 +101,12 @@ export class AuxiliaryEditorPart {
 		// Titlebar
 		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
 		let titlebarPartVisible = false;
-		const useCustomTitle = isNative && getTitleBarStyle(this.configurationService) === 'custom'; // custom title in aux windows only enabled in native
+		const useCustomTitle = isNative && !hasNativeTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
 			titlebarPartVisible = true;
 
-			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
-
+			disposables.add(titlebarPart.onDidChange(() => auxiliaryWindow.layout()));
 			disposables.add(onDidChangeFullscreen(windowId => {
 				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
 					return; // ignore all but our window
@@ -122,13 +115,13 @@ export class AuxiliaryEditorPart {
 				// Make sure to hide the custom title when we enter
 				// fullscren mode and show it when we lave it.
 
-				const fullscreen = detectFullscreen(auxiliaryWindow.window);
+				const fullscreen = isFullscreen(auxiliaryWindow.window);
 				const oldTitlebarPartVisible = titlebarPartVisible;
 				titlebarPartVisible = !fullscreen;
 				if (titlebarPart && oldTitlebarPartVisible !== titlebarPartVisible) {
 					titlebarPart.container.style.display = titlebarPartVisible ? '' : 'none';
 
-					updateEditorPartHeight(true);
+					auxiliaryWindow.layout();
 				}
 			}));
 		} else {
@@ -161,8 +154,10 @@ export class AuxiliaryEditorPart {
 		}));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
-		// Layout
-		disposables.add(auxiliaryWindow.onDidLayout(dimension => {
+		// Layout: specifically `onWillLayout` to have a chance
+		// to build the aux editor part before other components
+		// have a chance to react.
+		disposables.add(auxiliaryWindow.onWillLayout(dimension => {
 			const titlebarPartHeight = titlebarPart?.height ?? 0;
 			titlebarPart?.layout(dimension.width, titlebarPartHeight, 0, 0);
 

@@ -594,6 +594,13 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
 		// noop
 	}
+
+	/**
+	 * not yet supported
+	 */
+	public override enableKeybindingHoldMode(commandId: string): Promise<void> | undefined {
+		return undefined;
+	}
 }
 
 class DomNodeListeners extends Disposable {
@@ -655,7 +662,6 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		if (changedKeys.length > 0) {
 			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
 			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
-			configurationChangeEvent.sourceConfig = null;
 			this._onDidChangeConfiguration.fire(configurationChangeEvent);
 		}
 
@@ -1068,6 +1074,10 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 
 	onEnabledChanged(cue: AudioCue): Event<void> {
+		return Event.None;
+	}
+
+	onAlertEnabledChanged(cue: AudioCue): Event<void> {
 		return Event.None;
 	}
 

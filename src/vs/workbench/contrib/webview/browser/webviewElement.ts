@@ -6,7 +6,7 @@
 import { isFirefox } from 'vs/base/browser/browser';
 import { addDisposableListener, EventType, getActiveWindow } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { promiseWithResolvers, ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -180,8 +180,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._element = this._createElement(initInfo.options, initInfo.contentOptions);
 
-
-		const subscription = this._register(addDisposableListener(getActiveWindow(), 'message', (e: MessageEvent) => {
+		const subscription = this._register(addDisposableListener(initInfo.codeWindow ?? getActiveWindow(), 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -419,9 +418,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	private async _send<K extends keyof ToWebviewMessage>(channel: K, data: ToWebviewMessage[K], _createElement: Transferable[] = []): Promise<boolean> {
 		if (this._state.type === WebviewState.Type.Initializing) {
-			let resolve: (x: boolean) => void;
-			const promise = new Promise<boolean>(r => resolve = r);
-			this._state.pendingMessages.push({ channel, data, transferable: _createElement, resolve: resolve! });
+			const { promise, resolve } = promiseWithResolvers<boolean>();
+			this._state.pendingMessages.push({ channel, data, transferable: _createElement, resolve });
 			return promise;
 		} else {
 			return this.doPostMessage(channel, data, _createElement);

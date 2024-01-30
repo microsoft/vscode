@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 
 export const IMultiDiffSourceResolverService = createDecorator<IMultiDiffSourceResolverService>('multiDiffSourceResolverService');
 
@@ -29,6 +30,8 @@ export interface IResolvedMultiDiffSource {
 	readonly resources: readonly MultiDiffEditorItem[];
 
 	readonly onDidChange: Event<void>;
+
+	readonly contextKeys?: Record<string, ContextKeyValue>;
 }
 
 export class ConstResolvedMultiDiffSource implements IResolvedMultiDiffSource {

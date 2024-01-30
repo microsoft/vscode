@@ -21,7 +21,7 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.CopyMatchCommandId,
+			id: Constants.SearchCommandIds.CopyMatchCommandId,
 			title: {
 				value: nls.localize('copyMatchLabel', "Copy"),
 				original: 'Copy'
@@ -29,12 +29,12 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: Constants.FileMatchOrMatchFocusKey,
+				when: Constants.SearchContext.FileMatchOrMatchFocusKey,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 			},
 			menu: [{
 				id: MenuId.SearchContext,
-				when: Constants.FileMatchOrMatchFocusKey,
+				when: Constants.SearchContext.FileMatchOrMatchFocusKey,
 				group: 'search_2',
 				order: 1
 			}]
@@ -52,7 +52,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.CopyPathCommandId,
+			id: Constants.SearchCommandIds.CopyPathCommandId,
 			title: {
 				value: nls.localize('copyPathLabel', "Copy Path"),
 				original: 'Copy Path'
@@ -60,7 +60,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
+				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
 				win: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
@@ -68,7 +68,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 			},
 			menu: [{
 				id: MenuId.SearchContext,
-				when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
+				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
 				group: 'search_2',
 				order: 2
 			}]
@@ -86,7 +86,7 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.CopyAllCommandId,
+			id: Constants.SearchCommandIds.CopyAllCommandId,
 			title: {
 				value: nls.localize('copyAllLabel', "Copy All"),
 				original: 'Copy All'
@@ -94,7 +94,7 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
-				when: Constants.HasSearchResults,
+				when: Constants.SearchContext.HasSearchResults,
 				group: 'search_2',
 				order: 3
 			}]

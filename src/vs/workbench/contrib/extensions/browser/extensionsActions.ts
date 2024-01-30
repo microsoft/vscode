@@ -55,7 +55,7 @@ import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
-import { errorIcon, infoIcon, manageExtensionIcon, preReleaseIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { isIOS, isWeb, language } from 'vs/base/common/platform';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -880,7 +880,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (this.extension.isBuiltin) {
 			return;
 		}
-		if (this.enableWhenOutdated && !this.extension.outdated) {
+		if (this.enableWhenOutdated && (this.extension.state !== ExtensionState.Installed || !this.extension.outdated)) {
 			return;
 		}
 		if (!this.enableWhenAutoUpdateValue.includes(this.extensionsWorkbenchService.getAutoUpdateValue())) {
@@ -1085,9 +1085,9 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 				cksOverlay.push(['extensionStatus', 'installed']);
 			}
 			cksOverlay.push(['installedExtensionIsPreReleaseVersion', !!extension.local?.isPreReleaseVersion]);
-			cksOverlay.push(['installedExtensionIsOptedTpPreRelease', !!extension.local?.preRelease]);
+			cksOverlay.push(['installedExtensionIsOptedToPreRelease', !!extension.local?.preRelease]);
 			cksOverlay.push(['galleryExtensionIsPreReleaseVersion', !!extension.gallery?.properties.isPreReleaseVersion]);
-			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
+			cksOverlay.push(['galleryExtensionHasPreReleaseVersion', extension.gallery?.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
 
 			const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes()]);
@@ -1267,55 +1267,63 @@ export class MenuItemExtensionAction extends ExtensionAction {
 	}
 }
 
-export class SwitchToPreReleaseVersionAction extends ExtensionAction {
+export class TogglePreReleaseExtensionAction extends ExtensionAction {
 
-	static readonly ID = 'workbench.extensions.action.switchToPreReleaseVersion';
-	static readonly TITLE = { value: localize('switch to pre-release version', "Switch to Pre-Release Version"), original: 'Switch to  Pre-Release Version' };
+	static readonly ID = 'workbench.extensions.action.togglePreRlease';
+	static readonly LABEL = localize('togglePreRleaseLabel', "Pre-Release");
+
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} pre-release`;
+	private static readonly DisabledClass = `${TogglePreReleaseExtensionAction.EnabledClass} hide`;
 
 	constructor(
-		icon: boolean,
-		@ICommandService private readonly commandService: ICommandService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
-		super(SwitchToPreReleaseVersionAction.ID, icon ? '' : SwitchToPreReleaseVersionAction.TITLE.value, `${icon ? ExtensionAction.ICON_ACTION_CLASS + ' ' + ThemeIcon.asClassName(preReleaseIcon) : ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled switch-to-prerelease`, true);
-		this.tooltip = localize('switch to pre-release version tooltip', "Switch to Pre-Release version of this extension");
+		super(TogglePreReleaseExtensionAction.ID, TogglePreReleaseExtensionAction.LABEL, TogglePreReleaseExtensionAction.DisabledClass);
 		this.update();
 	}
 
-	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !this.extension.local?.isPreReleaseVersion && !this.extension.local?.preRelease && this.extension.hasPreReleaseVersion && this.extension.state === ExtensionState.Installed;
+	override update() {
+		this.enabled = false;
+		this.class = TogglePreReleaseExtensionAction.DisabledClass;
+		if (!this.extension) {
+			return;
+		}
+		if (this.extension.isBuiltin) {
+			return;
+		}
+		if (this.extension.state !== ExtensionState.Installed) {
+			return;
+		}
+		if (!this.extension.hasPreReleaseVersion) {
+			return;
+		}
+		if (!this.extension.gallery) {
+			return;
+		}
+		if (this.extension.preRelease && !this.extension.isPreReleaseVersion) {
+			return;
+		}
+		if (!this.extension.preRelease && !this.extension.gallery.hasPreReleaseVersion) {
+			return;
+		}
+		this.enabled = true;
+		this.class = TogglePreReleaseExtensionAction.EnabledClass;
+
+		if (this.extension.preRelease) {
+			this.label = localize('togglePreRleaseDisableLabel', "Switch to Release Version");
+			this.tooltip = localize('togglePreRleaseDisableTooltip', "This will switch and enable updates to release versions");
+		} else {
+			this.label = localize('switchToPreReleaseLabel', "Switch to Pre-Release Version");
+			this.tooltip = localize('switchToPreReleaseTooltip', "This will switch to pre-release version and enable updates to latest version always");
+		}
 	}
 
 	override async run(): Promise<any> {
-		if (!this.enabled) {
+		if (!this.extension) {
 			return;
 		}
-		return this.commandService.executeCommand(SwitchToPreReleaseVersionAction.ID, this.extension?.identifier.id);
-	}
-}
-
-export class SwitchToReleasedVersionAction extends ExtensionAction {
-
-	static readonly ID = 'workbench.extensions.action.switchToReleaseVersion';
-	static readonly TITLE = localize2('switch to release version', 'Switch to Release Version');
-
-	constructor(
-		icon: boolean,
-		@ICommandService private readonly commandService: ICommandService,
-	) {
-		super(SwitchToReleasedVersionAction.ID, icon ? '' : SwitchToReleasedVersionAction.TITLE.value, `${icon ? ExtensionAction.ICON_ACTION_CLASS + ' ' + ThemeIcon.asClassName(preReleaseIcon) : ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled switch-to-released`);
-		this.tooltip = localize('switch to release version tooltip', "Switch to Release version of this extension");
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && this.extension.state === ExtensionState.Installed && !!this.extension.local?.isPreReleaseVersion && !!this.extension.hasReleaseVersion;
-	}
-
-	override async run(): Promise<any> {
-		if (!this.enabled) {
-			return;
-		}
-		return this.commandService.executeCommand(SwitchToReleasedVersionAction.ID, this.extension?.identifier.id);
+		this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: !this.extension.preRelease });
+		await this.extensionsWorkbenchService.togglePreRelease(this.extension);
 	}
 }
 

@@ -21,7 +21,7 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.ShowAllSymbolsActionId,
+			id: Constants.SearchCommandIds.ShowAllSymbolsActionId,
 			title: {
 				value: nls.localize('showTriggerActions', "Go to Symbol in Workspace..."),
 				original: 'Go to Symbol in Workspace...',

@@ -840,6 +840,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private conflictsActionDisposable = this._register(new MutableDisposable());
 	private registerShowConflictsAction(): void {
+		this.conflictsActionDisposable.value = undefined;
 		const that = this;
 		this.conflictsActionDisposable.value = registerAction2(class TurningOnSyncAction extends Action2 {
 			constructor() {

@@ -41,7 +41,6 @@ type ExtensionWorkspaceRecommendationsNotificationClassification = {
 
 const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/importantRecommendationsIgnore';
 const donotShowWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
-const choiceNever = localize('neverShowAgain', "Don't Show Again");
 
 type RecommendationsNotificationActions = {
 	onDidInstallRecommendedExtensions(extensions: IExtension[]): void;
@@ -258,14 +257,17 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 			searchValue = source === RecommendationSource.WORKSPACE ? '@recommended' : extensions.map(extensionId => `@id:${extensionId.identifier.id}`).join(' ');
 		}
 
+		const donotShowAgainLabel = source === RecommendationSource.WORKSPACE ? localize('donotShowAgain', "Don't Show Again for this Repository")
+			: extensions.length > 1 ? localize('donotShowAgainExtension', "Don't Show Again for these Extensions") : localize('donotShowAgainExtensionSingle', "Don't Show Again for this Extension");
+
 		return raceCancellablePromises([
-			this._registerP(this.showRecommendationsNotification(extensions, message, searchValue, source, recommendationsNotificationActions)),
+			this._registerP(this.showRecommendationsNotification(extensions, message, searchValue, donotShowAgainLabel, source, recommendationsNotificationActions)),
 			this._registerP(this.waitUntilRecommendationsAreInstalled(extensions))
 		]);
 
 	}
 
-	private showRecommendationsNotification(extensions: IExtension[], message: string, searchValue: string, source: RecommendationSource,
+	private showRecommendationsNotification(extensions: IExtension[], message: string, searchValue: string, donotShowAgainLabel: string, source: RecommendationSource,
 		{ onDidInstallRecommendedExtensions, onDidShowRecommendedExtensions, onDidCancelRecommendedExtensions, onDidNeverShowRecommendedExtensionsAgain }: RecommendationsNotificationActions): CancelablePromise<RecommendationsNotificationResult> {
 		return createCancelablePromise<RecommendationsNotificationResult>(async token => {
 			let accepted = false;
@@ -296,7 +298,7 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 					this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				}
 			}, {
-				label: choiceNever,
+				label: donotShowAgainLabel,
 				isSecondary: true,
 				run: () => {
 					onDidNeverShowRecommendedExtensionsAgain(extensions);

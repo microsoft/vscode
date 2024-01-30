@@ -30,7 +30,7 @@ import { getActiveElement } from 'vs/base/browser/dom';
 registerAction2(class ToggleQueryDetailsAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ToggleQueryDetailsActionId,
+			id: Constants.SearchCommandIds.ToggleQueryDetailsActionId,
 			title: {
 				value: nls.localize('ToggleQueryDetailsAction.label', "Toggle Query Details"),
 				original: 'Toggle Query Details'
@@ -38,7 +38,7 @@ registerAction2(class ToggleQueryDetailsAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.or(Constants.SearchViewFocusedKey, SearchEditorConstants.InSearchEditor),
+				when: ContextKeyExpr.or(Constants.SearchContext.SearchViewFocusedKey, SearchEditorConstants.InSearchEditor),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyJ,
 			},
 		});
@@ -47,7 +47,7 @@ registerAction2(class ToggleQueryDetailsAction extends Action2 {
 		const contextService = accessor.get(IContextKeyService).getContext(getActiveElement());
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
 			(accessor.get(IEditorService).activeEditorPane as SearchEditor).toggleQueryDetails(args[0]?.show);
-		} else if (contextService.getValue(Constants.SearchViewFocusedKey.serialize())) {
+		} else if (contextService.getValue(Constants.SearchContext.SearchViewFocusedKey.serialize())) {
 			const searchView = getSearchView(accessor.get(IViewsService));
 			assertIsDefined(searchView).toggleQueryDetails(undefined, args[0]?.show);
 		}
@@ -57,7 +57,7 @@ registerAction2(class ToggleQueryDetailsAction extends Action2 {
 registerAction2(class CloseReplaceAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.CloseReplaceWidgetActionId,
+			id: Constants.SearchCommandIds.CloseReplaceWidgetActionId,
 			title: {
 				value: nls.localize('CloseReplaceWidget.label', "Close Replace Widget"),
 				original: 'Close Replace Widget'
@@ -65,7 +65,7 @@ registerAction2(class CloseReplaceAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceInputBoxFocusedKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ReplaceInputBoxFocusedKey),
 				primary: KeyCode.Escape,
 			},
 		});
@@ -87,7 +87,7 @@ registerAction2(class ToggleCaseSensitiveCommandAction extends Action2 {
 	) {
 
 		super({
-			id: Constants.ToggleCaseSensitiveCommandId,
+			id: Constants.SearchCommandIds.ToggleCaseSensitiveCommandId,
 			title: {
 				value: nls.localize('ToggleCaseSensitiveCommandId.label', "Toggle Case Sensitive"),
 				original: 'Toggle Case Sensitive'
@@ -95,7 +95,7 @@ registerAction2(class ToggleCaseSensitiveCommandAction extends Action2 {
 			category,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: isMacintosh ? ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()) : Constants.SearchViewFocusedKey,
+				when: isMacintosh ? ContextKeyExpr.and(Constants.SearchContext.SearchViewFocusedKey, Constants.SearchContext.FileMatchOrFolderMatchFocusKey.toNegated()) : Constants.SearchContext.SearchViewFocusedKey,
 			}, ToggleCaseSensitiveKeybinding)
 
 		});
@@ -110,14 +110,14 @@ registerAction2(class ToggleCaseSensitiveCommandAction extends Action2 {
 registerAction2(class ToggleWholeWordCommandAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ToggleWholeWordCommandId,
+			id: Constants.SearchCommandIds.ToggleWholeWordCommandId,
 			title: {
 				value: nls.localize('ToggleWholeWordCommandId.label', 'Toggle Whole Word'),
 				original: 'Toggle Whole Word'
 			},
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: Constants.SearchViewFocusedKey,
+				when: Constants.SearchContext.SearchViewFocusedKey,
 			}, ToggleWholeWordKeybinding),
 			category,
 		});
@@ -131,14 +131,14 @@ registerAction2(class ToggleWholeWordCommandAction extends Action2 {
 registerAction2(class ToggleRegexCommandAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ToggleRegexCommandId,
+			id: Constants.SearchCommandIds.ToggleRegexCommandId,
 			title: {
 				value: nls.localize('ToggleRegexCommandId.label', 'Toggle Regex'),
 				original: 'Toggle Regex'
 			},
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: Constants.SearchViewFocusedKey,
+				when: Constants.SearchContext.SearchViewFocusedKey,
 			}, ToggleRegexKeybinding),
 			category,
 		});
@@ -152,14 +152,14 @@ registerAction2(class ToggleRegexCommandAction extends Action2 {
 registerAction2(class TogglePreserveCaseAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.TogglePreserveCaseId,
+			id: Constants.SearchCommandIds.TogglePreserveCaseId,
 			title: {
 				value: nls.localize('TogglePreserveCaseId.label', 'Toggle Preserve Case'),
 				original: 'Toggle Preserve Case'
 			},
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: Constants.SearchViewFocusedKey,
+				when: Constants.SearchContext.SearchViewFocusedKey,
 			}, TogglePreserveCaseKeybinding),
 			category,
 		});
@@ -175,7 +175,7 @@ registerAction2(class TogglePreserveCaseAction extends Action2 {
 registerAction2(class OpenMatchAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.OpenMatch,
+			id: Constants.SearchCommandIds.OpenMatch,
 			title: {
 				value: nls.localize('OpenMatch.label', "Open Match"),
 				original: 'Open Match'
@@ -183,7 +183,7 @@ registerAction2(class OpenMatchAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.FileMatchOrMatchFocusKey),
 				primary: KeyCode.Enter,
 				mac: {
 					primary: KeyCode.Enter,
@@ -211,7 +211,7 @@ registerAction2(class OpenMatchAction extends Action2 {
 registerAction2(class OpenMatchToSideAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.OpenMatchToSide,
+			id: Constants.SearchCommandIds.OpenMatchToSide,
 			title: {
 				value: nls.localize('OpenMatchToSide.label', "Open Match To Side"),
 				original: 'Open Match To Side'
@@ -219,7 +219,7 @@ registerAction2(class OpenMatchToSideAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.FileMatchOrMatchFocusKey),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyCode.Enter
@@ -239,14 +239,14 @@ registerAction2(class OpenMatchToSideAction extends Action2 {
 registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.AddCursorsAtSearchResults,
+			id: Constants.SearchCommandIds.AddCursorsAtSearchResults,
 			title: {
 				value: nls.localize('AddCursorsAtSearchResults.label', 'Add Cursors at Search Results'),
 				original: 'Add Cursors at Search Results'
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.FileMatchOrMatchFocusKey),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 			},
 			category,
@@ -267,7 +267,7 @@ registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 registerAction2(class FocusNextInputAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.FocusNextInputActionId,
+			id: Constants.SearchCommandIds.FocusNextInputActionId,
 			title: {
 				value: nls.localize('FocusNextInputAction.label', "Focus Next Input"),
 				original: 'Focus Next Input'
@@ -276,8 +276,8 @@ registerAction2(class FocusNextInputAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, Constants.InputBoxFocusedKey),
-					ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey)),
+					ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, Constants.SearchContext.InputBoxFocusedKey),
+					ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.InputBoxFocusedKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			},
 		});
@@ -299,7 +299,7 @@ registerAction2(class FocusNextInputAction extends Action2 {
 registerAction2(class FocusPreviousInputAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.FocusPreviousInputActionId,
+			id: Constants.SearchCommandIds.FocusPreviousInputActionId,
 			title: {
 				value: nls.localize('FocusPreviousInputAction.label', "Focus Previous Input"),
 				original: 'Focus Previous Input'
@@ -308,8 +308,8 @@ registerAction2(class FocusPreviousInputAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, Constants.InputBoxFocusedKey),
-					ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.InputBoxFocusedKey, Constants.SearchInputBoxFocusedKey.toNegated())),
+					ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, Constants.SearchContext.InputBoxFocusedKey),
+					ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.InputBoxFocusedKey, Constants.SearchContext.SearchInputBoxFocusedKey.toNegated())),
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 			},
 		});
@@ -331,7 +331,7 @@ registerAction2(class FocusPreviousInputAction extends Action2 {
 registerAction2(class FocusSearchFromResultsAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.FocusSearchFromResults,
+			id: Constants.SearchCommandIds.FocusSearchFromResults,
 			title: {
 				value: nls.localize('FocusSearchFromResults.label', "Focus Search From Results"),
 				original: 'Focus Search From Results'
@@ -339,7 +339,7 @@ registerAction2(class FocusSearchFromResultsAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, ContextKeyExpr.or(Constants.FirstMatchFocusKey, CONTEXT_ACCESSIBILITY_MODE_ENABLED)),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, ContextKeyExpr.or(Constants.SearchContext.FirstMatchFocusKey, CONTEXT_ACCESSIBILITY_MODE_ENABLED)),
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 			},
 		});
@@ -356,7 +356,7 @@ registerAction2(class ToggleSearchOnTypeAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.ToggleSearchOnTypeActionId,
+			id: Constants.SearchCommandIds.ToggleSearchOnTypeActionId,
 			title: {
 				value: nls.localize('toggleTabs', 'Toggle Search on Type'),
 				original: 'Toggle Search on Type'
@@ -378,7 +378,7 @@ registerAction2(class FocusSearchListCommandAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.FocusSearchListCommandID,
+			id: Constants.SearchCommandIds.FocusSearchListCommandID,
 			title: {
 				value: nls.localize('focusSearchListCommandLabel', "Focus List"),
 				original: 'Focus List'
@@ -396,7 +396,7 @@ registerAction2(class FocusSearchListCommandAction extends Action2 {
 registerAction2(class FocusNextSearchResultAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.FocusNextSearchResultActionId,
+			id: Constants.SearchCommandIds.FocusNextSearchResultActionId,
 			title: {
 				value: nls.localize('FocusNextSearchResult.label', 'Focus Next Search Result'),
 				original: 'Focus Next Search Result'
@@ -407,7 +407,7 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 			}],
 			category,
 			f1: true,
-			precondition: ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor),
+			precondition: ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, SearchEditorConstants.InSearchEditor),
 		});
 	}
 
@@ -419,7 +419,7 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.FocusPreviousSearchResultActionId,
+			id: Constants.SearchCommandIds.FocusPreviousSearchResultActionId,
 			title: {
 				value: nls.localize('FocusPreviousSearchResult.label', 'Focus Previous Search Result'),
 				original: 'Focus Previous Search Result'
@@ -430,7 +430,7 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 			}],
 			category,
 			f1: true,
-			precondition: ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor),
+			precondition: ContextKeyExpr.or(Constants.SearchContext.HasSearchResults, SearchEditorConstants.InSearchEditor),
 		});
 	}
 
@@ -442,7 +442,7 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 registerAction2(class ReplaceInFilesAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ReplaceInFilesActionId,
+			id: Constants.SearchCommandIds.ReplaceInFilesActionId,
 			title: {
 				value: nls.localize('replaceInFiles', 'Replace in Files'),
 				original: 'Replace in Files'

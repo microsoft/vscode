@@ -510,8 +510,7 @@ suite('Async', () => {
 			});
 		});
 
-		// skipped because of https://github.com/microsoft/vscode/issues/202136
-		test.skip('stop processing on dispose', async function () {
+		test('stop processing on dispose', async function () {
 			const queue = new async.Queue();
 
 			let workCounter = 0;
@@ -762,21 +761,19 @@ suite('Async', () => {
 
 			await queue.whenDrained(); // returns immediately since empty
 
-			const r1Queue = queue.queueFor(URI.file('/some/path'));
+			let done1 = false;
+			queue.queueFor(URI.file('/some/path'), async () => { done1 = true; });
+			await queue.whenDrained(); // returns immediately since no work scheduled
+			assert.strictEqual(done1, true);
 
-			await queue.whenDrained(); // returns immediately since empty
-
-			const r2Queue = queue.queueFor(URI.file('/some/other/path'));
-
-			await queue.whenDrained(); // returns immediately since empty
-
-			assert.ok(r1Queue);
-			assert.ok(r2Queue);
-			assert.strictEqual(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
+			let done2 = false;
+			queue.queueFor(URI.file('/some/other/path'), async () => { done2 = true; });
+			await queue.whenDrained(); // returns immediately since no work scheduled
+			assert.strictEqual(done2, true);
 
 			// schedule some work
 			const w1 = new async.DeferredPromise<void>();
-			r1Queue.queue(() => w1.p);
+			queue.queueFor(URI.file('/some/path'), () => w1.p);
 
 			let drained = false;
 			queue.whenDrained().then(() => drained = true);
@@ -785,14 +782,11 @@ suite('Async', () => {
 			await async.timeout(0);
 			assert.strictEqual(drained, true);
 
-			const r1Queue2 = queue.queueFor(URI.file('/some/path'));
-			assert.notStrictEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
-
 			// schedule some work
 			const w2 = new async.DeferredPromise<void>();
 			const w3 = new async.DeferredPromise<void>();
-			r1Queue.queue(() => w2.p);
-			r2Queue.queue(() => w3.p);
+			queue.queueFor(URI.file('/some/path'), () => w2.p);
+			queue.queueFor(URI.file('/some/other/path'), () => w3.p);
 
 			drained = false;
 			queue.whenDrained().then(() => drained = true);

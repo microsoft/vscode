@@ -605,7 +605,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainer: HTMLElement = mainWindow.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
-	onDidChangeCenteredLayout: Event<boolean> = Event.None;
+	onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
@@ -827,6 +827,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	constructor(public groups: TestEditorGroupView[] = []) { }
 
 	readonly parts: readonly IEditorPart[] = [this];
+
+	windowId = mainWindow.vscodeWindowId;
 
 	onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent> = Event.None;
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
@@ -1493,7 +1495,7 @@ export class TestHostService implements IHostService {
 	private _onDidChangeWindow = new Emitter<number>();
 	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
 
-	readonly onDidChangeFullScreen: Event<number> = Event.None;
+	readonly onDidChangeFullScreen: Event<{ windowId: number; fullscreen: boolean }> = Event.None;
 
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;

@@ -13,18 +13,17 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Extension Test', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IProductService, { quality: 'insiders' });
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
 	});
 
 	test('extension is not outdated when there is no local and gallery', () => {

@@ -372,6 +372,14 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		}
 
+		if (platform === 'linux' || platform === 'alpine') {
+			result = es.merge(result,
+				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
+					.pipe(rename(`bin/helpers/check-requirements.sh`))
+					.pipe(util.setExecutableBit())
+			);
+		}
+
 		return result.pipe(vfs.dest(destination));
 	};
 }

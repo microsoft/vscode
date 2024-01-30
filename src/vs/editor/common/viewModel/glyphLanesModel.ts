@@ -10,19 +10,28 @@ import { GlyphMarginLane, IGlyphMarginLanesModel } from 'vs/editor/common/model'
 const MAX_LANE = GlyphMarginLane.Right;
 
 export class GlyphMarginLanesModel implements IGlyphMarginLanesModel {
-	private readonly lanes: Uint8Array;
+	private lanes: Uint8Array;
 	private persist = 0;
 	private _requiredLanes = 1; // always render at least one lane
 
 	constructor(maxLine: number) {
-		this.lanes = new Uint8Array(Math.ceil((maxLine * MAX_LANE) / 8));
+		this.lanes = new Uint8Array(Math.ceil(((maxLine + 1) * MAX_LANE) / 8));
+	}
+
+	public reset(maxLine: number) {
+		const bytes = Math.ceil(((maxLine + 1) * MAX_LANE) / 8);
+		if (this.lanes.length < bytes) {
+			this.lanes = new Uint8Array(bytes);
+		} else {
+			this.lanes.fill(0);
+		}
+		this._requiredLanes = 1;
 	}
 
 	public get requiredLanes() {
 		return this._requiredLanes;
 	}
 
-	/** Adds a new range to the model. Assumes ranges are added in ascending order of line number. */
 	public push(lane: GlyphMarginLane, range: Range, persist?: boolean): void {
 		if (persist) {
 			this.persist |= (1 << (lane - 1));

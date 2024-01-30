@@ -465,7 +465,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private layoutEmptyMessage(): void {
-		this.emptyPaneMessageElement?.classList.toggle('visible', !!this.paneCompositeBar.value && this.paneCompositeBar.value.getVisiblePaneCompositeIds().length === 0);
+		this.emptyPaneMessageElement?.classList.toggle('visible', !this.getActiveComposite());
 	}
 
 	private updateGlobalToolbarActions(): void {

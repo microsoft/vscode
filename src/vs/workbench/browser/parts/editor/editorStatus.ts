@@ -561,7 +561,7 @@ class EditorStatus extends Disposable {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(getWindowById(this.targetWindowId)?.window ?? mainWindow, () => {
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(getWindowById(this.targetWindowId, true).window, () => {
 				this.delayedRender.clear();
 
 				const toRender = this.toRender;

@@ -710,10 +710,7 @@ export class DebugService implements IDebugService {
 
 			if (this.configurationService.getValue<IDebugConfiguration>('debug').closeReadonlyTabsOnEnd) {
 				const editorsToClose = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => {
-					if (editor.resource?.scheme === DEBUG_SCHEME) {
-						return editor.isReadonly() && session.getId() === Source.getEncodedDebugData(editor.resource).sessionId;
-					}
-					return false;
+					return editor.resource?.scheme === DEBUG_SCHEME && session.getId() === Source.getEncodedDebugData(editor.resource).sessionId;
 				});
 				this.editorService.closeEditors(editorsToClose);
 			}

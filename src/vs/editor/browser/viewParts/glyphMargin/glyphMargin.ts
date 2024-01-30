@@ -10,10 +10,10 @@ import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browse
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { GlyphMarginLanesModel } from 'vs/editor/browser/viewParts/glyphMargin/glyphLanesModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { GlyphMarginLane, IGlyphMarginLanesModel } from 'vs/editor/common/model';
+import { GlyphMarginLane } from 'vs/editor/common/model';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
@@ -123,7 +123,6 @@ export class GlyphMarginWidgets extends ViewPart {
 
 	public domNode: FastDomNode<HTMLElement>;
 
-	private _lanesModel: IGlyphMarginLanesModel;
 	private _lineHeight: number;
 	private _glyphMargin: boolean;
 	private _glyphMarginLeft: number;
@@ -138,7 +137,6 @@ export class GlyphMarginWidgets extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 		this._context = context;
-		this._lanesModel = new GlyphMarginLanesModel(0);
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -250,10 +248,6 @@ export class GlyphMarginWidgets extends ViewPart {
 		}
 	}
 
-	public updateLanesModel(model: GlyphMarginLanesModel) {
-		this._lanesModel = model;
-	}
-
 	// --- end widget management
 
 	private _collectDecorationBasedGlyphRenderRequest(ctx: RenderingContext, requests: GlyphRenderRequest[]): void {
@@ -273,7 +267,8 @@ export class GlyphMarginWidgets extends ViewPart {
 			const zIndex = d.options.zIndex ?? 0;
 
 			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-				const laneIndex = this._lanesModel.getLanesAtLine(lineNumber).indexOf(lane);
+				const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 0));
+				const laneIndex = this._context.viewModel.glyphLanes.getLanesAtLine(modelPosition.lineNumber).indexOf(lane);
 				requests.push(new DecorationBasedGlyphRenderRequest(lineNumber, laneIndex, zIndex, glyphMarginClassName));
 			}
 		}
@@ -293,7 +288,8 @@ export class GlyphMarginWidgets extends ViewPart {
 
 			// The widget is in the viewport, find a good line for it
 			const widgetLineNumber = Math.max(startLineNumber, visibleStartLineNumber);
-			const laneIndex = this._lanesModel.getLanesAtLine(widgetLineNumber).indexOf(widget.preference.lane);
+			const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(widgetLineNumber, 0));
+			const laneIndex = this._context.viewModel.glyphLanes.getLanesAtLine(modelPosition.lineNumber).indexOf(widget.preference.lane);
 			requests.push(new WidgetBasedGlyphRenderRequest(widgetLineNumber, laneIndex, widget.preference.zIndex, widget));
 		}
 	}

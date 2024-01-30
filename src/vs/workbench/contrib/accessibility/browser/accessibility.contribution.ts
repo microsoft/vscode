@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { DynamicSpeechAccessibilityConfiguration, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -12,9 +12,9 @@ import { IAccessibleViewService, AccessibleViewService } from 'vs/workbench/cont
 import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
 import { HoverAccessibleViewContribution, InlineCompletionsAccessibleViewContribution, NotificationAccessibleViewContribution } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibilityStatus } from 'vs/workbench/contrib/accessibility/browser/accessibilityStatus';
-import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/comments.contribution';
 import { EditorAccessibilityHelpContribution } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 import { SaveAudioCueContribution } from 'vs/workbench/contrib/accessibility/browser/saveAudioCue';
+import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -30,3 +30,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessi
 workbenchContributionsRegistry.registerWorkbenchContribution(InlineCompletionsAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(AccessibilityStatus, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(SaveAudioCueContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(DynamicSpeechAccessibilityConfiguration, LifecyclePhase.Ready);

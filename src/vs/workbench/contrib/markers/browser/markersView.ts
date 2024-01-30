@@ -1025,8 +1025,10 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 
 	update(resourceMarkers: ResourceMarkers[]): void {
 		for (const resourceMarker of resourceMarkers) {
-			this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
-			this.rerender(resourceMarker);
+			if (this.hasElement(resourceMarker)) {
+				this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
+				this.rerender(resourceMarker);
+			}
 		}
 	}
 

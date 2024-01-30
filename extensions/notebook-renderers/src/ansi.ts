@@ -26,7 +26,7 @@ export function handleANSIOutput(text: string, linkOptions: LinkOptions): HTMLSp
 		let sequenceFound: boolean = false;
 
 		// Potentially an ANSI escape sequence.
-		// See http://ascii-table.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
+		// See https://www.asciitable.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
 		if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === '[') {
 
 			const startPos: number = currentPos;
