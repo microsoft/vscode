@@ -117,6 +117,16 @@ interface IInitialEditorsState {
 	readonly layout?: EditorGroupLayout;
 }
 
+export const TITLE_BAR_SETTINGS = [
+	LayoutSettings.ACTIVITY_BAR_LOCATION,
+	LayoutSettings.COMMAND_CENTER,
+	LayoutSettings.EDITOR_ACTIONS_LOCATION,
+	LayoutSettings.LAYOUT_ACTIONS,
+	'window.menuBarVisibility',
+	TitleBarSetting.TITLE_BAR_STYLE,
+	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
+];
+
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
 	declare readonly _serviceBrand: undefined;
@@ -344,15 +354,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if ([
-				LayoutSettings.ACTIVITY_BAR_LOCATION,
-				LayoutSettings.COMMAND_CENTER,
-				LayoutSettings.EDITOR_ACTIONS_LOCATION,
-				LayoutSettings.LAYOUT_ACTIONS,
+				...TITLE_BAR_SETTINGS,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
-				'window.menuBarVisibility',
-				TitleBarSetting.TITLE_BAR_STYLE,
-				TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
 			].some(setting => e.affectsConfiguration(setting))) {
 				// Show Custom TitleBar if actions moved to the titlebar
 				const activityBarMovedToTop = e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) && this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
