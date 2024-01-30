@@ -192,20 +192,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	releaseSession(session: Session): void {
 
-		let data: SessionData | undefined;
+		let tuple: [string, SessionData] | undefined;
 
 		// cleanup
-		for (const [key, value] of this._sessions) {
-			if (value.session === session) {
-				data = value;
-				value.store.dispose();
-				this._sessions.delete(key);
-				this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.debugName}`);
+		for (const candidate of this._sessions) {
+			if (candidate[1].session === session) {
+				// if (value.session === session) {
+				tuple = candidate;
 				break;
 			}
 		}
 
-		if (!data) {
+		if (!tuple) {
 			// double remove
 			return;
 		}
@@ -213,7 +211,12 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._keepRecording(session);
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 
-		this._onDidEndSession.fire({ editor: data.editor, session });
+		const [key, value] = tuple;
+		value.store.dispose();
+		this._sessions.delete(key);
+		this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.debugName}`);
+
+		this._onDidEndSession.fire({ editor: value.editor, session });
 	}
 
 	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession {
