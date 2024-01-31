@@ -133,7 +133,7 @@ export class AuxiliaryEditorPart {
 			};
 
 			disposables.add(titlebarPart.onDidChange(() => auxiliaryWindow.layout()));
-			disposables.add(this.layoutService.onDidChangePartVisibility(() => handleTitleBarVisibilityEvent));
+			disposables.add(this.layoutService.onDidChangePartVisibility(() => handleTitleBarVisibilityEvent()));
 			disposables.add(onDidChangeFullscreen(windowId => {
 				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
 					return; // ignore all but our window
