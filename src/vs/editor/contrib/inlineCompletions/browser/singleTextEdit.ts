@@ -262,57 +262,24 @@ export function getNewRanges(edits: SingleTextEdit[]): Range[] {
 	const sortIndices = Array.from(edits.keys()).sort((a, b) =>
 		Range.compareRangesUsingStarts(edits[a].range, edits[b].range)
 	);
-	const indexOfEdit = sortIndices.indexOf(0);
-	const firstEdit = edits[indexOfEdit];
-	const firstEditStartPosition = firstEdit.range.getStartPosition();
-	const rangesMap = new Map<number, Range>([[
-		0, Range.fromPositions(
-			firstEditStartPosition,
-			addPositions(
-				firstEdit.range.getStartPosition(),
-				lengthOfText(firstEdit.text)
-			))
-	]]);
-
-	for (let i = 0; i < edits.length; i++) {
-
-		const indexOfEdit = sortIndices.indexOf(i);
-		const edit = edits[indexOfEdit];
-		if (!edit) {
-			return [];
-		}
+	const ranges: Range[] = [];
+	let offsetLineNumber = 0;
+	let previousEditLineNumber = 0;
+	let previousOffsetColumn = 0;
+	for (const index of sortIndices) {
+		const edit = edits[index];
 		const splitText = splitLines(edit.text!);
-		const numberOfLinesToAdd = splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
+		const currentOffsetColumn = edit.range.endLineNumber === previousEditLineNumber ? previousOffsetColumn : 0;
+		const rangeStart = new Position(edit.range.startLineNumber + offsetLineNumber, edit.range.startColumn + currentOffsetColumn);
 
-		for (let j = i + 1; j < edits.length; j++) {
-			const indexOfEdit = sortIndices.indexOf(j);
-			const affectedEdit = edits[indexOfEdit];
-			const affectedRange = rangesMap.get(j) ?? affectedEdit?.range;
-			if (!affectedRange || !affectedEdit) {
-				return [];
-			}
-			let columnDelta = 0;
-			if (affectedRange.startLineNumber === edit.range.endLineNumber) {
-				let rangeLength;
-				if (edit.range.startLineNumber === edit.range.endLineNumber) {
-					rangeLength = edit.range.endColumn - edit.range.startColumn;
-				} else {
-					rangeLength = edit.range.endColumn;
-				}
-				columnDelta = splitText[splitText.length - 1].length - rangeLength;
-			}
-			const rangeStart = affectedRange.getStartPosition().delta(numberOfLinesToAdd, columnDelta);
-			const rangeEnd = addPositions(
-				rangeStart,
-				lengthOfText(affectedEdit.text)
-			);
-			rangesMap.set(j, Range.fromPositions(rangeStart, rangeEnd));
-		}
+		offsetLineNumber += splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
+		const rangeEnd = addPositions(
+			rangeStart,
+			lengthOfText(edit.text)
+		);
+		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
+		previousEditLineNumber = edit.range.endLineNumber;
+		previousOffsetColumn = currentOffsetColumn + splitText[splitText.length - 1].length - edit.range.endColumn + (edit.range.startLineNumber === edit.range.endLineNumber ? edit.range.startColumn : 0);
 	}
-
-	const ranges = [];
-	for (let i = 0; i < edits.length; i++) {
-		ranges.push(rangesMap.get(i)!);
-	}
-	return ranges;
+	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
 }
