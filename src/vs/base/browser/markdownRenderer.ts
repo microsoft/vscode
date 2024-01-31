@@ -605,13 +605,19 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 					return completeLinkTargetArg(token);
 				}
 				return completeLinkTarget(token);
-			} else if (lastLine.match(/(^|\s)\[\w/)) {
+			} else if (hasStartOfLinkTarget(lastLine)) {
+				return completeLinkTarget(token);
+			} else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTarget(t.raw))) {
 				return completeLinkText(token);
 			}
 		}
 	}
 
 	return undefined;
+}
+
+function hasStartOfLinkTarget(str: string): boolean {
+	return !!str.match(/^[^\[]*\]\([^\)]*$/);
 }
 
 // function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {

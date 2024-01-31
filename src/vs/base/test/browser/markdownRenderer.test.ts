@@ -687,6 +687,24 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('incomplete link target with extra stuff', () => {
+				const incomplete = '[before `text` after](http://microsoft.com';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with extra stuff and arg', () => {
+				const incomplete = '[before `text` after](http://microsoft.com "more text ';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test('incomplete link target with arg', () => {
 				const incomplete = 'foo [text](http://microsoft.com "more text here ';
 				const tokens = marked.lexer(incomplete);
