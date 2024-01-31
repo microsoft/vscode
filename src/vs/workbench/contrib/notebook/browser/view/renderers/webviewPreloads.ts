@@ -1394,21 +1394,34 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		try {
-			const image = $window.document.getElementById(outputId)?.querySelector('img')
-				?? $window.document.getElementById(altOutputId)?.querySelector('img');
+			const outputElement = $window.document.getElementById(outputId)
+				?? $window.document.getElementById(altOutputId);
+
+			let image = outputElement?.querySelector('img');
+
+			if (!image) {
+				const svgImage = outputElement?.querySelector('svg.output-image');
+				if (svgImage) {
+					image = new Image();
+					image.src = 'data:image/svg+xml,' + encodeURIComponent(svgImage.outerHTML);
+				}
+			}
+
 			if (image) {
+				const imageToCopy = image;
 				await navigator.clipboard.write([new ClipboardItem({
 					'image/png': new Promise((resolve) => {
 						const canvas = document.createElement('canvas');
-						if (canvas !== null) {
-							canvas.width = image.naturalWidth;
-							canvas.height = image.naturalHeight;
-							const context = canvas.getContext('2d');
-							context?.drawImage(image, 0, 0);
-						}
+						canvas.width = imageToCopy.naturalWidth;
+						canvas.height = imageToCopy.naturalHeight;
+						const context = canvas.getContext('2d');
+						context!.drawImage(imageToCopy, 0, 0);
+
 						canvas.toBlob((blob) => {
 							if (blob) {
 								resolve(blob);
+							} else {
+								console.error('No blob data to write to clipboard');
 							}
 							canvas.remove();
 						}, 'image/png');
