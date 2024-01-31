@@ -55,10 +55,7 @@ registerAction2(class RemoveAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.RemoveActionId,
-			title: {
-				value: nls.localize('RemoveAction.label', "Dismiss"),
-				original: 'Dismiss'
-			},
+			title: nls.localize2('RemoveAction.label', "Dismiss"),
 			category,
 			icon: searchRemoveIcon,
 			keybinding: {
@@ -149,10 +146,7 @@ registerAction2(class ReplaceAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.ReplaceActionId,
-			title: {
-				value: nls.localize('match.replace.label', "Replace"),
-				original: 'Replace'
-			},
+			title: nls.localize2('match.replace.label', "Replace"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -188,10 +182,7 @@ registerAction2(class ReplaceAllAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.ReplaceAllInFileActionId,
-			title: {
-				value: nls.localize('file.replaceAll.label', "Replace All"),
-				original: 'Replace All'
-			},
+			title: nls.localize2('file.replaceAll.label', "Replace All"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -227,10 +218,7 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.ReplaceAllInFolderActionId,
-			title: {
-				value: nls.localize('file.replaceAll.label', "Replace All"),
-				original: 'Replace All'
-			},
+			title: nls.localize2('file.replaceAll.label', "Replace All"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

@@ -142,7 +142,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			// Mark terminal as unused when its session ends, see #112055
 			const sessionListener = this.onDidTerminateDebugSession(s => {
 				if (s.id === sessionId) {
-					this._integratedTerminalInstances.free(terminal!);
+					this._integratedTerminalInstances.free(terminal);
 					sessionListener.dispose();
 				}
 			});

@@ -64,7 +64,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
-const interactiveWindowCategory: ILocalizedString = { value: localize('interactiveWindow', 'Interactive Window'), original: 'Interactive Window' };
+const interactiveWindowCategory: ILocalizedString = localize2('interactiveWindow', "Interactive Window");
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -371,7 +371,7 @@ registerAction2(class extends Action2 {
 				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 
 				return {
-					notebookUri: editorInput.resource!,
+					notebookUri: editorInput.resource,
 					inputUri: editorInput.inputResource,
 					notebookEditorId: editorControl?.notebookEditor?.getId()
 				};

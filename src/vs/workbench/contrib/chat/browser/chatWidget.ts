@@ -157,7 +157,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get inputEditor(): ICodeEditor {
-		return this.inputPart.inputEditor!;
+		return this.inputPart.inputEditor;
 	}
 
 	get inputUri(): URI {
@@ -683,22 +683,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, width);
+		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData.maxHeight, width);
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
-		const messages = totalMessages.slice(-this._dynamicMessageLayoutData!.numOfMessages);
+		const messages = totalMessages.slice(-this._dynamicMessageLayoutData.numOfMessages);
 
 		const needsRerender = messages.some(m => m.currentRenderedHeight === undefined);
 		const listHeight = needsRerender
-			? this._dynamicMessageLayoutData!.maxHeight
+			? this._dynamicMessageLayoutData.maxHeight
 			: messages.reduce((acc, message) => acc + message.currentRenderedHeight!, 0);
 
 		this.layout(
 			Math.min(
 				// we add an additional 18px in order to show that there is scrollable content
 				inputHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
-				this._dynamicMessageLayoutData!.maxHeight
+				this._dynamicMessageLayoutData.maxHeight
 			),
 			width
 		);

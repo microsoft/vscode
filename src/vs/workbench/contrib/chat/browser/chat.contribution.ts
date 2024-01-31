@@ -191,7 +191,7 @@ class ChatAccessibleViewContribution extends Disposable {
 				accessibleViewService.show({
 					id: AccessibleViewProviderId.Chat,
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-					provideContent(): string { return responseContent!; },
+					provideContent(): string { return responseContent; },
 					onClose() {
 						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {

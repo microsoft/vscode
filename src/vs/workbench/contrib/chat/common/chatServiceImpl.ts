@@ -155,6 +155,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidRegisterProvider = this._register(new Emitter<{ providerId: string }>());
 	public readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
 
+	private readonly _onDidUnregisterProvider = this._register(new Emitter<{ providerId: string }>());
+	public readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -718,6 +721,7 @@ export class ChatService extends Disposable implements IChatService {
 			Array.from(this._sessionModels.values())
 				.filter(model => model.providerId === provider.id)
 				.forEach(model => model.deinitialize());
+			this._onDidUnregisterProvider.fire({ providerId: provider.id });
 		});
 	}
 

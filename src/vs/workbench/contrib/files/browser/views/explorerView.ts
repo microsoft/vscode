@@ -1026,7 +1026,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.refreshFilesExplorer',
-			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
+			title: nls.localize2('refreshExplorer', "Refresh Explorer"),
 			f1: true,
 			icon: Codicon.refresh,
 			menu: {
@@ -1050,7 +1050,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.collapseExplorerFolders',
-			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
+			title: nls.localize2('collapseExplorerFolders', "Collapse Folders in Explorer"),
 			f1: true,
 			icon: Codicon.collapseAll,
 			menu: {

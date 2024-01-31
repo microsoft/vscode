@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize, localize2 } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -255,7 +255,7 @@ class FocusAccessibleBufferAction extends Action2 {
 	constructor() {
 		super({
 			id: TerminalCommandId.FocusAccessibleBuffer,
-			title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Terminal View'), original: 'Focus Accessible Terminal View' },
+			title: localize2('workbench.action.terminal.focusAccessibleBuffer', "Focus Accessible Terminal View"),
 			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 			keybinding: [
 				{
@@ -284,7 +284,7 @@ registerAction2(FocusAccessibleBufferAction);
 
 registerTerminalAction({
 	id: TerminalCommandId.AccessibleBufferGoToNextCommand,
-	title: { value: localize('workbench.action.terminal.accessibleBufferGoToNextCommand', 'Accessible Buffer Go to Next Command'), original: 'Accessible Buffer Go to Next Command' },
+	title: localize2('workbench.action.terminal.accessibleBufferGoToNextCommand', "Accessible Buffer Go to Next Command"),
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: [
 		{
@@ -305,7 +305,7 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalCommandId.AccessibleBufferGoToPreviousCommand,
-	title: { value: localize('workbench.action.terminal.accessibleBufferGoToPreviousCommand', 'Accessible Buffer Go to Previous Command'), original: 'Accessible Buffer Go to Previous Command' },
+	title: localize2('workbench.action.terminal.accessibleBufferGoToPreviousCommand', "Accessible Buffer Go to Previous Command"),
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: [
 		{

@@ -13,7 +13,7 @@ import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } 
 import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -643,10 +643,7 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.focusAndSelect',
-			title: {
-				value: localize('cmd.focusAndSelect', "Focus and Select Breadcrumbs"),
-				original: 'Focus and Select Breadcrumbs'
-			},
+			title: localize2('cmd.focusAndSelect', "Focus and Select Breadcrumbs"),
 			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -665,10 +662,7 @@ registerAction2(class FocusBreadcrumbs extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.focus',
-			title: {
-				value: localize('cmd.focus', "Focus Breadcrumbs"),
-				original: 'Focus Breadcrumbs'
-			},
+			title: localize2('cmd.focus', "Focus Breadcrumbs"),
 			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

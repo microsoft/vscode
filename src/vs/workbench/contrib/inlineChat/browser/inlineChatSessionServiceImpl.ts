@@ -23,7 +23,9 @@ import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -59,7 +61,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) { }
 
 	dispose() {
@@ -125,16 +127,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModel0': '' }).toString() }), true
 		));
 
-		// untitled documents are special
+		// untitled documents are special and we are releasing their session when their last editor closes
 		if (targetUri.scheme === Schemas.untitled) {
-			const untitledTextModel = this._textFileService.untitled.get(targetUri);
-			if (untitledTextModel) {
-				store.add(untitledTextModel.onDidChangeDirty(() => {
-					if (!untitledTextModel.isDirty()) {
-						this.releaseSession(session);
-					}
-				}));
-			}
+			store.add(this._editorService.onDidCloseEditor(() => {
+				if (!this._editorService.isOpened({ resource: targetUri, typeId: UntitledTextEditorInput.ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
+					this.releaseSession(session);
+				}
+			}));
 		}
 
 		let wholeRange = options.wholeRange;
