@@ -264,22 +264,26 @@ export function getNewRanges(edits: SingleTextEdit[]): Range[] {
 		Range.compareRangesUsingStarts(edits[a].range, edits[b].range)
 	);
 	const ranges: Range[] = [];
-	let offsetLineNumber = 0;
-	let offsetColumn = 0;
-	let previousEditLineNumber = 0;
+	let previousEditEndLineNumber = 0;
+	let positionOffset = new Position(0, 0);
+
 	for (const index of sortIndices) {
 		const edit = edits[index];
 		const splitText = splitLines(edit.text!);
-		const rangeStart = new Position(edit.range.startLineNumber + offsetLineNumber, edit.range.startColumn + (edit.range.startLineNumber === previousEditLineNumber ? offsetColumn : 0));
-
-		offsetLineNumber += splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
+		const rangeStart = edit.range.getStartPosition().delta(
+			positionOffset.lineNumber,
+			edit.range.startLineNumber === previousEditEndLineNumber ? positionOffset.column : 0
+		);
 		const rangeEnd = addPositions(
 			rangeStart,
 			lengthOfText(edit.text)
 		);
 		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
-		previousEditLineNumber = edit.range.endLineNumber;
-		offsetColumn = rangeEnd.column - edit.range.endColumn;
+		previousEditEndLineNumber = edit.range.endLineNumber;
+		positionOffset = positionOffset.delta(
+			splitText.length - edit.range.endLineNumber + edit.range.startLineNumber - 1,
+			rangeEnd.column - edit.range.endColumn - positionOffset.column
+		);
 	}
 	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
 }
