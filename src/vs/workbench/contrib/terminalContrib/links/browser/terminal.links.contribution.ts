@@ -55,7 +55,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 
 		// Set widget manager
 		if (isTerminalProcessManager(this._processManager)) {
-			const disposable = this.add(Event.once(this._processManager.onProcessReady)(() => {
+			const disposable = linkManager.add(Event.once(this._processManager.onProcessReady)(() => {
 				linkManager.setWidgetManager(this._widgetManager);
 				this.delete(disposable);
 			}));
