@@ -850,7 +850,7 @@ export class UpdateAction extends AbstractUpdateAction {
 export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.toggleAutoUpdateForExtension';
-	static readonly LABEL = localize('enableAutoUpdateLabel', "Auto Update");
+	static readonly LABEL = localize2('enableAutoUpdateLabel', "Auto Update");
 
 	private static readonly EnabledClass = `${ExtensionAction.EXTENSION_ACTION_CLASS} auto-update`;
 	private static readonly DisabledClass = `${ToggleAutoUpdateForExtensionAction.EnabledClass} hide`;
@@ -862,7 +862,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		@IConfigurationService configurationService: IConfigurationService,
 
 	) {
-		super(ToggleAutoUpdateForExtensionAction.ID, ToggleAutoUpdateForExtensionAction.LABEL, ToggleAutoUpdateForExtensionAction.DisabledClass);
+		super(ToggleAutoUpdateForExtensionAction.ID, ToggleAutoUpdateForExtensionAction.LABEL.value, ToggleAutoUpdateForExtensionAction.DisabledClass);
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
 				this.update();

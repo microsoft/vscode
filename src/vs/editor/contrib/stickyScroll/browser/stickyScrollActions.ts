@@ -21,9 +21,8 @@ export class ToggleStickyScroll extends Action2 {
 		super({
 			id: 'editor.action.toggleStickyScroll',
 			title: {
-				value: localize('toggleEditorStickyScroll', "Toggle Editor Sticky Scroll"),
+				...localize2('toggleEditorStickyScroll', "Toggle Editor Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Editor Sticky Scroll"),
-				original: 'Toggle Editor Sticky Scroll',
 			},
 			category: Categories.View,
 			toggled: {
@@ -54,9 +53,8 @@ export class FocusStickyScroll extends EditorAction2 {
 		super({
 			id: 'editor.action.focusStickyScroll',
 			title: {
-				value: localize('focusStickyScroll', "Focus Sticky Scroll"),
+				...localize2('focusStickyScroll', "Focus Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
-				original: 'Focus Sticky Scroll',
 			},
 			precondition: ContextKeyExpr.and(ContextKeyExpr.has('config.editor.stickyScroll.enabled'), EditorContextKeys.stickyScrollVisible),
 			menu: [

@@ -250,7 +250,7 @@ export function getOpenChatEditorAction(id: string, label: string, when?: string
 		constructor() {
 			super({
 				id: `workbench.action.openChat.${id}`,
-				title: { value: localize('interactiveSession.open', "Open Editor ({0})", label), original: `Open Editor (${label})` },
+				title: localize2('interactiveSession.open', "Open Editor ({0})", label),
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.deserialize(when)

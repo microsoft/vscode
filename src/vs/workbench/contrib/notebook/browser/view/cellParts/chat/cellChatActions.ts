@@ -213,10 +213,7 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: 'notebook.cell.chat.stop',
-				title: {
-					value: localize('notebook.cell.chat.stop', "Stop Request"),
-					original: 'Make Request'
-				},
+				title: localize2('notebook.cell.chat.stop', "Stop Request"),
 				icon: Codicon.debugStop,
 				menu: {
 					id: MENU_CELL_CHAT_INPUT,

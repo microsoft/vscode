@@ -227,9 +227,8 @@ export class ConfigureSnippetsAction extends SnippetsAction {
 			id: 'workbench.action.openSnippets',
 			title: nls.localize2('openSnippet.label', "Configure User Snippets"),
 			shortTitle: {
-				value: nls.localize('userSnippets', "User Snippets"),
+				...nls.localize2('userSnippets', "User Snippets"),
 				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"),
-				original: 'User Snippets'
 			},
 			f1: true,
 			menu: [

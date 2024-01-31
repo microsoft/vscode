@@ -74,7 +74,7 @@ export const CALLSTACK_BOTTOM_ID = 'workbench.action.debug.callStackBottom';
 export const CALLSTACK_UP_ID = 'workbench.action.debug.callStackUp';
 export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 
-export const DEBUG_COMMAND_CATEGORY: ILocalizedString = { original: 'Debug', value: nls.localize('debug', 'Debug') };
+export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
 export const STEP_OVER_LABEL = nls.localize2('stepOverDebug', "Step Over");
 export const STEP_INTO_LABEL = nls.localize2('stepIntoDebug', "Step Into");
