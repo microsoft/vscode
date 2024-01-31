@@ -47,7 +47,7 @@ const alertFeatureBase: IConfigurationPropertySchema = {
 const signalFeatureBase: IConfigurationPropertySchema = {
 	'type': 'object',
 	'tags': ['accessibility'],
-	additionalProperties: true,
+	additionalProperties: false,
 	default: {
 		audioCue: 'auto',
 		alert: true
