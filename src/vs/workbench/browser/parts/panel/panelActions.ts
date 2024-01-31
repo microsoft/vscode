@@ -318,7 +318,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closePanel',
-			title: localize2('closePanel', 'Close Panel'),
+			title: localize2('closePanel', 'Hide Panel'),
 			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
@@ -340,7 +340,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeAuxiliaryBar',
-			title: localize2('closeSecondarySideBar', 'Close Secondary Side Bar'),
+			title: localize2('closeSecondarySideBar', 'Hide Secondary Side Bar'),
 			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
