@@ -64,7 +64,7 @@ steps:
           - x86_64-unknown-linux-musl
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
-    - template: ../cli/cli-compile-and-publish.yml
+    - template: ../cli/cli-compile.yml
       parameters:
         VSCODE_CLI_TARGET: aarch64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
@@ -77,7 +77,7 @@ steps:
           OPENSSL_STATIC: "1"
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
-    - template: ../cli/cli-compile-and-publish.yml
+    - template: ../cli/cli-compile.yml
       parameters:
         VSCODE_CLI_TARGET: x86_64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
@@ -88,3 +88,13 @@ steps:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/include
           OPENSSL_STATIC: "1"
+
+  - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+    - template: ../cli/cli-publish.yml
+      parameters:
+        VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
+
+  - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+    - template: ../cli/cli-publish.yml
+      parameters:
+        VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
