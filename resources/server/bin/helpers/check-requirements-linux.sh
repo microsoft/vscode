@@ -5,6 +5,20 @@
 
 set -e
 
+# Do not remove this check.
+# Provides a way to skip the server requirements check from
+# outside the install flow. A system process can create this
+# file before the server is downloaded and installed.
+#
+# This check is duplicated between code-server-linux.sh and here
+# since remote container calls into this script directly quite early
+# before the usual server startup flow.
+if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
+	echo "!!! WARNING: Skipping server pre-requisite check !!!"
+	echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
+	exit 0
+fi
+
 BITNESS=$(getconf LONG_BIT)
 ARCH=$(uname -m)
 found_required_glibc=0
