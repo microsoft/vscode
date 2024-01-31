@@ -40,6 +40,9 @@
 .monaco-list.mouse-support .monaco-list-row {
 	cursor: pointer;
 	touch-action: none;
+	transition-property: all;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: 150ms;
 }
 
 /* Make sure the scrollbar renders above overlays (sticky scroll) */
