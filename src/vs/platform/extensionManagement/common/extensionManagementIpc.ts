@@ -264,7 +264,7 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	}
 
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		return Promise.resolve(this.channel.call<void>('uninstall', [extension!, options]));
+		return Promise.resolve(this.channel.call<void>('uninstall', [extension, options]));
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {

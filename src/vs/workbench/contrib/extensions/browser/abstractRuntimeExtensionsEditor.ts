@@ -443,7 +443,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			actions.push(new Action(
 				'runtimeExtensionsEditor.action.copyId',
-				nls.localize('copy id', "Copy id ({0})", e.element!.description.identifier.value),
+				nls.localize('copy id', "Copy id ({0})", e.element.description.identifier.value),
 				undefined,
 				true,
 				() => {
@@ -457,7 +457,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			}
 			actions.push(new Separator());
 
-			if (e.element!.marketplaceInfo) {
+			if (e.element.marketplaceInfo) {
 				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
 				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
 			}

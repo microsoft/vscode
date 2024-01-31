@@ -261,7 +261,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd;
 		const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-		const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
+		const executable = await findExecutable(slc.executable, cwd, envPaths, this._executableEnv);
 		if (!executable) {
 			return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 		}

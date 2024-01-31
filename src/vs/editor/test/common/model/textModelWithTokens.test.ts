@@ -360,8 +360,8 @@ suite('TextModelWithTokens 2', () => {
 
 		disposables.add(languageService.registerLanguage({ id: mode1 }));
 		disposables.add(languageService.registerLanguage({ id: mode2 }));
-		const encodedMode1 = languageIdCodec!.encodeLanguageId(mode1);
-		const encodedMode2 = languageIdCodec!.encodeLanguageId(mode2);
+		const encodedMode1 = languageIdCodec.encodeLanguageId(mode1);
+		const encodedMode2 = languageIdCodec.encodeLanguageId(mode2);
 
 		const otherMetadata1 = (
 			(encodedMode1 << MetadataConsts.LANGUAGEID_OFFSET)
@@ -466,7 +466,7 @@ suite('TextModelWithTokens 2', () => {
 
 		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
-		const encodedMode = languageIdCodec!.encodeLanguageId(mode);
+		const encodedMode = languageIdCodec.encodeLanguageId(mode);
 
 		const otherMetadata = (
 			(encodedMode << MetadataConsts.LANGUAGEID_OFFSET)
