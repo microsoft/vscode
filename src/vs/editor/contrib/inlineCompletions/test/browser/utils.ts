@@ -13,6 +13,9 @@ import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } 
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { autorun } from 'vs/base/common/observable';
+import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { Range } from 'vs/editor/common/core/range';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -130,4 +133,55 @@ export class GhostTextContext extends Disposable {
 	public leftDelete(): void {
 		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
 	}
+}
+
+function randomSimpleStringGenerator(stringLength: number): string {
+	let randomText: string = '';
+	const possibleCharacters: string = ' abcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < stringLength; i++) {
+		randomText += possibleCharacters.charAt(Math.floor(Math.random() * possibleCharacters.length));
+
+	}
+	return randomText;
+}
+
+function generateUniqueRandomIntegers(numberOfIntegers: number, minimum: number, maximum: number): number[] {
+	if (maximum - minimum + 1 < numberOfIntegers) {
+		throw new Error('Too many integers to sample, specified');
+	}
+	const integers = [];
+	while (integers.length < numberOfIntegers) {
+		const integer = Math.floor(Math.random() * maximum) + 1;
+		if (integers.indexOf(integer) === -1) {
+			integers.push(integer);
+		}
+	}
+	return integers;
+}
+
+export function randomMultilineStringGenerator(numberOfLines: number, maximumLengthOfLines: number = 20): string {
+	let randomText: string = '';
+	for (let i = 0; i < numberOfLines; i++) {
+		const lengthOfLine = Math.floor(Math.random() * maximumLengthOfLines);
+		randomText += randomSimpleStringGenerator(Math.floor(Math.random() * lengthOfLine)) + '\n';
+	}
+	return randomText;
+}
+
+export function generateRandomDisjointEdits(numberOfEdits: number, model: TextModel) {
+	const numberOfLines = model.getLineCount();
+	if (2 * numberOfEdits > numberOfLines) {
+		throw new Error('Too many edits specified');
+	}
+	const edits = [];
+	const boundsOfEdits = generateUniqueRandomIntegers(2 * numberOfEdits, 0, numberOfLines - 1).sort((a, b) => a - b);
+	for (let i = 0; i < numberOfEdits; i++) {
+		const startLine = boundsOfEdits[2 * i];
+		const endLine = boundsOfEdits[2 * i + 1];
+		const startColumn = model.getLineLength(startLine) ? generateUniqueRandomIntegers(1, 1, model.getLineLength(startLine))[0] : 1;
+		const endColumn = model.getLineLength(endLine) ? generateUniqueRandomIntegers(1, 1, model.getLineLength(endLine))[0] : 1;
+		const numberOfLinesEditText = generateUniqueRandomIntegers(1, 0, 3)[0];
+		edits.push(new SingleTextEdit(new Range(startLine, startColumn, endLine, endColumn), randomMultilineStringGenerator(numberOfLinesEditText, 10)));
+	}
+	return edits;
 }

@@ -8,6 +8,7 @@ import { commonPrefixLength, getLeadingWhitespace, splitLines } from 'vs/base/co
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
@@ -264,12 +265,12 @@ export function getNewRanges(edits: SingleTextEdit[]): Range[] {
 	);
 	const ranges: Range[] = [];
 	let offsetLineNumber = 0;
+	let offsetColumn = 0;
 	let previousEditLineNumber = 0;
-	let previousOffsetColumn = 0;
 	for (const index of sortIndices) {
 		const edit = edits[index];
 		const splitText = splitLines(edit.text!);
-		const currentOffsetColumn = edit.range.endLineNumber === previousEditLineNumber ? previousOffsetColumn : 0;
+		const currentOffsetColumn = edit.range.endLineNumber === previousEditLineNumber ? offsetColumn : 0;
 		const rangeStart = new Position(edit.range.startLineNumber + offsetLineNumber, edit.range.startColumn + currentOffsetColumn);
 
 		offsetLineNumber += splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
@@ -279,7 +280,16 @@ export function getNewRanges(edits: SingleTextEdit[]): Range[] {
 		);
 		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
 		previousEditLineNumber = edit.range.endLineNumber;
-		previousOffsetColumn = currentOffsetColumn + splitText[splitText.length - 1].length - edit.range.endColumn + (edit.range.startLineNumber === edit.range.endLineNumber ? edit.range.startColumn : 0);
+		offsetColumn = currentOffsetColumn + splitText[splitText.length - 1].length - edit.range.endColumn + (edit.range.startLineNumber === edit.range.endLineNumber ? edit.range.startColumn : 0);
 	}
 	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
+}
+
+export function inverseEdits(model: TextModel, edits: SingleTextEdit[]): SingleTextEdit[] {
+	const newRanges = getNewRanges(edits);
+	const inverseEdits: SingleTextEdit[] = [];
+	for (let i = 0; i < edits.length; i++) {
+		inverseEdits.push(new SingleTextEdit(newRanges[i], model.getValueInRange(edits[i].range)));
+	}
+	return inverseEdits;
 }
