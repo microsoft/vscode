@@ -404,6 +404,25 @@ suite('ConfigurationModel', () => {
 		assert.deepStrictEqual(testObject.inspect('c'), { value: 3, override: undefined, merged: 3 });
 	});
 
+	test('inspect: return all overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [
+			{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 1 }, keys: ['a', 'b'] },
+			{ identifiers: ['x'], contents: { 'a': 3 }, keys: ['a'] },
+			{ identifiers: ['y'], contents: { 'b': 3 }, keys: ['b'] }
+		]);
+
+		assert.deepStrictEqual(testObject.inspect('a').overrides, [
+			{ identifiers: ['x', 'y'], value: 2 },
+			{ identifiers: ['x'], value: 3 }
+		]);
+	});
+
+	test('inspect when no overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c']);
+
+		assert.strictEqual(testObject.inspect('a').overrides, undefined);
+	});
+
 });
 
 suite('CustomConfigurationModel', () => {
