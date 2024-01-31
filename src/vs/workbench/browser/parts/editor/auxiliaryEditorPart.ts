@@ -15,7 +15,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { hasCustomTitlebar } from 'vs/platform/window/common/window';
-import { shouldShowCustomTitleBar } from 'vs/workbench/browser/layout';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart, IEditorPartUIState } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -24,7 +23,7 @@ import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workben
 import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, shouldShowCustomTitleBar } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';

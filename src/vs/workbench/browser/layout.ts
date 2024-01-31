@@ -8,11 +8,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow, getWindowId, getActiveElement } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation } from 'vs/workbench/services/layout/browser/layoutService';
+import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar } from 'vs/workbench/services/layout/browser/layoutService';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -47,7 +47,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 import { CustomTitleBarVisibility } from '../../platform/window/common/window';
 
 //#region Layout Implementation
@@ -2421,87 +2421,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.disposed = true;
 	}
-}
-
-export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
-
-	if (!hasCustomTitlebar(configurationService)) {
-		return false;
-	}
-
-	const inFullscreen = isFullscreen(window);
-	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
-
-	const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-	if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
-		return false;
-	}
-
-	if (!isTitleBarEmpty(configurationService)) {
-		return true;
-	}
-
-	// Hide custom title bar when native title bar enabled and custom title bar is empty
-	if (nativeTitleBarEnabled) {
-		return false;
-	}
-
-	// macOS desktop does not need a title bar when full screen
-	if (isMacintosh && isNative) {
-		return !inFullscreen;
-	}
-
-	// non-fullscreen native must show the title bar
-	if (isNative && !inFullscreen) {
-		return true;
-	}
-
-	// if WCO is visible, we have to show the title bar
-	if (isWCOEnabled() && !inFullscreen) {
-		return true;
-	}
-
-	// remaining behavior is based on menubar visibility
-	const menuBarVisibility = !isAuxiliaryWindow(window) ? getMenuBarVisibility(configurationService) : 'hidden';
-	switch (menuBarVisibility) {
-		case 'classic':
-			return !inFullscreen || !!menuBarToggled;
-		case 'compact':
-		case 'hidden':
-			return false;
-		case 'toggle':
-			return !!menuBarToggled;
-		case 'visible':
-			return true;
-		default:
-			return isWeb ? false : !inFullscreen || !!menuBarToggled;
-	}
-}
-
-function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
-	// with the command center enabled, we should always show
-	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
-		return false;
-	}
-
-	// with the activity bar on top, we should always show
-	if (configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
-		return false;
-	}
-
-	// with the editor actions on top, we should always show
-	const editorActionsLocation = configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION);
-	const editorTabsMode = configurationService.getValue<EditorTabsMode>(LayoutSettings.EDITOR_TABS_MODE);
-	if (editorActionsLocation === EditorActionsLocation.TITLEBAR || editorActionsLocation === EditorActionsLocation.DEFAULT && editorTabsMode === EditorTabsMode.NONE) {
-		return false;
-	}
-
-	// with the layout actions on top, we should always show
-	if (configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
-		return false;
-	}
-
-	return true;
 }
 
 type ZenModeConfiguration = {
