@@ -122,6 +122,12 @@ export interface IWorkbenchContributionsRegistry {
 	 * phase have been instantiated.
 	 */
 	readonly whenRestored: Promise<void>;
+
+	/**
+	 * Provides access to the instantiation times of all contributions by
+	 * lifecycle phase.
+	 */
+	readonly timings: Map<LifecyclePhase, Array<[string /* ID */, number /* Creation Time */]>>;
 }
 
 interface IWorkbenchContributionRegistration {
@@ -143,6 +149,9 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	private readonly contributionsById = new Map<string, IWorkbenchContributionRegistration>();
 
 	private readonly instancesById = new Map<string, IWorkbenchContribution>();
+
+	private readonly timingsByPhase = new Map<LifecyclePhase, Array<[string /* ID */, number /* Creation Time */]>>();
+	get timings() { return this.timingsByPhase; }
 
 	private readonly pendingRestoredContributions = new DeferredPromise<void>();
 	readonly whenRestored = this.pendingRestoredContributions.p;
@@ -340,6 +349,16 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 			const time = Date.now() - now;
 			if (time > (phase < LifecyclePhase.Restored ? WorkbenchContributionsRegistry.BLOCK_BEFORE_RESTORE_WARN_THRESHOLD : WorkbenchContributionsRegistry.BLOCK_AFTER_RESTORE_WARN_THRESHOLD)) {
 				logService.warn(`Creation of workbench contribution '${contribution.id ?? contribution.ctor.name}' took ${time}ms.`);
+			}
+
+			if (typeof contribution.id === 'string') {
+				let timingsForPhase = this.timingsByPhase.get(phase);
+				if (!timingsForPhase) {
+					timingsForPhase = [];
+					this.timingsByPhase.set(phase, timingsForPhase);
+				}
+
+				timingsForPhase.push([contribution.id, time]);
 			}
 		}
 	}
