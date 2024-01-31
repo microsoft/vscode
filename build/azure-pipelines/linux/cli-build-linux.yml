@@ -129,13 +129,16 @@ steps:
     - template: ../cli/cli-publish.yml
       parameters:
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
+        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
     - template: ../cli/cli-publish.yml
       parameters:
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli
+        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
     - template: ../cli/cli-publish.yml
       parameters:
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
+        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
