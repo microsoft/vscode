@@ -11,11 +11,10 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
@@ -29,6 +28,8 @@ import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkben
 	[new SyncDescriptor(WebviewInput)]);
 
 class WebviewPanelContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.webviewPanel';
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -82,7 +83,7 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution2(WebviewPanelContribution.ID, WebviewPanelContribution, WorkbenchContributionInstantiation.BlockStartup);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	WebviewEditorInputSerializer.ID,

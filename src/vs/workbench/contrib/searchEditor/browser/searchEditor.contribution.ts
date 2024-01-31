@@ -19,7 +19,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -73,6 +73,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 //#region Startup Contribution
 class SearchEditorContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.searchEditor';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -99,7 +102,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribution, WorkbenchContributionInstantiation.BlockStartup);
 //#endregion
 
 //#region Input Serializer

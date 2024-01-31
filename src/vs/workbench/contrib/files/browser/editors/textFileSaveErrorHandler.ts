@@ -42,6 +42,8 @@ const conflictEditorHelp = localize('userGuide', "Use the actions in the editor 
 // A handler for text file save error happening with conflict resolution actions
 export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.textFileSaveErrorHandler';
+
 	private readonly messages = new ResourceMap<INotificationHandle>();
 	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false, true).bindTo(this.contextKeyService);
 	private activeConflictResolutionResource: URI | undefined = undefined;

@@ -320,6 +320,9 @@ function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions
 }
 
 export class MultiDiffEditorResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.multiDiffEditorResolver';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
