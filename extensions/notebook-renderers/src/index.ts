@@ -515,6 +515,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					}
 					break;
 				default:
+					if (outputInfo.mime.indexOf('text/') > -1) {
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderText(outputInfo, element, latestContext);
+						disposables.set(outputInfo.id, disposable);
+					}
 					break;
 			}
 			if (element.querySelector('div')) {
