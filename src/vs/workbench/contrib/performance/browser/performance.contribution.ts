@@ -22,7 +22,7 @@ import { InputLatencyContrib } from 'vs/workbench/contrib/performance/browser/in
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution2(
 	PerfviewContrib.ID,
 	PerfviewContrib,
-	WorkbenchContributionInstantiation.BlockRestore
+	WorkbenchContributionInstantiation.Lazy
 );
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
@@ -53,6 +53,9 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor) {
+
+		Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).getWorkbenchContribution(PerfviewContrib.ID);
+
 		const editorService = accessor.get(IEditorService);
 		const instaService = accessor.get(IInstantiationService);
 		return editorService.openEditor(instaService.createInstance(PerfviewInput), { pinned: true });

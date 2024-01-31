@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -81,6 +81,11 @@ export class PerfviewInput extends TextResourceEditorInput {
 			filesConfigurationService,
 			textResourceConfigurationService
 		);
+	}
+
+	override resolve(): Promise<ITextEditorModel> {
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).getWorkbenchContribution(PerfviewContrib.ID);
+		return super.resolve();
 	}
 }
 
