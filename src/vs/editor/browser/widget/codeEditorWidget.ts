@@ -1347,7 +1347,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.changeDecorations(accessor => accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 	}
 
 	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
@@ -1367,7 +1367,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.changeDecorations(accessor => accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 	}
 
 	public removeDecorationsByType(decorationTypeKey: string): void {
