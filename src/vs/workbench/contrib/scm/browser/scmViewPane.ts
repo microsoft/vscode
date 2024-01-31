@@ -1444,6 +1444,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 MenuRegistry.appendMenuItem(Menus.ViewSort, {
 	title: localize('repositories', "Repositories"),
 	submenu: Menus.Repositories,
+	when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
 	group: '0_repositories'
 });
 
