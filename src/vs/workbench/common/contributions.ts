@@ -94,7 +94,7 @@ export interface IWorkbenchContributionsRegistry {
 	/**
 	 * @deprecated use `registerWorkbenchContribution2` instead.
 	 */
-	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase): void;
+	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void;
 
 	/**
 	 * Register a workbench contribution that will be instantiated
