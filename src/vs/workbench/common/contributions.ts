@@ -209,7 +209,6 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		}
 
 		this.safeCreateContribution(instantiationService, logService, environmentService, contribution, lifecycleService.phase);
-		this.contributionsById.delete(id);
 
 		const instance = this.instancesById.get(id);
 		if (!instance) {
@@ -329,6 +328,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 			const instance = instantiationService.createInstance(contribution.ctor);
 			if (typeof contribution.id === 'string') {
 				this.instancesById.set(contribution.id, instance);
+				this.contributionsById.delete(contribution.id);
 			}
 		} catch (error) {
 			logService.error(`Unable to create workbench contribution '${contribution.id ?? contribution.ctor.name}'.`, error);
