@@ -23,7 +23,9 @@ import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 type SessionData = {
 	editor: ICodeEditor;
@@ -59,7 +61,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) { }
 
 	dispose() {
@@ -125,16 +127,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			targetUri.with({ scheme: Schemas.vscode, authority: 'inline-chat', path: '', query: new URLSearchParams({ id, 'textModel0': '' }).toString() }), true
 		));
 
-		// untitled documents are special
+		// untitled documents are special and we are releasing their session when their last editor closes
 		if (targetUri.scheme === Schemas.untitled) {
-			const untitledTextModel = this._textFileService.untitled.get(targetUri);
-			if (untitledTextModel) {
-				store.add(untitledTextModel.onDidChangeDirty(() => {
-					if (!untitledTextModel.isDirty()) {
-						this.releaseSession(session);
-					}
-				}));
-			}
+			store.add(this._editorService.onDidCloseEditor(() => {
+				if (!this._editorService.isOpened({ resource: targetUri, typeId: UntitledTextEditorInput.ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
+					this.releaseSession(session);
+				}
+			}));
 		}
 
 		let wholeRange = options.wholeRange;
@@ -192,20 +191,18 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	releaseSession(session: Session): void {
 
-		let data: SessionData | undefined;
+		let tuple: [string, SessionData] | undefined;
 
 		// cleanup
-		for (const [key, value] of this._sessions) {
-			if (value.session === session) {
-				data = value;
-				value.store.dispose();
-				this._sessions.delete(key);
-				this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.debugName}`);
+		for (const candidate of this._sessions) {
+			if (candidate[1].session === session) {
+				// if (value.session === session) {
+				tuple = candidate;
 				break;
 			}
 		}
 
-		if (!data) {
+		if (!tuple) {
 			// double remove
 			return;
 		}
@@ -213,7 +210,12 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._keepRecording(session);
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 
-		this._onDidEndSession.fire({ editor: data.editor, session });
+		const [key, value] = tuple;
+		value.store.dispose();
+		this._sessions.delete(key);
+		this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.debugName}`);
+
+		this._onDidEndSession.fire({ editor: value.editor, session });
 	}
 
 	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession {

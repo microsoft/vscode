@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -60,7 +60,7 @@ export interface IssueReporterExtensionData {
 	command?: {
 		data?: string;
 		template?: string;
-		uri?: string;
+		uri?: UriComponents;
 	};
 }
 
@@ -78,7 +78,7 @@ export interface IssueReporterData extends WindowData {
 	command?: {
 		data?: string;
 		template?: string;
-		uri?: string;
+		uri?: UriComponents;
 	};
 }
 

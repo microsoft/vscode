@@ -795,7 +795,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleEditorGroupLayout',
-			title: { value: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"), original: 'Toggle Vertical/Horizontal Editor Layout' },
+			title: nls.localize2('flipLayout', "Toggle Vertical/Horizontal Editor Layout"),
 			f1: true,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit0,
@@ -882,7 +882,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'openEditors.newUntitledFile',
-			title: { value: nls.localize('newUntitledFile', "New Untitled Text File"), original: 'New Untitled Text File' },
+			title: nls.localize2('newUntitledFile', "New Untitled Text File"),
 			f1: false,
 			icon: Codicon.newFile,
 			menu: {

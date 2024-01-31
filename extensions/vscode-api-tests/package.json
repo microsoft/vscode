@@ -30,7 +30,6 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "readonlyMessage",
     "languageStatusText",
     "resolvers",
     "scmActionButton",
@@ -50,7 +49,6 @@
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
-    "testingActiveProfile",
     "windowActivity"
   ],
   "private": true,

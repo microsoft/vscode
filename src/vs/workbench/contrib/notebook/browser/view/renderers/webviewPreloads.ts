@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as DOM from 'vs/base/browser/window';
+import { promiseWithResolvers } from 'vs/base/common/async';
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
@@ -497,7 +498,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
 		const cellOutputContainer = $window.document.getElementById(cellOrOutputId) ??
-			(alternateId ? $window.document.getElementById(alternateId!) : undefined);
+			(alternateId ? $window.document.getElementById(alternateId) : undefined);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains($window.document.activeElement)) {
 				return;
@@ -800,12 +801,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		getOutputItem(outputId: string, mime: string) {
 			const requestId = this._requestPool++;
 
-			let resolve: ((x: webviewMessages.OutputItemEntry | undefined) => void) | undefined;
-			const p = new Promise<webviewMessages.OutputItemEntry | undefined>(r => resolve = r);
-			this._requests.set(requestId, { resolve: resolve! });
+			const { promise, resolve } = promiseWithResolvers<webviewMessages.OutputItemEntry | undefined>();
+			this._requests.set(requestId, { resolve });
 
 			postNotebookMessage<webviewMessages.IGetOutputItemMessage>('getOutputItem', { requestId, outputId, mime });
-			return p;
+			return promise;
 		}
 
 		resolveOutputItem(requestId: number, output: webviewMessages.OutputItemEntry | undefined) {
@@ -1394,21 +1394,34 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		try {
-			const image = $window.document.getElementById(outputId)?.querySelector('img')
-				?? $window.document.getElementById(altOutputId)?.querySelector('img');
+			const outputElement = $window.document.getElementById(outputId)
+				?? $window.document.getElementById(altOutputId);
+
+			let image = outputElement?.querySelector('img');
+
+			if (!image) {
+				const svgImage = outputElement?.querySelector('svg.output-image');
+				if (svgImage) {
+					image = new Image();
+					image.src = 'data:image/svg+xml,' + encodeURIComponent(svgImage.outerHTML);
+				}
+			}
+
 			if (image) {
+				const imageToCopy = image;
 				await navigator.clipboard.write([new ClipboardItem({
 					'image/png': new Promise((resolve) => {
 						const canvas = document.createElement('canvas');
-						if (canvas !== null) {
-							canvas.width = image.naturalWidth;
-							canvas.height = image.naturalHeight;
-							const context = canvas.getContext('2d');
-							context?.drawImage(image, 0, 0);
-						}
+						canvas.width = imageToCopy.naturalWidth;
+						canvas.height = imageToCopy.naturalHeight;
+						const context = canvas.getContext('2d');
+						context!.drawImage(imageToCopy, 0, 0);
+
 						canvas.toBlob((blob) => {
 							if (blob) {
 								resolve(blob);
+							} else {
+								console.error('No blob data to write to clipboard');
 							}
 							canvas.remove();
 						}, 'image/png');
@@ -2254,12 +2267,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.id = id;
 			this._content = { value: content, version: 0, metadata: metadata };
 
-			let resolve: () => void;
-			let reject: () => void;
-			this.ready = new Promise<void>((res, rej) => {
-				resolve = res;
-				reject = rej;
-			});
+			const { promise, resolve, reject } = promiseWithResolvers<void>();
+			this.ready = promise;
 
 			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
 			this.outputItem = Object.freeze<ExtendedOutputItem>({

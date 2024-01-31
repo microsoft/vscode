@@ -39,8 +39,8 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 		eventCount++;
 		dispose(toDispose);
 		for (let i = 0; i < data.length; i++) {
-			assert.strictEqual(e!.added![i] instanceof Breakpoint, true);
-			assert.strictEqual((e!.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
+			assert.strictEqual(e.added![i] instanceof Breakpoint, true);
+			assert.strictEqual((e.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
 		}
 	});
 	const bps = model.addBreakpoints(uri, data);

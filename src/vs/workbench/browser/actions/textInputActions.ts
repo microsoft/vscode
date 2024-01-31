@@ -9,15 +9,16 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event as BaseEvent } from 'vs/base/common/event';
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.textInputActionsProvider';
 
 	private textInputActions: IAction[] = [];
 
@@ -105,4 +106,4 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution2(TextInputActionsProvider.ID, TextInputActionsProvider, WorkbenchContributionInstantiation.BlockRestore);

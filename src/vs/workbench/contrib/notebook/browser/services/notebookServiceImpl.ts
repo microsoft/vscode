@@ -212,7 +212,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				// untitled notebooks are disposed when they get saved. we should not hold a reference
 				// to such a disposed notebook and therefore dispose the reference as well
 				ref.object.notebook.onWillDispose(() => {
-					ref!.dispose();
+					ref.dispose();
 				});
 
 				return { editor: NotebookEditorInput.getOrCreate(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };

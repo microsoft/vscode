@@ -230,7 +230,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -265,7 +265,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -300,7 +300,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1 });
 	});
 
@@ -363,7 +363,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2, 'typescript.json': tsSnippet1 });
 	});
 
@@ -383,7 +383,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -419,7 +419,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2 });
 	});
 
@@ -476,7 +476,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2 });
 	});
 
@@ -497,7 +497,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1 });
 	});
 
@@ -583,7 +583,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1, 'html.json': htmlSnippet3 });
 	});
 
@@ -611,7 +611,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1 });
 	});
 
@@ -631,7 +631,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'global.code-snippets': globalSnippet });
 	});
 
@@ -654,7 +654,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1, 'global.code-snippets': globalSnippet });
 	});
 

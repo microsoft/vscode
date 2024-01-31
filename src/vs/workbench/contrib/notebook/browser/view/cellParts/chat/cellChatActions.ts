@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -29,10 +29,7 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: 'notebook.cell.chat.accept',
-				title: {
-					value: localize('notebook.cell.chat.accept', "Make Request"),
-					original: 'Make Request'
-				},
+				title: localize2('notebook.cell.chat.accept', "Make Request"),
 				icon: Codicon.send,
 				keybinding: {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
@@ -245,10 +242,7 @@ registerAction2(class extends NotebookCellAction {
 		super(
 			{
 				id: 'notebook.cell.chat.close',
-				title: {
-					value: localize('notebook.cell.chat.close', "Close Chat"),
-					original: 'Close Chat'
-				},
+				title: localize2('notebook.cell.chat.close', "Close Chat"),
 				icon: Codicon.close,
 				menu: {
 					id: MENU_CELL_CHAT_WIDGET,
@@ -273,10 +267,10 @@ registerAction2(class extends NotebookAction {
 		super(
 			{
 				id: 'notebook.cell.chat.acceptChanges',
-				title: { value: localize('apply1', 'Accept Changes'), original: 'Accept Changes' },
+				title: localize2('apply1', "Accept Changes"),
 				shortTitle: localize('apply2', 'Accept'),
 				icon: Codicon.check,
-				tooltip: localize('apply1', 'Accept Changes'),
+				tooltip: localize('apply3', 'Accept Changes'),
 				keybinding: {
 					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
 					weight: KeybindingWeight.EditorContrib + 10,

@@ -837,8 +837,8 @@ export class QuickInputList {
 			return;
 		}
 		this._lastHover = this.options.hoverDelegate.showHover({
-			content: element.saneTooltip!,
-			target: element.element!,
+			content: element.saneTooltip,
+			target: element.element,
 			linkHandler: (url) => {
 				this.options.linkOpenerDelegate(url);
 			},

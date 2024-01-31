@@ -10,7 +10,7 @@ class UserActivityRegistry {
 	private todo: { new(s: IUserActivityService, ...args: any[]): any }[] = [];
 
 	public add = (ctor: { new(s: IUserActivityService, ...args: any[]): any }) => {
-		this.todo!.push(ctor);
+		this.todo.push(ctor);
 	};
 
 	public take(userActivityService: IUserActivityService, instantiation: IInstantiationService) {

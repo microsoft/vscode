@@ -136,17 +136,17 @@ function createAlignmentPanelActionConfig(id: string, title: ICommandActionTitle
 
 
 const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
-	createPositionPanelActionConfig(PositionPanelActionId.LEFT, { value: localize('positionPanelLeft', 'Move Panel Left'), original: 'Move Panel Left' }, localize('positionPanelLeftShort', "Left"), Position.LEFT),
-	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, { value: localize('positionPanelRight', 'Move Panel Right'), original: 'Move Panel Right' }, localize('positionPanelRightShort', "Right"), Position.RIGHT),
-	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, { value: localize('positionPanelBottom', 'Move Panel To Bottom'), original: 'Move Panel To Bottom' }, localize('positionPanelBottomShort', "Bottom"), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.LEFT, localize2('positionPanelLeft', "Move Panel Left"), localize('positionPanelLeftShort', "Left"), Position.LEFT),
+	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, localize2('positionPanelRight', "Move Panel Right"), localize('positionPanelRightShort', "Right"), Position.RIGHT),
+	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, localize2('positionPanelBottom', "Move Panel To Bottom"), localize('positionPanelBottomShort', "Bottom"), Position.BOTTOM),
 ];
 
 
 const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
-	createAlignmentPanelActionConfig(AlignPanelActionId.LEFT, { value: localize('alignPanelLeft', 'Set Panel Alignment to Left'), original: 'Set Panel Alignment to Left' }, localize('alignPanelLeftShort', "Left"), 'left'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.RIGHT, { value: localize('alignPanelRight', 'Set Panel Alignment to Right'), original: 'Set Panel Alignment to Right' }, localize('alignPanelRightShort', "Right"), 'right'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, { value: localize('alignPanelCenter', 'Set Panel Alignment to Center'), original: 'Set Panel Alignment to Center' }, localize('alignPanelCenterShort', "Center"), 'center'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, { value: localize('alignPanelJustify', 'Set Panel Alignment to Justify'), original: 'Set Panel Alignment to Justify' }, localize('alignPanelJustifyShort', "Justify"), 'justify'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.LEFT, localize2('alignPanelLeft', "Set Panel Alignment to Left"), localize('alignPanelLeftShort', "Left"), 'left'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.RIGHT, localize2('alignPanelRight', "Set Panel Alignment to Right"), localize('alignPanelRightShort', "Right"), 'right'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, localize2('alignPanelCenter', "Set Panel Alignment to Center"), localize('alignPanelCenterShort', "Center"), 'center'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, localize2('alignPanelJustify', "Set Panel Alignment to Justify"), localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
 
 
@@ -254,10 +254,7 @@ class SwitchPanelViewAction extends Action2 {
 
 registerAction2(class extends SwitchPanelViewAction {
 	constructor() {
-		super('workbench.action.previousPanelView', {
-			value: localize('previousPanelView', 'Previous Panel View'),
-			original: 'Previous Panel View'
-		});
+		super('workbench.action.previousPanelView', localize2('previousPanelView', "Previous Panel View"));
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -267,10 +264,7 @@ registerAction2(class extends SwitchPanelViewAction {
 
 registerAction2(class extends SwitchPanelViewAction {
 	constructor() {
-		super('workbench.action.nextPanelView', {
-			value: localize('nextPanelView', 'Next Panel View'),
-			original: 'Next Panel View'
-		});
+		super('workbench.action.nextPanelView', localize2('nextPanelView', "Next Panel View"));
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -425,10 +419,7 @@ class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 	constructor() {
 		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
 			id: MovePanelToSidePanelAction.ID,
-			title: {
-				value: localize('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
-				original: 'Move Panel Views To Secondary Side Bar'
-			},
+			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
 			category: Categories.View,
 			f1: false
 		});
@@ -440,10 +431,7 @@ export class MovePanelToSecondarySideBarAction extends MoveViewsBetweenPanelsAct
 	constructor() {
 		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
 			id: MovePanelToSecondarySideBarAction.ID,
-			title: {
-				value: localize('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
-				original: 'Move Panel Views To Secondary Side Bar'
-			},
+			title: localize2('movePanelToSecondarySideBar', "Move Panel Views To Secondary Side Bar"),
 			category: Categories.View,
 			f1: true
 		});
@@ -461,10 +449,7 @@ class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 	constructor() {
 		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
 			id: MoveSidePanelToPanelAction.ID,
-			title: {
-				value: localize('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
-				original: 'Move Secondary Side Bar Views To Panel'
-			},
+			title: localize2('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
 			category: Categories.View,
 			f1: false
 		});
@@ -477,10 +462,7 @@ export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAct
 	constructor() {
 		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
 			id: MoveSecondarySideBarToPanelAction.ID,
-			title: {
-				value: localize('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
-				original: 'Move Secondary Side Bar Views To Panel'
-			},
+			title: localize2('moveSidePanelToPanel', "Move Secondary Side Bar Views To Panel"),
 			category: Categories.View,
 			f1: true
 		});
