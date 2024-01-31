@@ -13,21 +13,23 @@ suite('Single Text Edit', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('testing getNewRanges', () => {
-		function testGetNewRanges() {
+
+		function testInverseEdits() {
 			const randomText = randomMultilineString(10);
 			const model = createTextModel(randomText);
-			const initialModel = createTextModel(randomText);
+
 			const edits = generateRandomDisjointEdits(model, 3);
+			const invEdits = inverseEdits(model, edits);
+
 			model.applyEdits(edits);
-			const invEdits = inverseEdits(initialModel, edits);
 			model.applyEdits(invEdits);
+
 			assert.deepStrictEqual(model.getValue(), randomText);
 			model.dispose();
-			initialModel.dispose();
 		}
 
 		for (let i = 0; i < 1; i++) {
-			testGetNewRanges();
+			testInverseEdits();
 		}
 	});
 });
