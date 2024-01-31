@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
-import { commonPrefixLength, getLeadingWhitespace } from 'vs/base/common/strings';
+import { commonPrefixLength, getLeadingWhitespace, splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
@@ -245,4 +245,74 @@ function smartDiff(originalValue: string, newValue: string, smartBracketMatching
 	const elements2 = getElements(newValue);
 
 	return new LcsDiff({ getElements: () => elements1 }, { getElements: () => elements2 }).ComputeDiff(false).changes;
+}
+
+/**
+ * Given some single text edits, this function finds the new ranges of the editted text post all edits.
+ * Assumes that the edit ranges are disjoint
+ * @param edits edits applied
+ * @returns new ranges post edits for every edit
+ */
+export function getNewRanges(edits: SingleTextEdit[]): Range[] {
+
+	if (edits.length === 0) {
+		return [];
+	}
+
+	const sortIndices = Array.from(edits.keys()).sort((a, b) =>
+		Range.compareRangesUsingStarts(edits[a].range, edits[b].range)
+	);
+	const indexOfEdit = sortIndices.indexOf(0);
+	const firstEdit = edits[indexOfEdit];
+	const firstEditStartPosition = firstEdit.range.getStartPosition();
+	const rangesMap = new Map<number, Range>([[
+		0, Range.fromPositions(
+			firstEditStartPosition,
+			addPositions(
+				firstEdit.range.getStartPosition(),
+				lengthOfText(firstEdit.text)
+			))
+	]]);
+
+	for (let i = 0; i < edits.length; i++) {
+
+		const indexOfEdit = sortIndices.indexOf(i);
+		const edit = edits[indexOfEdit];
+		if (!edit) {
+			return [];
+		}
+		const splitText = splitLines(edit.text!);
+		const numberOfLinesToAdd = splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
+
+		for (let j = i + 1; j < edits.length; j++) {
+			const indexOfEdit = sortIndices.indexOf(j);
+			const affectedEdit = edits[indexOfEdit];
+			const affectedRange = rangesMap.get(j) ?? affectedEdit?.range;
+			if (!affectedRange || !affectedEdit) {
+				return [];
+			}
+			let columnDelta = 0;
+			if (affectedRange.startLineNumber === edit.range.endLineNumber) {
+				let rangeLength;
+				if (edit.range.startLineNumber === edit.range.endLineNumber) {
+					rangeLength = edit.range.endColumn - edit.range.startColumn;
+				} else {
+					rangeLength = edit.range.endColumn;
+				}
+				columnDelta = splitText[splitText.length - 1].length - rangeLength;
+			}
+			const rangeStart = affectedRange.getStartPosition().delta(numberOfLinesToAdd, columnDelta);
+			const rangeEnd = addPositions(
+				rangeStart,
+				lengthOfText(affectedEdit.text)
+			);
+			rangesMap.set(j, Range.fromPositions(rangeStart, rangeEnd));
+		}
+	}
+
+	const ranges = [];
+	for (let i = 0; i < edits.length; i++) {
+		ranges.push(rangesMap.get(i)!);
+	}
+	return ranges;
 }

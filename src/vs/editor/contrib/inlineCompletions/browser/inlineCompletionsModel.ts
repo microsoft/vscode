@@ -7,7 +7,7 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
-import { commonPrefixLength, splitLines } from 'vs/base/common/strings';
+import { commonPrefixLength } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -20,7 +20,7 @@ import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { SingleTextEdit, getNewRanges } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -435,6 +435,8 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
+	// todo: extract this function into a separate place, write some tests for this function
+	// todo: investigate that bug, that we previously saw inside of test 21, there appears to be a logical error somewhere that needs to be resolved
 	private _getEdits(editor: ICodeEditor, completion: SingleTextEdit): { edits: SingleTextEdit[]; editorSelections: Selection[] } {
 
 		const selections = editor.getSelections() ?? [];
@@ -456,79 +458,13 @@ export class InlineCompletionsModel extends Disposable {
 				return new SingleTextEdit(range, secondaryEditText);
 			})
 		];
-		const newRanges = this._getNewRanges(edits);
+		const newRanges = getNewRanges(edits);
 		const editorSelections = newRanges.map(range => Selection.fromPositions(range.getEndPosition()));
 
 		return {
 			edits,
 			editorSelections
 		};
-	}
-
-	// todo: extract this function into a separate place, write some tests for this function
-	// todo: investigate that bug, that we previously saw inside of test 21, there appears to be a logical error somewhere that needs to be resolved
-	private _getNewRanges(edits: SingleTextEdit[]): Range[] {
-
-		if (edits.length === 0) {
-			return [];
-		}
-
-		const sortIndices = Array.from(edits.keys()).sort((a, b) =>
-			Range.compareRangesUsingStarts(edits[a].range, edits[b].range)
-		);
-		const indexOfEdit = sortIndices.indexOf(0);
-		const firstEdit = edits[indexOfEdit];
-		const firstEditStartPosition = firstEdit.range.getStartPosition();
-		const rangesMap = new Map<number, Range>([[
-			0, Range.fromPositions(
-				firstEditStartPosition,
-				addPositions(
-					firstEdit.range.getStartPosition(),
-					lengthOfText(firstEdit.text)
-				))
-		]]);
-
-		for (let i = 0; i < edits.length; i++) {
-
-			const indexOfEdit = sortIndices.indexOf(i);
-			const edit = edits[indexOfEdit];
-			if (!edit) {
-				return [];
-			}
-			const splitText = splitLines(edit.text!);
-			const numberOfLinesToAdd = splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
-
-			for (let j = i + 1; j < edits.length; j++) {
-				const indexOfEdit = sortIndices.indexOf(j);
-				const affectedEdit = edits[indexOfEdit];
-				const affectedRange = rangesMap.get(j) ?? affectedEdit?.range;
-				if (!affectedRange || !affectedEdit) {
-					return [];
-				}
-				let columnDelta = 0;
-				if (affectedRange.startLineNumber === edit.range.endLineNumber) {
-					let rangeLength;
-					if (edit.range.startLineNumber === edit.range.endLineNumber) {
-						rangeLength = edit.range.endColumn - edit.range.startColumn;
-					} else {
-						rangeLength = edit.range.endColumn;
-					}
-					columnDelta = splitText[splitText.length - 1].length - rangeLength;
-				}
-				const rangeStart = affectedRange.getStartPosition().delta(numberOfLinesToAdd, columnDelta);
-				const rangeEnd = addPositions(
-					rangeStart,
-					lengthOfText(affectedEdit.text)
-				);
-				rangesMap.set(j, Range.fromPositions(rangeStart, rangeEnd));
-			}
-		}
-
-		const ranges = [];
-		for (let i = 0; i < edits.length; i++) {
-			ranges.push(rangesMap.get(i)!);
-		}
-		return ranges;
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
