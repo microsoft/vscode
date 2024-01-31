@@ -31,6 +31,8 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 
 export class PerfviewContrib {
 
+	static readonly ID = 'workbench.contrib.perfview';
+
 	private readonly _registration: IDisposable;
 
 	constructor(
