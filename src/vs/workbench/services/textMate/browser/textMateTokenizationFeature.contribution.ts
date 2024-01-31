@@ -14,7 +14,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions, Wo
  */
 class TextMateTokenizationInstantiator implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.TextMateTokenizationInstantiator';
+	static readonly ID = 'workbench.contrib.textMateTokenizationInstantiator';
 
 	constructor(
 		@ITextMateTokenizationService _textMateTokenizationService: ITextMateTokenizationService
