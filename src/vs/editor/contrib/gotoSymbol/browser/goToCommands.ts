@@ -283,9 +283,8 @@ registerAction2(class GoToDefinitionAction extends DefinitionAction {
 		}, {
 			id: GoToDefinitionAction.id,
 			title: {
-				value: nls.localize('actions.goToDecl.label', "Go to Definition"),
-				original: 'Go to Definition',
-				mnemonicTitle: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+				...nls.localize2('actions.goToDecl.label', "Go to Definition"),
+				mnemonicTitle: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition"),
 			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
@@ -413,9 +412,8 @@ registerAction2(class GoToDeclarationAction extends DeclarationAction {
 		}, {
 			id: GoToDeclarationAction.id,
 			title: {
-				value: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
-				original: 'Go to Declaration',
-				mnemonicTitle: nls.localize({ key: 'miGotoDeclaration', comment: ['&& denotes a mnemonic'] }, "Go to &&Declaration")
+				...nls.localize2('actions.goToDeclaration.label', "Go to Declaration"),
+				mnemonicTitle: nls.localize({ key: 'miGotoDeclaration', comment: ['&& denotes a mnemonic'] }, "Go to &&Declaration"),
 			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
@@ -501,9 +499,8 @@ registerAction2(class GoToTypeDefinitionAction extends TypeDefinitionAction {
 		}, {
 			id: GoToTypeDefinitionAction.ID,
 			title: {
-				value: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
-				original: 'Go to Type Definition',
-				mnemonicTitle: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
+				...nls.localize2('actions.goToTypeDefinition.label', "Go to Type Definition"),
+				mnemonicTitle: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition"),
 			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasTypeDefinitionProvider,
@@ -590,9 +587,8 @@ registerAction2(class GoToImplementationAction extends ImplementationAction {
 		}, {
 			id: GoToImplementationAction.ID,
 			title: {
-				value: nls.localize('actions.goToImplementation.label', "Go to Implementations"),
-				original: 'Go to Implementations',
-				mnemonicTitle: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations")
+				...nls.localize2('actions.goToImplementation.label', "Go to Implementations"),
+				mnemonicTitle: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations"),
 			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
@@ -678,9 +674,8 @@ registerAction2(class GoToReferencesAction extends ReferencesAction {
 		}, {
 			id: 'editor.action.goToReferences',
 			title: {
-				value: nls.localize('goToReferences.label', "Go to References"),
-				original: 'Go to References',
-				mnemonicTitle: nls.localize({ key: 'miGotoReference', comment: ['&& denotes a mnemonic'] }, "Go to &&References")
+				...nls.localize2('goToReferences.label', "Go to References"),
+				mnemonicTitle: nls.localize({ key: 'miGotoReference', comment: ['&& denotes a mnemonic'] }, "Go to &&References"),
 			},
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,

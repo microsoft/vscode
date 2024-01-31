@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -550,10 +550,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			constructor() {
 				super({
 					id: `${viewDescriptor.id}.resetViewLocation`,
-					title: {
-						original: 'Reset Location',
-						value: localize('resetViewLocation', "Reset Location")
-					},
+					title: localize2('resetViewLocation', "Reset Location"),
 					menu: [{
 						id: MenuId.ViewTitleContext,
 						when: ContextKeyExpr.or(

@@ -194,9 +194,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: SETTINGS_COMMAND_OPEN_SETTINGS,
 					title: {
-						value: nls.localize('settings', "Settings"),
+						...nls.localize2('settings', "Settings"),
 						mnemonicTitle: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"),
-						original: 'Settings'
 					},
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -411,7 +410,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: '_workbench.action.openFolderSettings',
-					title: nls.localize2('openFolderSettings', "Open Folder Settings"),
+					title: nls.localize('openFolderSettings', "Open Folder Settings"),
 					category,
 					menu: {
 						id: MenuId.ExplorerContext,
@@ -482,12 +481,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			.then(() => {
 				const remoteAuthority = this.environmentService.remoteAuthority;
 				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
-				const label = nls.localize('openRemoteSettings', "Open Remote Settings ({0})", hostLabel);
 				registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: 'workbench.action.openRemoteSettings',
-							title: { value: label, original: `Open Remote Settings (${hostLabel})` },
+							title: nls.localize2('openRemoteSettings', "Open Remote Settings ({0})", hostLabel),
 							category,
 							menu: {
 								id: MenuId.CommandPalette,
@@ -500,12 +498,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return accessor.get(IPreferencesService).openRemoteSettings(args);
 					}
 				});
-				const jsonLabel = nls.localize('openRemoteSettingsJSON', "Open Remote Settings (JSON) ({0})", hostLabel);
 				registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: 'workbench.action.openRemoteSettingsFile',
-							title: { value: jsonLabel, original: `Open Remote Settings (JSON) (${hostLabel})` },
+							title: nls.localize2('openRemoteSettingsJSON', "Open Remote Settings (JSON) ({0})", hostLabel),
 							category,
 							menu: {
 								id: MenuId.CommandPalette,
@@ -832,7 +829,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-					title: { value: nls.localize('showDefaultKeybindings', "Show System Keybindings"), original: 'Show System Keyboard Shortcuts' },
+					title: nls.localize2('showDefaultKeybindings', "Show System Keybindings"),
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -853,7 +850,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS,
-					title: { value: nls.localize('showExtensionKeybindings', "Show Extension Keybindings"), original: 'Show Extension Keyboard Shortcuts' },
+					title: nls.localize2('showExtensionKeybindings', "Show Extension Keybindings"),
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -874,7 +871,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
-					title: { value: nls.localize('showUserKeybindings', "Show User Keybindings"), original: 'Show User Keyboard Shortcuts' },
+					title: nls.localize2('showUserKeybindings', "Show User Keybindings"),
 					menu: [
 						{
 							id: MenuId.EditorTitle,

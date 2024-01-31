@@ -20,8 +20,7 @@ export const terminalStrings = {
 	focus: localize2('workbench.action.terminal.focus', "Focus Terminal"),
 	focusAndHideAccessibleBuffer: localize2('workbench.action.terminal.focusAndHideAccessibleBuffer', "Focus Terminal and Hide Accessible Buffer"),
 	kill: {
-		value: localize('killTerminal', "Kill Terminal"),
-		original: 'Kill Terminal',
+		...localize2('killTerminal', "Kill Terminal"),
 		short: localize('killTerminal.short', "Kill"),
 	},
 	moveToEditor: localize2('moveToEditor', "Move Terminal into Editor Area"),
@@ -30,8 +29,7 @@ export const terminalStrings = {
 	changeIcon: localize2('workbench.action.terminal.changeIcon', "Change Icon..."),
 	changeColor: localize2('workbench.action.terminal.changeColor', "Change Color..."),
 	split: {
-		value: localize('splitTerminal', "Split Terminal"),
-		original: 'Split Terminal',
+		...localize2('splitTerminal', "Split Terminal"),
 		short: localize('splitTerminal.short', "Split"),
 	},
 	unsplit: localize2('unsplitTerminal', "Unsplit Terminal"),

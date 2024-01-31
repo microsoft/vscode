@@ -30,12 +30,12 @@ const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOf
 export class TogglePanelAction extends Action2 {
 
 	static readonly ID = 'workbench.action.togglePanel';
-	static readonly LABEL = localize('togglePanelVisibility', "Toggle Panel Visibility");
+	static readonly LABEL = localize2('togglePanelVisibility', "Toggle Panel Visibility");
 
 	constructor() {
 		super({
 			id: TogglePanelAction.ID,
-			title: { value: TogglePanelAction.LABEL, original: 'Toggle Panel Visibility' },
+			title: TogglePanelAction.LABEL,
 			toggled: {
 				condition: PanelVisibleContext,
 				title: localize('toggle panel', "Panel"),

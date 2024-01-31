@@ -81,9 +81,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleCenteredLayout',
 			title: {
-				value: localize('toggleCenteredLayout', "Toggle Centered Layout"),
+				...localize2('toggleCenteredLayout', "Toggle Centered Layout"),
 				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
-				original: 'Toggle Centered Layout'
 			},
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
@@ -285,9 +284,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleEditorVisibility',
 			title: {
-				value: localize('toggleEditor', "Toggle Editor Area Visibility"),
+				...localize2('toggleEditor', "Toggle Editor Area Visibility"),
 				mnemonicTitle: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
-				original: 'Toggle Editor Area Visibility'
 			},
 			category: Categories.View,
 			f1: true,
@@ -418,9 +416,8 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 		super({
 			id: ToggleStatusbarVisibilityAction.ID,
 			title: {
-				value: localize('toggleStatusbar', "Toggle Status Bar Visibility"),
+				...localize2('toggleStatusbar', "Toggle Status Bar Visibility"),
 				mnemonicTitle: localize({ key: 'miStatusbar', comment: ['&& denotes a mnemonic'] }, "S&&tatus Bar"),
-				original: 'Toggle Status Bar Visibility'
 			},
 			category: Categories.View,
 			f1: true,
@@ -703,9 +700,8 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.toggleZenMode',
 			title: {
-				value: localize('toggleZenMode', "Toggle Zen Mode"),
+				...localize2('toggleZenMode', "Toggle Zen Mode"),
 				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
-				original: 'Toggle Zen Mode'
 			},
 			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
@@ -751,9 +747,8 @@ if (isWindows || isLinux || isWeb) {
 			super({
 				id: 'workbench.action.toggleMenuBar',
 				title: {
-					value: localize('toggleMenuBar', "Toggle Menu Bar"),
+					...localize2('toggleMenuBar', "Toggle Menu Bar"),
 					mnemonicTitle: localize({ key: 'miMenuBar', comment: ['&& denotes a mnemonic'] }, "Menu &&Bar"),
-					original: 'Toggle Menu Bar'
 				},
 				category: Categories.View,
 				f1: true,

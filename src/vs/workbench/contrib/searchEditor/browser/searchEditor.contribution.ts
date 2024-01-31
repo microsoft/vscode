@@ -458,7 +458,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSearchEditorRegexCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorRegex', "Toggle Use Regular Expression"), original: 'Toggle Use Regular Expression"' },
+			title: localize2('searchEditor.action.toggleSearchEditorRegex', "Toggle Use Regular Expression"),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -477,7 +477,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SearchEditorConstants.ToggleSearchEditorContextLinesCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorContextLines', "Toggle Context Lines"), original: 'Toggle Context Lines"' },
+			title: localize2('searchEditor.action.toggleSearchEditorContextLines', "Toggle Context Lines"),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,

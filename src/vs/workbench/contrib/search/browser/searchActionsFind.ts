@@ -160,9 +160,8 @@ registerAction2(class FindInFilesAction extends Action2 {
 		super({
 			id: Constants.SearchCommandIds.FindInFilesActionId,
 			title: {
-				value: nls.localize('findInFiles', "Find in Files"),
+				...nls.localize2('findInFiles', "Find in Files"),
 				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
-				original: 'Find in Files'
 			},
 			metadata: {
 				description: nls.localize('findInFiles.description', "Open a workspace search"),

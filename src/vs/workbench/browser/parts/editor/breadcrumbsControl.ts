@@ -598,9 +598,8 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 		super({
 			id: 'breadcrumbs.toggle',
 			title: {
-				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
+				...localize2('cmd.toggle', "Toggle Breadcrumbs"),
 				mnemonicTitle: localize({ key: 'miBreadcrumbs', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs"),
-				original: 'Toggle Breadcrumbs',
 			},
 			category: Categories.View,
 			toggled: {
