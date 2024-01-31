@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -19,10 +19,7 @@ export class ShowAudioCueHelp extends Action2 {
 	constructor() {
 		super({
 			id: ShowAudioCueHelp.ID,
-			title: {
-				value: localize('audioCues.help', "Help: List Audio Cues"),
-				original: 'Help: List Audio Cues'
-			},
+			title: localize2('audioCues.help', "Help: List Audio Cues"),
 			f1: true,
 		});
 	}
@@ -77,10 +74,7 @@ export class ShowAccessibilityAlertHelp extends Action2 {
 	constructor() {
 		super({
 			id: ShowAccessibilityAlertHelp.ID,
-			title: {
-				value: localize('accessibility.alert.help', "Help: List Alerts"),
-				original: 'Help: List Alerts'
-			},
+			title: localize2('accessibility.alert.help', "Help: List Alerts"),
 			f1: true,
 		});
 	}

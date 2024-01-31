@@ -683,7 +683,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_TRUST_COMMAND_ID,
-			title: { original: 'Configure Workspace Trust Settings', value: localize('configureWorkspaceTrustSettings', "Configure Workspace Trust Settings") },
+			title: localize2('configureWorkspaceTrustSettings', "Configure Workspace Trust Settings"),
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: WORKSPACES_CATEGORY,
 			f1: true
@@ -701,7 +701,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_TRUST_COMMAND_ID,
-			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
+			title: localize2('manageWorkspaceTrust', "Manage Workspace Trust"),
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: WORKSPACES_CATEGORY,
 			f1: true,

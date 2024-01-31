@@ -501,7 +501,7 @@ export class ShowRuntimeExtensionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.showRuntimeExtensions',
-			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
+			title: nls.localize2('showRuntimeExtensions', "Show Running Extensions"),
 			category: Categories.Developer,
 			f1: true,
 			menu: {

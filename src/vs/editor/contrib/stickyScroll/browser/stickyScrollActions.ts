@@ -5,7 +5,7 @@
 
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -74,10 +74,7 @@ export class SelectNextStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.selectNextStickyScrollLine',
-			title: {
-				value: localize('selectNextStickyScrollLine.title', "Select next sticky scroll line"),
-				original: 'Select next sticky scroll line'
-			},
+			title: localize2('selectNextStickyScrollLine.title', "Select next sticky scroll line"),
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
@@ -95,10 +92,7 @@ export class SelectPreviousStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.selectPreviousStickyScrollLine',
-			title: {
-				value: localize('selectPreviousStickyScrollLine.title', "Select previous sticky scroll line"),
-				original: 'Select previous sticky scroll line'
-			},
+			title: localize2('selectPreviousStickyScrollLine.title', "Select previous sticky scroll line"),
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
@@ -116,10 +110,7 @@ export class GoToStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.goToFocusedStickyScrollLine',
-			title: {
-				value: localize('goToFocusedStickyScrollLine.title', "Go to focused sticky scroll line"),
-				original: 'Go to focused sticky scroll line'
-			},
+			title: localize2('goToFocusedStickyScrollLine.title', "Go to focused sticky scroll line"),
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
@@ -138,10 +129,7 @@ export class SelectEditor extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.selectEditor',
-			title: {
-				value: localize('selectEditor.title', "Select Editor"),
-				original: 'Select Editor'
-			},
+			title: localize2('selectEditor.title', "Select Editor"),
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
