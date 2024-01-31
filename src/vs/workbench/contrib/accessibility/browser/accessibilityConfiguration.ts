@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
@@ -70,13 +70,13 @@ export const enum AccessibleViewProviderId {
 	Comments = 'comments'
 }
 
-const baseVerbosityProperty: object = {
+const baseVerbosityProperty: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,
 	tags: ['accessibility']
 };
 const markdownDeprecationMessage = localize('accessibility.alert.deprecationMessage', "This setting is deprecated. Use the `signals` settings instead.");
-const baseAlertProperty: object = {
+const baseAlertProperty: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,
 	tags: ['accessibility'],
