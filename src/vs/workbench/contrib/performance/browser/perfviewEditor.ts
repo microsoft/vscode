@@ -33,26 +33,40 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 
 export class PerfviewContrib {
 
+	static get() {
+		return Registry.
+			as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+			.getWorkbenchContribution<PerfviewContrib>(PerfviewContrib.ID);
+	}
+
 	static readonly ID = 'workbench.contrib.perfview';
 
+	private readonly _inputUri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 	private readonly _registration: IDisposable;
 
 	constructor(
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		this._registration = textModelResolverService.registerTextModelContentProvider('perf', instaService.createInstance(PerfModelContentProvider));
+		this._registration = textModelResolverService.registerTextModelContentProvider('perf', _instaService.createInstance(PerfModelContentProvider));
 	}
 
 	dispose(): void {
 		this._registration.dispose();
+	}
+
+	getInputUri(): URI {
+		return this._inputUri;
+	}
+
+	getEditorInput(): PerfviewInput {
+		return this._instaService.createInstance(PerfviewInput);
 	}
 }
 
 export class PerfviewInput extends TextResourceEditorInput {
 
 	static readonly Id = 'PerfviewInput';
-	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
 	override get typeId(): string {
 		return PerfviewInput.Id;
@@ -68,7 +82,7 @@ export class PerfviewInput extends TextResourceEditorInput {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super(
-			PerfviewInput.Uri,
+			PerfviewContrib.get().getInputUri(),
 			localize('name', "Startup Performance"),
 			undefined,
 			undefined,
