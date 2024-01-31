@@ -24,7 +24,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
@@ -118,10 +118,10 @@ class SettingsEditor2InputSerializer implements IEditorSerializer {
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
-const OPEN_USER_SETTINGS_UI_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
-const OPEN_USER_SETTINGS_JSON_TITLE = { value: nls.localize('openUserSettingsJson', "Open User Settings (JSON)"), original: 'Open User Settings (JSON)' };
-const OPEN_APPLICATION_SETTINGS_JSON_TITLE = { value: nls.localize('openApplicationSettingsJson', "Open Application Settings (JSON)"), original: 'Open Application Settings (JSON)' };
-const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
+const OPEN_USER_SETTINGS_UI_TITLE = nls.localize2('openSettings2', "Open Settings (UI)");
+const OPEN_USER_SETTINGS_JSON_TITLE = nls.localize2('openUserSettingsJson', "Open User Settings (JSON)");
+const OPEN_APPLICATION_SETTINGS_JSON_TITLE = nls.localize2('openApplicationSettingsJson', "Open Application Settings (JSON)");
+const category = nls.localize2('preferences', "Preferences");
 
 interface IOpenSettingsActionOptions {
 	openToSide?: boolean;
@@ -166,6 +166,8 @@ function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
 }
 
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.preferencesActions';
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -222,7 +224,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openSettings2',
-					title: { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' },
+					title: nls.localize2('openSettings2', "Open Settings (UI)"),
 					category,
 					f1: true,
 				});
@@ -272,7 +274,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openGlobalSettings',
-					title: { value: nls.localize('openGlobalSettings', "Open User Settings"), original: 'Open User Settings' },
+					title: nls.localize2('openGlobalSettings', "Open User Settings"),
 					category,
 					f1: true,
 				});
@@ -286,7 +288,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openRawDefaultSettings',
-					title: { value: nls.localize('openRawDefaultSettings', "Open Default Settings (JSON)"), original: 'Open Default Settings (JSON)' },
+					title: nls.localize2('openRawDefaultSettings', "Open Default Settings (JSON)"),
 					category,
 					f1: true,
 				});
@@ -313,7 +315,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openWorkspaceSettings',
-					title: { value: nls.localize('openWorkspaceSettings', "Open Workspace Settings"), original: 'Open Workspace Settings' },
+					title: nls.localize2('openWorkspaceSettings', "Open Workspace Settings"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -332,7 +334,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openAccessibilitySettings',
-					title: { value: nls.localize('openAccessibilitySettings', "Open Accessibility Settings"), original: 'Open Accessibility Settings' },
+					title: nls.localize2('openAccessibilitySettings', "Open Accessibility Settings"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -348,7 +350,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openWorkspaceSettingsFile',
-					title: { value: nls.localize('openWorkspaceSettingsFile', "Open Workspace Settings (JSON)"), original: 'Open Workspace Settings (JSON)' },
+					title: nls.localize2('openWorkspaceSettingsFile', "Open Workspace Settings (JSON)"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -365,7 +367,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettings',
-					title: { value: nls.localize('openFolderSettings', "Open Folder Settings"), original: 'Open Folder Settings' },
+					title: nls.localize2('openFolderSettings', "Open Folder Settings"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -387,7 +389,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettingsFile',
-					title: { value: nls.localize('openFolderSettingsFile', "Open Folder Settings (JSON)"), original: 'Open Folder Settings (JSON)' },
+					title: nls.localize2('openFolderSettingsFile', "Open Folder Settings (JSON)"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -409,7 +411,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: '_workbench.action.openFolderSettings',
-					title: { value: nls.localize('openFolderSettings', "Open Folder Settings"), original: 'Open Folder Settings' },
+					title: nls.localize2('openFolderSettings', "Open Folder Settings"),
 					category,
 					menu: {
 						id: MenuId.ExplorerContext,
@@ -449,7 +451,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED,
-					title: { value: nls.localize('filterUntrusted', "Show untrusted workspace settings"), original: 'Show untrusted workspace settings' },
+					title: nls.localize2('filterUntrusted', "Show untrusted workspace settings"),
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -545,7 +547,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					category,
 					f1: true,
-					title: { value: nls.localize('settings.focusSearch', "Focus Settings Search"), original: 'Focus Settings Search' }
+					title: nls.localize2('settings.focusSearch', "Focus Settings Search")
 				});
 			}
 
@@ -564,7 +566,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					category,
 					f1: true,
-					title: { value: nls.localize('settings.clearResults', "Clear Settings Search Results"), original: 'Clear Settings Search Results' }
+					title: nls.localize2('settings.clearResults', "Clear Settings Search Results")
 				});
 			}
 
@@ -649,7 +651,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							when: CONTEXT_SETTINGS_ROW_FOCUS
 						}],
 					category,
-					title: { value: nls.localize('settings.focusSettingsTOC', "Focus Settings Table of Contents"), original: 'Focus Settings Table of Contents' }
+					title: nls.localize2('settings.focusSettingsTOC', "Focus Settings Table of Contents")
 				});
 			}
 
@@ -701,7 +703,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					f1: true,
 					category,
-					title: { value: nls.localize('settings.showContextMenu', "Show Setting Context Menu"), original: 'Show Setting Context Menu' }
+					title: nls.localize2('settings.showContextMenu', "Show Setting Context Menu")
 				});
 			}
 
@@ -725,7 +727,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					f1: true,
 					category,
-					title: { value: nls.localize('settings.focusLevelUp', "Move Focus Up One Level"), original: 'Move Focus Up One Level' }
+					title: nls.localize2('settings.focusLevelUp', "Move Focus Up One Level")
 				});
 			}
 
@@ -748,13 +750,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	private registerKeybindingsActions() {
 		const that = this;
-		const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
+		const category = nls.localize2('preferences', "Preferences");
 		const id = 'workbench.action.openGlobalKeybindings';
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id,
-					title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
+					title: nls.localize2('openGlobalKeybindings', "Open Keyboard Shortcuts"),
 					shortTitle: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
 					category,
 					icon: preferencesOpenSettingsIcon,
@@ -796,7 +798,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openDefaultKeybindingsFile',
-					title: { value: nls.localize('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)"), original: 'Open Default Keyboard Shortcuts (JSON)' },
+					title: nls.localize2('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)"),
 					category,
 					menu: { id: MenuId.CommandPalette }
 				});
@@ -809,7 +811,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openGlobalKeybindingsFile',
-					title: { value: nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)"), original: 'Open Keyboard Shortcuts (JSON)' },
+					title: nls.localize2('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)"),
 					category,
 					icon: preferencesOpenSettingsIcon,
 					menu: [
@@ -1145,7 +1147,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					const when = ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString());
 					super({
 						id: 'editor.action.defineKeybinding',
-						title: { value: nls.localize('defineKeybinding.start', "Define Keybinding"), original: 'Define Keybinding' },
+						title: nls.localize2('defineKeybinding.start', "Define Keybinding"),
 						f1: true,
 						precondition: when,
 						keybinding: {
@@ -1266,7 +1268,7 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
-					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
+					title: nls.localize2('openSettingsJson', "Open Settings (JSON)"),
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
@@ -1288,8 +1290,8 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution2(PreferencesActionsContribution.ID, PreferencesActionsContribution, WorkbenchContributionInstantiation.BlockStartup);
+workbenchContributionsRegistry.registerWorkbenchContribution2(PreferencesContribution.ID, PreferencesContribution, WorkbenchContributionInstantiation.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(SettingsEditorTitleContribution, LifecyclePhase.Restored);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);

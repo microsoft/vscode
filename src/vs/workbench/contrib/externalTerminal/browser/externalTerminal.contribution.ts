@@ -83,7 +83,7 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 					}
 				} else if (externalTerminalService) {
 					distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : dirname(stat!.resource.fsPath))).forEach(cwd => {
-						externalTerminalService!.openTerminal(config.terminal.external, cwd);
+						externalTerminalService.openTerminal(config.terminal.external, cwd);
 					});
 				}
 			});

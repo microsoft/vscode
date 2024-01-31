@@ -59,7 +59,7 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 	$emitTimelineChangeEvent(e: TimelineChangeEvent): void {
 		this.logService.trace(`MainThreadTimeline#emitChangeEvent: id=${e.id}, uri=${e.uri?.toString(true)}`);
 
-		const emitter = this._providerEmitters.get(e.id!);
+		const emitter = this._providerEmitters.get(e.id);
 		emitter?.fire(e);
 	}
 

@@ -92,7 +92,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				const dto: IThreadFocusDto = {
 					kind: 'thread',
 					threadId: thread?.threadId,
-					sessionId: session!.getId(),
+					sessionId: session.getId(),
 				};
 				this._proxy.$acceptStackFrameFocus(dto);
 			}

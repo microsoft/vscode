@@ -21,7 +21,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel, InjectedTextCursorStops, InjectedTextOptions } from 'vs/editor/common/model';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -610,7 +610,7 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_INLINE_COMMAND_ID,
-			title: { value: localize('coverage.toggleInline', "Toggle Inline Coverage"), original: 'Toggle Inline Coverage' },
+			title: localize2('coverage.toggleInline', "Toggle Inline Coverage"),
 			category: Categories.Test,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

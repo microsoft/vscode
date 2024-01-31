@@ -644,7 +644,7 @@ suite('ExtHostWorkspace', function () {
 		});
 
 		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null!, 10, new ExtensionIdentifier('test')).then(() => {
+		return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null, 10, new ExtensionIdentifier('test')).then(() => {
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 	});
@@ -664,7 +664,7 @@ suite('ExtHostWorkspace', function () {
 		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
 
 		const token = CancellationToken.Cancelled;
-		return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null!, 10, new ExtensionIdentifier('test'), token).then(() => {
+		return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null, 10, new ExtensionIdentifier('test'), token).then(() => {
 			assert(!mainThreadCalled, '!mainThreadCalled');
 		});
 	});

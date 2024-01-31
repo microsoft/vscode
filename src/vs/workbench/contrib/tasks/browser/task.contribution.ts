@@ -237,7 +237,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.openWorkspaceFileTasks',
-		title: { value: nls.localize('workbench.action.tasks.openWorkspaceFileTasks', "Open Workspace Tasks"), original: 'Open Workspace Tasks' },
+		title: nls.localize2('workbench.action.tasks.openWorkspaceFileTasks', "Open Workspace Tasks"),
 		category: TASKS_CATEGORY
 	},
 	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), TaskExecutionSupportedContext)
@@ -254,7 +254,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.showLog',
-		title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' },
+		title: nls.localize2('ShowLogAction.label', "Show Task Log"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -262,14 +262,14 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.runTask',
-		title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' },
+		title: nls.localize2('RunTaskAction.label', "Run Task"),
 		category: TASKS_CATEGORY
 	}
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.reRunTask',
-		title: { value: nls.localize('ReRunTaskAction.label', "Rerun Last Task"), original: 'Rerun Last Task' },
+		title: nls.localize2('ReRunTaskAction.label', "Rerun Last Task"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -277,7 +277,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.restartTask',
-		title: { value: nls.localize('RestartTaskAction.label', "Restart Running Task"), original: 'Restart Running Task' },
+		title: nls.localize2('RestartTaskAction.label', "Restart Running Task"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -285,7 +285,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.showTasks',
-		title: { value: nls.localize('ShowTasksAction.label', "Show Running Tasks"), original: 'Show Running Tasks' },
+		title: nls.localize2('ShowTasksAction.label', "Show Running Tasks"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -293,7 +293,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.terminate',
-		title: { value: nls.localize('TerminateAction.label', "Terminate Task"), original: 'Terminate Task' },
+		title: nls.localize2('TerminateAction.label', "Terminate Task"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -301,7 +301,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.build',
-		title: { value: nls.localize('BuildAction.label', "Run Build Task"), original: 'Run Build Task' },
+		title: nls.localize2('BuildAction.label', "Run Build Task"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -309,7 +309,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.test',
-		title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' },
+		title: nls.localize2('TestAction.label', "Run Test Task"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -317,10 +317,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.configureDefaultBuildTask',
-		title: {
-			value: nls.localize('ConfigureDefaultBuildTask.label', "Configure Default Build Task"),
-			original: 'Configure Default Build Task'
-		},
+		title: nls.localize2('ConfigureDefaultBuildTask.label', "Configure Default Build Task"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -328,10 +325,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.configureDefaultTestTask',
-		title: {
-			value: nls.localize('ConfigureDefaultTestTask.label', "Configure Default Test Task"),
-			original: 'Configure Default Test Task'
-		},
+		title: nls.localize2('ConfigureDefaultTestTask.label', "Configure Default Test Task"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -339,10 +333,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.openUserTasks',
-		title: {
-			value: nls.localize('workbench.action.tasks.openUserTasks', "Open User Tasks"),
-			original: 'Open User Tasks'
-		}, category: TASKS_CATEGORY
+		title: nls.localize2('workbench.action.tasks.openUserTasks', "Open User Tasks"), category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
 });

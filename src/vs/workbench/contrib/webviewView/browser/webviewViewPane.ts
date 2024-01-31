@@ -199,7 +199,7 @@ export class WebviewViewPane extends ViewPane {
 
 		// Re-dispatch all drag events back to the drop target to support view drag drop
 		for (const event of [EventType.DRAG, EventType.DRAG_END, EventType.DRAG_ENTER, EventType.DRAG_LEAVE, EventType.DRAG_START]) {
-			this._webviewDisposables.add(addDisposableListener(this._webview.value.container!, event, e => {
+			this._webviewDisposables.add(addDisposableListener(this._webview.value.container, event, e => {
 				e.preventDefault();
 				e.stopImmediatePropagation();
 				this.dropTargetElement.dispatchEvent(new DragEvent(e.type, e));

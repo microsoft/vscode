@@ -183,7 +183,7 @@ export class NativeDragAndDropData implements IDragAndDropData {
 
 function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined): boolean {
 	if (Array.isArray(f1) && Array.isArray(f2)) {
-		return equals(f1, f2!);
+		return equals(f1, f2);
 	}
 
 	return f1 === f2;
@@ -910,7 +910,7 @@ export class ListView<T> implements IListView<T> {
 		const checked = this.accessibilityProvider.isChecked(item.element);
 
 		if (typeof checked === 'boolean') {
-			item.row!.domNode.setAttribute('aria-checked', String(!!checked));
+			item.row.domNode.setAttribute('aria-checked', String(!!checked));
 		} else if (checked) {
 			const update = (checked: boolean) => item.row!.domNode.setAttribute('aria-checked', String(!!checked));
 			update(checked.value);

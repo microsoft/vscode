@@ -16,7 +16,7 @@ import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/pl
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
@@ -28,7 +28,6 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -87,6 +86,9 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDes
 
 // Migrate search location setting to new model
 class RegisterSearchViewContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.registerSearchView';
+
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
@@ -99,7 +101,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution2(RegisterSearchViewContribution.ID, RegisterSearchViewContribution, WorkbenchContributionInstantiation.BlockStartup);
 
 // Register Quick Access Handler
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);

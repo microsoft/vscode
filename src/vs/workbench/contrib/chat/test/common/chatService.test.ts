@@ -123,20 +123,20 @@ suite('Chat', () => {
 
 		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
 		await session1.waitForInitialization();
-		session1!.addRequest({ parts: [], text: 'request 1' }, { message: 'request 1', variables: {} });
+		session1.addRequest({ parts: [], text: 'request 1' }, { message: 'request 1', variables: {} });
 
 		const session2 = testDisposables.add(testService.startSession('provider2', CancellationToken.None));
 		await session2.waitForInitialization();
-		session2!.addRequest({ parts: [], text: 'request 2' }, { message: 'request 2', variables: {} });
+		session2.addRequest({ parts: [], text: 'request 2' }, { message: 'request 2', variables: {} });
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService2.registerProvider(provider1));
 		testDisposables.add(testService2.registerProvider(provider2));
 		const retrieved1 = testDisposables.add(testService2.getOrRestoreSession(session1.sessionId)!);
-		await retrieved1!.waitForInitialization();
+		await retrieved1.waitForInitialization();
 		const retrieved2 = testDisposables.add(testService2.getOrRestoreSession(session2.sessionId)!);
-		await retrieved2!.waitForInitialization();
+		await retrieved2.waitForInitialization();
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});

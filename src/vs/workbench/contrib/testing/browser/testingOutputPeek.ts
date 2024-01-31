@@ -586,7 +586,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			});
 
 			this.visible.set(true);
-			this.peek.value!.create();
+			this.peek.value.create();
 		}
 
 		if (subject instanceof MessageSubject) {

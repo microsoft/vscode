@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
@@ -223,6 +223,9 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebook';
+
 	private _uriComparisonKeyComputer?: IDisposable;
 
 	constructor(
@@ -284,6 +287,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 }
 
 class CellContentProvider implements ITextModelContentProvider {
+
+	static readonly ID = 'workbench.contrib.cellContentProvider';
 
 	private readonly _registration: IDisposable;
 
@@ -356,6 +361,9 @@ class CellContentProvider implements ITextModelContentProvider {
 }
 
 class CellInfoContentProvider {
+
+	static readonly ID = 'workbench.contrib.cellInfoContentProvider';
+
 	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
@@ -531,6 +539,9 @@ class CellInfoContentProvider {
 }
 
 class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.registerCellSchemas';
+
 	constructor() {
 		super();
 		this.registerMetadataSchemas();
@@ -556,6 +567,8 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 }
 
 class NotebookEditorManager implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookEditorManager';
 
 	private readonly _disposables = new DisposableStore();
 
@@ -603,6 +616,8 @@ class NotebookEditorManager implements IWorkbenchContribution {
 }
 
 class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
+
+	static readonly ID = 'workbench.contrib.simpleNotebookWorkingCopyEditorHandler';
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -657,6 +672,8 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 }
 
 class NotebookLanguageSelectorScoreRefine {
+
+	static readonly ID = 'workbench.contrib.notebookLanguageSelectorScoreRefine';
 
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -713,13 +730,13 @@ class NotebookAccessibleViewContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution2(NotebookContribution.ID, NotebookContribution, WorkbenchContributionInstantiation.BlockStartup);
+workbenchContributionsRegistry.registerWorkbenchContribution2(CellContentProvider.ID, CellContentProvider, WorkbenchContributionInstantiation.BlockStartup);
+workbenchContributionsRegistry.registerWorkbenchContribution2(CellInfoContentProvider.ID, CellInfoContentProvider, WorkbenchContributionInstantiation.BlockStartup);
+workbenchContributionsRegistry.registerWorkbenchContribution2(RegisterSchemasContribution.ID, RegisterSchemasContribution, WorkbenchContributionInstantiation.BlockStartup);
+workbenchContributionsRegistry.registerWorkbenchContribution2(NotebookEditorManager.ID, NotebookEditorManager, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(NotebookLanguageSelectorScoreRefine.ID, NotebookLanguageSelectorScoreRefine, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(SimpleNotebookWorkingCopyEditorHandler.ID, SimpleNotebookWorkingCopyEditorHandler, WorkbenchContributionInstantiation.BlockRestore);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);
