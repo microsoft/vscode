@@ -55,7 +55,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 
 		// Set widget manager
 		if (isTerminalProcessManager(this._processManager)) {
-			const disposable = this.add(Event.once(this._processManager.onProcessReady)(() => {
+			const disposable = linkManager.add(Event.once(this._processManager.onProcessReady)(() => {
 				linkManager.setWidgetManager(this._widgetManager);
 				this.delete(disposable);
 			}));
@@ -63,21 +63,16 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 			linkManager.setWidgetManager(this._widgetManager);
 		}
 
-		// Attach the link provider(s) to the instance and listen for changes
+		// Attach the external link provider to the instance and listen for changes
 		if (!isDetachedTerminalInstance(this._instance)) {
 			for (const linkProvider of this._terminalLinkProviderService.linkProviders) {
-				linkManager.registerExternalLinkProvider(linkProvider.provideLinks.bind(linkProvider, this._instance));
+				linkManager.externalProvideLinksCb = linkProvider.provideLinks.bind(linkProvider, this._instance);
 			}
 			linkManager.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
-				linkManager.registerExternalLinkProvider(e.provideLinks.bind(e, this._instance as ITerminalInstance));
+				linkManager.externalProvideLinksCb = e.provideLinks.bind(e, this._instance as ITerminalInstance);
 			}));
 		}
-
-		// TODO: Currently only a single link provider is supported; the one registered by the ext host
-		linkManager.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(e => {
-			linkManager.dispose();
-			this.xtermReady(xterm);
-		}));
+		linkManager.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(() => linkManager.externalProvideLinksCb = undefined));
 	}
 
 	async showLinkQuickpick(extended?: boolean): Promise<void> {

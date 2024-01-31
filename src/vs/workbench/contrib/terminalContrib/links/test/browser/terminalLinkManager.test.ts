@@ -101,9 +101,9 @@ suite('TerminalLinkManager', () => {
 
 	suite('registerExternalLinkProvider', () => {
 		test('should not leak disposables if the link manager is already disposed', () => {
-			linkManager.registerExternalLinkProvider(async () => undefined);
+			linkManager.externalProvideLinksCb = async () => undefined;
 			linkManager.dispose();
-			linkManager.registerExternalLinkProvider(async () => undefined);
+			linkManager.externalProvideLinksCb = async () => undefined;
 		});
 	});
 
