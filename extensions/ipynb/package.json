@@ -113,7 +113,7 @@
       "webview/context": [
         {
           "command": "notebook.cellOutput.copy",
-          "when": "webviewId == 'notebook.output'"
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
         }
       ]
     }

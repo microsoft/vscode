@@ -1400,7 +1400,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			let image = outputElement?.querySelector('img');
 
 			if (!image) {
-				const svgImage = outputElement?.querySelector('svg.output-image');
+				const svgImage = outputElement?.querySelector('svg.output-image') ??
+					outputElement?.querySelector('div.svgContainerStyle > svg');
+
 				if (svgImage) {
 					image = new Image();
 					image.src = 'data:image/svg+xml,' + encodeURIComponent(svgImage.outerHTML);
