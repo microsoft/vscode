@@ -44,6 +44,8 @@ const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book,
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.explorerViewletViews';
+
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IProgressService progressService: IProgressService

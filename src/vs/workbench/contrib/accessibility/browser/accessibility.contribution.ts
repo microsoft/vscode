@@ -5,7 +5,7 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DynamicSpeechAccessibilityConfiguration, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IAccessibleViewService, AccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
@@ -28,6 +28,6 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(HoverAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(InlineCompletionsAccessibleViewContribution, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(AccessibilityStatus, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(SaveAudioCueContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(DynamicSpeechAccessibilityConfiguration, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution2(AccessibilityStatus.ID, AccessibilityStatus, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(SaveAudioCueContribution.ID, SaveAudioCueContribution, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(DynamicSpeechAccessibilityConfiguration.ID, DynamicSpeechAccessibilityConfiguration, WorkbenchContributionInstantiation.BlockRestore);

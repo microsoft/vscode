@@ -66,6 +66,8 @@ interface RemoteExtensionMetadata {
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.remoteStatusIndicator';
+
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command

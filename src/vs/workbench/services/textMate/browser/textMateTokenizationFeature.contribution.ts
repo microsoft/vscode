@@ -7,13 +7,15 @@ import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/
 import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
 import { TextMateTokenizationFeature } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 
 /**
  * Makes sure the ITextMateTokenizationService is instantiated
  */
 class TextMateTokenizationInstantiator implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.textMateTokenizationInstantiator';
+
 	constructor(
 		@ITextMateTokenizationService _textMateTokenizationService: ITextMateTokenizationService
 	) { }
@@ -22,4 +24,4 @@ class TextMateTokenizationInstantiator implements IWorkbenchContribution {
 registerSingleton(ITextMateTokenizationService, TextMateTokenizationFeature, InstantiationType.Eager);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(TextMateTokenizationInstantiator, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution2(TextMateTokenizationInstantiator.ID, TextMateTokenizationInstantiator, WorkbenchContributionInstantiation.BlockRestore);

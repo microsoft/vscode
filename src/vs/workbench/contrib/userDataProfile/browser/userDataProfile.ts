@@ -28,6 +28,8 @@ type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.userDataProfiles';
+
 	private readonly currentProfileContext: IContextKey<string>;
 	private readonly isCurrentProfileTransientContext: IContextKey<boolean>;
 	private readonly hasProfilesContext: IContextKey<boolean>;

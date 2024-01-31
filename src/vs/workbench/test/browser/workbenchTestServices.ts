@@ -59,7 +59,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/
 import { IDimension } from 'vs/base/browser/dom';
 import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
@@ -1310,7 +1310,41 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 	declare readonly _serviceBrand: undefined;
 
-	phase!: LifecyclePhase;
+	usePhases = false;
+	_phase!: LifecyclePhase;
+	get phase(): LifecyclePhase { return this._phase; }
+	set phase(value: LifecyclePhase) {
+		this._phase = value;
+		if (value === LifecyclePhase.Starting) {
+			this.whenStarted.complete();
+		} else if (value === LifecyclePhase.Ready) {
+			this.whenReady.complete();
+		} else if (value === LifecyclePhase.Restored) {
+			this.whenRestored.complete();
+		} else if (value === LifecyclePhase.Eventually) {
+			this.whenEventually.complete();
+		}
+	}
+
+	private readonly whenStarted = new DeferredPromise<void>();
+	private readonly whenReady = new DeferredPromise<void>();
+	private readonly whenRestored = new DeferredPromise<void>();
+	private readonly whenEventually = new DeferredPromise<void>();
+	async when(phase: LifecyclePhase): Promise<void> {
+		if (!this.usePhases) {
+			return;
+		}
+		if (phase === LifecyclePhase.Starting) {
+			await this.whenStarted.p;
+		} else if (phase === LifecyclePhase.Ready) {
+			await this.whenReady.p;
+		} else if (phase === LifecyclePhase.Restored) {
+			await this.whenRestored.p;
+		} else if (phase === LifecyclePhase.Eventually) {
+			await this.whenEventually.p;
+		}
+	}
+
 	startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
@@ -1327,8 +1361,6 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 	private readonly _onDidShutdown = this._register(new Emitter<void>());
 	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
-
-	async when(): Promise<void> { }
 
 	shutdownJoiners: Promise<void>[] = [];
 
