@@ -94,7 +94,7 @@ export interface IWorkbenchContributionsRegistry {
 	/**
 	 * @deprecated use `registerWorkbenchContribution2` instead.
 	 */
-	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase): void;
+	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void;
 
 	/**
 	 * Register a workbench contribution that will be instantiated
@@ -332,7 +332,9 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		const now = Date.now();
 
 		try {
-			mark(`code/willCreateWorkbenchContribution/${phase}/${contribution.id}`);
+			if (typeof contribution.id === 'string') {
+				mark(`code/willCreateWorkbenchContribution/${phase}/${contribution.id}`);
+			}
 
 			const instance = instantiationService.createInstance(contribution.ctor);
 			if (typeof contribution.id === 'string') {
@@ -342,7 +344,9 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		} catch (error) {
 			logService.error(`Unable to create workbench contribution '${contribution.id ?? contribution.ctor.name}'.`, error);
 		} finally {
-			mark(`code/didCreateWorkbenchContribution/${phase}/${contribution.id}`);
+			if (typeof contribution.id === 'string') {
+				mark(`code/didCreateWorkbenchContribution/${phase}/${contribution.id}`);
+			}
 		}
 
 		if (typeof contribution.id === 'string' || !environmentService.isBuilt /* only log out of sources where we have good ctor names (TODO@bpasero remove when adopted IDs) */) {
