@@ -36,7 +36,7 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 
 class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.remoteConnectionFailureNotification';
+	static readonly ID = 'workbench.contrib.browserRemoteConnectionFailureNotification';
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
