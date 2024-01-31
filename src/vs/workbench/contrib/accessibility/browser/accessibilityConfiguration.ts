@@ -70,11 +70,19 @@ export const enum AccessibleViewProviderId {
 	Comments = 'comments'
 }
 
-const baseProperty: object = {
+const baseVerbosityProperty: object = {
 	type: 'boolean',
 	default: true,
 	tags: ['accessibility']
 };
+const markdownDeprecationMessage = localize('accessibility.alert.deprecationMessage', "This setting is deprecated. Use the `signals` settings instead.");
+const baseAlertProperty: object = {
+	type: 'boolean',
+	default: true,
+	tags: ['accessibility'],
+	markdownDeprecationMessage
+};
+
 
 export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	id: 'accessibility',
@@ -87,47 +95,47 @@ const configuration: IConfigurationNode = {
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.DiffEditor]: {
 			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Chat]: {
 			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
 			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints that describe how to use the feature when the input is focused.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.InlineCompletions]: {
 			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and Accessible View.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
 			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
 			description: localize('verbosity.notebook', 'Provide information about how to focus the cell container or inner editor when a notebook cell is focused.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Hover]: {
 			description: localize('verbosity.hover', 'Provide information about how to open the hover in an Accessible View.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notification]: {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an Accessible View.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
-			...baseProperty
+			...baseVerbosityProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
 			'markdownDescription': localize('alert.save', "Alerts when a file is saved. Also see {0}.", '`#audioCues.save#`'),
@@ -138,13 +146,12 @@ const configuration: IConfigurationNode = {
 				localize('alert.save.always', "Alerts whenever is a file is saved, including auto save."),
 				localize('alert.save.never', "Never alerts.")
 			],
-			tags: ['accessibility']
+			tags: ['accessibility'],
+			markdownDeprecationMessage
 		},
 		[AccessibilityAlertSettingId.Clear]: {
 			'markdownDescription': localize('alert.clear', "Alerts when a feature is cleared (for example, the terminal, Debug Console, or Output channel). Also see {0}.", '`#audioCues.clear#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.Format]: {
 			'markdownDescription': localize('alert.format', "Alerts when a file or notebook cell is formatted. Also see {0}.", '`#audioCues.format#`'),
@@ -156,103 +163,72 @@ const configuration: IConfigurationNode = {
 				localize('alert.format.always', "Alerts whenever is a file is formatted, including auto save, on cell execution, and more."),
 				localize('alert.format.never', "Never alerts.")
 			],
-			tags: ['accessibility']
+			tags: ['accessibility'],
+			markdownDeprecationMessage
 		},
 		[AccessibilityAlertSettingId.Breakpoint]: {
 			'markdownDescription': localize('alert.breakpoint', "Alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.onDebugBreak#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.Error]: {
 			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.lineHasError#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.Warning]: {
 			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.lineHasWarning#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.FoldedArea]: {
 			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.lineHasFoldedArea#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.TerminalQuickFix]: {
 			'markdownDescription': localize('alert.terminalQuickFix', "Alerts when there is an available terminal quick fix. Also see {0}.", '`#audioCues.terminalQuickFix#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.TerminalBell]: {
 			'markdownDescription': localize('alert.terminalBell', "Alerts when the terminal bell is activated."),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.TerminalCommandFailed]: {
 			'markdownDescription': localize('alert.terminalCommandFailed', "Alerts when a terminal command fails (non-zero exit code). Also see {0}.", '`#audioCues.terminalCommandFailed#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.TaskFailed]: {
 			'markdownDescription': localize('alert.taskFailed', "Alerts when a task fails (non-zero exit code). Also see {0}.", '`#audioCues.taskFailed#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.TaskCompleted]: {
 			'markdownDescription': localize('alert.taskCompleted', "Alerts when a task completes successfully (zero exit code). Also see {0}.", '`#audioCues.taskCompleted#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.ChatRequestSent]: {
 			'markdownDescription': localize('alert.chatRequestSent', "Alerts when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.ChatResponsePending]: {
 			'markdownDescription': localize('alert.chatResponsePending', "Alerts when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.NoInlayHints]: {
 			'markdownDescription': localize('alert.noInlayHints', "Alerts when there are no inlay hints. Also see {0}.", '`#audioCues.noInlayHints#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.LineHasBreakpoint]: {
 			'markdownDescription': localize('alert.lineHasBreakpoint', "Alerts when on a line with a breakpoint. Also see {0}.", '`#audioCues.lineHasBreakpoint#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.NotebookCellCompleted]: {
 			'markdownDescription': localize('alert.notebookCellCompleted', "Alerts when a notebook cell completes successfully. Also see {0}.", '`#audioCues.notebookCellCompleted#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.NotebookCellFailed]: {
 			'markdownDescription': localize('alert.notebookCellFailed', "Alerts when a notebook cell fails. Also see {0}.", '`#audioCues.notebookCellFailed#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.OnDebugBreak]: {
 			'markdownDescription': localize('alert.onDebugBreak', "Alerts when the debugger breaks. Also see {0}.", '`#audioCues.onDebugBreak#`'),
-			'type': 'boolean',
-			'default': true,
-			tags: ['accessibility']
+			...baseAlertProperty
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
