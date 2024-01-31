@@ -54,7 +54,8 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		return editorService.openEditor((PerfviewContrib.get()).getEditorInput(), { pinned: true });
+		const contrib = PerfviewContrib.get();
+		return editorService.openEditor(contrib.getEditorInput(), { pinned: true });
 	}
 });
 
