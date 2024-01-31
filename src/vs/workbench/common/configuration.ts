@@ -162,6 +162,8 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 
 export class DynamicWorkbenchConfigurationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.dynamicWorkbenchConfiguration';
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {

@@ -568,6 +568,8 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 
 class NotebookEditorManager implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.notebookEditorManager';
+
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -614,6 +616,8 @@ class NotebookEditorManager implements IWorkbenchContribution {
 }
 
 class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
+
+	static readonly ID = 'workbench.contrib.simpleNotebookWorkingCopyEditorHandler';
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -668,6 +672,8 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 }
 
 class NotebookLanguageSelectorScoreRefine {
+
+	static readonly ID = 'workbench.contrib.notebookLanguageSelectorScoreRefine';
 
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -728,9 +734,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution2(NotebookContributi
 workbenchContributionsRegistry.registerWorkbenchContribution2(CellContentProvider.ID, CellContentProvider, WorkbenchContributionInstantiation.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution2(CellInfoContentProvider.ID, CellInfoContentProvider, WorkbenchContributionInstantiation.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution2(RegisterSchemasContribution.ID, RegisterSchemasContribution, WorkbenchContributionInstantiation.BlockStartup);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution2(NotebookEditorManager.ID, NotebookEditorManager, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(NotebookLanguageSelectorScoreRefine.ID, NotebookLanguageSelectorScoreRefine, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(SimpleNotebookWorkingCopyEditorHandler.ID, SimpleNotebookWorkingCopyEditorHandler, WorkbenchContributionInstantiation.BlockRestore);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);

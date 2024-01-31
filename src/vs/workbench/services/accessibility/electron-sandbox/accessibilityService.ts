@@ -13,8 +13,7 @@ import { AccessibilityService } from 'vs/platform/accessibility/browser/accessib
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
@@ -71,6 +70,9 @@ registerSingleton(IAccessibilityService, NativeAccessibilityService, Instantiati
 
 // On linux we do not automatically detect that a screen reader is detected, thus we have to implicitly notify the renderer to enable accessibility when user configures it in settings
 class LinuxAccessibilityContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.linuxAccessibility';
+
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -87,5 +89,5 @@ class LinuxAccessibilityContribution implements IWorkbenchContribution {
 }
 
 if (isLinux) {
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LinuxAccessibilityContribution, LifecyclePhase.Ready);
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution2(LinuxAccessibilityContribution.ID, LinuxAccessibilityContribution, WorkbenchContributionInstantiation.BlockRestore);
 }
