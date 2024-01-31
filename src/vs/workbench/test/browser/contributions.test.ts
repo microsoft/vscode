@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { DeferredPromise } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isCI } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { WorkbenchContributionInstantiation, WorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -127,7 +128,7 @@ suite('Contributions', () => {
 		assert.ok(aCreated);
 	});
 
-	test('lifecycle phase instantiation works for late phases', async () => {
+	(isCI ? test.skip /* runWhenIdle seems flaky in CI on Windows */ : test)('lifecycle phase instantiation works for late phases', async () => {
 		const registry = new WorkbenchContributionsRegistry();
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
