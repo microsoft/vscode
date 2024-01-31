@@ -866,22 +866,30 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: async (accessor: ServicesAccessor) => {
 				const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
 				if (isWeb) {
-					const quickInputService = accessor.get(IQuickInputService);
-					const disposables = new DisposableStore();
-					const quickPick = disposables.add(quickInputService.createQuickPick());
-					quickPick.title = localize('installFromLocation', "Install Extension from Location");
-					quickPick.customButton = true;
-					quickPick.customLabel = localize('install button', "Install");
-					quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
-					quickPick.ignoreFocusOut = true;
-					disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
-						quickPick.hide();
-						if (quickPick.value) {
-							extensionManagementService.installFromLocation(URI.parse(quickPick.value));
-						}
-					}));
-					disposables.add(quickPick.onDidHide(() => disposables.dispose()));
-					quickPick.show();
+					return new Promise<void>((c, e) => {
+						const quickInputService = accessor.get(IQuickInputService);
+						const disposables = new DisposableStore();
+						const quickPick = disposables.add(quickInputService.createQuickPick());
+						quickPick.title = localize('installFromLocation', "Install Extension from Location");
+						quickPick.customButton = true;
+						quickPick.customLabel = localize('install button', "Install");
+						quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
+						quickPick.ignoreFocusOut = true;
+						disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
+							quickPick.hide();
+							if (quickPick.value) {
+								try {
+									await extensionManagementService.installFromLocation(URI.parse(quickPick.value));
+								} catch (error) {
+									e(error);
+									return;
+								}
+							}
+							c();
+						}));
+						disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+						quickPick.show();
+					});
 				} else {
 					const fileDialogService = accessor.get(IFileDialogService);
 					const extensionLocation = await fileDialogService.showOpenDialog({
@@ -891,7 +899,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						title: localize('installFromLocation', "Install Extension from Location"),
 					});
 					if (extensionLocation?.[0]) {
-						extensionManagementService.installFromLocation(extensionLocation[0]);
+						await extensionManagementService.installFromLocation(extensionLocation[0]);
 					}
 				}
 			}
@@ -992,7 +1000,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			order: 1,
 		});
 
-		EXTENSION_CATEGORIES.map((category, index) => {
+		EXTENSION_CATEGORIES.forEach((category, index) => {
 			this.registerExtensionAction({
 				id: `extensions.actions.searchByCategory.${category}`,
 				title: category,

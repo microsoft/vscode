@@ -169,7 +169,7 @@ suite('FileQueryCacheState', () => {
 			cacheKey => cache.query(cacheKey),
 			query => cache.load(query),
 			cacheKey => cache.dispose(cacheKey),
-			previous!
+			previous
 		);
 	}
 

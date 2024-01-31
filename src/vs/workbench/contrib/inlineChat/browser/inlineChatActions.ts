@@ -41,7 +41,7 @@ export class UnstashSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.unstash',
-			title: { value: localize('unstash', 'Resume Last Dismissed Inline Chat'), original: 'Resume Last Dismissed Inline Chat' },
+			title: localize2('unstash', "Resume Last Dismissed Inline Chat"),
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_STASHED_SESSION, EditorContextKeys.writable),
 			keybinding: {
@@ -67,7 +67,7 @@ export class UnstashSessionAction extends EditorAction2 {
 
 export abstract class AbstractInlineChatAction extends EditorAction2 {
 
-	static readonly category = { value: localize('cat', 'Inline Chat'), original: 'Inline Chat' };
+	static readonly category = localize2('cat', "Inline Chat");
 
 	constructor(desc: IAction2Options) {
 		super({
@@ -216,7 +216,7 @@ export class FocusInlineChat extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.focus',
-			title: { value: localize('focus', 'Focus Input'), original: 'Focus Input' },
+			title: localize2('focus', "Focus Input"),
 			f1: true,
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_FOCUSED.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
@@ -491,7 +491,7 @@ export class AcceptChanges extends AbstractInlineChatAction {
 	constructor() {
 		super({
 			id: ACTION_ACCEPT_CHANGES,
-			title: { value: localize('apply1', 'Accept Changes'), original: 'Accept Changes' },
+			title: localize2('apply1', "Accept Changes"),
 			shortTitle: localize('apply2', 'Accept'),
 			icon: Codicon.check,
 			f1: true,
@@ -596,10 +596,7 @@ export class CopyRecordings extends AbstractInlineChatAction {
 		super({
 			id: 'inlineChat.copyRecordings',
 			f1: true,
-			title: {
-				value: localize('copyRecordings', '(Developer) Write Exchange to Clipboard'),
-				original: '(Developer) Write Exchange to Clipboard'
-			}
+			title: localize2('copyRecordings', "(Developer) Write Exchange to Clipboard")
 		});
 	}
 

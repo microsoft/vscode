@@ -256,6 +256,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	lineNumbers: 'on' | 'off' | 'inherit';
 	chatHeight: number;
 	focusMode: CellFocusMode;
+	focusedOutputId?: string | undefined;
 	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;

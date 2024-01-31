@@ -254,7 +254,7 @@ class RenameController implements IEditorContribution {
 				respectAutoSaveConfig: true
 			}).then(result => {
 				if (result.ariaSummary) {
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, inputFieldResult.newName, result.ariaSummary));
 				}
 			}).catch(err => {
 				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));

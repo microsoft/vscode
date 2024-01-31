@@ -12,7 +12,7 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
-export const category = { value: nls.localize('search', "Search"), original: 'Search' };
+export const category = nls.localize2('search', "Search");
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);

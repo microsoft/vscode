@@ -25,6 +25,7 @@ lazy_static! {
 }
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
+const SKIP_REQ_FILE: &str = "/tmp/vscode-skip-server-requirements-check";
 
 pub struct PreReqChecker {}
 
@@ -52,12 +53,19 @@ impl PreReqChecker {
 
 	#[cfg(target_os = "linux")]
 	pub async fn verify(&self) -> Result<Platform, CodeError> {
-		let (is_nixos, gnu_a, gnu_b, or_musl) = tokio::join!(
+		let (is_nixos, skip_glibc_checks, or_musl) = tokio::join!(
 			check_is_nixos(),
-			check_glibc_version(),
-			check_glibcxx_version(),
+			check_skip_req_file(),
 			check_musl_interpreter()
 		);
+
+		let (gnu_a, gnu_b) = if !skip_glibc_checks {
+			tokio::join!(check_glibc_version(), check_glibcxx_version())
+		} else {
+			println!("!!! WARNING: Skipping server pre-requisite check !!!");
+			println!("!!! Server stability is not guaranteed. Proceed at your own risk. !!!");
+			(Ok(()), Ok(()))
+		};
 
 		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
 			return Ok(if cfg!(target_arch = "x86_64") {
@@ -155,6 +163,15 @@ async fn check_glibc_version() -> Result<(), String> {
 #[allow(dead_code)]
 async fn check_is_nixos() -> bool {
 	fs::metadata(NIXOS_TEST_PATH).await.is_ok()
+}
+
+/// Do not remove this check.
+/// Provides a way to skip the server glibc requirements check from
+/// outside the install flow. A system process can create this
+/// file before the server is downloaded and installed.
+#[allow(dead_code)]
+async fn check_skip_req_file() -> bool {
+	fs::metadata(SKIP_REQ_FILE).await.is_ok()
 }
 
 #[allow(dead_code)]
