@@ -131,6 +131,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private lastMouseWheelEventTime = 0;
 	private isMouseOverTabs = false;
+
 	constructor(
 		parent: HTMLElement,
 		editorPartsView: IEditorPartsView,
@@ -1018,7 +1019,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				if (e.dataTransfer) {
 					e.dataTransfer.effectAllowed = 'copyMove';
-					e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position
+					e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
 				}
 
 				// Apply some datatransfer types to allow for dragging the element outside of the application
@@ -1034,6 +1035,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			},
 
 			onDragEnter: e => {
+
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
 					if (e.dataTransfer) {
@@ -1043,14 +1045,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return;
 				}
 
-				let isLocalDragAndDrop = false;
-				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-					isLocalDragAndDrop = true;
-				}
-
 				// Update the dropEffect to "copy" if there is no local data to be dragged because
 				// in that case we can only copy the data into and not move it from its source
-				if (!isLocalDragAndDrop) {
+				if (!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 					if (e.dataTransfer) {
 						e.dataTransfer.dropEffect = 'copy';
 					}
@@ -1110,16 +1107,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					targetIndex++;
 				}
 
-				// If we are moving an editor inside the same group and it is located before the target index
-				// wee need to reduce the index by one to account for the fact that the move will cause all subsequent
-				// tabs to move one to the left.
+				// If we are moving an editor inside the same group and it is
+				// located before the target index we need to reduce the index
+				// by one to account for the fact that the move will cause all
+				// subsequent tabs to move one to the left.
 				const editorIdentifiers = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 				if (editorIdentifiers !== undefined) {
-
 					const draggedEditorIdentifier = editorIdentifiers[0].identifier;
 					const sourceGroup = this.editorPartsView.getGroup(draggedEditorIdentifier.groupId);
 					if (sourceGroup?.id === this.groupView.id) {
-
 						const editorIndex = sourceGroup.getIndexOfEditor(draggedEditorIdentifier.editor);
 						if (editorIndex < targetIndex) {
 							targetIndex--;
@@ -1201,6 +1197,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private getTabDragOverLocation(e: DragEvent, tab: HTMLElement): 'left' | 'right' {
 		const rect = tab.getBoundingClientRect();
 		const offsetXRelativeToParent = e.clientX - rect.left;
+
 		return offsetXRelativeToParent <= rect.width / 2 ? 'left' : 'right';
 	}
 
