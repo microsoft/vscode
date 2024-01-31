@@ -1025,8 +1025,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				// Apply some datatransfer types to allow for dragging the element outside of the application
 				this.doFillResourceDataTransfers([editor], e, isNewWindowOperation);
 
-				// Fixes https://github.com/microsoft/vscode/issues/18733
-				this.updateDropFeedback(tab, true, e, tabIndex);
 				scheduleAtNextAnimationFrame(getWindow(this.parent), () => this.updateDropFeedback(tab, false, e, tabIndex));
 			},
 
@@ -1064,9 +1062,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					}
 				}
 
-				if (e.dataTransfer?.dropEffect !== 'none') {
-					this.updateDropFeedback(tab, true, e, tabIndex);
-				}
+				this.updateDropFeedback(tab, true, e, tabIndex);
 			},
 
 			onDragEnd: async e => {
