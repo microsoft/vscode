@@ -249,7 +249,7 @@ function smartDiff(originalValue: string, newValue: string, smartBracketMatching
 }
 
 /**
- * Given some single text edits, this function finds the new ranges of the editted text post all edits.
+ * Given some text edits, this function finds the new ranges of the editted text post application of all edits.
  * Assumes that the edit ranges are disjoint
  * @param edits edits applied
  * @returns new ranges post edits for every edit
@@ -285,6 +285,12 @@ export function getNewRanges(edits: SingleTextEdit[]): Range[] {
 	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
 }
 
+/**
+ * Given a text model and edits, this function finds the inverse text edits
+ * @param model model on which to apply the edits
+ * @param edits edits applied
+ * @returns inverse edits
+ */
 export function inverseEdits(model: TextModel, edits: SingleTextEdit[]): SingleTextEdit[] {
 	const newRanges = getNewRanges(edits);
 	const inverseEdits: SingleTextEdit[] = [];

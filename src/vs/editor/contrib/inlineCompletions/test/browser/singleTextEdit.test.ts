@@ -7,17 +7,17 @@ import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { inverseEdits } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { generateRandomDisjointEdits, randomMultilineStringGenerator } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
+import { generateRandomDisjointEdits, generateRandomMultilineString as randomMultilineString } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 
 suite('Single Text Edit', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('getNewRanges', () => {
+	test('testing getNewRanges', () => {
 		function testGetNewRanges() {
-			const randomText = randomMultilineStringGenerator(10);
+			const randomText = randomMultilineString(10);
 			const model = createTextModel(randomText);
 			const initialModel = createTextModel(randomText);
-			const edits = generateRandomDisjointEdits(3, model);
+			const edits = generateRandomDisjointEdits(model, 3);
 			model.applyEdits(edits);
 			const invEdits = inverseEdits(initialModel, edits);
 			model.applyEdits(invEdits);

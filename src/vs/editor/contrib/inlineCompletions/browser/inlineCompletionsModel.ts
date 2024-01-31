@@ -435,8 +435,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	// todo: extract this function into a separate place, write some tests for this function
-	// todo: investigate that bug, that we previously saw inside of test 21, there appears to be a logical error somewhere that needs to be resolved
 	private _getEdits(editor: ICodeEditor, completion: SingleTextEdit): { edits: SingleTextEdit[]; editorSelections: Selection[] } {
 
 		const selections = editor.getSelections() ?? [];
