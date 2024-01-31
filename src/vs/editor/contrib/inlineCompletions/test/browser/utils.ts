@@ -154,14 +154,18 @@ export function generateRandomMultilineString(numberOfLines: number, maximumLeng
 	return randomText;
 }
 
-function generateUniqueRandomIntegers(numberOfIntegers: number, minimum: number, maximum: number): number[] {
+function generateRandomIntegers(numberOfIntegers: number, minimum: number, maximum: number, unique: boolean = false): number[] {
 	if (maximum - minimum + 1 < numberOfIntegers) {
 		throw new Error('Too many integers requested');
 	}
 	const integers = [];
 	while (integers.length < numberOfIntegers) {
 		const integer = Math.floor(Math.random() * (maximum - minimum + 1)) + minimum;
-		if (integers.indexOf(integer) === -1) {
+		if (unique) {
+			if (integers.indexOf(integer) === -1) {
+				integers.push(integer);
+			}
+		} else {
 			integers.push(integer);
 		}
 	}
@@ -174,14 +178,13 @@ export function generateRandomDisjointEdits(model: TextModel, numberOfEdits: num
 		throw new Error('Too many edits specified');
 	}
 	const edits = [];
-	const boundsOfEdits = generateUniqueRandomIntegers(2 * numberOfEdits, 0, numberOfLines - 1).sort((a, b) => a - b);
+	// Generate unique offsets, sort them and convert them to range boundary positions
+	const offsetBoundaries = generateRandomIntegers(2 * numberOfEdits, 0, model.getValueLength() - 1, true).sort((a, b) => a - b);
 	for (let i = 0; i < numberOfEdits; i++) {
-		const startLine = boundsOfEdits[2 * i];
-		const endLine = boundsOfEdits[2 * i + 1];
-		const startColumn = model.getLineLength(startLine) ? generateUniqueRandomIntegers(1, 1, model.getLineLength(startLine))[0] : 1;
-		const endColumn = model.getLineLength(endLine) ? generateUniqueRandomIntegers(1, 1, model.getLineLength(endLine))[0] : 1;
-		const numberOfLinesEditText = generateUniqueRandomIntegers(1, 0, 3)[0];
-		edits.push(new SingleTextEdit(new Range(startLine, startColumn, endLine, endColumn), generateRandomMultilineString(numberOfLinesEditText, 10)));
+		const startPosition = model.getPositionAt(offsetBoundaries[2 * i]);
+		const endPosition = model.getPositionAt(offsetBoundaries[2 * i + 1]);
+		const numberOfLinesInText = generateRandomIntegers(1, 0, 3)[0];
+		edits.push(new SingleTextEdit(Range.fromPositions(startPosition, endPosition), generateRandomMultilineString(numberOfLinesInText, 10)));
 	}
 	return edits;
 }

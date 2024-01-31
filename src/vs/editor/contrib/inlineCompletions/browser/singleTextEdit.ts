@@ -270,8 +270,7 @@ export function getNewRanges(edits: SingleTextEdit[]): Range[] {
 	for (const index of sortIndices) {
 		const edit = edits[index];
 		const splitText = splitLines(edit.text!);
-		const currentOffsetColumn = edit.range.endLineNumber === previousEditLineNumber ? offsetColumn : 0;
-		const rangeStart = new Position(edit.range.startLineNumber + offsetLineNumber, edit.range.startColumn + currentOffsetColumn);
+		const rangeStart = new Position(edit.range.startLineNumber + offsetLineNumber, edit.range.startColumn + (edit.range.startLineNumber === previousEditLineNumber ? offsetColumn : 0));
 
 		offsetLineNumber += splitText.length - (edit.range.endLineNumber - edit.range.startLineNumber) - 1;
 		const rangeEnd = addPositions(
@@ -280,7 +279,7 @@ export function getNewRanges(edits: SingleTextEdit[]): Range[] {
 		);
 		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
 		previousEditLineNumber = edit.range.endLineNumber;
-		offsetColumn = currentOffsetColumn + splitText[splitText.length - 1].length - edit.range.endColumn + (edit.range.startLineNumber === edit.range.endLineNumber ? edit.range.startColumn : 0);
+		offsetColumn = rangeEnd.column - edit.range.endColumn;
 	}
 	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
 }
