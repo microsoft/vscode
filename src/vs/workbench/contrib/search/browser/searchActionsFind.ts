@@ -55,10 +55,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.RestrictSearchToFolderId,
-			title: {
-				value: nls.localize('restrictResultsToFolder', "Restrict Search to Folder"),
-				original: 'Restrict Search to Folder'
-			},
+			title: nls.localize2('restrictResultsToFolder', "Restrict Search to Folder"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -84,10 +81,7 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ExcludeFolderFromSearchId,
-			title: {
-				value: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search"),
-				original: 'Exclude Folder from Search'
-			},
+			title: nls.localize2('excludeFolderFromSearch', "Exclude Folder from Search"),
 			category,
 			menu: [
 				{
@@ -110,10 +104,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.RevealInSideBarForSearchResults,
-			title: {
-				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
-				original: 'Reveal in Explorer View'
-			},
+			title: nls.localize2('revealInSideBar', "Reveal in Explorer View"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
@@ -222,10 +213,7 @@ registerAction2(class FindInFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FindInFolderId,
-			title: {
-				value: nls.localize('findInFolder', "Find in Folder..."),
-				original: 'Find in Folder...'
-			},
+			title: nls.localize2('findInFolder', "Find in Folder..."),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -252,10 +240,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FindInWorkspaceId,
-			title: {
-				value: nls.localize('findInWorkspace', "Find in Workspace..."),
-				original: 'Find in Workspace...'
-			},
+			title: nls.localize2('findInWorkspace', "Find in Workspace..."),
 			category,
 			menu: [
 				{

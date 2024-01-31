@@ -287,7 +287,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
 			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._previewZone.value.hide();
+			this._previewZone.rawValue?.hide();
 		}
 
 		return this._updateDiffZones();
@@ -526,7 +526,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
 			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._previewZone.value.hide();
+			this._previewZone.rawValue?.hide();
 		}
 
 		this._progressiveEditingDecorations.clear();

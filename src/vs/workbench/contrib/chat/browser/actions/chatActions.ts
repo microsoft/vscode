@@ -229,10 +229,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.focusInput',
-				title: {
-					value: localize('interactiveSession.focusInput.label', "Focus Chat Input"),
-					original: 'Focus Chat Input'
-				},
+				title: localize2('interactiveSession.focusInput.label', "Focus Chat Input"),
 				f1: false,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,

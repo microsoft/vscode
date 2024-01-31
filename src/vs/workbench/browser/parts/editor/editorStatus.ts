@@ -872,6 +872,8 @@ class EditorStatus extends Disposable {
 
 export class EditorStatusContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.editorStatus';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,

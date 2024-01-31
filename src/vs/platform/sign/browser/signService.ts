@@ -71,7 +71,7 @@ export class SignService extends AbstractSignService implements ISignService {
 						resolve();
 					}
 				}, 50, $window);
-			}).finally(() => checkInterval!.dispose()),
+			}).finally(() => checkInterval.dispose()),
 		]);
 
 

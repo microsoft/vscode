@@ -28,6 +28,8 @@ type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.userDataProfiles';
+
 	private readonly currentProfileContext: IContextKey<string>;
 	private readonly isCurrentProfileTransientContext: IContextKey<boolean>;
 	private readonly hasProfilesContext: IContextKey<boolean>;
@@ -293,10 +295,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id,
-					title: {
-						value: localize('import profile', "Import Profile..."),
-						original: 'Import Profile...'
-					},
+					title: localize2('import profile', "Import Profile..."),
 					category: PROFILES_CATEGORY,
 					precondition: IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT.toNegated(),
 					menu: [
@@ -400,10 +399,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.createFromCurrentProfile',
-					title: {
-						value: localize('save profile as', "Save Current Profile As..."),
-						original: 'Save Current Profile As...'
-					},
+					title: localize2('save profile as', "Save Current Profile As..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
 					precondition: PROFILES_ENABLEMENT_CONTEXT
@@ -422,10 +418,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.createProfile',
-					title: {
-						value: localize('create profile', "Create Profile..."),
-						original: 'Create Profile...'
-					},
+					title: localize2('create profile', "Create Profile..."),
 					category: PROFILES_CATEGORY,
 					precondition: PROFILES_ENABLEMENT_CONTEXT,
 					f1: true,
@@ -451,10 +444,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.deleteProfile',
-					title: {
-						value: localize('delete profile', "Delete Profile..."),
-						original: 'Delete Profile...'
-					},
+					title: localize2('delete profile', "Delete Profile..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
 					precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),

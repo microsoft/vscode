@@ -277,7 +277,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							opts.excludes.push(key);
 						}
 					}
@@ -299,7 +299,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							if (!opts.includes) {
 								opts.includes = [];
 							}

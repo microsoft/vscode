@@ -102,7 +102,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isBefore(result!)) {
+			if (p.isBefore(result)) {
 				result = p;
 			}
 		}
@@ -116,7 +116,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isAfter(result!)) {
+			if (p.isAfter(result)) {
 				result = p;
 			}
 		}
@@ -1821,7 +1821,8 @@ export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: st
 export enum TextEditorLineNumbersStyle {
 	Off = 0,
 	On = 1,
-	Relative = 2
+	Relative = 2,
+	Interval = 3
 }
 
 export enum TextDocumentSaveReason {

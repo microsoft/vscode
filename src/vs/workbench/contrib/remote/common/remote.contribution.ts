@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
@@ -31,6 +31,9 @@ import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc'
 import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteLabel';
+
 	constructor(
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService) {
@@ -79,6 +82,8 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 }
 
 class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteInvalidWorkspaceDetector';
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -229,9 +234,9 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution2(LabelContribution.ID, LabelContribution, WorkbenchContributionInstantiation.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution2(RemoteInvalidWorkspaceDetector.ID, RemoteInvalidWorkspaceDetector, WorkbenchContributionInstantiation.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Restored);
 
 const enableDiagnostics = true;

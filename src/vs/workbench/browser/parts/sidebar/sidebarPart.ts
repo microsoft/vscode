@@ -30,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -115,7 +115,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		this.updateTitleArea();
 		const id = this.getActiveComposite()?.getId();
 		if (id) {
-			this.onTitleAreaUpdate(id!);
+			this.onTitleAreaUpdate(id);
 		}
 		this.updateActivityBarVisiblity();
 		this.rememberActivityBarVisiblePosition();
@@ -256,10 +256,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			constructor() {
 				super({
 					id: ToggleActivityBarVisibilityActionId,
-					title: {
-						value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-						original: 'Toggle Activity Bar Visibility'
-					},
+					title: localize2('toggleActivityBar', "Toggle Activity Bar Visibility"),
 				});
 			}
 			run(): Promise<void> {

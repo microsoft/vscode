@@ -368,7 +368,7 @@ export class SelectionToReplAction extends EditorAction {
 			text = editor.getModel().getValueInRange(selection);
 		}
 
-		await session.addReplExpression(viewModel.focusedStackFrame!, text);
+		await session.addReplExpression(viewModel.focusedStackFrame, text);
 		await viewsService.openView(REPL_VIEW_ID, false);
 	}
 }

@@ -9,10 +9,11 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 
 class EditorFeaturesInstantiator extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.editorFeaturesInstantiator';
 
 	private _instantiated = false;
 
@@ -51,4 +52,4 @@ class EditorFeaturesInstantiator extends Disposable implements IWorkbenchContrib
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorFeaturesInstantiator, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution2(EditorFeaturesInstantiator.ID, EditorFeaturesInstantiator, WorkbenchContributionInstantiation.BlockRestore);

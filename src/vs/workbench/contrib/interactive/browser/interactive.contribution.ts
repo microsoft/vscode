@@ -36,7 +36,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { contrastBorder, ifDefinedThenElse, listInactiveSelectionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
@@ -60,11 +60,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
-const interactiveWindowCategory: ILocalizedString = { value: localize('interactiveWindow', 'Interactive Window'), original: 'Interactive Window' };
+const interactiveWindowCategory: ILocalizedString = localize2('interactiveWindow', "Interactive Window");
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -78,6 +77,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.interactiveDocument';
+
 	constructor(
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
@@ -175,6 +177,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 
 class InteractiveInputContentProvider implements ITextModelContentProvider {
 
+	static readonly ID = 'workbench.contrib.interactiveInputContentProvider';
+
 	private readonly _registration: IDisposable;
 
 	constructor(
@@ -208,6 +212,8 @@ function createEditor(resource: URI, instantiationService: IInstantiationService
 }
 
 class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
+
+	static readonly ID = 'workbench.contrib.interactiveWindowWorkingCopyEditorHandler';
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -251,9 +257,9 @@ class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IW
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveWindowWorkingCopyEditorHandler, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution2(InteractiveDocumentContribution.ID, InteractiveDocumentContribution, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(InteractiveInputContentProvider.ID, InteractiveInputContentProvider, WorkbenchContributionInstantiation.BlockRestore);
+workbenchContributionsRegistry.registerWorkbenchContribution2(InteractiveWindowWorkingCopyEditorHandler.ID, InteractiveWindowWorkingCopyEditorHandler, WorkbenchContributionInstantiation.BlockRestore);
 
 type interactiveEditorInputData = { resource: URI; inputResource: URI; name: string; language: string };
 
@@ -371,7 +377,7 @@ registerAction2(class extends Action2 {
 				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 
 				return {
-					notebookUri: editorInput.resource!,
+					notebookUri: editorInput.resource,
 					inputUri: editorInput.inputResource,
 					notebookEditorId: editorControl?.notebookEditor?.getId()
 				};

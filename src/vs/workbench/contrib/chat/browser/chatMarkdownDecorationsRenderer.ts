@@ -25,9 +25,7 @@ export class ChatMarkdownDecorationsRenderer {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService
-	) {
-
-	}
+	) { }
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
 		let result = '';
@@ -37,9 +35,9 @@ export class ChatMarkdownDecorationsRenderer {
 			} else {
 				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
 					|| undefined;
-				const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) : '';
+				const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) : '';
 
-				result += `[${part.text}](${variableRefUrl}${title})`;
+				result += `[${part.text}](${variableRefUrl}?${title})`;
 			}
 		}
 
@@ -51,7 +49,7 @@ export class ChatMarkdownDecorationsRenderer {
 			const href = a.getAttribute('data-href');
 			if (href) {
 				if (href.startsWith(variableRefUrl)) {
-					const title = href.slice(variableRefUrl.length);
+					const title = decodeURIComponent(href.slice(variableRefUrl.length + 1));
 					a.parentElement!.replaceChild(
 						this.renderResourceWidget(a.textContent!, title),
 						a);
