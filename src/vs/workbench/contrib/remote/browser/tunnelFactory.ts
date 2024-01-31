@@ -17,6 +17,8 @@ import { forwardedPortsViewEnabled } from 'vs/workbench/services/remote/common/t
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.tunnelFactory';
+
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
@@ -88,7 +90,8 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 					features: {
 						elevation: !!environmentService.options?.tunnelProvider?.features?.elevation,
 						public: !!environmentService.options?.tunnelProvider?.features?.public,
-						privacyOptions
+						privacyOptions,
+						protocol: environmentService.options?.tunnelProvider?.features?.protocol === undefined ? true : !!environmentService.options?.tunnelProvider?.features?.protocol
 					}
 				} : undefined;
 			remoteExplorerService.setTunnelInformation(tunnelInformation);

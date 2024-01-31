@@ -465,7 +465,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private layoutEmptyMessage(): void {
-		this.emptyPaneMessageElement?.classList.toggle('visible', !!this.paneCompositeBar.value && this.paneCompositeBar.value.getVisiblePaneCompositeIds().length === 0);
+		this.emptyPaneMessageElement?.classList.toggle('visible', !this.getActiveComposite());
 	}
 
 	private updateGlobalToolbarActions(): void {
@@ -479,7 +479,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		if (!activePane || !this.toolBar) {
 			return 0;
 		}
-		return this.toolBar.getItemsWidth() + (this.globalToolBar?.getItemsWidth() ?? 0);
+
+		// Each toolbar item has 4px margin in the panel toolbar
+		const toolBarWidth = this.toolBar.getItemsWidth() + this.toolBar.getItemsLength() * 4;
+		const globalToolBarWidth = this.globalToolBar ? this.globalToolBar.getItemsWidth() + this.globalToolBar.getItemsLength() * 4 : 0;
+		return 5 + toolBarWidth + globalToolBarWidth; // 5px toolBar padding-left
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {

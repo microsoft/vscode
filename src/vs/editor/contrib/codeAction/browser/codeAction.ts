@@ -130,7 +130,7 @@ export async function getCodeActions(
 				return emptyCodeActionsResponse;
 			}
 
-			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action, model, rangeOrSelection));
+			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
 			const documentation = getDocumentationFromProvider(provider, filteredActions, filter.include);
 			return {
 				actions: filteredActions.map(action => new CodeActionItem(action, provider)),
@@ -245,7 +245,8 @@ function getDocumentationFromProvider(
 export enum ApplyCodeActionReason {
 	OnSave = 'onSave',
 	FromProblemsView = 'fromProblemsView',
-	FromCodeActions = 'fromCodeActions'
+	FromCodeActions = 'fromCodeActions',
+	FromAILightbulb = 'fromAILightbulb' // direct invocation when clicking on the AI lightbulb
 }
 
 export async function applyCodeAction(

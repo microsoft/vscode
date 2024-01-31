@@ -79,7 +79,12 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 	override $provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const query = reviveQuery(rawQuery);
 		if (handle === this._internalFileSearchHandle) {
-			return this.doInternalFileSearch(handle, session, query, token);
+			const start = Date.now();
+			return this.doInternalFileSearch(handle, session, query, token).then(result => {
+				const elapsed = Date.now() - start;
+				this._logService.debug(`Ext host file search time: ${elapsed}ms`);
+				return result;
+			});
 		}
 
 		return super.$provideFileSearchResults(handle, session, rawQuery, token);

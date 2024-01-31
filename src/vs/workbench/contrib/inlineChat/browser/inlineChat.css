@@ -84,6 +84,10 @@
 	gap: 4px;
 }
 
+.monaco-editor .inline-chat .body > .widget-toolbar {
+	padding-left: 4px;
+}
+
 /* progress bit */
 
 .monaco-editor .inline-chat .progress {
@@ -93,7 +97,7 @@
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor>.content .monaco-editor .inline-chat .progress .monaco-progress-container {
+.monaco-workbench .part.editor > .content .monaco-editor .inline-chat .progress .monaco-progress-container {
 	top: 0;
 }
 
@@ -150,6 +154,26 @@
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
+.monaco-editor .inline-chat .detectedIntent {
+	color: var(--vscode-descriptionForeground);
+	padding: 5px 0px 5px 5px;
+}
+
+.monaco-editor .inline-chat .detectedIntent.hidden {
+	display: none;
+}
+
+.monaco-editor .inline-chat .detectedIntent .slash-command-pill CODE {
+	border-radius: 3px;
+	padding: 0 1px;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+}
+
+.monaco-editor .inline-chat .detectedIntent .slash-command-pill a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
 
 /* .monaco-editor .inline-chat .markdownMessage .message * {
 	margin: unset;
@@ -271,26 +295,16 @@
 	display: none;
 }
 
-.monaco-editor .inline-chat .previewDiff {
+.monaco-editor .inline-chat .previewDiff,
+.monaco-editor .inline-chat .previewCreate {
 	display: inherit;
-	padding: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
-	border-top: none;
-	border-bottom-left-radius: 2px;
-	border-bottom-right-radius: 2px;
-	margin: 0 2px 6px 2px;
+	border-radius: 2px;
+	margin: 6px 0px;
 }
 
 .monaco-editor .inline-chat .previewCreateTitle {
 	padding-top: 6px;
-}
-
-.monaco-editor .inline-chat .previewCreate {
-	display: inherit;
-	padding: 6px;
-	border: 1px solid var(--vscode-inlineChat-border);
-	border-radius: 2px;
-	margin: 0 2px 6px 2px;
 }
 
 .monaco-editor .inline-chat .previewDiff.hidden,
@@ -316,7 +330,7 @@
 /* decoration styles */
 
 .monaco-editor .inline-chat-inserted-range {
-	background-color: var(--vscode-diffEditor-insertedTextBackground);
+	background-color: var(--vscode-inlineChatDiff-inserted);
 }
 
 .monaco-editor .inline-chat-inserted-range-linehighlight {
@@ -328,11 +342,6 @@
 	opacity: 0.8;
 }
 
-.monaco-editor .inline-chat-lines-deleted-range-inline {
-	text-decoration: line-through;
-	background-color: var(--vscode-diffEditor-removedTextBackground);
-	opacity: 0.6;
-}
 .monaco-editor .inline-chat-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }

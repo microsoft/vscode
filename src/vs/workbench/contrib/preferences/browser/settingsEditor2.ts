@@ -407,7 +407,9 @@ export class SettingsEditor2 extends EditorPane {
 			const settingsTarget = cachedState.target;
 			this.settingsTargetsWidget.settingsTarget = settingsTarget;
 			this.viewState.settingsTarget = settingsTarget;
-			this.searchWidget.setValue(cachedState.searchQuery);
+			if (!this.searchWidget.getValue()) {
+				this.searchWidget.setValue(cachedState.searchQuery);
+			}
 		}
 
 		if (this.input) {
@@ -541,7 +543,8 @@ export class SettingsEditor2 extends EditorPane {
 			this.searchWidget.setValue(filter);
 		}
 
-		this.searchWidget.focus(selectAll);
+		// Do not select all if the user is already searching.
+		this.searchWidget.focus(selectAll && !this.searchInputDelayer.isTriggered);
 	}
 
 	clearSearchResults(): void {
@@ -1550,8 +1553,8 @@ export class SettingsEditor2 extends EditorPane {
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters!.add(tag));
 			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
-			parsedQuery.featureFilters!.forEach(feature => this.viewState.featureFilters!.add(feature));
-			parsedQuery.idFilters!.forEach(id => this.viewState.idFilters!.add(id));
+			parsedQuery.featureFilters.forEach(feature => this.viewState.featureFilters!.add(feature));
+			parsedQuery.idFilters.forEach(id => this.viewState.idFilters!.add(id));
 			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { merge } from 'vs/platform/userDataSync/common/snippetsMerge';
 
 const tsSnippet1 = `{
@@ -109,6 +110,7 @@ const cSnippet = `{
 }`;
 
 suite('SnippetsMerge', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge when local and remote are same with one snippet', async () => {
 		const local = { 'html.json': htmlSnippet1 };

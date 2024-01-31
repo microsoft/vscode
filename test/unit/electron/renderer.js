@@ -123,7 +123,7 @@ function initLoader(opts) {
 
 function createCoverageReport(opts) {
 	if (opts.coverage) {
-		return coverage.createReport(opts.run || opts.runGlob);
+		return coverage.createReport(opts.run || opts.runGlob, opts.coveragePath, opts.coverageFormats);
 	}
 	return Promise.resolve(undefined);
 }
@@ -195,8 +195,7 @@ function loadTests(opts) {
 		'issue #149130: vscode freezes because of Bracket Pair Colorization', // https://github.com/microsoft/vscode/issues/192440
 		'property limits', // https://github.com/microsoft/vscode/issues/192443
 		'Error events', // https://github.com/microsoft/vscode/issues/192443
-		'Ensure output channel is logged to', // https://github.com/microsoft/vscode/issues/192443
-		'guards calls after runs are ended' // https://github.com/microsoft/vscode/issues/192468
+		'fetch returns keybinding with user first if title and id matches' //
 	]);
 
 	let _testsWithUnexpectedOutput = false;
@@ -279,7 +278,7 @@ function loadTests(opts) {
 		teardown(() => {
 
 			// should not have unexpected output
-			if (_testsWithUnexpectedOutput) {
+			if (_testsWithUnexpectedOutput && !opts.dev) {
 				assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
 			}
 

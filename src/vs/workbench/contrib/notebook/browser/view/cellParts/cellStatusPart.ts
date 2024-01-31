@@ -29,7 +29,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
@@ -77,7 +77,8 @@ export class CellEditorStatusBar extends CellContentPart {
 			private _lastHoverHideTime: number = 0;
 
 			readonly showHover = (options: IHoverDelegateOptions) => {
-				options.hoverPosition = HoverPosition.ABOVE;
+				options.position = options.position ?? {};
+				options.position.hoverPosition = HoverPosition.ABOVE;
 				return hoverService.showHover(options);
 			};
 
@@ -244,7 +245,7 @@ export class CellEditorStatusBar extends CellContentPart {
 				if (existingItem) {
 					existingItem.updateItem(newLeftItem, maxItemWidth);
 				} else {
-					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, newLeftItem, maxItemWidth);
+					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, this._editor, newLeftItem, maxItemWidth);
 					renderedItems.push(item);
 					container.appendChild(item.container);
 				}
@@ -276,6 +277,7 @@ class CellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _context: INotebookCellActionContext,
 		private readonly _hoverDelegate: IHoverDelegate,
+		private readonly _editor: ICodeEditor | undefined,
 		itemModel: INotebookCellStatusBarItem,
 		maxWidth: number | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -363,6 +365,7 @@ class CellStatusBarItem extends Disposable {
 
 		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
 		try {
+			this._editor?.focus();
 			await this._commandService.executeCommand(id, ...args);
 		} catch (error) {
 			this._notificationService.error(toErrorMessage(error));

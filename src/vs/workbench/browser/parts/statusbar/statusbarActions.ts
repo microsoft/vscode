@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -114,7 +114,7 @@ class FocusStatusBarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusStatusBar',
-			title: { value: localize('focusStatusBar', "Focus Status Bar"), original: 'Focus Status Bar' },
+			title: localize2('focusStatusBar', 'Focus Status Bar'),
 			category: Categories.View,
 			f1: true
 		});

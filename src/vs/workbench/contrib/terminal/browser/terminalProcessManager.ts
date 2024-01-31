@@ -39,6 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 const enum ProcessConstants {
 	/**
@@ -358,7 +359,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting
-					newProcess!.input(this._preLaunchInputQueue.join(''));
+					newProcess.input(this._preLaunchInputQueue.join(''));
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
@@ -574,7 +575,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		// The child process could already be terminated
 		try {
-			this._process!.resize(cols, rows);
+			this._process.resize(cols, rows);
 		} catch (error) {
 			// We tried to write to a closed pipe / channel.
 			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -748,7 +749,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 			this.triggerSwap();
 		}
 
-		this._swapTimeout = getActiveWindow().setTimeout(() => this.triggerSwap(), SeamlessRelaunchConstants.SwapWaitMaximumDuration);
+		this._swapTimeout = mainWindow.setTimeout(() => this.triggerSwap(), SeamlessRelaunchConstants.SwapWaitMaximumDuration);
 
 		// Pause all outgoing data events
 		this._dataListener?.dispose();
@@ -773,7 +774,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	triggerSwap() {
 		// Clear the swap timeout if it exists
 		if (this._swapTimeout) {
-			getActiveWindow().clearTimeout(this._swapTimeout);
+			mainWindow.clearTimeout(this._swapTimeout);
 			this._swapTimeout = undefined;
 		}
 

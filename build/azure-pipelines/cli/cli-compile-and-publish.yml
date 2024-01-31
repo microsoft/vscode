@@ -29,7 +29,7 @@ steps:
         displayName: Set product.json path
 
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:
-    - script: rustup component add clippy && cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+    - script: cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
       displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
       workingDirectory: $(Build.SourcesDirectory)/cli
       env:
@@ -38,14 +38,45 @@ steps:
           ${{ pair.key }}: ${{ pair.value }}
 
   - ${{ else }}:
-    - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
-      displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
-      workingDirectory: $(Build.SourcesDirectory)/cli
-      env:
-        CARGO_NET_GIT_FETCH_WITH_CLI: true
-        VSCODE_CLI_COMMIT: $(Build.SourceVersion)
-        ${{ each pair in parameters.VSCODE_CLI_ENV }}:
-          ${{ pair.key }}: ${{ pair.value }}
+    - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-linux-') }}:
+      - script: |
+          set -e
+          if [ -n "$SYSROOT_ARCH" ]; then
+            export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+            node -e '(async () => { const { getVSCodeSysroot } = require("../build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+            if [ "$SYSROOT_ARCH" == "arm64" ]; then
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc"
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+              export CC_aarch64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+            elif [ "$SYSROOT_ARCH" == "amd64" ]; then
+              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc"
+              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -C link-arg=-L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu"
+              export CC_x86_64_unknown_linux_gnu="$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+            elif [ "$SYSROOT_ARCH" == "armhf" ]; then
+              export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc"
+              export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUSTFLAGS="-C link-arg=--sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+              export CC_armv7_unknown_linux_gnueabihf="$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc --sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+            fi
+          fi
+          cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+        displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+        workingDirectory: $(Build.SourcesDirectory)/cli
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+          VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+            ${{ pair.key }}: ${{ pair.value }}
+
+    - ${{ else }}:
+      - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+        displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+        workingDirectory: $(Build.SourcesDirectory)/cli
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+          VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+            ${{ pair.key }}: ${{ pair.value }}
 
     - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
       - powershell: |

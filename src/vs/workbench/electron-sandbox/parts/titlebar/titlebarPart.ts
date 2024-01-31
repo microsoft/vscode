@@ -18,12 +18,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
+import { hasNativeTitlebar, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -38,7 +38,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			return super.minimumHeight;
 		}
 
-		return (this.isCommandCenterVisible ? 35 : this.macTitlebarSize) / (this.useCounterZoom ? getZoomFactor() : 1);
+		return (this.isCommandCenterVisible ? 35 : this.macTitlebarSize) / (this.preventZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
@@ -145,7 +145,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		const targetWindowId = getWindowId(targetWindow);
 
 		// Native menu controller
-		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+		if (isMacintosh || hasNativeTitlebar(this.configurationService)) {
 			this._register(this.instantiationService.createInstance(NativeMenubarControl));
 		}
 
@@ -159,7 +159,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		}
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.primaryWindowControls) {
+		if (!isMacintosh && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.primaryWindowControls) {
 
 			// Minimize
 			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -195,13 +195,13 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893
-		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
+		if (isWindows && !hasNativeTitlebar(this.configurationService)) {
 			this._register(this.nativeHostService.onDidTriggerWindowSystemContextMenu(({ windowId, x, y }) => {
 				if (targetWindowId !== windowId) {
 					return;
 				}
 
-				const zoomFactor = getZoomFactor();
+				const zoomFactor = getZoomFactor(getWindow(this.element));
 				this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
 			}));
 		}
@@ -253,7 +253,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 		if (
 			useWindowControlsOverlay(this.configurationService) ||
-			(isMacintosh && isNative && getTitleBarStyle(this.configurationService) === 'custom')
+			(isMacintosh && isNative && !hasNativeTitlebar(this.configurationService))
 		) {
 
 			// When the user goes into full screen mode, the height of the title bar becomes 0.
@@ -261,7 +261,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			// so that they can have the traffic lights rendered at the proper offset.
 			// Ref https://github.com/microsoft/vscode/issues/159862
 
-			const newHeight = (height > 0 || this.bigSurOrNewer) ? Math.round(height * getZoomFactor()) : this.macTitlebarSize;
+			const newHeight = (height > 0 || this.bigSurOrNewer) ? Math.round(height * getZoomFactor(getWindow(this.element))) : this.macTitlebarSize;
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
 				this.nativeHostService.updateWindowControls({
@@ -305,6 +305,7 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 	constructor(
 		readonly container: HTMLElement,
 		editorGroupsContainer: IEditorGroupsContainer,
+		private readonly mainTitlebar: BrowserTitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
@@ -324,6 +325,17 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
+
+	override get preventZoom(): boolean {
+
+		// Prevent zooming behavior if any of the following conditions are met:
+		// 1. Shrinking below the window control size (zoom < 1)
+		// 2. No custom items are present in the main title bar
+		// The auxiliary title bar never contains any zoomable items itself,
+		// but we want to match the behavior of the main title bar.
+
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
+	}
 }
 
 export class NativeTitleService extends BrowserTitleService {
@@ -333,6 +345,6 @@ export class NativeTitleService extends BrowserTitleService {
 	}
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): AuxiliaryNativeTitlebarPart {
-		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer);
+		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
 	}
 }

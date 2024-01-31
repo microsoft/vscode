@@ -14,7 +14,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -40,6 +39,8 @@ export interface ISCMResource {
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue: string | undefined;
 	readonly command: Command | undefined;
+	readonly multiDiffEditorOriginalUri: URI | undefined;
+	readonly multiDiffEditorModifiedUri: URI | undefined;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -54,6 +55,8 @@ export interface ISCMResourceGroup {
 	readonly label: string;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
+
+	readonly multiDiffEditorEnableViewChanges: boolean;
 }
 
 export interface ISCMProvider extends IDisposable {
@@ -87,12 +90,6 @@ export interface ISCMInputValueProviderContext {
 	readonly resources: readonly URI[];
 }
 
-export interface ISCMInputValueProvider {
-	readonly label: string;
-	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	provideValue(rootUri: URI, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined>;
-}
-
 export const enum InputValidationType {
 	Error = 0,
 	Warning = 1,
@@ -116,12 +113,6 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
-}
-
-export interface ISCMInputActionButtonDescriptor {
-	command: Command;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	enabled: boolean;
 }
 
 export interface ISCMActionButtonDescriptor {
@@ -156,9 +147,6 @@ export interface ISCMInput {
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	actionButton: ISCMInputActionButtonDescriptor | undefined;
-	readonly onDidChangeActionButton: Event<void>;
-
 	setFocus(): void;
 	readonly onDidChangeFocus: Event<void>;
 
@@ -185,11 +173,6 @@ export interface ISCMService {
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 	getRepository(id: string): ISCMRepository | undefined;
-
-	readonly onDidChangeInputValueProviders: Event<void>;
-
-	getDefaultInputValueProvider(repository: ISCMRepository): ISCMInputValueProvider | undefined;
-	registerSCMInputValueProvider(sourceControlId: string, provider: ISCMInputValueProvider): IDisposable;
 }
 
 export interface ISCMTitleMenu {
@@ -203,6 +186,7 @@ export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
 	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
+	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;

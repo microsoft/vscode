@@ -66,7 +66,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	) {
 		this._disposables = [
 			this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('problems')) {
+				if (e.affectsConfiguration('problems.visibility')) {
 					this._updateEnablement();
 				}
 			}),
@@ -111,7 +111,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#problems.visibility#` when `{0}` is off.", `problems.visibility`),
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#problems.visibility#` when it is off."),
 			'type': 'boolean',
 			'default': true
 		}

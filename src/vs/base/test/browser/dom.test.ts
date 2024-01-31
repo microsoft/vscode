@@ -8,6 +8,7 @@ import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyA
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -345,6 +346,7 @@ suite('dom', () => {
 		const windowId = getWindowId(mainWindow);
 		assert.ok(typeof windowId === 'number');
 		assert.strictEqual(getWindowById(windowId)?.window, mainWindow);
+		assert.strictEqual(getWindowById(undefined, true).window, mainWindow);
 		assert.strictEqual(hasWindow(windowId), true);
 		assert.strictEqual(isAuxiliaryWindow(mainWindow), false);
 		ensureCodeWindow(mainWindow, 1);
@@ -404,4 +406,6 @@ suite('dom', () => {
 			assert.strictEqual(count, 0);
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

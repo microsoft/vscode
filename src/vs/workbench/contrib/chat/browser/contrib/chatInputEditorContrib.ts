@@ -17,7 +17,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -60,6 +59,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -80,6 +80,7 @@ class InputEditorDecorations extends Disposable {
 				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand.name));
 			}
 		}));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 
 		this.registerViewModelListeners();
 	}
@@ -489,6 +490,7 @@ class AgentCompletions extends Disposable {
 							return {
 								label: { label: withSlash, description: agentLabel },
 								filterText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
 								detail: `(${agentLabel}) ${c.description}`,
 								range: new Range(1, 1, 1, 1),
@@ -509,8 +511,6 @@ class BuiltinDynamicCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -518,11 +518,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			_debugDisplayName: 'chatDynamicCompletions',
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
-				const fileVariablesEnabled = this.configurationService.getValue('chat.experimental.fileVariables') ?? this.productService.quality !== 'stable';
-				if (!fileVariablesEnabled) {
-					return;
-				}
-
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.supportsFileReferences) {
 					return null;
@@ -533,7 +528,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return null;
 				}
 
-				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.endColumn + 'file:'.length);
+				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
 				return <CompletionList>{
 					suggestions: [
 						<CompletionItem>{
@@ -659,9 +654,10 @@ class ChatTokenDeleter extends Disposable {
 			const change = e.changes[0];
 
 			// If this was a simple delete, try to find out whether it was inside a token
-			if (!change.text) {
-				parser.parseChatRequest(this.widget.viewModel!.sessionId, previousInputValue).then(previousParsedValue => {
-					const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart);
+			if (!change.text && this.widget.viewModel) {
+				parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue).then(previousParsedValue => {
+					// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
+					const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart);
 					deletableTokens.forEach(token => {
 						const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
 						// Part of this token was deleted, and the deletion range doesn't go off the front of the token, for simpler math

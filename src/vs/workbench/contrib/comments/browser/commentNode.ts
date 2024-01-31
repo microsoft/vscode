@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
@@ -459,7 +459,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					}
 					this.notificationService.error(error);
 				}
-			}, reaction.iconPath, reaction.count);
+			}, reaction.reactors, reaction.iconPath, reaction.count);
 
 			this._reactionsActionBar?.push(action, { label: true, icon: true });
 		});

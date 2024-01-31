@@ -122,8 +122,9 @@ export const WorkbenchListScrollAtBottomContextKey = ContextKeyExpr.or(
 	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('both'));
 
 export const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
+export const WorkbenchTreeStickyScrollFocused = new RawContextKey<boolean>('treestickyScrollFocused', false);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
-export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
+export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey), WorkbenchTreeStickyScrollFocused.negate());
 export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
@@ -705,7 +706,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent; element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
-			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+			this.openOnSingleClick = options?.configurationService.getValue(openModeSettingKey) !== 'doubleClick';
 			this._register(options?.configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(openModeSettingKey)) {
 					this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
@@ -722,8 +723,8 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 
 		const selectionKeyboardEvent = event.browserEvent as SelectionKeyboardEvent;
-		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus! : true;
-		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned! : !preserveFocus;
+		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus : true;
+		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned : !preserveFocus;
 		const sideBySide = false;
 
 		this._open(this.getSelectedElement(), preserveFocus, pinned, sideBySide, event.browserEvent);
@@ -1192,6 +1193,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private treeElementCanExpand: IContextKey<boolean>;
 	private treeElementHasChild: IContextKey<boolean>;
 	private treeFindOpen: IContextKey<boolean>;
+	private treeStickyScrollFocused: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
 
@@ -1231,6 +1233,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.treeElementHasChild = WorkbenchTreeElementHasChild.bindTo(this.contextKeyService);
 
 		this.treeFindOpen = WorkbenchTreeFindOpen.bindTo(this.contextKeyService);
+		this.treeStickyScrollFocused = WorkbenchTreeStickyScrollFocused.bindTo(this.contextKeyService);
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -1277,6 +1280,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 			tree.onDidChangeCollapseState(updateCollapseContextKeys),
 			tree.onDidChangeModel(updateCollapseContextKeys),
 			tree.onDidChangeFindOpenState(enabled => this.treeFindOpen.set(enabled)),
+			tree.onDidChangeStickyScrollFocused(focused => this.treeStickyScrollFocused.set(focused)),
 			configurationService.onDidChangeConfiguration(e => {
 				let newOptions: IAbstractTreeOptionsUpdate = {};
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
@@ -1484,7 +1488,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[treeStickyScrollMaxElements]: {
 			type: 'number',
-			default: 5,
+			minimum: 1,
+			default: 7,
 			markdownDescription: localize('sticky scroll maximum items', "Controls the number of sticky elements displayed in the tree when `#workbench.tree.enableStickyScroll#` is enabled."),
 		},
 		[typeNavigationModeSettingKey]: {

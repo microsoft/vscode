@@ -13,7 +13,7 @@ import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } 
 import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -31,7 +31,7 @@ import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -53,7 +53,7 @@ class OutlineItem extends BreadcrumbsItem {
 		super();
 	}
 
-	override dispose(): void {
+	dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -113,7 +113,7 @@ class FileItem extends BreadcrumbsItem {
 		super();
 	}
 
-	override dispose(): void {
+	dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -331,6 +331,9 @@ export class BreadcrumbsControl {
 					equals(other: BreadcrumbsItem): boolean {
 						return other === this;
 					}
+					dispose(): void {
+
+					}
 				}]);
 			} else {
 				this._widget.setEnabled(true);
@@ -421,7 +424,7 @@ export class BreadcrumbsControl {
 				}
 
 				const selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				const zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
+				const zoomListener = PixelRatio.getInstance(dom.getWindow(this.domNode)).onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
 				const focusTracker = dom.trackFocus(parent);
 				const blurListener = focusTracker.onDidBlur(() => {
@@ -640,10 +643,7 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.focusAndSelect',
-			title: {
-				value: localize('cmd.focusAndSelect', "Focus and Select Breadcrumbs"),
-				original: 'Focus and Select Breadcrumbs'
-			},
+			title: localize2('cmd.focusAndSelect', "Focus and Select Breadcrumbs"),
 			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -662,10 +662,7 @@ registerAction2(class FocusBreadcrumbs extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.focus',
-			title: {
-				value: localize('cmd.focus', "Focus Breadcrumbs"),
-				original: 'Focus Breadcrumbs'
-			},
+			title: localize2('cmd.focus', "Focus Breadcrumbs"),
 			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

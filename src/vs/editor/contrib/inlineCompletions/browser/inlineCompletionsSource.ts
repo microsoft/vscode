@@ -58,7 +58,7 @@ export class InlineCompletionsSource extends Disposable {
 			const shouldDebounce = updateOngoing || context.triggerKind === InlineCompletionTriggerKind.Automatic;
 			if (shouldDebounce) {
 				// This debounces the operation
-				await wait(this._debounceValue.get(this.textModel));
+				await wait(this._debounceValue.get(this.textModel), source.token);
 			}
 
 			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {

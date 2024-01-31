@@ -94,7 +94,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Editor & group changes
 		if (this.editorGroupsContainer === this.editorGroupService.mainPart || this.editorGroupsContainer === this.editorGroupService) {
-			this.editorGroupService.mainPart.whenReady.then(() => this.onEditorGroupsReady());
+			this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
 		} else {
 			this.onEditorGroupsReady();
 		}
@@ -540,7 +540,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// If group still isn't defined because of a disabled override we resolve it
 		if (!group) {
 			let activation: EditorActivation | undefined = undefined;
-			([group, activation] = this.instantiationService.invokeFunction(findGroup, { editor: typedEditor, options }, preferredGroup));
+			const findGroupResult = this.instantiationService.invokeFunction(findGroup, { editor: typedEditor, options }, preferredGroup);
+			if (findGroupResult instanceof Promise) {
+				([group, activation] = await findGroupResult);
+			} else {
+				([group, activation] = findGroupResult);
+			}
 
 			// Mixin editor group activation if returned
 			if (activation) {
@@ -598,7 +603,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// If group still isn't defined because of a disabled override we resolve it
 			if (!group) {
-				[group] = this.instantiationService.invokeFunction(findGroup, typedEditor, preferredGroup);
+				const findGroupResult = this.instantiationService.invokeFunction(findGroup, typedEditor, preferredGroup);
+				if (findGroupResult instanceof Promise) {
+					([group] = await findGroupResult);
+				} else {
+					([group] = findGroupResult);
+				}
 			}
 
 			// Update map of groups to editors
@@ -705,7 +715,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region isOpened()
+	//#region isOpened() / isVisible()
 
 	isOpened(editor: IResourceEditorInputIdentifier): boolean {
 		return this.editorsObserver.hasEditor({
@@ -714,10 +724,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			editorId: editor.editorId
 		});
 	}
-
-	//#endregion
-
-	//#region isOpened()
 
 	isVisible(editor: EditorInput): boolean {
 		for (const group of this.editorGroupsContainer.groups) {

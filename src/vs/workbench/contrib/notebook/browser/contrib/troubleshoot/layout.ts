@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookDeltaCellStatusBarItems, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -148,10 +148,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.inspectLayout',
-			title: {
-				value: localize('workbench.notebook.inspectLayout', "Inspect Notebook Layout"),
-				original: 'Inspect Notebook Layout'
-			},
+			title: localize2('workbench.notebook.inspectLayout', "Inspect Notebook Layout"),
 			category: Categories.Developer,
 			f1: true
 		});

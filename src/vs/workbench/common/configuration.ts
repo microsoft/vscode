@@ -7,8 +7,8 @@ import { localize } from 'vs/nls';
 import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue, IInspectValue } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -36,6 +36,13 @@ export const securityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'title': localize('securityConfigurationTitle', "Security"),
 	'type': 'object',
 	'order': 7
+});
+
+export const problemsConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'problems',
+	'title': localize('problemsConfigurationTitle', "Problems"),
+	'type': 'object',
+	'order': 101
 });
 
 export const Extensions = {
@@ -97,32 +104,40 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 	private async migrateConfigurationsForFolderAndOverride(migration: ConfigurationMigration, resource?: URI): Promise<void> {
 		const inspectData = this.configurationService.inspect(migration.key, { resource });
 
-		const targetPairs: [keyof IConfigurationValue<any>, ConfigurationTarget][] = [
-			['userValue', ConfigurationTarget.USER],
-			['userLocalValue', ConfigurationTarget.USER_LOCAL],
-			['userRemoteValue', ConfigurationTarget.USER_REMOTE],
-			['workspaceValue', ConfigurationTarget.WORKSPACE],
-			['workspaceFolderValue', ConfigurationTarget.WORKSPACE_FOLDER],
+		const targetPairs: [keyof IConfigurationValue<any>, ConfigurationTarget][] = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? [
+			['user', ConfigurationTarget.USER],
+			['userLocal', ConfigurationTarget.USER_LOCAL],
+			['userRemote', ConfigurationTarget.USER_REMOTE],
+			['workspace', ConfigurationTarget.WORKSPACE],
+			['workspaceFolder', ConfigurationTarget.WORKSPACE_FOLDER],
+		] : [
+			['user', ConfigurationTarget.USER],
+			['userLocal', ConfigurationTarget.USER_LOCAL],
+			['userRemote', ConfigurationTarget.USER_REMOTE],
+			['workspace', ConfigurationTarget.WORKSPACE],
 		];
 		for (const [dataKey, target] of targetPairs) {
+			const inspectValue = inspectData[dataKey] as IInspectValue<any> | undefined;
+			if (!inspectValue) {
+				continue;
+			}
+
 			const migrationValues: [[string, ConfigurationValue], string[]][] = [];
 
-			// Collect migrations for language overrides
-			for (const overrideIdentifier of inspectData.overrideIdentifiers ?? []) {
-				const keyValuePairs = await this.runMigration(migration, { resource, overrideIdentifier }, dataKey);
+			if (inspectValue.value !== undefined) {
+				const keyValuePairs = await this.runMigration(migration, dataKey, inspectValue.value, resource, undefined);
 				for (const keyValuePair of keyValuePairs ?? []) {
-					let keyValueAndOverridesPair = migrationValues.find(([[k, v]]) => k === keyValuePair[0] && equals(v.value, keyValuePair[1].value));
-					if (!keyValueAndOverridesPair) {
-						migrationValues.push(keyValueAndOverridesPair = [keyValuePair, []]);
-					}
-					keyValueAndOverridesPair[1].push(overrideIdentifier);
+					migrationValues.push([keyValuePair, []]);
 				}
 			}
 
-			// Collect migrations
-			const keyValuePairs = await this.runMigration(migration, { resource }, dataKey, inspectData);
-			for (const keyValuePair of keyValuePairs ?? []) {
-				migrationValues.push([keyValuePair, []]);
+			for (const { identifiers, value } of inspectValue.overrides ?? []) {
+				if (value !== undefined) {
+					const keyValuePairs = await this.runMigration(migration, dataKey, value, resource, identifiers);
+					for (const keyValuePair of keyValuePairs ?? []) {
+						migrationValues.push([keyValuePair, identifiers]);
+					}
+				}
 			}
 
 			if (migrationValues.length) {
@@ -133,18 +148,26 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 		}
 	}
 
-	private async runMigration(migration: ConfigurationMigration, overrides: IConfigurationOverrides, dataKey: keyof IConfigurationValue<any>, data?: IConfigurationValue<any>): Promise<ConfigurationKeyValuePairs | undefined> {
-		const value = (data ?? this.configurationService.inspect(migration.key, overrides))[dataKey];
-		if (value === undefined) {
-			return undefined;
-		}
-		const valueAccessor = (key: string) => this.configurationService.inspect(key, overrides)[dataKey];
+	private async runMigration(migration: ConfigurationMigration, dataKey: keyof IConfigurationValue<any>, value: any, resource: URI | undefined, overrideIdentifiers: string[] | undefined): Promise<ConfigurationKeyValuePairs | undefined> {
+		const valueAccessor = (key: string) => {
+			const inspectData = this.configurationService.inspect(key, { resource });
+			const inspectValue = inspectData[dataKey] as IInspectValue<any> | undefined;
+			if (!inspectValue) {
+				return undefined;
+			}
+			if (!overrideIdentifiers) {
+				return inspectValue.value;
+			}
+			return inspectValue.overrides?.find(({ identifiers }) => equals(identifiers, overrideIdentifiers))?.value;
+		};
 		const result = await migration.migrateFn(value, valueAccessor);
 		return Array.isArray(result) ? result : [[migration.key, result]];
 	}
 }
 
 export class DynamicWorkbenchConfigurationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dynamicWorkbenchConfiguration';
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService

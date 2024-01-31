@@ -11,6 +11,7 @@ import { ISettableObservable } from 'vs/base/common/observable';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
@@ -18,7 +19,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
@@ -35,6 +36,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITestService private readonly testService: ITestService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@ITestResultService private readonly resultService: ITestResultService,
@@ -47,18 +49,12 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		}));
 
 		this._register(Event.debounce(testProfiles.onDidChange, (_last, e) => e)(() => {
-			const defaults = new Set([
-				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Run),
-				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Debug),
-				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Coverage),
-			]);
-
 			const obj: Record</* controller id */string, /* profile id */ number[]> = {};
 			for (const { controller, profiles } of this.testProfiles.all()) {
-				obj[controller.id] = profiles.filter(p => defaults.has(p)).map(p => p.profileId);
+				obj[controller.id] = profiles.filter(p => p.isDefault).map(p => p.profileId);
 			}
 
-			this.proxy.$setActiveRunProfiles(obj);
+			this.proxy.$setDefaultRunProfiles(obj);
 		}));
 
 		this._register(resultService.onResultsChanged(evt => {
@@ -118,7 +114,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem.Serialized[]): void {
-		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId, tests.map(ITestItem.deserialize)));
+		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId,
+			tests.map(t => ITestItem.deserialize(this.uriIdentityService, t))));
 	}
 
 	/**
@@ -133,10 +130,10 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 			const fn = available ? ((token: CancellationToken) => TestCoverage.load(taskId, {
 				provideFileCoverage: async token => await this.proxy.$provideFileCoverage(runId, taskId, token)
-					.then(c => c.map(IFileCoverage.deserialize)),
+					.then(c => c.map(u => IFileCoverage.deserialize(this.uriIdentityService, u))),
 				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token)
 					.then(d => d.map(CoverageDetails.deserialize)),
-			}, token)) : undefined;
+			}, this.uriIdentityService, token)) : undefined;
 
 			(task.coverage as ISettableObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>).set(fn, undefined);
 		});
@@ -197,7 +194,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
 			for (const message of messages) {
-				r.appendMessage(testId, taskId, ITestMessage.deserialize(message));
+				r.appendMessage(testId, taskId, ITestMessage.deserialize(this.uriIdentityService, message));
 			}
 		}
 	}
@@ -277,7 +274,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $publishDiff(controllerId: string, diff: TestsDiffOp.Serialized[]): void {
-		this.testService.publishDiff(controllerId, diff.map(TestsDiffOp.deserialize));
+		this.testService.publishDiff(controllerId,
+			diff.map(d => TestsDiffOp.deserialize(this.uriIdentityService, d)));
 	}
 
 	public async $runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string> {

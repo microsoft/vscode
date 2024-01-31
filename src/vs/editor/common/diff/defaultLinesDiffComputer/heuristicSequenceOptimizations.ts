@@ -139,8 +139,8 @@ function shiftSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequence
 		const diff = sequenceDiffs[i];
 		const nextDiff = (i + 1 < sequenceDiffs.length ? sequenceDiffs[i + 1] : undefined);
 
-		const seq1ValidRange = new OffsetRange(prevDiff ? prevDiff.seq1Range.start + 1 : 0, nextDiff ? nextDiff.seq1Range.endExclusive - 1 : sequence1.length);
-		const seq2ValidRange = new OffsetRange(prevDiff ? prevDiff.seq2Range.start + 1 : 0, nextDiff ? nextDiff.seq2Range.endExclusive - 1 : sequence2.length);
+		const seq1ValidRange = new OffsetRange(prevDiff ? prevDiff.seq1Range.endExclusive + 1 : 0, nextDiff ? nextDiff.seq1Range.start - 1 : sequence1.length);
+		const seq2ValidRange = new OffsetRange(prevDiff ? prevDiff.seq2Range.endExclusive + 1 : 0, nextDiff ? nextDiff.seq2Range.start - 1 : sequence2.length);
 
 		if (diff.seq1Range.isEmpty) {
 			sequenceDiffs[i] = shiftDiffToBetterPosition(diff, sequence1, sequence2, seq1ValidRange, seq2ValidRange);
@@ -220,71 +220,73 @@ export function removeShortMatches(sequence1: ISequence, sequence2: ISequence, s
 }
 
 export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+	const equalMappings = SequenceDiff.invert(sequenceDiffs, sequence1.length);
+
 	const additional: SequenceDiff[] = [];
 
-	let lastModifiedWord: { added: number; deleted: number; count: number; s1Range: OffsetRange; s2Range: OffsetRange } | undefined = undefined;
+	let lastPoint = new OffsetPair(0, 0);
 
-	function maybePushWordToAdditional() {
-		if (!lastModifiedWord) {
+	function scanWord(pair: OffsetPair, equalMapping: SequenceDiff) {
+		if (pair.offset1 < lastPoint.offset1 || pair.offset2 < lastPoint.offset2) {
 			return;
 		}
 
-		const originalLength1 = lastModifiedWord.s1Range.length - lastModifiedWord.deleted;
-		const originalLength2 = lastModifiedWord.s2Range.length - lastModifiedWord.added;
-		if (originalLength1 !== originalLength2) {
-			// TODO figure out why this happens
+		const w1 = sequence1.findWordContaining(pair.offset1);
+		const w2 = sequence2.findWordContaining(pair.offset2);
+		if (!w1 || !w2) {
+			return;
+		}
+		let w = new SequenceDiff(w1, w2);
+		const equalPart = w.intersect(equalMapping)!;
+
+		let equalChars1 = equalPart.seq1Range.length;
+		let equalChars2 = equalPart.seq2Range.length;
+
+		// The words do not touch previous equals mappings, as we would have processed them already.
+		// But they might touch the next ones.
+
+		while (equalMappings.length > 0) {
+			const next = equalMappings[0];
+			const intersects = next.seq1Range.intersects(w1) || next.seq2Range.intersects(w2);
+			if (!intersects) {
+				break;
+			}
+
+			const v1 = sequence1.findWordContaining(next.seq1Range.start);
+			const v2 = sequence2.findWordContaining(next.seq2Range.start);
+			// Because there is an intersection, we know that the words are not empty.
+			const v = new SequenceDiff(v1!, v2!);
+			const equalPart = v.intersect(next)!;
+
+			equalChars1 += equalPart.seq1Range.length;
+			equalChars2 += equalPart.seq2Range.length;
+
+			w = w.join(v);
+
+			if (w.seq1Range.endExclusive >= next.seq1Range.endExclusive) {
+				// The word extends beyond the next equal mapping.
+				equalMappings.shift();
+			} else {
+				break;
+			}
 		}
 
-		if (Math.max(lastModifiedWord.deleted, lastModifiedWord.added) + (lastModifiedWord.count - 1) > originalLength1) {
-			additional.push(new SequenceDiff(lastModifiedWord.s1Range, lastModifiedWord.s2Range));
+		if (equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
+			additional.push(w);
 		}
 
-		lastModifiedWord = undefined;
+		lastPoint = w.getEndExclusives();
 	}
 
-	for (const s of sequenceDiffs) {
-		function processWord(s1Range: OffsetRange, s2Range: OffsetRange) {
-			if (!lastModifiedWord || !lastModifiedWord.s1Range.containsRange(s1Range) || !lastModifiedWord.s2Range.containsRange(s2Range)) {
-				if (lastModifiedWord && !(lastModifiedWord.s1Range.endExclusive < s1Range.start && lastModifiedWord.s2Range.endExclusive < s2Range.start)) {
-					const s1Added = OffsetRange.tryCreate(lastModifiedWord.s1Range.endExclusive, s1Range.start);
-					const s2Added = OffsetRange.tryCreate(lastModifiedWord.s2Range.endExclusive, s2Range.start);
-					lastModifiedWord.deleted += s1Added?.length ?? 0;
-					lastModifiedWord.added += s2Added?.length ?? 0;
-
-					lastModifiedWord.s1Range = lastModifiedWord.s1Range.join(s1Range);
-					lastModifiedWord.s2Range = lastModifiedWord.s2Range.join(s2Range);
-				} else {
-					maybePushWordToAdditional();
-					lastModifiedWord = { added: 0, deleted: 0, count: 0, s1Range: s1Range, s2Range: s2Range };
-				}
-			}
-
-			const changedS1 = s1Range.intersect(s.seq1Range);
-			const changedS2 = s2Range.intersect(s.seq2Range);
-			lastModifiedWord.count++;
-			lastModifiedWord.deleted += changedS1?.length ?? 0;
-			lastModifiedWord.added += changedS2?.length ?? 0;
+	while (equalMappings.length > 0) {
+		const next = equalMappings.shift()!;
+		if (next.seq1Range.isEmpty) {
+			continue;
 		}
-
-		const w1Before = sequence1.findWordContaining(s.seq1Range.start - 1);
-		const w2Before = sequence2.findWordContaining(s.seq2Range.start - 1);
-
-		const w1After = sequence1.findWordContaining(s.seq1Range.endExclusive);
-		const w2After = sequence2.findWordContaining(s.seq2Range.endExclusive);
-
-		if (w1Before && w1After && w2Before && w2After && w1Before.equals(w1After) && w2Before.equals(w2After)) {
-			processWord(w1Before, w2Before);
-		} else {
-			if (w1Before && w2Before) {
-				processWord(w1Before, w2Before);
-			}
-			if (w1After && w2After) {
-				processWord(w1After, w2After);
-			}
-		}
+		scanWord(next.getStarts(), next);
+		// The equal parts are not empty, so -1 gives us a character that is equal in both parts.
+		scanWord(next.getEndExclusives().delta(-1), next);
 	}
-
-	maybePushWordToAdditional();
 
 	const merged = mergeSequenceDiffs(sequenceDiffs, additional);
 	return merged;
@@ -454,7 +456,11 @@ export function removeVeryShortMatchingTextBetweenLongDiffs(sequence1: LinesSlic
 			next ? next.getStarts() : OffsetPair.max,
 		);
 		const result = newDiff.intersect(availableSpace)!;
-		newDiffs.push(result);
+		if (newDiffs.length > 0 && result.getStarts().equals(newDiffs[newDiffs.length - 1].getEndExclusives())) {
+			newDiffs[newDiffs.length - 1] = newDiffs[newDiffs.length - 1].join(result);
+		} else {
+			newDiffs.push(result);
+		}
 	});
 
 	return newDiffs;

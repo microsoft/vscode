@@ -10,7 +10,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
@@ -517,7 +517,7 @@ registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: DETECT_CELL_LANGUAGE,
-			title: { value: localize('detectLanguage', 'Accept Detected Language for Cell'), original: 'Accept Detected Language for Cell' },
+			title: localize2('detectLanguage', "Accept Detected Language for Cell"),
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }

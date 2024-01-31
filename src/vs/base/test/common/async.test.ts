@@ -93,6 +93,27 @@ suite('Async', () => {
 			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
 		});
 
+		test('execution order (async with late listener)', async function () {
+			const order: string[] = [];
+
+			const cancellablePromise = async.createCancelablePromise(async token => {
+				order.push('in callback');
+
+				await async.timeout(0);
+				store.add(token.onCancellationRequested(_ => order.push('cancelled')));
+				cancellablePromise.cancel();
+				order.push('afterCancel');
+			});
+
+			order.push('afterCreate');
+
+			const promise = cancellablePromise
+				.then(undefined, err => null)
+				.then(() => order.push('finally'));
+
+			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
+		});
+
 		test('get inner result', async function () {
 			const promise = async.createCancelablePromise(token => {
 				return async.timeout(12).then(_ => 1234);
@@ -464,6 +485,7 @@ suite('Async', () => {
 		});
 	});
 
+
 	suite('Queue', () => {
 		test('simple', function () {
 			const queue = new async.Queue();
@@ -486,6 +508,146 @@ suite('Async', () => {
 				assert.ok(syncPromise);
 				assert.ok(asyncPromise);
 			});
+		});
+
+		test('stop processing on dispose', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.dispose(); // DISPOSE HERE
+			};
+
+			const p1 = queue.queue(task);
+			queue.queue(task);
+			queue.queue(task);
+			assert.strictEqual(queue.size, 3);
+
+
+			await p1;
+
+			assert.strictEqual(workCounter, 1);
+		});
+
+		test('stop on clear', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.clear(); // CLEAR HERE
+				assert.strictEqual(queue.size, 1); // THIS task is still running
+			};
+
+			const p1 = queue.queue(task);
+			queue.queue(task);
+			queue.queue(task);
+			assert.strictEqual(queue.size, 3);
+
+			await p1;
+			assert.strictEqual(workCounter, 1);
+			assert.strictEqual(queue.size, 0); // has been cleared
+
+
+			const p2 = queue.queue(task);
+			await p2;
+			assert.strictEqual(workCounter, 2);
+		});
+
+		test('clear and drain (1)', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.clear(); // CLEAR HERE
+			};
+
+			const p0 = Event.toPromise(queue.onDrained);
+			const p1 = queue.queue(task);
+
+			await p1;
+			await p0; // expect drain to fire because a task was running
+			assert.strictEqual(workCounter, 1);
+			queue.dispose();
+		});
+
+		test('clear and drain (2)', async function () {
+			const queue = new async.Queue();
+
+			let didFire = false;
+			const d = queue.onDrained(() => {
+				didFire = true;
+			});
+
+			queue.clear();
+
+			assert.strictEqual(didFire, false); // no work, no drain!
+			d.dispose();
+			queue.dispose();
+		});
+
+		test('drain timing', async function () {
+			const queue = new async.Queue();
+
+			const logicClock = new class {
+				private time = 0;
+				tick() {
+					return this.time++;
+				}
+			};
+
+			let didDrainTime = 0;
+			let didFinishTime1 = 0;
+			let didFinishTime2 = 0;
+			const d = queue.onDrained(() => {
+				didDrainTime = logicClock.tick();
+			});
+
+			const p1 = queue.queue(() => {
+				// await async.timeout(10);
+				didFinishTime1 = logicClock.tick();
+				return Promise.resolve();
+			});
+
+			const p2 = queue.queue(async () => {
+				await async.timeout(10);
+				didFinishTime2 = logicClock.tick();
+			});
+
+
+			await Promise.all([p1, p2]);
+
+			assert.strictEqual(didFinishTime1, 0);
+			assert.strictEqual(didFinishTime2, 1);
+			assert.strictEqual(didDrainTime, 2);
+
+			d.dispose();
+			queue.dispose();
+		});
+
+		test('drain event is send only once', async function () {
+			const queue = new async.Queue();
+
+			let drainCount = 0;
+			const d = queue.onDrained(() => { drainCount++; });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			assert.strictEqual(drainCount, 0);
+			assert.strictEqual(queue.size, 4);
+
+			await queue.whenIdle();
+
+			assert.strictEqual(drainCount, 1);
+
+			d.dispose();
+			queue.dispose();
 		});
 
 		test('order is kept', function () {
@@ -599,21 +761,19 @@ suite('Async', () => {
 
 			await queue.whenDrained(); // returns immediately since empty
 
-			const r1Queue = queue.queueFor(URI.file('/some/path'));
+			let done1 = false;
+			queue.queueFor(URI.file('/some/path'), async () => { done1 = true; });
+			await queue.whenDrained(); // returns immediately since no work scheduled
+			assert.strictEqual(done1, true);
 
-			await queue.whenDrained(); // returns immediately since empty
-
-			const r2Queue = queue.queueFor(URI.file('/some/other/path'));
-
-			await queue.whenDrained(); // returns immediately since empty
-
-			assert.ok(r1Queue);
-			assert.ok(r2Queue);
-			assert.strictEqual(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
+			let done2 = false;
+			queue.queueFor(URI.file('/some/other/path'), async () => { done2 = true; });
+			await queue.whenDrained(); // returns immediately since no work scheduled
+			assert.strictEqual(done2, true);
 
 			// schedule some work
 			const w1 = new async.DeferredPromise<void>();
-			r1Queue.queue(() => w1.p);
+			queue.queueFor(URI.file('/some/path'), () => w1.p);
 
 			let drained = false;
 			queue.whenDrained().then(() => drained = true);
@@ -622,14 +782,11 @@ suite('Async', () => {
 			await async.timeout(0);
 			assert.strictEqual(drained, true);
 
-			const r1Queue2 = queue.queueFor(URI.file('/some/path'));
-			assert.notStrictEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
-
 			// schedule some work
 			const w2 = new async.DeferredPromise<void>();
 			const w3 = new async.DeferredPromise<void>();
-			r1Queue.queue(() => w2.p);
-			r2Queue.queue(() => w3.p);
+			queue.queueFor(URI.file('/some/path'), () => w2.p);
+			queue.queueFor(URI.file('/some/other/path'), () => w3.p);
 
 			drained = false;
 			queue.whenDrained().then(() => drained = true);

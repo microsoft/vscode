@@ -42,11 +42,20 @@ export const {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
-	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
+	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
+	windows.set(mainWindow.vscodeWindowId, mainWindowRegistration);
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
 	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
 	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
+
+	function getWindowById(windowId: number): IRegisteredCodeWindow | undefined;
+	function getWindowById(windowId: number | undefined, fallbackToMain: true): IRegisteredCodeWindow;
+	function getWindowById(windowId: number | undefined, fallbackToMain?: boolean): IRegisteredCodeWindow | undefined {
+		const window = typeof windowId === 'number' ? windows.get(windowId) : undefined;
+
+		return window ?? (fallbackToMain ? mainWindowRegistration : undefined);
+	}
 
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
@@ -90,9 +99,7 @@ export const {
 		hasWindow(windowId: number): boolean {
 			return windows.has(windowId);
 		},
-		getWindowById(windowId: number): IRegisteredCodeWindow | undefined {
-			return windows.get(windowId);
-		},
+		getWindowById,
 		getWindow(e: Node | UIEvent | undefined | null): CodeWindow {
 			const candidateNode = e as Node | undefined | null;
 			if (candidateNode?.ownerDocument?.defaultView) {
@@ -261,7 +268,7 @@ export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runne
  */
 export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 
-export function disposableWindowInterval(targetWindow: Window & typeof globalThis, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
+export function disposableWindowInterval(targetWindow: Window, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
 	let iteration = 0;
 	const timer = targetWindow.setInterval(() => {
 		iteration++;
@@ -277,8 +284,19 @@ export function disposableWindowInterval(targetWindow: Window & typeof globalThi
 
 export class WindowIntervalTimer extends IntervalTimer {
 
-	override cancelAndSet(runner: () => void, interval: number, targetWindow: Window & typeof globalThis): void {
-		return super.cancelAndSet(runner, interval, targetWindow);
+	private readonly defaultTarget?: Window & typeof globalThis;
+
+	/**
+	 *
+	 * @param node The optional node from which the target window is determined
+	 */
+	constructor(node?: Node) {
+		super();
+		this.defaultTarget = node && getWindow(node);
+	}
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow?: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow ?? this.defaultTarget);
 	}
 }
 
@@ -444,9 +462,9 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement): Dimension {
-	const elDocument = element.ownerDocument;
-	const elWindow = elDocument.defaultView?.window;
+export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+	const elWindow = getWindow(element);
+	const elDocument = elWindow.document;
 
 	// Try with DOM clientWidth / clientHeight
 	if (element !== elDocument.body) {
@@ -471,6 +489,10 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
 	if (elDocument.documentElement && elDocument.documentElement.clientWidth && elDocument.documentElement.clientHeight) {
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
+	}
+
+	if (fallback) {
+		return getClientArea(fallback);
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -836,8 +858,9 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 }
 
 /**
- * Returns the active element across all child windows.
- * Use this instead of `document.activeElement` to handle multiple windows.
+ * Returns the active element across all child windows
+ * based on document focus. Falls back to the main
+ * window if no window has focus.
  */
 export function getActiveElement(): Element | null {
 	let result = getActiveDocument().activeElement;
@@ -850,42 +873,49 @@ export function getActiveElement(): Element | null {
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `element` is `element`.
+ * Returns true if the focused window active element matches
+ * the provided element. Falls back to the main window if no
+ * window has focus.
  */
 export function isActiveElement(element: Element): boolean {
-	return element.ownerDocument.activeElement === element;
+	return getActiveElement() === element;
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `ancestor` is contained in `ancestor`.
+ * Returns true if the focused window active element is contained in
+ * `ancestor`. Falls back to the main window if no window has focus.
  */
 export function isAncestorOfActiveElement(ancestor: Element): boolean {
-	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+	return isAncestor(getActiveElement(), ancestor);
 }
 
 /**
- * Returns whether the element is in the active `document`.
+ * Returns whether the element is in the active `document`. The active
+ * document has focus or will be the main windows document.
  */
 export function isActiveDocument(element: Element): boolean {
 	return element.ownerDocument === getActiveDocument();
 }
 
 /**
- * Returns the active document across all child windows.
- * Use this instead of `document` when reacting to dom
- * events to handle multiple windows.
+ * Returns the active document across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main windows document.
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
-		return document;
+		return mainWindow.document;
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? document;
+	return documents.find(doc => doc.hasFocus()) ?? mainWindow.document;
 }
 
+/**
+ * Returns the active window across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main window.
+ */
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
@@ -893,7 +923,7 @@ export function getActiveWindow(): CodeWindow {
 
 export function focusWindow(element: Node): void {
 	const window = getWindow(element);
-	if (window !== getActiveWindow()) {
+	if (!window.document.hasFocus()) {
 		window.focus();
 	}
 }
@@ -902,6 +932,38 @@ const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HT
 
 export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+/**
+ * A version of createStyleSheet which has a unified API to initialize/set the style content.
+ */
+export function createStyleSheet2(): WrappedStyleElement {
+	return new WrappedStyleElement();
+}
+
+class WrappedStyleElement {
+	private _currentCssStyle = '';
+	private _styleSheet: HTMLStyleElement | undefined = undefined;
+
+	public setStyle(cssStyle: string): void {
+		if (cssStyle === this._currentCssStyle) {
+			return;
+		}
+		this._currentCssStyle = cssStyle;
+
+		if (!this._styleSheet) {
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
+		} else {
+			this._styleSheet.innerText = cssStyle;
+		}
+	}
+
+	public dispose(): void {
+		if (this._styleSheet) {
+			clearNode(this._styleSheet);
+			this._styleSheet = undefined;
+		}
+	}
 }
 
 export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
@@ -1019,9 +1081,17 @@ export const sharedMutationObserver = new class {
 };
 
 export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
-	const meta = document.createElement('meta');
-	container.appendChild(meta);
-	return meta;
+	return createHeadElement('meta', container) as HTMLMetaElement;
+}
+
+export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
+	return createHeadElement('link', container) as HTMLLinkElement;
+}
+
+function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
+	const element = document.createElement(tagName);
+	container.appendChild(element);
+	return element;
 }
 
 let _sharedStyleSheet: HTMLStyleElement | null = null;
@@ -1797,6 +1867,7 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'hr',
 	'i',
 	'img',
+	'input',
 	'ins',
 	'kbd',
 	'label',
@@ -2277,9 +2348,11 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-export function copyAttributes(from: Element, to: Element): void {
+export function copyAttributes(from: Element, to: Element, filter?: string[]): void {
 	for (const { name, value } of from.attributes) {
-		to.setAttribute(name, value);
+		if (!filter || filter.includes(name)) {
+			to.setAttribute(name, value);
+		}
 	}
 }
 
@@ -2293,7 +2366,7 @@ function copyAttribute(from: Element, to: Element, name: string): void {
 }
 
 export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
-	copyAttributes(from, to);
+	copyAttributes(from, to, filter);
 
 	const disposables = new DisposableStore();
 

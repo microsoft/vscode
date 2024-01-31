@@ -10,6 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { HydratedTestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
@@ -207,7 +208,11 @@ suite('Workbench - Test Results Service', () => {
 		}
 
 		setup(() => {
-			storage = ds.add(new InMemoryResultStorage(ds.add(new TestStorageService()), new NullLogService()));
+			storage = ds.add(new InMemoryResultStorage({
+				asCanonicalUri(uri) {
+					return uri;
+				},
+			} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
 			results = ds.add(new TestTestResultService(
 				new MockContextKeyService(),
 				storage,
@@ -277,6 +282,10 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
+			asCanonicalUri(uri) {
+				return uri;
+			},
+		} as IUriIdentityService, {
 			completedAt,
 			id: 'some-id',
 			tasks: [{ id: 't', name: undefined }],

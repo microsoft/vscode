@@ -20,6 +20,7 @@ import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
+import { Mutable } from 'vs/base/common/types';
 
 const enum HitTestResultType {
 	Unknown,
@@ -217,6 +218,13 @@ class ElementPath {
 			path.length >= 2
 			&& path[0] === PartFingerprint.OverflowGuard
 			&& path[1] === PartFingerprint.OverlayWidgets
+		);
+	}
+
+	public static isChildOfOverflowingOverlayWidgets(path: Uint8Array): boolean {
+		return (
+			path.length >= 1
+			&& path[0] === PartFingerprint.OverflowingOverlayWidgets
 		);
 	}
 }
@@ -490,7 +498,7 @@ export class MouseTargetFactory {
 		}
 
 		// Is it an overlay widget?
-		if (ElementPath.isChildOfOverlayWidgets(path)) {
+		if (ElementPath.isChildOfOverlayWidgets(path) || ElementPath.isChildOfOverflowingOverlayWidgets(path)) {
 			return true;
 		}
 
@@ -545,7 +553,7 @@ export class MouseTargetFactory {
 
 		let result: IMouseTarget | null = null;
 
-		if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath)) {
+		if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) && !ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
 			// We only render dom nodes inside the overflow guard or in the overflowing content widgets
 			result = result || request.fulfillUnknown();
 		}
@@ -579,7 +587,7 @@ export class MouseTargetFactory {
 
 	private static _hitTestOverlayWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
 		// Is it an overlay widget?
-		if (ElementPath.isChildOfOverlayWidgets(request.targetPath)) {
+		if (ElementPath.isChildOfOverlayWidgets(request.targetPath) || ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
 			if (widgetId) {
 				return request.fulfillOverlayWidget(widgetId);
@@ -665,7 +673,7 @@ export class MouseTargetFactory {
 			const res = ctx.getFullLineRangeAtCoord(request.mouseVerticalOffset);
 			const pos = res.range.getStartPosition();
 			let offset = Math.abs(request.relativePos.x);
-			const detail: IMouseTargetMarginData = {
+			const detail: Mutable<IMouseTargetMarginData> = {
 				isAfterLines: res.isAfterLines,
 				glyphMarginLeft: ctx.layoutInfo.glyphMarginLeft,
 				glyphMarginWidth: ctx.layoutInfo.glyphMarginWidth,
@@ -677,6 +685,9 @@ export class MouseTargetFactory {
 
 			if (offset <= ctx.layoutInfo.glyphMarginWidth) {
 				// On the glyph margin
+				const modelCoordinate = ctx.viewModel.coordinatesConverter.convertViewPositionToModelPosition(res.range.getStartPosition());
+				const lanes = ctx.viewModel.glyphLanes.getLanesAtLine(modelCoordinate.lineNumber);
+				detail.glyphMarginLane = lanes[Math.floor(offset / ctx.lineHeight)];
 				return request.fulfillMargin(MouseTargetType.GUTTER_GLYPH_MARGIN, pos, res.range, detail);
 			}
 			offset -= ctx.layoutInfo.glyphMarginWidth;

@@ -63,7 +63,13 @@ export interface IHostService {
 	 * Emitted when the active window changes between main window
 	 * and auxiliary windows.
 	 */
-	readonly onDidChangeActiveWindow: Event<void>;
+	readonly onDidChangeActiveWindow: Event<number>;
+
+	/**
+	 * Emitted when the window with the given identifier changes
+	 * its fullscreen state.
+	 */
+	readonly onDidChangeFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
 
 	/**
 	 * Opens an empty window. The optional parameter allows to define if

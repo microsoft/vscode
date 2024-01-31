@@ -19,11 +19,11 @@ const minimist = require('minimist');
 const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 
 /**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
-	string: ['run'],
+	string: ['run', 'coveragePath', 'coverageFormats'],
 	alias: {
 		h: 'help'
 	},
@@ -36,6 +36,8 @@ const args = minimist(process.argv.slice(2), {
 		build: 'Run from out-build',
 		run: 'Run a single file',
 		coverage: 'Generate a coverage report',
+		coveragePath: 'Path to coverage report to generate',
+		coverageFormats: 'Coverage formats to generate',
 		help: 'Show help'
 	}
 });
@@ -141,7 +143,7 @@ function main() {
 			if (code !== 0) {
 				return;
 			}
-			coverage.createReport(args.run || args.runGlob);
+			coverage.createReport(args.run || args.runGlob, args.coveragePath, args.coverageFormats);
 		});
 	}
 

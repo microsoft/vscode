@@ -34,7 +34,12 @@ export class AudioCueLineFeatureContribution
 
 	private readonly isEnabledCache = new CachedFunction<AudioCue, IObservable<boolean>>((cue) => observableFromEvent(
 		this.audioCueService.onEnabledChanged(cue),
-		() => this.audioCueService.isEnabled(cue)
+		() => this.audioCueService.isCueEnabled(cue)
+	));
+
+	private readonly isAlertEnabledCache = new CachedFunction<AudioCue, IObservable<boolean>>((cue) => observableFromEvent(
+		this.audioCueService.onAlertEnabledChanged(cue),
+		() => this.audioCueService.isAlertEnabled(cue)
 	));
 
 	constructor(
@@ -47,7 +52,7 @@ export class AudioCueLineFeatureContribution
 
 		const someAudioCueFeatureIsEnabled = derived(
 			(reader) => /** @description someAudioCueFeatureIsEnabled */ this.features.some((feature) =>
-				this.isEnabledCache.get(feature.audioCue).read(reader)
+				this.isEnabledCache.get(feature.audioCue).read(reader) || this.isAlertEnabledCache.get(feature.audioCue).read(reader)
 			)
 		);
 
@@ -116,7 +121,7 @@ export class AudioCueLineFeatureContribution
 			const isFeaturePresent = derivedOpts(
 				{ debugName: `isPresentInLine:${feature.audioCue.name}` },
 				(reader) => {
-					if (!this.isEnabledCache.get(feature.audioCue).read(reader)) {
+					if (!this.isEnabledCache.get(feature.audioCue).read(reader) && !this.isAlertEnabledCache.get(feature.audioCue).read(reader)) {
 						return false;
 					}
 					const position = debouncedPosition.read(reader);

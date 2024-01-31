@@ -7,7 +7,6 @@
   "enabledApiProposals": [
     "authSession",
     "chatAgents2",
-    "chatVariables",
     "contribViewsRemote",
     "contribStatusBarItems",
     "createFileSystemWatcher",
@@ -31,10 +30,8 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "readonlyMessage",
     "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -52,9 +49,7 @@
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
-    "testingActiveProfile",
-    "windowActivity",
-    "interactiveUserActions"
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],
