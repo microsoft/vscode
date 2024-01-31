@@ -542,7 +542,7 @@ export class ChatService extends Disposable implements IChatService {
 						agentId: agent.id,
 						message: variableData.message,
 						variables: variableData.variables,
-						command: agentSlashCommandPart?.command.name ?? '',
+						command: agentSlashCommandPart?.command.name,
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);

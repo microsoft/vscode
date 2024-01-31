@@ -5,9 +5,23 @@
 
 declare module 'vscode' {
 
+	/**
+	 * One request/response pair in chat history.
+	 */
 	export interface ChatAgentHistoryEntry {
+		/**
+		 * The request that was sent to the chat agent.
+		 */
 		request: ChatAgentRequest;
+
+		/**
+		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
+		 */
 		response: ChatAgentContentProgress[];
+
+		/**
+		 * The result that was received from the chat agent.
+		 */
 		result: ChatAgentResult2;
 	}
 
@@ -251,13 +265,6 @@ declare module 'vscode' {
 		 * The ID of the chat agent to which this request was directed.
 		 */
 		agentId: string;
-
-		/**
-		 * The {@link ChatAgentSubCommand subCommand} that was selected for this request. It is guaranteed that the passed subCommand
-		 * is an instance that was previously returned from the {@link ChatAgentSubCommandProvider.provideSubCommands subCommand provider}.
-		 * @deprecated this will be replaced by `subCommand`
-		 */
-		slashCommand?: ChatAgentSubCommand;
 
 		/**
 		 * The name of the {@link ChatAgentSubCommand subCommand} that was selected for this request.
