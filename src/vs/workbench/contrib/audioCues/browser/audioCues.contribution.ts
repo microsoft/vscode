@@ -300,11 +300,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...signalFeatureBase,
 			'description': localize('signals.chatRequestSent', "Plays a signal when a chat request is made."),
 			'properties': {
-				'signals.chatRequestSent.audioCue': {
+				'audioCue': {
 					'description': localize('signals.chatRequestSent.audioCue', "Plays an audio cue when a chat request is made."),
 					...audioCueFeatureBase
 				},
-				'signals.chatRequestSent.alert': {
+				'alert': {
 					'description': localize('signals.chatRequestSent.alert', "Alerts when a chat request is made."),
 					...alertFeatureBase
 				},
@@ -328,7 +328,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...defaultNoAlert,
 			'description': localize('signals.chatResponseReceived', "Plays a signal on loop while the response has been received."),
 			'properties': {
-				'signals.chatResponseReceived.audioCue': {
+				'audioCue': {
 					'description': localize('signals.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
 					...audioCueFeatureBase
 				},

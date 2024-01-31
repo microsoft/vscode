@@ -58,39 +58,18 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	private _migrateSettings(): void {
-		const audioCuesConfig = this.configurationService.getValue<{ [key: string]: boolean }>('audioCues');
-		for (const entry in audioCuesConfig) {
-			if (entry) {
-				console.log('cue ', entry);
-				this.configurationService.updateValue('audioCues.' + entry, undefined);
-				if (entry === 'volume' || entry === 'enabled') {
-					// ignore, these are audio cue settings
-				} else if (entry === 'debouncePositionChanges') {
-					this.configurationService.updateValue('signals.' + entry, audioCuesConfig[entry]);
-				} else {
-					this.configurationService.updateValue('signals.' + entry + '.' + 'audioCue', audioCuesConfig[entry]);
-				}
+		this.configurationService.updateValue('signals.debouncePositionChanges', this.configurationService.getValue('audioCues.debouncePositionChanges'));
+		const config = AudioCue.allAudioCues;
+		for (const c of config) {
+			const alertValue = c.alertSettingsKey ? this.configurationService.getValue<boolean>(c.alertSettingsKey) : undefined;
+			const audioCueValue = c.settingsKey ? this.configurationService.getValue<boolean>(c.settingsKey) : undefined;
+			const newSettingsKey = c.settingsKey.replace('audioCues.', 'signals.');
+			if (alertValue !== undefined || audioCueValue !== undefined) {
+				this.configurationService.updateValue(newSettingsKey, { alert: alertValue, audioCue: audioCueValue });
+			} else if (audioCueValue) {
+				this.configurationService.updateValue(newSettingsKey, { audioCue: audioCueValue });
 			}
 		}
-		const alertsConfig = this.configurationService.getValue<{ [key: string]: boolean }>('accessibility.alert');
-		for (let entry in alertsConfig) {
-			if (entry) {
-				console.log('alert ', entry);
-				if (entry === 'warning') {
-					entry = 'lineHasWarning';
-				} else if (entry === 'error') {
-					entry = 'lineHasError';
-				} else if (entry === 'foldedArea') {
-					entry = 'lineHasFoldedArea';
-				} else if (entry === 'breakpoint') {
-					entry = 'onDebugBreak';
-				}
-				this.configurationService.updateValue('accessibility.alert.' + entry, undefined);
-				this.configurationService.updateValue('signals.' + entry + '.' + 'alert', alertsConfig[entry]);
-			}
-		}
-		const signals = this.configurationService.getValue<{ [key: string]: boolean }>('signals');
-		console.log(JSON.stringify(signals));
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
