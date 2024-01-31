@@ -53,12 +53,8 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor) {
-
-		Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).getWorkbenchContribution(PerfviewContrib.ID);
-
 		const editorService = accessor.get(IEditorService);
-		const instaService = accessor.get(IInstantiationService);
-		return editorService.openEditor(instaService.createInstance(PerfviewInput), { pinned: true });
+		return editorService.openEditor((PerfviewContrib.get()).getEditorInput(), { pinned: true });
 	}
 });
 
