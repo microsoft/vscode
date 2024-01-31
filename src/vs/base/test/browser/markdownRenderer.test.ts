@@ -513,6 +513,30 @@ suite('MarkdownRenderer', () => {
 				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
 				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
 			});
+
+			test('code block header with more backticks', () => {
+				const incompleteCodeblock = 'some text\n`````js\nconst';
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n`````');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
+
+			test('code block header containing codeblock', () => {
+				const incompleteCodeblock = `some text
+\`\`\`\`\`js
+const x = 1;
+\`\`\`
+const y = 2;
+\`\`\`
+// foo`;
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n`````');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
 		});
 
 		function simpleMarkdownTestSuite(name: string, delimiter: string): void {
