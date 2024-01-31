@@ -91,6 +91,8 @@ export class TerminalLinkManager extends DisposableStore {
 		let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
 		this.add(toDisposable(() => {
+			this._clearLinkProviders();
+			dispose(this._externalLinkProviders);
 			activeHoverDisposable?.dispose();
 			activeTooltipScheduler?.dispose();
 		}));
