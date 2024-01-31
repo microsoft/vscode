@@ -352,7 +352,11 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 	}
 
-	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): IDisposable {
+	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): void {
+		// Avoid any leaks in case this is already disposed
+		if (this.isDisposed) {
+			return;
+		}
 		// Clear and re-register the standard link providers so they are a lower priority than the new one
 		this._clearLinkProviders();
 		const detectorId = `extension-${this._externalLinkProviders.length}`;
@@ -360,7 +364,6 @@ export class TerminalLinkManager extends DisposableStore {
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
 		this._externalLinkProviders.push(newLinkProvider);
 		this._registerStandardLinkProviders();
-		return newLinkProvider;
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
