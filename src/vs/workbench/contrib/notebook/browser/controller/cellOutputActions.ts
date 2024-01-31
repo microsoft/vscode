@@ -23,7 +23,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: COPY_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.copyOutput', "Copy Output"),
+			title: localize('notebookActions.copyOutput', "Copy Cell Output"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
 				when: NOTEBOOK_CELL_HAS_OUTPUTS
