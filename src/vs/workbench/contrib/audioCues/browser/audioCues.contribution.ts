@@ -49,15 +49,6 @@ const signalFeatureBase: IConfigurationPropertySchema = {
 	}
 };
 
-const defaultNoAlert: IConfigurationPropertySchema = {
-	'type': 'object',
-	'tags': ['accessibility'],
-	additionalProperties: true,
-	'default': {
-		'audioCue': 'auto',
-	}
-};
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'signals',
 	order: 100,
@@ -238,35 +229,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 			}
 		},
-		'signals.diffLineInserted': {
-			...defaultNoAlert,
-			'description': localize('signals.diffLineInserted', "Plays a signal when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
-			'properties': {
-				'audioCue': {
-					'description': localize('signals.diffLineInserted.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
-					...audioCueFeatureBase
-				}
-			}
+		'signals.diffLineInserted.audioCue': {
+			...audioCueFeatureBase,
+			'description': localize('signals.diffLineInserted.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 		},
-		'signals.diffLineDeleted': {
-			...defaultNoAlert,
-			'description': localize('signals.diffLineDeleted', "Plays a signal when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
-			'properties': {
-				'audioCue': {
-					'description': localize('signals.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
-					...audioCueFeatureBase
-				}
-			}
+		'signals.diffLineDeleted.audioCue': {
+			...audioCueFeatureBase,
+			'description': localize('signals.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
 		},
-		'signals.diffLineModified': {
-			...defaultNoAlert,
-			'description': localize('signals.diffLineModified', "Plays a signal when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
-			'properties': {
-				'audioCue': {
-					'description': localize('signals.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
-					...audioCueFeatureBase
-				}
-			}
+		'signals.diffLineModified.audioCue': {
+			...audioCueFeatureBase,
+			'description': localize('signals.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
 		},
 		'signals.notebookCellCompleted': {
 			...signalFeatureBase,
@@ -324,15 +297,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 			},
 		},
-		'signals.chatResponseReceived': {
-			...defaultNoAlert,
-			'description': localize('signals.chatResponseReceived', "Plays a signal on loop while the response has been received."),
-			'properties': {
-				'audioCue': {
-					'description': localize('signals.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
-					...audioCueFeatureBase
-				},
-			},
+		'signals.chatResponseReceived.audioCue': {
+			'description': localize('signals.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
+			...audioCueFeatureBase
 		},
 		'signals.clear': {
 			...signalFeatureBase,
@@ -410,10 +377,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 						localize('signals.format.alert.never', "Never plays the alert.")
 					],
 				},
-			},
-			default: {
-				'audioCue': 'never',
-				'alert': 'never'
 			}
 		},
 	}

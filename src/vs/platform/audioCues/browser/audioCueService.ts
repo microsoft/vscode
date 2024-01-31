@@ -64,10 +64,10 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			const alertValue = c.alertSettingsKey ? this.configurationService.getValue<boolean>(c.alertSettingsKey) : undefined;
 			const audioCueValue = c.settingsKey ? this.configurationService.getValue<boolean>(c.settingsKey) : undefined;
 			const newSettingsKey = c.settingsKey.replace('audioCues.', 'signals.');
-			if (alertValue !== undefined || audioCueValue !== undefined) {
+			if (alertValue && audioCueValue) {
 				this.configurationService.updateValue(newSettingsKey, { alert: alertValue, audioCue: audioCueValue });
 			} else if (audioCueValue) {
-				this.configurationService.updateValue(newSettingsKey, { audioCue: audioCueValue });
+				this.configurationService.updateValue(newSettingsKey + '.audioCue', audioCueValue);
 			}
 		}
 	}
