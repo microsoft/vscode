@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IUserDataSyncUtilService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize, localize2 } from 'vs/nls';
@@ -32,8 +31,7 @@ class UserDataSyncServicesContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution2(UserDataSyncServicesContribution.ID, UserDataSyncServicesContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(UserDataSyncServicesContribution.ID, UserDataSyncServicesContribution, WorkbenchContributionInstantiation.BlockStartup);
 
 registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	constructor() {

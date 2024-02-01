@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -100,8 +100,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribution, WorkbenchContributionInstantiation.BlockStartup);
 //#endregion
 
 //#region Input Serializer
@@ -601,5 +600,5 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 	}
 }
 
-workbenchContributionsRegistry.registerWorkbenchContribution2(SearchEditorWorkingCopyEditorHandler.ID, SearchEditorWorkingCopyEditorHandler, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(SearchEditorWorkingCopyEditorHandler.ID, SearchEditorWorkingCopyEditorHandler, WorkbenchContributionInstantiation.BlockRestore);
 //#endregion

@@ -9,8 +9,7 @@ import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/co
 import { WorkbenchListFocusContextKey, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
 import { Event } from 'vs/base/common/event';
 import { combinedDisposable, toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 /** INavigableContainer represents a logical container composed of widgets that can
 	be navigated back and forth with key shortcuts */
@@ -113,8 +112,7 @@ export function registerNavigableContainer(container: INavigableContainer): IDis
 	return NavigableContainerManager.register(container);
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution2(NavigableContainerManager.ID, NavigableContainerManager, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(NavigableContainerManager.ID, NavigableContainerManager, WorkbenchContributionInstantiation.BlockStartup);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'widgetNavigation.focusPrevious',

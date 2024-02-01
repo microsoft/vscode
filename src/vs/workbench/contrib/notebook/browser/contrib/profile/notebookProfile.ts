@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
+import { WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 export enum NotebookProfileType {
 	default = 'default',
@@ -126,6 +125,4 @@ export class NotebookProfileContribution extends Disposable {
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution2(NotebookProfileContribution.ID, NotebookProfileContribution, WorkbenchContributionInstantiation.BlockRestore);
-
+registerWorkbenchContribution2(NotebookProfileContribution.ID, NotebookProfileContribution, WorkbenchContributionInstantiation.BlockRestore);

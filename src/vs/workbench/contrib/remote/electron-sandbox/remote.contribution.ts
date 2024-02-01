@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchContributionsExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -186,10 +186,10 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution2(RemoteTelemetryEnablementUpdater.ID, RemoteTelemetryEnablementUpdater, WorkbenchContributionInstantiation.BlockRestore);
-workbenchContributionsRegistry.registerWorkbenchContribution2(RemoteEmptyWorkbenchPresentation.ID, RemoteEmptyWorkbenchPresentation, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(RemoteTelemetryEnablementUpdater.ID, RemoteTelemetryEnablementUpdater, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(RemoteEmptyWorkbenchPresentation.ID, RemoteEmptyWorkbenchPresentation, WorkbenchContributionInstantiation.BlockRestore);
 if (isWindows) {
-	workbenchContributionsRegistry.registerWorkbenchContribution2(WSLContextKeyInitializer.ID, WSLContextKeyInitializer, WorkbenchContributionInstantiation.BlockRestore);
+	registerWorkbenchContribution2(WSLContextKeyInitializer.ID, WSLContextKeyInitializer, WorkbenchContributionInstantiation.BlockRestore);
 }
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)

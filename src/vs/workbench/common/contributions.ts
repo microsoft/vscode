@@ -97,22 +97,6 @@ export interface IWorkbenchContributionsRegistry {
 	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void;
 
 	/**
-	 * Register a workbench contribution that will be instantiated
-	 * based on the `instantiation` property.
-	 */
-	registerWorkbenchContribution2<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, instantiation: WorkbenchContributionInstantiation): void;
-
-	/**
-	 * Provides access to a workbench contribution with a specific identifier.
-	 * The contribution is created if not yet done.
-	 *
-	 * Note: will throw an error if
-	 * - called too early before the registry has started
-	 * - no contribution is known for the given identifier
-	 */
-	getWorkbenchContribution<T extends IWorkbenchContribution>(id: string): T;
-
-	/**
 	 * Starts the registry by providing the required services.
 	 */
 	start(accessor: ServicesAccessor): void;
@@ -136,6 +120,8 @@ interface IWorkbenchContributionRegistration {
 }
 
 export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+
+	static readonly INSTANCE = new WorkbenchContributionsRegistry();
 
 	private static readonly BLOCK_BEFORE_RESTORE_WARN_THRESHOLD = 20;
 	private static readonly BLOCK_AFTER_RESTORE_WARN_THRESHOLD = 100;
@@ -368,4 +354,20 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	}
 }
 
-Registry.add(Extensions.Workbench, new WorkbenchContributionsRegistry());
+/**
+ * Register a workbench contribution that will be instantiated
+ * based on the `instantiation` property.
+ */
+export const registerWorkbenchContribution2 = WorkbenchContributionsRegistry.INSTANCE.registerWorkbenchContribution2.bind(WorkbenchContributionsRegistry.INSTANCE) as { <Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, instantiation: WorkbenchContributionInstantiation): void };
+
+/**
+ * Provides access to a workbench contribution with a specific identifier.
+ * The contribution is created if not yet done.
+ *
+ * Note: will throw an error if
+ * - called too early before the registry has started
+ * - no contribution is known for the given identifier
+ */
+export const getWorkbenchContribution = WorkbenchContributionsRegistry.INSTANCE.getWorkbenchContribution.bind(WorkbenchContributionsRegistry.INSTANCE);
+
+Registry.add(Extensions.Workbench, WorkbenchContributionsRegistry.INSTANCE);
