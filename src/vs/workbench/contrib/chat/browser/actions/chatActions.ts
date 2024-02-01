@@ -34,6 +34,7 @@ import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chat
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -192,13 +193,22 @@ export function registerChatActions() {
 			super({
 				id: 'chat.action.focus',
 				title: localize2('actions.interactiveSession.focus', 'Focus Chat List'),
-				precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP),
+				precondition: CONTEXT_IN_CHAT_INPUT,
 				category: CHAT_CATEGORY,
-				keybinding: {
-					when: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-					weight: KeybindingWeight.EditorContrib
-				}
+				keybinding: [
+					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
+					{
+						when: CONTEXT_CHAT_INPUT_CURSOR_AT_TOP,
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+						weight: KeybindingWeight.EditorContrib,
+					},
+					// On win/linux, ctrl+up can always focus the chat list
+					{
+						when: ContextKeyExpr.or(IsWindowsContext, IsLinuxContext),
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+						weight: KeybindingWeight.EditorContrib,
+					}
+				]
 			});
 		}
 
