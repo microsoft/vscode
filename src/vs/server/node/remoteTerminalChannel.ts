@@ -31,6 +31,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { promiseWithResolvers } from 'vs/base/common/async';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -266,12 +267,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 	}
 
 	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
-		let resolve!: (data: any) => void;
-		let reject!: (err: any) => void;
-		const result = new Promise<T>((_resolve, _reject) => {
-			resolve = _resolve;
-			reject = _reject;
-		});
+		const { resolve, reject, promise } = promiseWithResolvers<T>();
 
 		const reqId = ++this._lastReqId;
 		this._pendingCommands.set(reqId, { resolve, reject, uriTransformer });
@@ -293,7 +289,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			commandArgs: serializedCommandArgs
 		});
 
-		return result;
+		return promise;
 	}
 
 	private _sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {

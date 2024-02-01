@@ -30,7 +30,6 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -51,6 +50,7 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 const category = Categories.Test;
 
@@ -75,9 +75,9 @@ const enum ActionOrder {
 
 const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
 
-const LABEL_RUN_TESTS = { value: localize('runSelectedTests', 'Run Tests'), original: 'Run Tests' };
-const LABEL_DEBUG_TESTS = { value: localize('debugSelectedTests', 'Debug Tests'), original: 'Debug Tests' };
-const LABEL_COVERAGE_TESTS = { value: localize('coverageSelectedTests', 'Run Tests with Coverage'), original: 'Run Tests withCoverage' };
+const LABEL_RUN_TESTS = localize2('runSelectedTests', "Run Tests");
+const LABEL_DEBUG_TESTS = localize2('debugSelectedTests', "Debug Tests");
+const LABEL_COVERAGE_TESTS = localize2('coverageSelectedTests', "Run Tests with Coverage");
 
 export class HideTestAction extends Action2 {
 	constructor() {
@@ -290,7 +290,6 @@ export class ContinuousRunTestAction extends Action2 {
 
 	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		const crService = accessor.get(ITestingContinuousRunService);
-		const profileService = accessor.get(ITestProfileService);
 		for (const element of elements) {
 			const id = element.test.item.extId;
 			if (crService.isSpecificallyEnabledFor(id)) {
@@ -298,13 +297,7 @@ export class ContinuousRunTestAction extends Action2 {
 				continue;
 			}
 
-			const profiles = profileService.getGroupDefaultProfiles(TestRunProfileBitset.Run)
-				.filter(p => p.supportsContinuousRun && p.controllerId === element.test.controllerId);
-			if (!profiles.length) {
-				continue;
-			}
-
-			crService.start(profiles, id);
+			crService.start(TestRunProfileBitset.Run, id);
 		}
 	}
 }
@@ -350,7 +343,7 @@ export class ConfigureTestProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ConfigureTestProfilesAction,
-			title: { value: localize('testing.configureProfile', 'Configure Test Profiles'), original: 'Configure Test Profiles' },
+			title: localize2('testing.configureProfile', "Configure Test Profiles"),
 			icon: icons.testingUpdateProfiles,
 			f1: true,
 			category,
@@ -487,7 +480,7 @@ class StartContinuousRunAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.StartContinousRun,
-			title: { value: localize('testing.startContinuous', "Start Continuous Run"), original: 'Enable Continuous Run' },
+			title: localize2('testing.startContinuous', "Start Continuous Run"),
 			category,
 			icon: icons.testingTurnContinuousRunOn,
 			menu: continuousMenus(false),
@@ -913,7 +906,7 @@ export class ClearTestResultsAction extends Action2 {
 			id: TestCommandId.ClearTestResultsAction,
 			title: localize2('testing.clearResults', 'Clear All Results'),
 			category,
-			icon: Codicon.trash,
+			icon: Codicon.clearAll,
 			menu: [{
 				id: MenuId.TestPeekTitle,
 			}, {
@@ -1611,18 +1604,22 @@ export class CancelTestRefreshAction extends Action2 {
 	}
 }
 
-export class TestCoverageClose extends Action2 {
+export class CleareCoverage extends Action2 {
 	constructor() {
 		super({
-			id: TestCommandId.CoverageClose,
-			title: localize2('testing.closeCoverage', 'Close Coverage'),
+			id: TestCommandId.CoverageClear,
+			title: localize2('testing.clearCoverage', 'Clear Coverage'),
 			icon: widgetClose,
-			menu: {
+			category,
+			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: ActionOrder.Refresh,
 				when: ContextKeyExpr.equals('view', Testing.CoverageViewId)
-			}
+			}, {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.isTestCoverageOpen.isEqualTo(true),
+			}]
 		});
 	}
 
@@ -1631,10 +1628,37 @@ export class TestCoverageClose extends Action2 {
 	}
 }
 
+export class OpenCoverage extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.OpenCoverage,
+			title: localize2('testing.openCoverage', 'Open Coverage'),
+			category,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+			}]
+		});
+	}
+
+	public override run(accessor: ServicesAccessor) {
+		const results = accessor.get(ITestResultService).results;
+		const task = results.length && results[0].tasks.find(r => r.coverage);
+		if (!task) {
+			const notificationService = accessor.get(INotificationService);
+			notificationService.info(localize('testing.noCoverage', 'No coverage information available on the last test run.'));
+			return;
+		}
+
+		accessor.get(ITestCoverageService).openCoverage(task, true);
+	}
+}
+
 export const allTestActions = [
 	CancelTestRefreshAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
+	CleareCoverage,
 	CollapseAllAction,
 	ConfigureTestProfilesAction,
 	ContinuousRunTestAction,
@@ -1658,6 +1682,7 @@ export const allTestActions = [
 	GetSelectedProfiles,
 	GoToTest,
 	HideTestAction,
+	OpenCoverage,
 	OpenOutputPeek,
 	RefreshTestsAction,
 	ReRunFailedTests,
@@ -1674,7 +1699,6 @@ export const allTestActions = [
 	ShowMostRecentOutputAction,
 	StartContinuousRunAction,
 	StopContinuousRunAction,
-	TestCoverageClose,
 	TestingSortByDurationAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,

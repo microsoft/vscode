@@ -387,7 +387,7 @@ export class DebugService implements IDebugService {
 
 				const values = await Promise.all(compound.configurations.map(configData => {
 					const name = typeof configData === 'string' ? configData : configData.name;
-					if (name === compound!.name) {
+					if (name === compound.name) {
 						return Promise.resolve(false);
 					}
 
@@ -408,7 +408,7 @@ export class DebugService implements IDebugService {
 						if (launchesMatchingConfigData.length === 1) {
 							launchForName = launchesMatchingConfigData[0];
 						} else {
-							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound!.name));
+							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name));
 						}
 					}
 
@@ -710,10 +710,7 @@ export class DebugService implements IDebugService {
 
 			if (this.configurationService.getValue<IDebugConfiguration>('debug').closeReadonlyTabsOnEnd) {
 				const editorsToClose = this.editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(({ editor }) => {
-					if (editor.resource?.scheme === DEBUG_SCHEME) {
-						return editor.isReadonly() && session.getId() === Source.getEncodedDebugData(editor.resource).sessionId;
-					}
-					return false;
+					return editor.resource?.scheme === DEBUG_SCHEME && session.getId() === Source.getEncodedDebugData(editor.resource).sessionId;
 				});
 				this.editorService.closeEditors(editorsToClose);
 			}

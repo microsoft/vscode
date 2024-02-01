@@ -137,6 +137,21 @@ export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	});
 }
 
+/**
+ * Creates and returns a new promise, plus its `resolve` and `reject` callbacks.
+ *
+ * Replace with standardized [`Promise.withResolvers`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers) once it is supported
+ */
+export function promiseWithResolvers<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void; reject: (err?: any) => void } {
+	let resolve: (value: T | PromiseLike<T>) => void;
+	let reject: (reason?: any) => void;
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	return { promise, resolve: resolve!, reject: reject! };
+}
+
 export interface ITask<T> {
 	(): T;
 }
@@ -715,10 +730,9 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	dispose(): void {
-		// SEE https://github.com/microsoft/vscode/issues/202136
-		// this._isDisposed = true;
-		// this.outstandingPromises.length = 0; // stop further processing
-		// this._size = 0;
+		this._isDisposed = true;
+		this.outstandingPromises.length = 0; // stop further processing
+		this._size = 0;
 		this._onDrained.dispose();
 	}
 }
@@ -792,7 +806,13 @@ export class ResourceQueue implements IDisposable {
 		return true;
 	}
 
-	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): ILimiter<void> {
+	queueSize(resource: URI, extUri: IExtUri = defaultExtUri): number {
+		const key = extUri.getComparisonKey(resource);
+
+		return this.queues.get(key)?.size ?? 0;
+	}
+
+	queueFor(resource: URI, factory: ITask<Promise<void>>, extUri: IExtUri = defaultExtUri): Promise<void> {
 		const key = extUri.getComparisonKey(resource);
 
 		let queue = this.queues.get(key);
@@ -820,7 +840,7 @@ export class ResourceQueue implements IDisposable {
 			this.queues.set(key, queue);
 		}
 
-		return queue;
+		return queue.queue(factory);
 	}
 
 	private onDidQueueDrain(): void {
@@ -1462,13 +1482,7 @@ export class TaskSequentializer {
 		// so that we can return a promise that completes when the task has
 		// completed.
 		if (!this._queued) {
-			let promiseResolve: () => void;
-			let promiseReject: (error: Error) => void;
-			const promise = new Promise<void>((resolve, reject) => {
-				promiseResolve = resolve;
-				promiseReject = reject;
-			});
-
+			const { promise, resolve: promiseResolve, reject: promiseReject } = promiseWithResolvers<void>();
 			this._queued = {
 				run,
 				promise,
@@ -1675,6 +1689,10 @@ export class StatefulPromise<T> {
 		);
 	}
 
+	/**
+	 * Returns the resolved value.
+	 * Throws if the promise is not resolved yet.
+	 */
 	public requireValue(): T {
 		if (!this._isResolved) {
 			throw new BugIndicatingError('Promise is not resolved yet');
@@ -1687,7 +1705,7 @@ export class StatefulPromise<T> {
 }
 
 export class LazyStatefulPromise<T> {
-	private _promise = new Lazy(() => new StatefulPromise(this._compute()));
+	private readonly _promise = new Lazy(() => new StatefulPromise(this._compute()));
 
 	constructor(
 		private readonly _compute: () => Promise<T>,
@@ -1695,7 +1713,7 @@ export class LazyStatefulPromise<T> {
 
 	/**
 	 * Returns the resolved value.
-	 * Crashes if the promise is not resolved yet.
+	 * Throws if the promise is not resolved yet.
 	 */
 	public requireValue(): T {
 		return this._promise.value.requireValue();
@@ -1706,6 +1724,13 @@ export class LazyStatefulPromise<T> {
 	 */
 	public getPromise(): Promise<T> {
 		return this._promise.value.promise;
+	}
+
+	/**
+	 * Reads the current value without triggering a computation of the promise.
+	 */
+	public get currentValue(): T | undefined {
+		return this._promise.rawValue?.value;
 	}
 }
 

@@ -44,10 +44,43 @@
 	box-shadow: var(--vscode-scrollbar-shadow) 0px 6px 6px -6px;
 }
 
-.monaco-component .multiDiffEntry .header .title {
+.monaco-component .multiDiffEntry .header .file-path {
+	display: flex;
 	flex: 1;
+	min-width: 0;
+}
+
+.monaco-component .multiDiffEntry .header .file-path .title {
 	font-size: 14px;
 	line-height: 22px;
+}
+
+.monaco-component .multiDiffEntry .header .file-path .status {
+
+	font-weight: 600;
+	opacity: 0.75;
+	margin: 0px 10px;
+	line-height: 22px;
+}
+/*
+TODO@hediet: move colors from git extension to core!
+
+.monaco-component .multiDiffEntry .header .file-path .status.renamed {
+	color: va r(--vscode-gitDecoration-renamedResourceForeground);
+}
+
+.monaco-component .multiDiffEntry .header .file-path .status.deleted {
+	color: va r(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.monaco-component .multiDiffEntry .header .file-path .status.added {
+	color: va r(--vscode-gitDecoration-addedResourceForeground);
+}
+*/
+.monaco-component .multiDiffEntry .header .file-path .title.original {
+	flex: 1;
+	min-width: 0;
+	text-overflow: ellipsis;
 }
 
 .monaco-component .multiDiffEntry .header .actions {

@@ -35,7 +35,6 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IViewDescriptorService, ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -381,13 +380,12 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.activityBarLocation.side',
 			title: {
-				value: localize('positionActivityBarSide', 'Move Activity Bar to Side'),
-				original: 'Move Activity Bar to Side',
+				...localize2('positionActivityBarSide', 'Move Activity Bar to Side'),
 				mnemonicTitle: localize({ key: 'miSideActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Side"),
 			},
 			shortTitle: localize('side', "Side"),
 			category: Categories.View,
-			toggled: ContextKeyExpr.or(ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.SIDE), ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP), TitleBarStyleContext.isEqualTo('native'))),
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.SIDE),
 			menu: [{
 				id: MenuId.ActivityBarPositionMenu,
 				order: 1
@@ -408,8 +406,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.activityBarLocation.top',
 			title: {
-				value: localize('positionActivityBarTop', 'Move Activity Bar to Top'),
-				original: 'Move Activity Bar to Top',
+				...localize2('positionActivityBarTop', 'Move Activity Bar to Top'),
 				mnemonicTitle: localize({ key: 'miTopActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Top"),
 			},
 			shortTitle: localize('top', "Top"),
@@ -417,11 +414,10 @@ registerAction2(class extends Action2 {
 			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
 			menu: [{
 				id: MenuId.ActivityBarPositionMenu,
-				when: TitleBarStyleContext.notEqualsTo('native'),
 				order: 2
 			}, {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP), TitleBarStyleContext.notEqualsTo('native')),
+				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
 			}]
 		});
 	}
@@ -436,8 +432,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.activityBarLocation.hide',
 			title: {
-				value: localize('hideActivityBar', 'Hide Activity Bar'),
-				original: 'Hide Activity Bar',
+				...localize2('hideActivityBar', 'Hide Activity Bar'),
 				mnemonicTitle: localize({ key: 'miHideActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Hidden"),
 			},
 			shortTitle: localize('hide', "Hidden"),

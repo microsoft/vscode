@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -43,13 +43,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private readonly _dataEventTracker = new MutableDisposable<TerminalDataEventTracker>();
 	private readonly _sendCommandEventListener = new MutableDisposable();
+
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
 	 * provider, this is registered with the terminal on the renderer side and all links are
 	 * provided through this, even from multiple ext link providers. Xterm should remove lower
 	 * priority intersecting links itself.
 	 */
-	private _linkProvider: IDisposable | undefined;
+	private _linkProvider = this._store.add(new MutableDisposable());
 
 	private _os: OperatingSystem = OS;
 
@@ -111,7 +112,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public dispose(): void {
 		this._store.dispose();
-		this._linkProvider?.dispose();
 		for (const provider of this._profileProviders.values()) {
 			provider.dispose();
 		}
@@ -236,7 +236,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 
 		const multiplexer = this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
-		multiplexer.event(e => {
+		const sub = multiplexer.event(e => {
 			this._onDidExecuteCommand(e.instance.instanceId, {
 				commandLine: e.data.command,
 				// TODO: Convert to URI if possible
@@ -245,7 +245,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				output: e.data.getOutput()
 			});
 		});
-		this._sendCommandEventListener.value = multiplexer;
+		this._sendCommandEventListener.value = combinedDisposable(multiplexer, sub);
 	}
 
 	public $stopSendingCommandEvents(): void {
@@ -253,13 +253,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $startLinkProvider(): void {
-		this._linkProvider?.dispose();
-		this._linkProvider = this._terminalLinkProviderService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
+		this._linkProvider.value = this._terminalLinkProviderService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
 	}
 
 	public $stopLinkProvider(): void {
-		this._linkProvider?.dispose();
-		this._linkProvider = undefined;
+		this._linkProvider.clear();
 	}
 
 	public $registerProcessSupport(isSupported: boolean): void {

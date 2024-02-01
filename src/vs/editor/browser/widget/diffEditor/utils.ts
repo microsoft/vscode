@@ -447,3 +447,12 @@ export function bindContextKey<T extends ContextKeyValue>(key: RawContextKey<T>,
 		boundKey.set(computeValue(reader));
 	});
 }
+
+export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undefined) => boolean): T[] {
+	let prev: T | undefined;
+	return arr.filter(cur => {
+		const result = filter(cur, prev);
+		prev = cur;
+		return result;
+	});
+}
