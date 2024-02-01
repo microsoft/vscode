@@ -471,7 +471,7 @@ export class ConfigurationEditing {
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}
-	//
+
 	private hasParseErrors(content: string, operation: IConfigurationEditOperation): boolean {
 		// If we write to a workspace standalone file and replace the entire contents (no key provided)
 		// we can return here because any parse errors can safely be ignored since all contents are replaced

@@ -227,9 +227,9 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['audioCues.*']
 				},
 				{
-					id: 'features/signals',
-					label: localize('signals', 'Signals'),
-					settings: ['signals.*']
+					id: 'features/accessibilityStatusIndicators',
+					label: localize('accessibility.statusIndicators', 'Accessibility Status Indicators'),
+					settings: ['accessibility.statusIndicators.*']
 				},
 				{
 					id: 'features/mergeEditor',
