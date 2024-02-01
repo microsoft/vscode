@@ -4,86 +4,111 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/languages';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestDynamicVariablePart, ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 
-export function convertParsedRequestToMarkdown(accessor: ServicesAccessor, parsedRequest: IParsedChatRequest): string {
-	let result = '';
-	for (const part of parsedRequest.parts) {
-		if (part instanceof ChatRequestTextPart) {
-			result += part.text;
-		} else {
-			const labelService = accessor.get(ILabelService);
-			const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
-				|| undefined;
-			const title = uri ? labelService.getUriLabel(uri, { relative: true }) : '';
+export class ChatMarkdownDecorationsRenderer {
+	constructor(
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ILogService private readonly logService: ILogService
+	) { }
 
-			result += `[${part.text}](${variableRefUrl}${title})`;
-		}
-	}
+	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
+		let result = '';
+		for (const part of parsedRequest.parts) {
+			if (part instanceof ChatRequestTextPart) {
+				result += part.text;
+			} else {
+				const uri = part instanceof ChatRequestDynamicVariablePart && part.data.map(d => d.value).find((d): d is URI => d instanceof URI)
+					|| undefined;
+				const title = uri ? encodeURIComponent(this.labelService.getUriLabel(uri, { relative: true })) : '';
 
-	return result;
-}
-
-export function walkTreeAndAnnotateReferenceLinks(accessor: ServicesAccessor, element: HTMLElement): void {
-	const keybindingService = accessor.get(IKeybindingService);
-
-	element.querySelectorAll('a').forEach(a => {
-		const href = a.getAttribute('data-href');
-		if (href) {
-			if (href.startsWith(variableRefUrl)) {
-				const title = href.slice(variableRefUrl.length);
-				a.parentElement!.replaceChild(
-					renderResourceWidget(a.textContent!, title),
-					a);
-			} else if (href.startsWith(contentRefUrl)) {
-				renderFileWidget(href, a);
-			} else if (href.startsWith('command:')) {
-				injectKeybindingHint(a, href, keybindingService);
+				result += `[${part.text}](${variableRefUrl}?${title})`;
 			}
 		}
-	});
-}
 
-function injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
-	const command = href.match(/command:([^\)]+)/)?.[1];
-	if (command) {
-		const kb = keybindingService.lookupKeybinding(command);
-		if (kb) {
-			const keybinding = kb.getLabel();
-			if (keybinding) {
-				a.textContent = `${a.textContent} (${keybinding})`;
+		return result;
+	}
+
+	walkTreeAndAnnotateReferenceLinks(element: HTMLElement): void {
+		element.querySelectorAll('a').forEach(a => {
+			const href = a.getAttribute('data-href');
+			if (href) {
+				if (href.startsWith(variableRefUrl)) {
+					const title = decodeURIComponent(href.slice(variableRefUrl.length + 1));
+					a.parentElement!.replaceChild(
+						this.renderResourceWidget(a.textContent!, title),
+						a);
+				} else if (href.startsWith(contentRefUrl)) {
+					this.renderFileWidget(href, a);
+				} else if (href.startsWith('command:')) {
+					this.injectKeybindingHint(a, href, this.keybindingService);
+				}
+			}
+		});
+	}
+
+	private renderFileWidget(href: string, a: HTMLAnchorElement): void {
+		// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
+		const fullUri = URI.parse(href);
+		let location: Location | { uri: URI; range: undefined };
+		try {
+			location = revive(JSON.parse(fullUri.fragment));
+		} catch (err) {
+			this.logService.error('Invalid chat widget render data JSON', toErrorMessage(err));
+			return;
+		}
+
+		if (!location.uri || !URI.isUri(location.uri)) {
+			this.logService.error(`Invalid chat widget render data: ${fullUri.fragment}`);
+			return;
+		}
+
+		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
+		a.setAttribute('data-href', location.uri.with({ fragment }).toString());
+
+		const label = this.labelService.getUriLabel(location.uri, { relative: true });
+		a.title = location.range ?
+			`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
+			label;
+	}
+
+
+	private renderResourceWidget(name: string, title: string): HTMLElement {
+		const container = dom.$('span.chat-resource-widget');
+		const alias = dom.$('span', undefined, name);
+		alias.title = title;
+		container.appendChild(alias);
+		return container;
+	}
+
+
+	private injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
+		const command = href.match(/command:([^\)]+)/)?.[1];
+		if (command) {
+			const kb = keybindingService.lookupKeybinding(command);
+			if (kb) {
+				const keybinding = kb.getLabel();
+				if (keybinding) {
+					a.textContent = `${a.textContent} (${keybinding})`;
+				}
 			}
 		}
 	}
-}
-
-function renderResourceWidget(name: string, title: string): HTMLElement {
-	const container = dom.$('span.chat-resource-widget');
-	const alias = dom.$('span', undefined, name);
-	alias.title = title;
-	container.appendChild(alias);
-	return container;
-}
-
-function renderFileWidget(href: string, a: HTMLAnchorElement): void {
-	// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
-	const fullUri = URI.parse(href);
-	const location: Location | { uri: URI; range: undefined } = revive(JSON.parse(fullUri.fragment));
-	const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
-	a.setAttribute('data-href', location.uri.with({ fragment }).toString());
 }
 
 export interface IMarkdownVulnerability {

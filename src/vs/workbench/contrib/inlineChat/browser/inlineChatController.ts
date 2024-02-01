@@ -503,7 +503,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._historyUpdate(input);
 
-		const refer = this._session.session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
+		const refer = this._session.session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
 		if (refer) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._session.provider.debugName);
 			this._editor.setSelection(this._session.wholeRange.value);
@@ -559,6 +559,7 @@ export class InlineChatController implements IEditorContribution {
 			selection: this._editor.getSelection(),
 			wholeRange: this._session.wholeRange.trackedInitialRange,
 			live: this._session.editMode !== EditMode.Preview, // TODO@jrieken let extension know what document is used for previewing
+			previewDocument: this._session.textModelN.uri,
 			withIntentDetection: options.withIntentDetection ?? true /* use intent detection by default */,
 		};
 
@@ -923,7 +924,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxLastFeedbackKind.reset();
 		this._ctxSupportIssueReporting.reset();
 
-		this._zone.value.hide();
+		this._zone.rawValue?.hide();
 
 		// Return focus to the editor only if the current focus is within the editor widget
 		if (this._editor.hasWidgetFocus()) {

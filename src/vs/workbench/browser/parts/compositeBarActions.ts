@@ -421,7 +421,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const hoverPosition = this.options.hoverOptions!.position();
+		const hoverPosition = this.options.hoverOptions.position();
 		this.lastHover = this.hoverService.showHover({
 			target: this.container,
 			content: this.computeTitle(),

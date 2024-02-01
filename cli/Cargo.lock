@@ -384,7 +384,7 @@ dependencies = [
  "url",
  "uuid",
  "winapi",
- "winreg",
+ "winreg 0.50.0",
  "zbus",
  "zip",
 ]
@@ -1595,6 +1595,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "os_info"
+version = "3.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "006e42d5b888366f1880eda20371fedde764ed2213dc8496f49622fa0c99cd5e"
+dependencies = [
+ "log",
+ "winapi",
+]
+
+[[package]]
 name = "parking"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1888,7 +1898,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "winreg",
+ "winreg 0.50.0",
 ]
 
 [[package]]
@@ -2516,13 +2526,15 @@ dependencies = [
 [[package]]
 name = "tunnels"
 version = "0.1.0"
-source = "git+https://github.com/microsoft/dev-tunnels?rev=97233d20448e1c3cb0e0fd9114acf68c7e5c0249#97233d20448e1c3cb0e0fd9114acf68c7e5c0249"
+source = "git+https://github.com/microsoft/dev-tunnels?rev=4de1ff7979b5758c69218a3f45f6d9784b165072#4de1ff7979b5758c69218a3f45f6d9784b165072"
 dependencies = [
  "async-trait",
  "chrono",
  "futures",
  "hyper",
  "log",
+ "os_info",
+ "rand 0.8.5",
  "reqwest",
  "russh",
  "russh-keys",
@@ -2534,7 +2546,9 @@ dependencies = [
  "tokio-util",
  "tungstenite",
  "url",
+ "urlencoding",
  "uuid",
+ "winreg 0.8.0",
 ]
 
 [[package]]
@@ -2599,9 +2613,9 @@ dependencies = [
 
 [[package]]
 name = "urlencoding"
-version = "2.1.2"
+version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8db7427f936968176eaa7cdf81b7f98b980b18495ec28f1b5791ac3bfe3eea9"
+checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "utf-8"
@@ -2985,6 +2999,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae8970b36c66498d8ff1d66685dc86b91b29db0c7739899012f63a63814b4b28"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winreg"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d107f8c6e916235c4c01cabb3e8acf7bea8ef6a63ca2e7fa0527c049badfc48c"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]

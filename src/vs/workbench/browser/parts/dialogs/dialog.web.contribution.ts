@@ -9,16 +9,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
 import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
 import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dialogHandler';
+
 	private readonly model: IDialogsModel;
 	private readonly impl: IDialogHandler;
 
@@ -76,5 +77,4 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(DialogHandlerContribution.ID, DialogHandlerContribution, WorkbenchContributionInstantiation.BlockStartup);

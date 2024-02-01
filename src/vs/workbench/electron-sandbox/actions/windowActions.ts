@@ -37,9 +37,8 @@ export class CloseWindowAction extends Action2 {
 		super({
 			id: CloseWindowAction.ID,
 			title: {
-				value: localize('closeWindow', "Close Window"),
+				...localize2('closeWindow', "Close Window"),
 				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window"),
-				original: 'Close Window'
 			},
 			f1: true,
 			keybinding: {
@@ -123,9 +122,8 @@ export class ZoomInAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomIn',
 			title: {
-				value: localize('zoomIn', "Zoom In"),
+				...localize2('zoomIn', "Zoom In"),
 				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
-				original: 'Zoom In'
 			},
 			category: Categories.View,
 			f1: true,
@@ -153,9 +151,8 @@ export class ZoomOutAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomOut',
 			title: {
-				value: localize('zoomOut', "Zoom Out"),
+				...localize2('zoomOut', "Zoom Out"),
 				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
-				original: 'Zoom Out'
 			},
 			category: Categories.View,
 			f1: true,
@@ -187,9 +184,8 @@ export class ZoomResetAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomReset',
 			title: {
-				value: localize('zoomReset', "Reset Zoom"),
+				...localize2('zoomReset', "Reset Zoom"),
 				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
-				original: 'Reset Zoom'
 			},
 			category: Categories.View,
 			f1: true,

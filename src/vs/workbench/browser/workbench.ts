@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { addDisposableListener, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
+import { isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -42,6 +42,7 @@ import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mainWindow } from 'vs/base/browser/window';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 
 export interface IWorkbenchOptions {
 
@@ -296,18 +297,18 @@ export class Workbench extends Layout {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
 				if (Array.isArray(storedFontInfo)) {
-					FontMeasurements.restoreFontInfo(storedFontInfo);
+					FontMeasurements.restoreFontInfo(mainWindow, storedFontInfo);
 				}
 			} catch (err) {
 				/* ignore */
 			}
 		}
 
-		FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), PixelRatio.value));
+		FontMeasurements.readFontInfo(mainWindow, BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), PixelRatio.getInstance(mainWindow).value));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
-		const serializedFontInfo = FontMeasurements.serializeFontInfo();
+		const serializedFontInfo = FontMeasurements.serializeFontInfo(mainWindow);
 		if (serializedFontInfo) {
 			storageService.store('editorFontInfo', JSON.stringify(serializedFontInfo), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}

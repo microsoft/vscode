@@ -9,7 +9,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchConfigurationWorkbenchContribution, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 
@@ -22,7 +22,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, LifecyclePhase.Eventually);
 
 	// Dynamic Configuration
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicWorkbenchConfigurationWorkbenchContribution, LifecyclePhase.Ready);
+	registerWorkbenchContribution2(DynamicWorkbenchConfigurationWorkbenchContribution.ID, DynamicWorkbenchConfigurationWorkbenchContribution, WorkbenchContributionInstantiation.BlockRestore);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -743,10 +743,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'problems.visibility': {
 				'type': 'boolean',
 				'default': true,
-				'tags': ['experimental'],
 				'description': localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
 			},
-			// TODO: Add additional properties for problems (fine tuning in outline, marker file decorations, etc)
 		}
 	});
 
