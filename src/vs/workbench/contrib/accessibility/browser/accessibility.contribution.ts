@@ -41,16 +41,16 @@ const signalFeatureBase: IConfigurationPropertySchema = {
 	additionalProperties: false,
 	default: {
 		audioCue: 'auto',
-		alert: 'on'
+		alert: 'auto'
 	}
 };
 
 export const alertFeatureBase: IConfigurationPropertySchema = {
 	'type': 'string',
-	'enum': ['on', 'off'],
-	'default': 'on',
+	'enum': ['auto', 'off'],
+	'default': 'auto',
 	'enumDescriptions': [
-		localize('audioCues.enabled.on', "Enable alert, will only apply when in screen reader optimized mode."),
+		localize('audioCues.enabled.auto', "Enable alert, will only play when in screen reader optimized mode."),
 		localize('audioCues.enabled.off', "Disable alert.")
 	],
 	tags: ['accessibility'],

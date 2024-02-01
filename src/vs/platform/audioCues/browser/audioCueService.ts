@@ -69,7 +69,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 				if (typeof alertConfig === 'string') {
 					alert = alertConfig;
 				} else {
-					alert = alertConfig === true && this.accessibilityService.isScreenReaderOptimized() ? 'on' : 'off';
+					alert = alertConfig === false ? 'off' : 'auto';
 				}
 				this.configurationService.updateValue(newSettingsKey, { alert, audioCue });
 			} else if (!c.alertSettingsKey && audioCue !== undefined) {
