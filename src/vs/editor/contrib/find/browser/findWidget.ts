@@ -35,7 +35,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { asCssVariable, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, contrastBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -1383,5 +1383,10 @@ registerThemingParticipant((theme, collector) => {
 	const findRangeHighlightBorder = theme.getColor(editorFindRangeHighlightBorder);
 	if (findRangeHighlightBorder) {
 		collector.addRule(`.monaco-editor .findScope { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${findRangeHighlightBorder}; }`);
+	}
+
+	const hcBorder = theme.getColor(contrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${hcBorder}; }`);
 	}
 });
