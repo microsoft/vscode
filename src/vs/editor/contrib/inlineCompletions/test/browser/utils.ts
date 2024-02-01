@@ -133,8 +133,7 @@ export class GhostTextContext extends Disposable {
 	}
 }
 
-function generateRandomSimpleString(seed: number, stringLength: number): string {
-	const rng = new MersenneTwister(seed);
+function generateRandomSimpleString(rng: MersenneTwister, stringLength: number): string {
 	const possibleCharacters: string = ' abcdefghijklmnopqrstuvwxyz0123456789';
 	let randomText: string = '';
 	for (let i = 0; i < stringLength; i++) {
@@ -145,12 +144,11 @@ function generateRandomSimpleString(seed: number, stringLength: number): string 
 	return randomText;
 }
 
-export function generateRandomMultilineString(seed: number, numberOfLines: number, maximumLengthOfLines: number = 20): string {
-	const rng = new MersenneTwister(seed);
+export function generateRandomMultilineString(rng: MersenneTwister, numberOfLines: number, maximumLengthOfLines: number = 20): string {
 	let randomText: string = '';
 	for (let i = 0; i < numberOfLines; i++) {
 		const lengthOfLine = rng.nextIntRange(0, maximumLengthOfLines + 1);
-		randomText += generateRandomSimpleString(seed, lengthOfLine) + '\n';
+		randomText += generateRandomSimpleString(rng, lengthOfLine) + '\n';
 	}
 	return randomText;
 }

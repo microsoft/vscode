@@ -15,10 +15,10 @@ suite('getNewRanges', () => {
 
 	for (let seed = 0; seed < 20; seed++) {
 		test(`test ${seed}`, () => {
-			const randomText = randomMultilineString(seed, 10);
+			const rng = new MersenneTwister(seed);
+			const randomText = randomMultilineString(rng, 10);
 			const model = createTextModel(randomText);
 
-			const rng = new MersenneTwister(seed);
 			const edits = getRandomEditInfos(model, rng.nextIntRange(1, 4), rng, true).map(e => toEdit(e));
 			const invEdits = inverseEdits(model, edits);
 

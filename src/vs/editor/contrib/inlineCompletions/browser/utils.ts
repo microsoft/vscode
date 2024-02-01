@@ -117,20 +117,6 @@ export function lengthOfText(text: string): Position {
  * @returns new ranges post edits for every edit
  */
 export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
-
-	if (edits.length === 0) {
-		return [];
-	}
-	// Check if the edits ranges are sorted and disjoint
-	for (let i = 1; i < edits.length; i++) {
-		if (Position.isBeforeOrEqual(
-			Range.lift(edits[i].range).getStartPosition(),
-			Range.lift(edits[i - 1].range).getEndPosition())
-		) {
-			throw new Error('Edits are not sorted and disjoint.');
-		}
-	}
-
 	const ranges: Range[] = [];
 	let previousEditEndLineNumber = 0;
 	let lineOffset = 0;
@@ -172,12 +158,8 @@ export function inverseEdits(model: TextModel, edits: ISingleEditOperation[]): I
 	return inverseEdits;
 }
 
-/**
- * Utility class which can be used to find the sort permutation of an array
- */
 export class Permutation {
-
-	constructor(public readonly indexMap: number[]) { }
+	constructor(private readonly _indexMap: number[]) { }
 
 	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
 		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
@@ -185,11 +167,14 @@ export class Permutation {
 	}
 
 	apply<T>(arr: T[]): T[] {
-		return arr.map((_, index) => arr[this.indexMap[index]]);
+		return arr.map((_, index) => arr[this._indexMap[index]]);
 	}
 
 	inverse(): Permutation {
-		const inverseSortIndices = Array.from(this.indexMap.keys()).sort((index1, index2) => index1 - index2);
-		return new Permutation(inverseSortIndices);
+		const inverseIndexMap = this._indexMap.slice();
+		for (let i = 0; i < this._indexMap.length; i++) {
+			inverseIndexMap[this._indexMap[i]] = i;
+		}
+		return new Permutation(inverseIndexMap);
 	}
 }

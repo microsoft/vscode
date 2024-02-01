@@ -408,10 +408,7 @@ export class InlineCompletionsModel extends Disposable {
 			try {
 				editor.pushUndoStop();
 				const replaceRange = Range.fromPositions(completion.range.getStartPosition(), position);
-				const newText = completion.insertText.substring(
-					0,
-					firstPart.column - completion.range.startColumn + acceptUntilIndexExclusive
-				);
+				const newText = completion.insertText.substring(0, firstPart.column - completion.range.startColumn + acceptUntilIndexExclusive);
 				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
 				const edits = this._getEdits(editor, singleTextEdit);
 				editor.executeEdits('inlineSuggestion.accept', edits.edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
