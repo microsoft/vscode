@@ -408,7 +408,14 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				this.transientIsNativeFullScreen = undefined;
 				this.joinNativeFullScreenTransition = undefined;
 
-				if (!transitioned && fullscreen && fromRestore) {
+				// There is one interesting gotcha on macOS: when you are opening a new
+				// window from a fullscreen window, that new window will immediately
+				// open fullscreen and emit the `enter-full-screen` event even before we
+				// reach this method. In that case, we actually will timeout after 10s
+				// for detecting the transition and as such it is important that we only
+				// signal to leave fullscreen if the window reports as not being in fullscreen.
+
+				if (!transitioned && fullscreen && fromRestore && this.win && !this.win.isFullScreen()) {
 
 					// We have seen requests for fullscreen failing eventually after some
 					// time, for example when an OS update was performed and windows restore.
