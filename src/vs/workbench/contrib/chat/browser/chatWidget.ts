@@ -33,6 +33,8 @@ import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 
 const $ = dom.$;
 
@@ -125,6 +127,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get viewModel() {
 		return this._viewModel;
+	}
+
+	private parsedChatRequest: IParsedChatRequest | undefined;
+	get parsedInput() {
+		if (this.parsedChatRequest === undefined) {
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput());
+		}
+
+		return this.parsedChatRequest;
 	}
 
 	constructor(
@@ -436,6 +447,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
+		this._register(this.inputEditor.onDidChangeModelContent(() => {
+			this.parsedChatRequest = undefined;
+		}));
 	}
 
 	private onDidStyleChange(): void {
@@ -553,8 +567,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const lastResponse = responses?.[responses.length - 1];
 					this._chatAccessibilityService.acceptResponse(lastResponse, requestId);
 				});
-			} else {
-				this._chatAccessibilityService.acceptResponse(undefined, requestId);
 			}
 		}
 	}
