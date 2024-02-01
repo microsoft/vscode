@@ -61,8 +61,8 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		this.configurationService.updateValue('signals.debouncePositionChanges', this.configurationService.getValue('audioCues.debouncePositionChanges'));
 		const config = AudioCue.allAudioCues;
 		for (const c of config) {
-			const alertConfig = c.alertSettingsKey ? this.configurationService.getValue<boolean>(c.alertSettingsKey) : undefined;
-			const audioCue = c.settingsKey ? this.configurationService.getValue<boolean>(c.settingsKey) : undefined;
+			const alertConfig = c.alertSettingsKey ? this.configurationService.getValue<string>(c.alertSettingsKey) : undefined;
+			const audioCue = c.settingsKey ? this.configurationService.getValue<string>(c.settingsKey) : undefined;
 			const newSettingsKey = c.settingsKey.replace('audioCues.', 'signals.');
 			if (alertConfig !== undefined && audioCue !== undefined) {
 				let alert;
