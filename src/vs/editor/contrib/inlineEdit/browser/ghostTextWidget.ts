@@ -39,7 +39,7 @@ export class GhostTextWidget extends Disposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly model: IGhostTextWidgetModel,
+		readonly model: IGhostTextWidgetModel,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
@@ -128,8 +128,7 @@ export class GhostTextWidget extends Disposable {
 			inlineTexts,
 			additionalLines,
 			hiddenRange,
-			//TODO: -1 is here beacuse we're passing removeRange that includes next line, why?
-			lineNumber: removeRange ? removeRange.endLineNumber - 1 : ghostText.lineNumber,
+			lineNumber: removeRange ? removeRange.endLineNumber : ghostText.lineNumber,
 			additionalReservedLineCount: this.model.minReservedLineCount.read(reader),
 			targetTextModel: textModel,
 			removeRange,
@@ -161,7 +160,7 @@ export class GhostTextWidget extends Disposable {
 		if (uiState.removeRange) {
 			const liens = uiState.removeRange.endLineNumber - uiState.removeRange.startLineNumber;
 			const ranges = [];
-			for (let i = 0; i < liens; i++) {
+			for (let i = 0; i <= liens; i++) {
 				const line = uiState.removeRange.startLineNumber + i;
 				const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
 				const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
