@@ -112,6 +112,15 @@ export const alertFeatureBase: IConfigurationPropertySchema = {
 	tags: ['accessibility'],
 };
 
+const defaultNoAlert: IConfigurationPropertySchema = {
+	'type': 'object',
+	'tags': ['accessibility'],
+	additionalProperties: true,
+	'default': {
+		'audioCue': 'auto',
+	}
+};
+
 const configuration: IConfigurationNode = {
 	...accessibilityConfigurationNodeBase,
 	properties: {
@@ -277,13 +286,19 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
-		'accessibility.statusIndicators.lineHasInlineSuggestion.audioCue': {
-			'description': localize('accessibility.statusIndicators.lineHasInlineSuggestion.audioCue', "Plays an audio cue when the active line has an inline suggestion."),
-			...audioCueFeatureBase
+		'accessibility.statusIndicators.lineHasInlineSuggestion': {
+			...defaultNoAlert,
+			'description': localize('accessibility.statusIndicators.lineHasInlineSuggestion', "Indicates when the active line has an inline suggestion."),
+			'properties': {
+				'audioCue': {
+					'description': localize('accessibility.statusIndicators.lineHasInlineSuggestion.audioCue', "Plays an audio cue when the active line has an inline suggestion."),
+					...audioCueFeatureBase
+				}
+			}
 		},
 		'accessibility.statusIndicators.lineHasError': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.lineHasError', "Plays a signal when the active line has an error."),
+			'description': localize('accessibility.statusIndicators.lineHasError', "Indicates when the active line has an error."),
 			'properties': {
 				'audioCue': {
 					'description': localize('accessibility.statusIndicators.lineHasError.audioCue', "Plays an audio cue when the active line has an error."),
@@ -297,7 +312,7 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.statusIndicators.lineHasFoldedArea': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.lineHasFoldedArea', "Plays a signal when the active line has a folded area that can be unfolded."),
+			'description': localize('accessibility.statusIndicators.lineHasFoldedArea', "Indicates when the active line has a folded area that can be unfolded."),
 			'properties': {
 				'audioCue': {
 					'description': localize('accessibility.statusIndicators.lineHasFoldedArea.audioCue', "Plays an audio cue when the active line has a folded area that can be unfolded."),
@@ -421,17 +436,35 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
-		'accessibility.statusIndicators.diffLineInserted.audioCue': {
-			...audioCueFeatureBase,
-			'description': localize('accessibility.statusIndicators.diffLineInserted.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
+		'accessibility.statusIndicators.diffLineInserted': {
+			...defaultNoAlert,
+			'description': localize('accessibility.statusIndicators.diffLineInserted', "Indicates when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
+			'properties': {
+				'audioCue': {
+					'description': localize('accessibility.statusIndicators.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
+					...audioCueFeatureBase
+				}
+			}
 		},
-		'accessibility.statusIndicators.diffLineDeleted.audioCue': {
-			...audioCueFeatureBase,
-			'description': localize('accessibility.statusIndicators.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
+		'accessibility.statusIndicators.diffLineModified': {
+			...defaultNoAlert,
+			'description': localize('accessibility.statusIndicators.diffLineModified', "Indicates when the focus moves to an modified line in Accessible Diff Viewer mode or to the next/previous change."),
+			'properties': {
+				'audioCue': {
+					'description': localize('accessibility.statusIndicators.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
+					...audioCueFeatureBase
+				}
+			}
 		},
-		'accessibility.statusIndicators.diffLineModified.audioCue': {
-			...audioCueFeatureBase,
-			'description': localize('accessibility.statusIndicators.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
+		'accessibility.statusIndicators.diffLineDeleted': {
+			...defaultNoAlert,
+			'description': localize('accessibility.statusIndicators.diffLineDeleted', "Indicates when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
+			'properties': {
+				'audioCue': {
+					'description': localize('accessibility.statusIndicators.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
+					...audioCueFeatureBase
+				}
+			}
 		},
 		'accessibility.statusIndicators.notebookCellCompleted': {
 			...signalFeatureBase,
@@ -489,9 +522,15 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
-		'accessibility.statusIndicators.chatResponseReceived.audioCue': {
-			'description': localize('accessibility.statusIndicators.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
-			...audioCueFeatureBase
+		'accessibility.statusIndicators.chatResponseReceived': {
+			...defaultNoAlert,
+			'description': localize('accessibility.statusIndicators.chatResponseReceived', "Indicates when the response has been received."),
+			'properties': {
+				'audioCue': {
+					'description': localize('accessibility.statusIndicators.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
+					...audioCueFeatureBase
+				},
+			}
 		},
 		'accessibility.statusIndicators.clear': {
 			...signalFeatureBase,
