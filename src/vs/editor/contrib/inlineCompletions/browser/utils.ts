@@ -112,7 +112,7 @@ export function lengthOfText(text: string): Position {
 
 /**
  * Given some text edits, this function finds the new ranges of the editted text post application of all edits.
- * Assumes that the edit ranges are disjoint
+ * Assumes that the edit ranges are disjoint and they are sorted in the order of the ranges
  * @param edits edits applied
  * @returns new ranges post edits for every edit
  */
@@ -121,17 +121,22 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 	if (edits.length === 0) {
 		return [];
 	}
+	// Check if the edits ranges are sorted and disjoint
+	for (let i = 1; i < edits.length; i++) {
+		if (Position.isBeforeOrEqual(
+			Range.lift(edits[i].range).getStartPosition(),
+			Range.lift(edits[i - 1].range).getEndPosition())
+		) {
+			throw new Error('Edits are not sorted and disjoint.');
+		}
+	}
 
-	const sortIndices = Array.from(edits.keys()).sort((a, b) =>
-		Range.compareRangesUsingStarts(edits[a].range, edits[b].range)
-	);
 	const ranges: Range[] = [];
 	let previousEditEndLineNumber = 0;
 	let lineOffset = 0;
 	let columnOffset = 0;
 
-	for (const index of sortIndices) {
-		const edit = edits[index];
+	for (const edit of edits) {
 		const text = edit.text ?? '';
 		const rangeStart = Position.lift({
 			lineNumber: edit.range.startLineNumber + lineOffset,
@@ -147,7 +152,7 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 		columnOffset = rangeEnd.column - edit.range.endColumn;
 		previousEditEndLineNumber = edit.range.endLineNumber;
 	}
-	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
+	return ranges;
 }
 
 /**
@@ -163,4 +168,21 @@ export function inverseEdits(model: TextModel, edits: ISingleEditOperation[]): I
 		inverseEdits.push({ range: newRanges[i], text: model.getValueInRange(edits[i].range) });
 	}
 	return inverseEdits;
+}
+
+/**
+ * Utility class which can be used to find the sort permutation of an array
+ */
+export class Permutation {
+
+	constructor(public readonly indexMap: number[]) { }
+
+	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
+		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
+		return new Permutation(sortIndices);
+	}
+
+	applyInPlace<T>(arr: T[]): T[] { }
+
+	inverse(): Permutation { }
 }

@@ -456,8 +456,10 @@ export class InlineCompletionsModel extends Disposable {
 				return new SingleTextEdit(range, secondaryEditText);
 			})
 		];
-		const newRanges = getNewRanges(edits);
-		const editorSelections = newRanges.map(range => Selection.fromPositions(range.getEndPosition()));
+		const sortPerm = Permutation.createSortPermutation(edits);
+		const sortedRanges = getNewRanges(sortPerm.applyInPlace(edits));
+		const ranges = sortPerm.inverse().applyInPlace(sortedRanges);
+		const editorSelections = ranges.map(range => Selection.fromPositions(range.getEndPosition()));
 
 		return {
 			edits,

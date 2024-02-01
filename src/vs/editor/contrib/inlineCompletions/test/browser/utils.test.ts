@@ -15,7 +15,7 @@ suite('getNewRanges', () => {
 
 	for (let seed = 0; seed < 20; seed++) {
 		test(`test ${seed}`, () => {
-			const randomText = randomMultilineString(10);
+			const randomText = randomMultilineString(seed, 10);
 			const model = createTextModel(randomText);
 
 			const rng = new MersenneTwister(seed);
