@@ -65,7 +65,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private async getViewContainer(): Promise<ViewContainer | null> {
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 			id: TUNNEL_VIEW_CONTAINER_ID,
-			title: { value: nls.localize('ports', "Ports"), original: 'Ports' },
+			title: nls.localize2('ports', "Ports"),
 			icon: portsViewIcon,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: TUNNEL_VIEW_CONTAINER_ID,
@@ -88,7 +88,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				this.remoteExplorerService.enablePortsFeatures();
-				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
+				viewsRegistry.registerViews([tunnelPanelDescriptor], viewContainer);
 			}
 		} else {
 			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {

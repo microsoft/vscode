@@ -10,7 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -398,10 +398,7 @@ export class VoiceChatInChatViewAction extends Action2 {
 	constructor() {
 		super({
 			id: VoiceChatInChatViewAction.ID,
-			title: {
-				value: localize('workbench.action.chat.voiceChatInView.label', "Voice Chat in Chat View"),
-				original: 'Voice Chat in Chat View'
-			},
+			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in Chat View"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
@@ -425,10 +422,7 @@ export class InlineVoiceChatAction extends Action2 {
 	constructor() {
 		super({
 			id: InlineVoiceChatAction.ID,
-			title: {
-				value: localize('workbench.action.chat.inlineVoiceChat', "Inline Voice Chat"),
-				original: 'Inline Voice Chat'
-			},
+			title: localize2('workbench.action.chat.inlineVoiceChat', "Inline Voice Chat"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, ActiveEditorContext, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
@@ -452,10 +446,7 @@ export class QuickVoiceChatAction extends Action2 {
 	constructor() {
 		super({
 			id: QuickVoiceChatAction.ID,
-			title: {
-				value: localize('workbench.action.chat.quickVoiceChat.label', "Quick Voice Chat"),
-				original: 'Quick Voice Chat'
-			},
+			title: localize2('workbench.action.chat.quickVoiceChat.label', "Quick Voice Chat"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
@@ -479,10 +470,7 @@ export class StartVoiceChatAction extends Action2 {
 	constructor() {
 		super({
 			id: StartVoiceChatAction.ID,
-			title: {
-				value: localize('workbench.action.chat.startVoiceChat.label', "Use Microphone"),
-				original: 'Use Microphone'
-			},
+			title: localize2('workbench.action.chat.startVoiceChat.label', "Use Microphone"),
 			category: CHAT_CATEGORY,
 			icon: Codicon.mic,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate()),
@@ -533,10 +521,7 @@ export class StopListeningAction extends Action2 {
 	constructor() {
 		super({
 			id: StopListeningAction.ID,
-			title: {
-				value: localize('workbench.action.chat.stopListening.label', "Stop Listening"),
-				original: 'Stop Listening'
-			},
+			title: localize2('workbench.action.chat.stopListening.label', "Stop Listening"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
@@ -560,10 +545,7 @@ export class StopListeningInChatViewAction extends Action2 {
 	constructor() {
 		super({
 			id: StopListeningInChatViewAction.ID,
-			title: {
-				value: localize('workbench.action.chat.stopListeningInChatView.label', "Stop Listening"),
-				original: 'Stop Listening'
-			},
+			title: localize2('workbench.action.chat.stopListeningInChatView.label', "Stop Listening"),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
@@ -593,10 +575,7 @@ export class StopListeningInChatEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: StopListeningInChatEditorAction.ID,
-			title: {
-				value: localize('workbench.action.chat.stopListeningInChatEditor.label', "Stop Listening"),
-				original: 'Stop Listening'
-			},
+			title: localize2('workbench.action.chat.stopListeningInChatEditor.label', "Stop Listening"),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
@@ -626,10 +605,7 @@ export class StopListeningInQuickChatAction extends Action2 {
 	constructor() {
 		super({
 			id: StopListeningInQuickChatAction.ID,
-			title: {
-				value: localize('workbench.action.chat.stopListeningInQuickChat.label', "Stop Listening"),
-				original: 'Stop Listening'
-			},
+			title: localize2('workbench.action.chat.stopListeningInQuickChat.label', "Stop Listening"),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
@@ -659,10 +635,7 @@ export class StopListeningInInlineChatAction extends Action2 {
 	constructor() {
 		super({
 			id: StopListeningInInlineChatAction.ID,
-			title: {
-				value: localize('workbench.action.chat.stopListeningInInlineChat.label', "Stop Listening"),
-				original: 'Stop Listening'
-			},
+			title: localize2('workbench.action.chat.stopListeningInInlineChat.label', "Stop Listening"),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
@@ -692,10 +665,7 @@ export class StopListeningAndSubmitAction extends Action2 {
 	constructor() {
 		super({
 			id: StopListeningAndSubmitAction.ID,
-			title: {
-				value: localize('workbench.action.chat.stopListeningAndSubmit.label', "Stop Listening and Submit"),
-				original: 'Stop Listening and Submit'
-			},
+			title: localize2('workbench.action.chat.stopListeningAndSubmit.label', "Stop Listening and Submit"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS)

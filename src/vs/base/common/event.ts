@@ -1456,14 +1456,17 @@ export class EventMultiplexer<T> implements IDisposable {
 	}
 
 	private unhook(e: { event: Event<T>; listener: IDisposable | null }): void {
-		if (e.listener) {
-			e.listener.dispose();
-		}
+		e.listener?.dispose();
 		e.listener = null;
 	}
 
 	dispose(): void {
 		this.emitter.dispose();
+
+		for (const e of this.events) {
+			e.listener?.dispose();
+		}
+		this.events = [];
 	}
 }
 

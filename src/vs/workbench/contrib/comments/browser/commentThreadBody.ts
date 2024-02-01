@@ -261,7 +261,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this._parentEditor,
 			this._commentThread,
 			comment,
-			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread!] : undefined,
+			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread] : undefined,
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,

@@ -155,6 +155,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidRegisterProvider = this._register(new Emitter<{ providerId: string }>());
 	public readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
 
+	private readonly _onDidUnregisterProvider = this._register(new Emitter<{ providerId: string }>());
+	public readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -456,7 +459,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, message: string): Promise<void> {
-		const parsedRequest = await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
 
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -539,7 +542,7 @@ export class ChatService extends Disposable implements IChatService {
 						agentId: agent.id,
 						message: variableData.message,
 						variables: variableData.variables,
-						command: agentSlashCommandPart?.command.name ?? '',
+						command: agentSlashCommandPart?.command.name,
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
@@ -653,7 +656,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		await model.waitForInitialization();
 		const parsedRequest = typeof message === 'string' ?
-			await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
+			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
 			message;
 		const request = model.addRequest(parsedRequest, variableData || { message: parsedRequest.text, variables: {} });
 		if (typeof response.message === 'string') {
@@ -718,6 +721,7 @@ export class ChatService extends Disposable implements IChatService {
 			Array.from(this._sessionModels.values())
 				.filter(model => model.providerId === provider.id)
 				.forEach(model => model.deinitialize());
+			this._onDidUnregisterProvider.fire({ providerId: provider.id });
 		});
 	}
 

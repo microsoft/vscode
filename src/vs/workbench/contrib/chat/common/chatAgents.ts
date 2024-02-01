@@ -17,20 +17,21 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 
 //#region agent service, commands etc
 
-export interface IChatAgentData {
-	id: string;
-	metadata: IChatAgentMetadata;
-}
-
 export interface IChatAgentHistoryEntry {
 	request: IChatAgentRequest;
 	response: ReadonlyArray<IChatProgressResponseContent>;
 	result: IChatAgentResult;
 }
 
+export interface IChatAgentData {
+	id: string;
+	metadata: IChatAgentMetadata;
+}
+
 export interface IChatAgent extends IChatAgentData {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
+	lastSlashCommands?: IChatAgentCommand[];
 	provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]>;
 }
 
@@ -146,6 +147,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			throw new Error(`No agent with id ${id} registered`);
 		}
 		data.agent.metadata = { ...data.agent.metadata, ...updateMetadata };
+		data.agent.provideSlashCommands(CancellationToken.None); // Update the cached slash commands
 		this._onDidChangeAgents.fire();
 	}
 

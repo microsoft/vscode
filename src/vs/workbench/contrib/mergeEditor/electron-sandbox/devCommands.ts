@@ -29,13 +29,7 @@ export class MergeEditorOpenContentsFromJSON extends Action2 {
 		super({
 			id: 'merge.dev.openContentsJson',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.openState',
-					'Open Merge Editor State from JSON'
-				),
-				original: 'Open Merge Editor State from JSON',
-			},
+			title: localize2('merge.dev.openState', "Open Merge Editor State from JSON"),
 			icon: Codicon.layoutCentered,
 			f1: true,
 		});
@@ -136,13 +130,7 @@ export class OpenSelectionInTemporaryMergeEditor extends MergeEditorAction {
 		super({
 			id: 'merge.dev.openSelectionInTemporaryMergeEditor',
 			category: MERGE_EDITOR_CATEGORY,
-			title: {
-				value: localize(
-					'merge.dev.openSelectionInTemporaryMergeEditor',
-					'Open Selection In Temporary Merge Editor'
-				),
-				original: 'Open Selection In Temporary Merge Editor',
-			},
+			title: localize2('merge.dev.openSelectionInTemporaryMergeEditor', "Open Selection In Temporary Merge Editor"),
 			icon: Codicon.layoutCentered,
 			f1: true,
 		});

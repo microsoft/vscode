@@ -18,7 +18,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionCh
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -75,6 +75,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void {
+		let lastSlashCommands: IChatAgentCommand[] | undefined;
 		const d = this._chatAgentService.registerAgent({
 			id: name,
 			metadata: revive(metadata),
@@ -93,11 +94,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 				return this._proxy.$provideFollowups(handle, sessionId, token);
 			},
+			get lastSlashCommands() {
+				return lastSlashCommands;
+			},
 			provideSlashCommands: async (token) => {
 				if (!this._agents.get(handle)?.hasSlashCommands) {
 					return []; // save an IPC call
 				}
-				return this._proxy.$provideSlashCommands(handle, token);
+				lastSlashCommands = await this._proxy.$provideSlashCommands(handle, token);
+				return lastSlashCommands;
 			}
 		});
 		this._agents.set(handle, {
@@ -141,7 +146,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = (await this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 				const thisAgentName = this._agents.get(handle)?.name;
 				if (agentPart?.agent.id !== thisAgentName) {

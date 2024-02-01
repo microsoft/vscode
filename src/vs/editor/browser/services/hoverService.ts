@@ -66,7 +66,7 @@ export class HoverService implements IHoverService {
 			hover.isLocked = true;
 		}
 		hover.onDispose(() => {
-			const hoverWasFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode!);
+			const hoverWasFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode);
 			if (hoverWasFocused) {
 				// Required to handle cases such as closing the hover with the escape key
 				this._lastFocusedElementBeforeOpen?.focus();

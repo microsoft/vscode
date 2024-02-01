@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -77,10 +77,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInEditor`,
-				title: {
-					value: localize('interactiveSession.openInEditor.label', "Open Chat in Editor"),
-					original: 'Open Chat in Editor'
-				},
+				title: localize2('interactiveSession.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true
@@ -97,10 +94,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
-				title: {
-					value: localize('interactiveSession.openInNewWindow.label', "Open Chat in New Window"),
-					original: 'Open Chat In New Window'
-				},
+				title: localize2('interactiveSession.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true
@@ -116,10 +110,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.openInSidebar`,
-				title: {
-					value: localize('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
-					original: 'Open Chat in Side Bar'
-				},
+				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,

@@ -9,6 +9,9 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 export class ExternalUriResolverContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.externalUriResolver';
+
 	constructor(
 		@IOpenerService _openerService: IOpenerService,
 		@IBrowserWorkbenchEnvironmentService _workbenchEnvironmentService: IBrowserWorkbenchEnvironmentService,

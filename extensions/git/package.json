@@ -1857,6 +1857,18 @@
           "when": "scmProvider == git"
         }
       ],
+      "scm/incomingChanges/context": [
+        {
+          "command": "git.fetchRef",
+          "group": "1_modification@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pullRef",
+          "group": "1_modification@2",
+          "when": "scmProvider == git"
+        }
+      ],
       "scm/incomingChanges/allChanges/context": [
         {
           "command": "git.viewAllChanges",
@@ -1875,6 +1887,13 @@
         {
           "command": "git.pushRef",
           "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ],
+      "scm/outgoingChanges/context": [
+        {
+          "command": "git.pushRef",
+          "group": "1_modification@1",
           "when": "scmProvider == git"
         }
       ],

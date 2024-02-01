@@ -261,8 +261,14 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 	private _incomingHistoryItemGroupMenu: IMenu;
 	get incomingHistoryItemGroupMenu(): IMenu { return this._incomingHistoryItemGroupMenu; }
 
+	private _incomingHistoryItemGroupContextMenu: IMenu;
+	get incomingHistoryItemGroupContextMenu(): IMenu { return this._incomingHistoryItemGroupContextMenu; }
+
 	private _outgoingHistoryItemGroupMenu: IMenu;
 	get outgoingHistoryItemGroupMenu(): IMenu { return this._outgoingHistoryItemGroupMenu; }
+
+	private _outgoingHistoryItemGroupContextMenu: IMenu;
+	get outgoingHistoryItemGroupContextMenu(): IMenu { return this._outgoingHistoryItemGroupContextMenu; }
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -270,8 +276,14 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		this._incomingHistoryItemGroupMenu = this.menuService.createMenu(MenuId.SCMIncomingChanges, this.contextKeyService);
 		this.disposables.add(this._incomingHistoryItemGroupMenu);
 
+		this._incomingHistoryItemGroupContextMenu = this.menuService.createMenu(MenuId.SCMIncomingChangesContext, this.contextKeyService);
+		this.disposables.add(this._incomingHistoryItemGroupContextMenu);
+
 		this._outgoingHistoryItemGroupMenu = this.menuService.createMenu(MenuId.SCMOutgoingChanges, this.contextKeyService);
 		this.disposables.add(this._outgoingHistoryItemGroupMenu);
+
+		this._outgoingHistoryItemGroupContextMenu = this.menuService.createMenu(MenuId.SCMOutgoingChangesContext, this.contextKeyService);
+		this.disposables.add(this._outgoingHistoryItemGroupContextMenu);
 	}
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
