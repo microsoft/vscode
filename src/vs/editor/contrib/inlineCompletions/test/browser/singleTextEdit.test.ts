@@ -12,9 +12,8 @@ import { generateRandomDisjointEdits, generateRandomMultilineString as randomMul
 suite('Single Text Edit', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('testing getNewRanges', () => {
-
-		function testInverseEdits() {
+	for (let i = 0; i < 10; i++) {
+		test(`testing getNewRanges ${i}`, () => {
 			const randomText = randomMultilineString(10);
 			const model = createTextModel(randomText);
 
@@ -26,10 +25,7 @@ suite('Single Text Edit', () => {
 
 			assert.deepStrictEqual(model.getValue(), randomText);
 			model.dispose();
-		}
+		});
+	}
 
-		for (let i = 0; i < 1; i++) {
-			testInverseEdits();
-		}
-	});
 });
