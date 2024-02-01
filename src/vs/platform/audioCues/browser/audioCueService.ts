@@ -61,13 +61,19 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		this.configurationService.updateValue('signals.debouncePositionChanges', this.configurationService.getValue('audioCues.debouncePositionChanges'));
 		const config = AudioCue.allAudioCues;
 		for (const c of config) {
-			const alertValue = c.alertSettingsKey ? this.configurationService.getValue<boolean>(c.alertSettingsKey) : undefined;
-			const audioCueValue = c.settingsKey ? this.configurationService.getValue<boolean>(c.settingsKey) : undefined;
+			const alertConfig = c.alertSettingsKey ? this.configurationService.getValue<boolean>(c.alertSettingsKey) : undefined;
+			const audioCue = c.settingsKey ? this.configurationService.getValue<boolean>(c.settingsKey) : undefined;
 			const newSettingsKey = c.settingsKey.replace('audioCues.', 'signals.');
-			if (alertValue && audioCueValue) {
-				this.configurationService.updateValue(newSettingsKey, { alert: alertValue, audioCue: audioCueValue });
-			} else if (audioCueValue) {
-				this.configurationService.updateValue(newSettingsKey + '.audioCue', audioCueValue);
+			if (alertConfig !== undefined && audioCue !== undefined) {
+				let alert;
+				if (typeof alertConfig === 'string') {
+					alert = alertConfig;
+				} else {
+					alert = alertConfig === true && this.accessibilityService.isScreenReaderOptimized() ? 'on' : 'off';
+				}
+				this.configurationService.updateValue(newSettingsKey, { alert, audioCue });
+			} else if (!c.alertSettingsKey && audioCue !== undefined) {
+				this.configurationService.updateValue(newSettingsKey + '.audioCue', audioCue);
 			}
 		}
 	}
