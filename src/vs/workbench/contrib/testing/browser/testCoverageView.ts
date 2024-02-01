@@ -158,11 +158,11 @@ class FunctionCoverageNode {
 				continue;
 			}
 
-			statement.covered += detail.count > 0 ? 1 : 0;
+			statement.covered += detail.count ? 1 : 0;
 			statement.total++;
 			if (detail.branches) {
 				for (const { count } of detail.branches) {
-					branch.covered += count > 0 ? 1 : 0;
+					branch.covered += count ? 1 : 0;
 					branch.total++;
 				}
 			}
@@ -402,7 +402,7 @@ class Sorter implements ITreeSorter<CoverageTreeElement> {
 					const attrA = a.tpc;
 					const attrB = b.tpc;
 					return (attrA !== undefined && attrB !== undefined && attrB - attrA)
-						|| (b.hits - a.hits)
+						|| (+b.hits - +a.hits)
 						|| a.label.localeCompare(b.label);
 				}
 			}
@@ -522,7 +522,7 @@ class FunctionCoverageRenderer implements ICompressibleTreeRenderer<CoverageTree
 
 	/** @inheritdoc */
 	private doRender(element: FunctionCoverageNode, templateData: FunctionTemplateData, _filterData: FuzzyScore | undefined) {
-		const covered = element.hits > 0;
+		const covered = !!element.hits;
 		const icon = covered ? testingWasCovered : testingStatesToIcons.get(TestResultState.Unset);
 		templateData.container.classList.toggle('not-covered', !covered);
 		templateData.icon.className = `computed-state ${ThemeIcon.asClassName(icon!)}`;

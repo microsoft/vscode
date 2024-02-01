@@ -614,14 +614,14 @@ export namespace CoverageDetails {
 }
 
 export interface IBranchCoverage {
-	count: number;
+	count: number | boolean;
 	label?: string;
 	location?: Range | Position;
 }
 
 export namespace IBranchCoverage {
 	export interface Serialized {
-		count: number;
+		count: number | boolean;
 		label?: string;
 		location?: IRange | IPosition;
 	}
@@ -633,7 +633,7 @@ export namespace IBranchCoverage {
 export interface IFunctionCoverage {
 	type: DetailType.Function;
 	name: string;
-	count: number;
+	count: number | boolean;
 	location: Range | Position;
 }
 
@@ -641,7 +641,7 @@ export namespace IFunctionCoverage {
 	export interface Serialized {
 		type: DetailType.Function;
 		name: string;
-		count: number;
+		count: number | boolean;
 		location: IRange | IPosition;
 	}
 
@@ -651,7 +651,7 @@ export namespace IFunctionCoverage {
 
 export interface IStatementCoverage {
 	type: DetailType.Statement;
-	count: number;
+	count: number | boolean;
 	location: Range | Position;
 	branches?: IBranchCoverage[];
 }
@@ -659,7 +659,7 @@ export interface IStatementCoverage {
 export namespace IStatementCoverage {
 	export interface Serialized {
 		type: DetailType.Statement;
-		count: number;
+		count: number | boolean;
 		location: IRange | IPosition;
 		branches?: IBranchCoverage.Serialized[];
 	}

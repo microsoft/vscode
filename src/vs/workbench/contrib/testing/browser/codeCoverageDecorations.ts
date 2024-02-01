@@ -264,7 +264,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 							};
 						} else {
 							target.className = `coverage-deco-inline ${cls}`;
-							if (primary) {
+							if (primary && typeof hits === 'number') {
 								target.before = countBadge(hits);
 							}
 						}
@@ -286,7 +286,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
 						target.className = `coverage-deco-inline ${cls}`;
 						target.hoverMessage = description;
-						if (primary) {
+						if (primary && typeof detail.count === 'number') {
 							target.before = countBadge(detail.count);
 						}
 					};
@@ -451,7 +451,7 @@ export class CoverageDetailsModel {
 			const text = wrapName(model.getValueInRange(tidyLocation(detail.location)).trim() || `<empty statement>`);
 			const str = new MarkdownString();
 			if (detail.branches?.length) {
-				const covered = detail.branches.filter(b => b.count > 0).length;
+				const covered = detail.branches.filter(b => !!b.count).length;
 				str.appendMarkdown(localize('coverage.branches', '{0} of {1} of branches in {2} were covered.', covered, detail.branches.length, text));
 			} else {
 				str.appendMarkdown(localize('coverage.codeExecutedCount', '{0} was executed {1} time(s).', text, detail.count));
