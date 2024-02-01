@@ -6,12 +6,12 @@
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorunOpts } from 'vs/base/common/observable';
-import { splitLines } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 export function applyEdits(text: string, edits: { range: IRange; text: string }[]): string {
@@ -118,25 +118,19 @@ export function lengthOfText(text: string): Position {
  */
 export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 	const ranges: Range[] = [];
-	let previousEditEndLineNumber = 0;
-	let lineOffset = 0;
-	let columnOffset = 0;
-
+	let offset = LengthObj.zero;
 	for (const edit of edits) {
 		const text = edit.text ?? '';
-		const rangeStart = Position.lift({
-			lineNumber: edit.range.startLineNumber + lineOffset,
-			column: edit.range.startColumn + (edit.range.startLineNumber === previousEditEndLineNumber ? columnOffset : 0)
-		});
-		const rangeEnd = addPositions(
-			rangeStart,
-			lengthOfText(text)
-		);
+		const rangeStart = offset.addToPos(Position.lift({
+			lineNumber: edit.range.startLineNumber,
+			column: edit.range.startColumn,
+		}));
+		const l = LengthObj.fromText(text);
+		const rangeEnd = addPositions(rangeStart, l.toPos());
 		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
-		const splitText = splitLines(text);
-		lineOffset += splitText.length - edit.range.endLineNumber + edit.range.startLineNumber - 1;
-		columnOffset = rangeEnd.column - edit.range.endColumn;
-		previousEditEndLineNumber = edit.range.endLineNumber;
+		const lengthOfOldRange = new LengthObj(edit.range.endLineNumber - edit.range.startLineNumber + 1, edit.range.endColumn);
+		const deltaOffset = l.subtract(lengthOfOldRange);
+		offset = offset.add(deltaOffset);
 	}
 	return ranges;
 }

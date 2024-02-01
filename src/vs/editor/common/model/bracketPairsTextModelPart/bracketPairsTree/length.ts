@@ -30,6 +30,20 @@ export class LengthObj {
 		public readonly columnCount: number
 	) { }
 
+	static fromText(text: string): LengthObj {
+		let lineCount = 0;
+		let columnCount = 0;
+		for (const c of text) {
+			if (c === '\n') {
+				lineCount++;
+				columnCount = 0;
+			} else {
+				columnCount++;
+			}
+		}
+		return new LengthObj(lineCount, columnCount);
+	}
+
 	public isZero() {
 		return this.lineCount === 0 && this.columnCount === 0;
 	}
@@ -69,6 +83,26 @@ export class LengthObj {
 		} else {
 			return new LengthObj(this.lineCount + other.lineCount, other.columnCount);
 		}
+	}
+
+	public subtract(other: LengthObj): LengthObj {
+		if (other.lineCount === 0) {
+			return new LengthObj(this.lineCount, this.columnCount - other.columnCount);
+		} else {
+			return new LengthObj(this.lineCount - other.lineCount, this.columnCount - other.columnCount);
+		}
+	}
+
+	public addToPos(pos: Position): Position {
+		if (this.lineCount === 0) {
+			return new Position(pos.lineNumber, pos.column + this.columnCount);
+		} else {
+			return new Position(pos.lineNumber + this.lineCount, this.columnCount);
+		}
+	}
+
+	public toPos(): Position {
+		return new Position(this.lineCount + 1, this.columnCount + 1);
 	}
 
 	toString() {
