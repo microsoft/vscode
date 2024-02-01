@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentService, IChatAgent, IChatAgentCommand, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -108,9 +108,13 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	const getAgentWithSlashcommands = (slashCommands: IChatAgentCommand[]) => {
+		return <Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => [], lastSlashCommands: slashCommands };
+	};
+
 	test('agent with subcommand after text', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -120,7 +124,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents, subCommand', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -130,7 +134,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent with question mark', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -140,7 +144,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent and subcommand with leading whitespace', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -150,7 +154,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent and subcommand after newline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -160,7 +164,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent not first', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -170,7 +174,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents and variables and multiline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		varService.hasVariable.returns(true);
@@ -182,7 +186,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents and variables and multiline, part2', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		agentsService.getAgent.returns(getAgentWithSlashcommands([{ name: 'subCommand', description: '' }]));
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		varService.hasVariable.returns(true);
