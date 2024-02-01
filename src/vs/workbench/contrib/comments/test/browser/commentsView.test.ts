@@ -19,6 +19,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { unlocalized2 } from 'vs/nls';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -82,7 +83,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 	getViewContainerByViewId(id: string): ViewContainer | null {
 		return {
 			id: 'comments',
-			title: { value: 'Comments', original: 'Comments' },
+			title: unlocalized2('Comments'),
 			ctorDescriptor: {} as any
 		};
 	}
