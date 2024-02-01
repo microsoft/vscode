@@ -231,6 +231,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
 	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
 	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
+	private _onDidChangeTaskConfig: Emitter<void> = new Emitter();
+	public onDidChangeTaskConfig: Event<void> = this._onDidChangeTaskConfig.event;
 	public get isReconnected(): boolean { return this._tasksReconnected; }
 
 	constructor(
@@ -289,7 +291,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._updateSetup(folderSetup);
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+		this._register(this._configurationService.onDidChangeConfiguration(async (e) => {
 			if (!e.affectsConfiguration('tasks') || (!this._taskSystem && !this._workspaceTasksPromise)) {
 				return;
 			}
@@ -306,7 +308,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			this._setTaskLRUCacheLimit();
-			return this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			this._onDidChangeTaskConfig.fire();
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
