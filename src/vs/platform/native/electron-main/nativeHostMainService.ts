@@ -847,12 +847,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return this.auxiliaryWindowsMainService.getWindowById(windowId);
 	}
 
-	private getTargetWindow(fallbackWindowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
-		let window = this.instantiationService.invokeFunction(getFocusedOrLastActiveWindow);
-		if (!window) {
-			window = this.windowById(fallbackWindowId);
+	private getTargetWindow(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
+		const candidateWindowId = this.instantiationService.invokeFunction(getFocusedOrLastActiveWindow)?.id;
+		const candidateAuxiliaryWindow = this.auxiliaryWindowById(candidateWindowId);
+
+		// We have an auxiliary window as candidate but we can only
+		// return it if it is parented to the requesting window
+		if (candidateAuxiliaryWindow?.parentId === windowId) {
+			return candidateAuxiliaryWindow;
 		}
 
-		return window;
+		// In all other cases, fallback to the requesting window
+		return this.codeWindowById(windowId);
 	}
 }
