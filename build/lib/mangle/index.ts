@@ -339,17 +339,16 @@ class DeclarationData {
 	constructor(
 		readonly fileName: string,
 		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration,
-		private readonly service: ts.LanguageService,
 		fileIdents: ShortIdent,
 	) {
 		// Todo: generate replacement names based on usage count, with more used names getting shorter identifiers
 		this.replacementName = fileIdents.next();
 	}
 
-	get locations(): Iterable<{ fileName: string; offset: number }> {
+	getLocations(service: ts.LanguageService): Iterable<{ fileName: string; offset: number }> {
 		if (ts.isVariableDeclaration(this.node)) {
 			// If the const aliases any types, we need to rename those too
-			const definitionResult = this.service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
+			const definitionResult = service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
 			if (definitionResult?.definitions && definitionResult.definitions.length > 1) {
 				return definitionResult.definitions.map(x => ({ fileName: x.fileName, offset: x.textSpan.start }));
 			}
@@ -472,7 +471,7 @@ export class Mangler {
 						return;
 					}
 
-					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, service, fileIdents));
+					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, fileIdents));
 				}
 			}
 
@@ -621,7 +620,7 @@ export class Mangler {
 			}
 
 			const newText = data.replacementName;
-			for (const { fileName, offset } of data.locations) {
+			for (const { fileName, offset } of data.getLocations(service)) {
 				queueRename(fileName, offset, newText);
 			}
 		}
