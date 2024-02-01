@@ -635,6 +635,7 @@
 		"--vscode-tab-activeForeground",
 		"--vscode-tab-activeModifiedBorder",
 		"--vscode-tab-border",
+		"--vscode-tab-dragAndDropBorder",
 		"--vscode-tab-hoverBackground",
 		"--vscode-tab-hoverBorder",
 		"--vscode-tab-hoverForeground",
