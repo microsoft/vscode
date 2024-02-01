@@ -7,6 +7,9 @@ parameters:
     default: false
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
 
 steps:
   - task: NodeTool@0
