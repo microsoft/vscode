@@ -17,8 +17,9 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { InlineEditHintsWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
 
-class InlineEditWidget implements IDisposable {
+export class InlineEditWidget implements IDisposable {
 	constructor(public readonly widget: GhostTextWidget, public readonly edit: IInlineEdit) { }
 
 	dispose(): void {
@@ -32,7 +33,8 @@ export class InlineEditController extends Disposable {
 	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>('inlineEditVisible', false);
 	private _isVisibleContext = InlineEditController.inlineEditVisibleContext.bindTo(this.contextKeyService);
 
-	public static readonly cursorAtInlineEditContext = new RawContextKey<boolean>('cursorAtInlineEdit', false);
+	public static readonly cursorAtInlineEditKey = 'cursorAtInlineEdit';
+	public static readonly cursorAtInlineEditContext = new RawContextKey<boolean>(InlineEditController.cursorAtInlineEditKey, false);
 	private _isCursorAtInlineEditContext = InlineEditController.cursorAtInlineEditContext.bindTo(this.contextKeyService);
 
 	public static get(editor: ICodeEditor): InlineEditController | null {
@@ -110,6 +112,8 @@ export class InlineEditController extends Disposable {
 			this._isVisibleContext.set(true);
 			this._isCursorAtInlineEditContext.set(false);
 		}));
+
+		this._register(new InlineEditHintsWidget(this.editor, this._currentEdit, this.instantiationService));
 	}
 
 	private async fetchInlineEdit(editor: ICodeEditor, auto: boolean): Promise<IInlineEdit | undefined> {
@@ -203,6 +207,31 @@ export class InlineEditController extends Disposable {
 		}
 		this._currentEdit.set(undefined, undefined);
 	}
+
+	public shouldShowHoverAt(range: Range) {
+		const currentEdit = this._currentEdit.get();
+		if (!currentEdit) {
+			return false;
+		}
+		const edit = currentEdit.edit;
+		const model = currentEdit.widget.model;
+		if (edit.replaceRange) {
+			const overReplaceRange = Range.containsPosition(edit.replaceRange, range.getStartPosition()) || Range.containsPosition(edit.replaceRange, range.getEndPosition());
+			if (overReplaceRange) {
+				return true;
+			}
+		}
+		const ghostText = model.ghostText.get();
+		if (ghostText) {
+			return ghostText.parts.some(p => range.containsPosition(new Position(ghostText.lineNumber, p.column)));
+		}
+		return false;
+	}
+
+	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
+		return this._currentEdit.get()?.widget.ownsViewZone(viewZoneId) ?? false;
+	}
+
 }
 
 function wait(ms: number, cancellationToken?: CancellationToken): Promise<void> {
