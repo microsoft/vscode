@@ -190,16 +190,17 @@
 				"**/vscode.proposed.*.d.ts"
 			],
 			"rules": {
-				"local/vscode-dts-create-func": "warn",
-				"local/vscode-dts-literal-or-types": "warn",
-				"local/vscode-dts-string-type-literals": "warn",
-				"local/vscode-dts-interface-naming": "warn",
-				"local/vscode-dts-cancellation": "warn",
-				"local/vscode-dts-use-thenable": "warn",
-				"local/vscode-dts-region-comments": "warn",
-				"local/vscode-dts-vscode-in-comments": "warn",
-				"local/vscode-dts-provider-naming": [
-					"warn",
+    "local/vscode-dts-create-func": "error",  // Change "warn" to "error" to make it an error instead of a warning
+    "local/vscode-dts-literal-or-types": "warn",
+    "local/vscode-dts-string-type-literals": "off",  // Turn off this rule
+    "local/vscode-dts-interface-naming": ["warn", "PascalCase"],  // Customize naming convention to PascalCase
+    "local/vscode-dts-cancellation": "error",  // Change "warn" to "error"
+    "local/vscode-dts-use-thenable": "off",  // Turn off this rule
+    "local/vscode-dts-region-comments": "warn",
+    "local/vscode-dts-vscode-in-comments": "warn",
+    "local/vscode-dts-provider-naming": ["warn", "snake_case"]  // Customize provider naming convention
+}
+
 					{
 						"allowed": [
 							"FileSystemProvider",
