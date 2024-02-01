@@ -5,8 +5,6 @@
 
 import 'vs/editor/browser/services/markerDecorations';
 
-import 'vs/css!./media/editor';
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -14,52 +12,54 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import 'vs/css!./media/editor';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
+import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
+import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditorContributions';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IDimension } from 'vs/editor/common/core/dimension';
+import { editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
+import { CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IAttachedView } from 'vs/editor/common/model';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
-import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
+import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
+import * as nls from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
-import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditorContributions';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 
 let EDITOR_ID = 0;
 
@@ -1347,7 +1347,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
+		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 	}
 
 	public setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void {
@@ -1367,14 +1367,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
+		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 	}
 
 	public removeDecorationsByType(decorationTypeKey: string): void {
 		// remove decorations for type and sub type
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
 		if (oldDecorationsIds) {
-			this.deltaDecorations(oldDecorationsIds, []);
+			this.changeDecorations(accessor => accessor.deltaDecorations(oldDecorationsIds, []));
 		}
 		if (this._decorationTypeKeysToIds.hasOwnProperty(decorationTypeKey)) {
 			delete this._decorationTypeKeysToIds[decorationTypeKey];
