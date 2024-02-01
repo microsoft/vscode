@@ -5,19 +5,21 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { inverseEdits } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { generateRandomDisjointEdits, generateRandomMultilineString as randomMultilineString } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
+import { generateRandomMultilineString as randomMultilineString } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
+import { MersenneTwister, getRandomEditInfos, toEdit, } from 'vs/editor/test/common/model/bracketPairColorizer/combineTextEditInfos.test';
+import { inverseEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
-suite('Single Text Edit', () => {
+suite('getNewRanges', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (let i = 0; i < 10; i++) {
-		test(`testing getNewRanges ${i}`, () => {
+	for (let seed = 0; seed < 20; seed++) {
+		test(`test ${seed}`, () => {
 			const randomText = randomMultilineString(10);
 			const model = createTextModel(randomText);
 
-			const edits = generateRandomDisjointEdits(model, 3);
+			const rng = new MersenneTwister(seed);
+			const edits = getRandomEditInfos(model, rng.nextIntRange(1, 4), rng).map(e => toEdit(e));
 			const invEdits = inverseEdits(model, edits);
 
 			model.applyEdits(edits);

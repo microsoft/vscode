@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
-import { commonPrefixLength, getLeadingWhitespace, splitLines } from 'vs/base/common/strings';
+import { commonPrefixLength, getLeadingWhitespace } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
@@ -246,59 +245,4 @@ function smartDiff(originalValue: string, newValue: string, smartBracketMatching
 	const elements2 = getElements(newValue);
 
 	return new LcsDiff({ getElements: () => elements1 }, { getElements: () => elements2 }).ComputeDiff(false).changes;
-}
-
-/**
- * Given some text edits, this function finds the new ranges of the editted text post application of all edits.
- * Assumes that the edit ranges are disjoint
- * @param edits edits applied
- * @returns new ranges post edits for every edit
- */
-export function getNewRanges(edits: SingleTextEdit[]): Range[] {
-
-	if (edits.length === 0) {
-		return [];
-	}
-
-	const sortIndices = Array.from(edits.keys()).sort((a, b) =>
-		Range.compareRangesUsingStarts(edits[a].range, edits[b].range)
-	);
-	const ranges: Range[] = [];
-	let previousEditEndLineNumber = 0;
-	let positionOffset = new Position(0, 0);
-
-	for (const index of sortIndices) {
-		const edit = edits[index];
-		const splitText = splitLines(edit.text!);
-		const rangeStart = edit.range.getStartPosition().delta(
-			positionOffset.lineNumber,
-			edit.range.startLineNumber === previousEditEndLineNumber ? positionOffset.column : 0
-		);
-		const rangeEnd = addPositions(
-			rangeStart,
-			lengthOfText(edit.text)
-		);
-		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
-		previousEditEndLineNumber = edit.range.endLineNumber;
-		positionOffset = positionOffset.delta(
-			splitText.length - edit.range.endLineNumber + edit.range.startLineNumber - 1,
-			rangeEnd.column - edit.range.endColumn - positionOffset.column
-		);
-	}
-	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
-}
-
-/**
- * Given a text model and edits, this function finds the inverse text edits
- * @param model model on which to apply the edits
- * @param edits edits applied
- * @returns inverse edits
- */
-export function inverseEdits(model: TextModel, edits: SingleTextEdit[]): SingleTextEdit[] {
-	const newRanges = getNewRanges(edits);
-	const inverseEdits: SingleTextEdit[] = [];
-	for (let i = 0; i < edits.length; i++) {
-		inverseEdits.push(new SingleTextEdit(newRanges[i], model.getValueInRange(edits[i].range)));
-	}
-	return inverseEdits;
 }
