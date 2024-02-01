@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as v8 from 'node:v8';
 import * as fs from 'fs';
 import * as path from 'path';
 import { argv } from 'process';
@@ -723,7 +724,8 @@ export class Mangler {
 
 		service.dispose();
 		this.renameWorkerPool.terminate();
-		this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(process.memoryUsage())}`);
+
+		this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(v8.getHeapStatistics())}`);
 		return result;
 	}
 }

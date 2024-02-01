@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Mangler = void 0;
+const v8 = require("node:v8");
 const fs = require("fs");
 const path = require("path");
 const process_1 = require("process");
@@ -615,7 +616,7 @@ class Mangler {
         }
         service.dispose();
         this.renameWorkerPool.terminate();
-        this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(process.memoryUsage())}`);
+        this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(v8.getHeapStatistics())}`);
         return result;
     }
 }
