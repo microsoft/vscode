@@ -127,14 +127,15 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 	);
 	const ranges: Range[] = [];
 	let previousEditEndLineNumber = 0;
-	let positionOffset = new Position(0, 0);
+	let lineOffset = 0;
+	let columnOffset = 0;
 
 	for (const index of sortIndices) {
 		const edit = edits[index];
 		const text = edit.text ?? '';
 		const rangeStart = Position.lift({
-			lineNumber: edit.range.startLineNumber + positionOffset.lineNumber,
-			column: edit.range.startColumn + (edit.range.startLineNumber === previousEditEndLineNumber ? positionOffset.column : 0)
+			lineNumber: edit.range.startLineNumber + lineOffset,
+			column: edit.range.startColumn + (edit.range.startLineNumber === previousEditEndLineNumber ? columnOffset : 0)
 		});
 		const rangeEnd = addPositions(
 			rangeStart,
@@ -142,11 +143,9 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 		);
 		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
 		const splitText = splitLines(text);
+		lineOffset += splitText.length - edit.range.endLineNumber + edit.range.startLineNumber - 1;
+		columnOffset = rangeEnd.column - edit.range.endColumn;
 		previousEditEndLineNumber = edit.range.endLineNumber;
-		positionOffset = positionOffset.delta(
-			splitText.length - edit.range.endLineNumber + edit.range.startLineNumber - 1,
-			rangeEnd.column - edit.range.endColumn - positionOffset.column
-		);
 	}
 	return ranges.map((_, index) => ranges[sortIndices.indexOf(index)]);
 }
