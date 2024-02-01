@@ -138,7 +138,7 @@ function generateRandomSimpleString(seed: number, stringLength: number): string 
 	const possibleCharacters: string = ' abcdefghijklmnopqrstuvwxyz0123456789';
 	let randomText: string = '';
 	for (let i = 0; i < stringLength; i++) {
-		const characterIndex = rng.nextIntRange(0, possibleCharacters.length + 1);
+		const characterIndex = rng.nextIntRange(0, possibleCharacters.length);
 		randomText += possibleCharacters.charAt(characterIndex);
 
 	}
