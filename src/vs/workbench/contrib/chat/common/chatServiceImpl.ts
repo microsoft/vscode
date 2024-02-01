@@ -459,7 +459,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, message: string): Promise<void> {
-		const parsedRequest = await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
 
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -656,7 +656,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		await model.waitForInitialization();
 		const parsedRequest = typeof message === 'string' ?
-			await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
+			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
 			message;
 		const request = model.addRequest(parsedRequest, variableData || { message: parsedRequest.text, variables: {} });
 		if (typeof response.message === 'string') {

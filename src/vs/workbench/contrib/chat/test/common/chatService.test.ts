@@ -227,8 +227,6 @@ suite('Chat', () => {
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
 
-		await response.responseCompletePromise;
-
 		assert.strictEqual(model.getRequests().length, 1);
 
 		await assertSnapshot(model.toExport());

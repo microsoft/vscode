@@ -553,8 +553,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const lastResponse = responses?.[responses.length - 1];
 					this._chatAccessibilityService.acceptResponse(lastResponse, requestId);
 				});
-			} else {
-				this._chatAccessibilityService.acceptResponse(undefined, requestId);
 			}
 		}
 	}

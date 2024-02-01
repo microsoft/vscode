@@ -37,14 +37,14 @@ suite('ChatRequestParser', () => {
 
 	test('plain text', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', 'test');
+		const result = parser.parseChatRequest('1', 'test');
 		await assertSnapshot(result);
 	});
 
 	test('plain text with newlines', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'line 1\nline 2\r\nline 3';
-		const result = await parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
 
@@ -55,7 +55,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix this';
-		const result = await parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
 
@@ -66,7 +66,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/explain this';
-		const result = await parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
 
@@ -77,7 +77,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix /fix';
-		const result = await parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
 
@@ -86,7 +86,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'What does #selection mean?';
-		const result = await parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
 
@@ -95,7 +95,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'What is #selection?';
-		const result = await parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
 
@@ -104,7 +104,7 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'What does #selection mean?';
-		const result = await parser.parseChatRequest('1', text);
+		const result = parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
 
@@ -114,7 +114,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '@agent Please do /subCommand thanks');
+		const result = parser.parseChatRequest('1', '@agent Please do /subCommand thanks');
 		await assertSnapshot(result);
 	});
 
@@ -124,7 +124,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '@agent /subCommand Please do thanks');
+		const result = parser.parseChatRequest('1', '@agent /subCommand Please do thanks');
 		await assertSnapshot(result);
 	});
 
@@ -134,7 +134,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '@agent? Are you there');
+		const result = parser.parseChatRequest('1', '@agent? Are you there');
 		await assertSnapshot(result);
 	});
 
@@ -144,7 +144,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '    \r\n\t   @agent \r\n\t   /subCommand Thanks');
+		const result = parser.parseChatRequest('1', '    \r\n\t   @agent \r\n\t   /subCommand Thanks');
 		await assertSnapshot(result);
 	});
 
@@ -154,7 +154,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '    \n@agent\n/subCommand Thanks');
+		const result = parser.parseChatRequest('1', '    \n@agent\n/subCommand Thanks');
 		await assertSnapshot(result);
 	});
 
@@ -164,7 +164,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', 'Hello Mr. @agent');
+		const result = parser.parseChatRequest('1', 'Hello Mr. @agent');
 		await assertSnapshot(result);
 	});
 
@@ -176,7 +176,7 @@ suite('ChatRequestParser', () => {
 		varService.hasVariable.returns(true);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
+		const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
 		await assertSnapshot(result);
 	});
 
@@ -188,7 +188,7 @@ suite('ChatRequestParser', () => {
 		varService.hasVariable.returns(true);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
+		const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
 		await assertSnapshot(result);
 	});
 });
