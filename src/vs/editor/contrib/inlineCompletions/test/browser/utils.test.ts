@@ -19,7 +19,7 @@ suite('getNewRanges', () => {
 			const model = createTextModel(randomText);
 
 			const rng = new MersenneTwister(seed);
-			const edits = getRandomEditInfos(model, rng.nextIntRange(1, 4), rng).map(e => toEdit(e));
+			const edits = getRandomEditInfos(model, rng.nextIntRange(1, 4), rng, true).map(e => toEdit(e));
 			const invEdits = inverseEdits(model, edits);
 
 			model.applyEdits(edits);

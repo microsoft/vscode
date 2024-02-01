@@ -162,10 +162,12 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
  * @returns inverse edits
  */
 export function inverseEdits(model: TextModel, edits: ISingleEditOperation[]): ISingleEditOperation[] {
-	const newRanges = getNewRanges(edits);
+	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
+	const sortedRanges = getNewRanges(sortPerm.apply(edits));
+	const ranges = sortPerm.inverse().apply(sortedRanges);
 	const inverseEdits: ISingleEditOperation[] = [];
 	for (let i = 0; i < edits.length; i++) {
-		inverseEdits.push({ range: newRanges[i], text: model.getValueInRange(edits[i].range) });
+		inverseEdits.push({ range: ranges[i], text: model.getValueInRange(edits[i].range) });
 	}
 	return inverseEdits;
 }
@@ -182,7 +184,12 @@ export class Permutation {
 		return new Permutation(sortIndices);
 	}
 
-	applyInPlace<T>(arr: T[]): T[] { }
+	apply<T>(arr: T[]): T[] {
+		return arr.map((_, index) => arr[this.indexMap[index]]);
+	}
 
-	inverse(): Permutation { }
+	inverse(): Permutation {
+		const inverseSortIndices = Array.from(this.indexMap.keys()).sort((index1, index2) => index1 - index2);
+		return new Permutation(inverseSortIndices);
+	}
 }

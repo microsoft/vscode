@@ -58,12 +58,12 @@ function runTest(seed: number) {
 	textModelS2.dispose();
 }
 
-export function getRandomEditInfos(textModel: TextModel, count: number, rng: MersenneTwister): TextEditInfo[] {
+export function getRandomEditInfos(textModel: TextModel, count: number, rng: MersenneTwister, disjoint: boolean = false): TextEditInfo[] {
 	const edits: TextEditInfo[] = [];
 	let i = 0;
 	for (let j = 0; j < count; j++) {
 		edits.push(getRandomEdit(textModel, i, rng));
-		i = textModel.getOffsetAt(lengthToPosition(edits[j].endOffset));
+		i = textModel.getOffsetAt(lengthToPosition(edits[j].endOffset)) + (disjoint ? 1 : 0);
 	}
 	return edits;
 }

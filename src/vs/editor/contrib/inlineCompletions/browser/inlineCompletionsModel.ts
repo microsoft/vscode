@@ -22,7 +22,7 @@ import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { addPositions, getNewRanges, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { Permutation, addPositions, getNewRanges, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -456,9 +456,9 @@ export class InlineCompletionsModel extends Disposable {
 				return new SingleTextEdit(range, secondaryEditText);
 			})
 		];
-		const sortPerm = Permutation.createSortPermutation(edits);
-		const sortedRanges = getNewRanges(sortPerm.applyInPlace(edits));
-		const ranges = sortPerm.inverse().applyInPlace(sortedRanges);
+		const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
+		const sortedRanges = getNewRanges(sortPerm.apply(edits));
+		const ranges = sortPerm.inverse().apply(sortedRanges);
 		const editorSelections = ranges.map(range => Selection.fromPositions(range.getEndPosition()));
 
 		return {
