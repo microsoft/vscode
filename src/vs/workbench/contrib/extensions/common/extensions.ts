@@ -53,11 +53,14 @@ export interface IExtension {
 	readonly publisherSponsorLink?: URI;
 	readonly version: string;
 	readonly latestVersion: string;
+	readonly preRelease: boolean;
+	readonly isPreReleaseVersion: boolean;
 	readonly hasPreReleaseVersion: boolean;
 	readonly hasReleaseVersion: boolean;
 	readonly description: string;
 	readonly url?: string;
 	readonly repository?: string;
+	readonly supportUrl?: string;
 	readonly iconUrl: string;
 	readonly iconUrlFallback: string;
 	readonly licenseUrl?: string;
@@ -109,6 +112,7 @@ export interface IExtensionsWorkbenchService {
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
+	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;

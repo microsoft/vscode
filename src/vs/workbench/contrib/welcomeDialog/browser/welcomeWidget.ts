@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { $, append, hide } from 'vs/base/browser/dom';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';

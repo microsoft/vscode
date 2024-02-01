@@ -89,6 +89,9 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 }
 
 export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.trustedDomainsFileSystemProvider';
+
 	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
 
 	readonly onDidChangeCapabilities = Event.None;

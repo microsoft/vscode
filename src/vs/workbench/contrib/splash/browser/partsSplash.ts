@@ -21,8 +21,11 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
 import { mainWindow } from 'vs/base/browser/window';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { TitleBarSetting } from 'vs/platform/window/common/window';
 
 export class PartsSplash {
+
+	static readonly ID = 'workbench.contrib.partsSplash';
 
 	private static readonly _splashElementId = 'monaco-parts-splash';
 
@@ -49,12 +52,12 @@ export class PartsSplash {
 			lastIdleSchedule.value = dom.runWhenWindowIdle(mainWindow, () => this._savePartsSplash(), 2500);
 		};
 		lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			Event.any(onDidChangeFullscreen, editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(savePartsSplashSoon, undefined, this._disposables);
+			Event.any(Event.filter(onDidChangeFullscreen, windowId => windowId === mainWindow.vscodeWindowId), editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(savePartsSplashSoon, undefined, this._disposables);
 			savePartsSplashSoon();
 		});
 
 		_configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.titleBarStyle')) {
+			if (e.affectsConfiguration(TitleBarSetting.TITLE_BAR_STYLE)) {
 				this._didChangeTitleBarStyle = true;
 				this._savePartsSplash();
 			}
@@ -96,7 +99,7 @@ export class PartsSplash {
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
-		return !isFullscreen() && !this._environmentService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
+		return !isFullscreen(mainWindow) && !this._environmentService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
 	}
 
 	private _removePartsSplash(): void {

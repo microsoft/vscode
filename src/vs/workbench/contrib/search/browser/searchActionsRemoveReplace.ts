@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { getSelectionKeyboardEvent, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { searchRemoveIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -54,16 +54,13 @@ registerAction2(class RemoveAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.RemoveActionId,
-			title: {
-				value: nls.localize('RemoveAction.label', "Dismiss"),
-				original: 'Dismiss'
-			},
+			id: Constants.SearchCommandIds.RemoveActionId,
+			title: nls.localize2('RemoveAction.label', "Dismiss"),
 			category,
 			icon: searchRemoveIcon,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.FileMatchOrMatchFocusKey),
 				primary: KeyCode.Delete,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
@@ -148,28 +145,25 @@ registerAction2(class ReplaceAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.ReplaceActionId,
-			title: {
-				value: nls.localize('match.replace.label', "Replace"),
-				original: 'Replace'
-			},
+			id: Constants.SearchCommandIds.ReplaceActionId,
+			title: nls.localize2('match.replace.label', "Replace"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.MatchFocusKey, Constants.SearchContext.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 			},
 			icon: searchReplaceIcon,
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
+					when: ContextKeyExpr.and(Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.MatchFocusKey, Constants.SearchContext.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
+					when: ContextKeyExpr.and(Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.MatchFocusKey, Constants.SearchContext.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}
@@ -187,15 +181,12 @@ registerAction2(class ReplaceAllAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.ReplaceAllInFileActionId,
-			title: {
-				value: nls.localize('file.replaceAll.label', "Replace All"),
-				original: 'Replace All'
-			},
+			id: Constants.SearchCommandIds.ReplaceAllInFileActionId,
+			title: nls.localize2('file.replaceAll.label', "Replace All"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.FileFocusKey, Constants.SearchContext.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -203,13 +194,13 @@ registerAction2(class ReplaceAllAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
+					when: ContextKeyExpr.and(Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.FileFocusKey, Constants.SearchContext.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
+					when: ContextKeyExpr.and(Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.FileFocusKey, Constants.SearchContext.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}
@@ -226,15 +217,12 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.ReplaceAllInFolderActionId,
-			title: {
-				value: nls.localize('file.replaceAll.label', "Replace All"),
-				original: 'Replace All'
-			},
+			id: Constants.SearchCommandIds.ReplaceAllInFolderActionId,
+			title: nls.localize2('file.replaceAll.label', "Replace All"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.FolderFocusKey, Constants.SearchContext.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -242,13 +230,13 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
+					when: ContextKeyExpr.and(Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.FolderFocusKey, Constants.SearchContext.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
+					when: ContextKeyExpr.and(Constants.SearchContext.ReplaceActiveKey, Constants.SearchContext.FolderFocusKey, Constants.SearchContext.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}

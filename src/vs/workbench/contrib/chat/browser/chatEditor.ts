@@ -107,8 +107,8 @@ export class ChatEditor extends EditorPane {
 
 		if (this._memento && this._viewState) {
 			const widgetViewState = this.widget.getViewState();
-			this._viewState!.inputValue = widgetViewState.inputValue;
-			this._memento!.saveMemento();
+			this._viewState.inputValue = widgetViewState.inputValue;
+			this._memento.saveMemento();
 		}
 	}
 

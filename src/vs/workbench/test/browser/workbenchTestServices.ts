@@ -59,7 +59,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/
 import { IDimension } from 'vs/base/browser/dom';
 import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
@@ -73,7 +73,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -99,7 +99,8 @@ import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quic
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
 import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -162,13 +163,14 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { EnablementState, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
-import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -278,8 +280,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
-	const accessibleNotificationService = disposables.add(new TestAccessibleNotificationService());
-	instantiationService.stub(IAccessibleNotificationService, accessibleNotificationService);
+	instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());
@@ -604,8 +605,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainer: HTMLElement = mainWindow.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
-	onDidChangeCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeFullscreen: Event<boolean> = Event.None;
+	onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
@@ -828,6 +828,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly parts: readonly IEditorPart[] = [this];
 
+	windowId = mainWindow.vscodeWindowId;
+
 	onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent> = Event.None;
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
 	onDidActivateGroup: Event<IEditorGroup> = Event.None;
@@ -865,6 +867,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	setSize(_group: number | IEditorGroup, _size: { width: number; height: number }): void { }
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
 	toggleMaximizeGroup(): void { }
+	hasMaximizedGroup(): boolean { throw new Error('not implemented'); }
 	toggleExpandGroup(): void { }
 	applyLayout(_layout: EditorGroupLayout): void { }
 	getLayout(): EditorGroupLayout { throw new Error('not implemented'); }
@@ -892,6 +895,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
+	windowId = mainWindow.vscodeWindowId;
 	groupsView: IEditorGroupsView = undefined!;
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: EditorInput;
@@ -965,7 +969,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 export class TestEditorGroupAccessor implements IEditorGroupsView {
 
 	label: string = '';
-	isAuxiliary: boolean = false;
+	windowId = mainWindow.vscodeWindowId;
 
 	groups: IEditorGroupView[] = [];
 	activeGroup!: IEditorGroupView;
@@ -1306,7 +1310,41 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 	declare readonly _serviceBrand: undefined;
 
-	phase!: LifecyclePhase;
+	usePhases = false;
+	_phase!: LifecyclePhase;
+	get phase(): LifecyclePhase { return this._phase; }
+	set phase(value: LifecyclePhase) {
+		this._phase = value;
+		if (value === LifecyclePhase.Starting) {
+			this.whenStarted.complete();
+		} else if (value === LifecyclePhase.Ready) {
+			this.whenReady.complete();
+		} else if (value === LifecyclePhase.Restored) {
+			this.whenRestored.complete();
+		} else if (value === LifecyclePhase.Eventually) {
+			this.whenEventually.complete();
+		}
+	}
+
+	private readonly whenStarted = new DeferredPromise<void>();
+	private readonly whenReady = new DeferredPromise<void>();
+	private readonly whenRestored = new DeferredPromise<void>();
+	private readonly whenEventually = new DeferredPromise<void>();
+	async when(phase: LifecyclePhase): Promise<void> {
+		if (!this.usePhases) {
+			return;
+		}
+		if (phase === LifecyclePhase.Starting) {
+			await this.whenStarted.p;
+		} else if (phase === LifecyclePhase.Ready) {
+			await this.whenReady.p;
+		} else if (phase === LifecyclePhase.Restored) {
+			await this.whenRestored.p;
+		} else if (phase === LifecyclePhase.Eventually) {
+			await this.whenEventually.p;
+		}
+	}
+
 	startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
@@ -1323,8 +1361,6 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 	private readonly _onDidShutdown = this._register(new Emitter<void>());
 	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
-
-	async when(): Promise<void> { }
 
 	shutdownJoiners: Promise<void>[] = [];
 
@@ -1490,6 +1526,8 @@ export class TestHostService implements IHostService {
 
 	private _onDidChangeWindow = new Emitter<number>();
 	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
+
+	readonly onDidChangeFullScreen: Event<{ windowId: number; fullscreen: boolean }> = Event.None;
 
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;

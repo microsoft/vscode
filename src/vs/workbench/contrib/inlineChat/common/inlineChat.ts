@@ -20,7 +20,8 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { URI } from 'vs/base/common/uri';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -45,6 +46,8 @@ export interface IInlineChatRequest {
 	attempt: number;
 	requestId: string;
 	live: boolean;
+	previewDocument: URI;
+	withIntentDetection: boolean;
 }
 
 export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse;
@@ -105,7 +108,7 @@ export interface IInlineChatSessionProvider {
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
 
-	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatReplyFollowup[]>;
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
@@ -137,7 +140,7 @@ export const CTX_INLINE_CHAT_OUTER_CURSOR_POSITION = new RawContextKey<'above' |
 export const CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('inlineChatHasActiveRequest', false, localize('inlineChatHasActiveRequest', "Whether interactive editor has an active request"));
 export const CTX_INLINE_CHAT_HAS_STASHED_SESSION = new RawContextKey<boolean>('inlineChatHasStashedSession', false, localize('inlineChatHasStashedSession', "Whether interactive editor has kept a session for quick restore"));
 export const CTX_INLINE_CHAT_LAST_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType | undefined>('inlineChatLastResponseType', undefined, localize('inlineChatResponseType', "What type was the last response of the current interactive editor session"));
-export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChatResponseTypes | undefined>('inlineChatResponseTypes', undefined, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
+export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChatResponseTypes | undefined>('inlineChatResponseTypes', InlineChatResponseTypes.Empty, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
 export const CTX_INLINE_CHAT_DID_EDIT = new RawContextKey<boolean>('inlineChatDidEdit', undefined, localize('inlineChatDidEdit', "Whether interactive editor did change any code"));
 export const CTX_INLINE_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('inlineChatUserDidEdit', undefined, localize('inlineChatUserDidEdit', "Whether the user did changes ontop of the inline chat"));
 export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('inlineChatLastFeedbackKind', '', localize('inlineChatLastFeedbackKind', "The last kind of feedback that was provided"));
@@ -149,12 +152,13 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 
 // --- (select) action identifier
 
-export const ACTION_ACCEPT_CHANGES = 'interactive.acceptChanges';
+export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 
 // --- menus
 
+export const MENU_INLINE_CHAT_INPUT = MenuId.for('inlineChatInput');
 export const MENU_INLINE_CHAT_WIDGET = MenuId.for('inlineChatWidget');
 export const MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE = MenuId.for('inlineChatWidget.markdownMessage');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
@@ -196,11 +200,18 @@ Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMi
 	}]
 );
 
+export const enum InlineChatConfigKeys {
+	Mode = 'inlineChat.mode',
+	FinishOnType = 'inlineChat.finishOnType',
+	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
+	HoldToSpeech = 'inlineChat.holdToSpeech',
+}
+
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {
-		'inlineChat.mode': {
-			description: localize('mode', "Configure if changes crafted in the interactive editor are applied directly to the document or are previewed first."),
+		[InlineChatConfigKeys.Mode]: {
+			description: localize('mode', "Configure if changes crafted with inline chat are applied directly to the document or are previewed first."),
 			default: EditMode.LivePreview,
 			type: 'string',
 			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
@@ -208,7 +219,23 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
-			]
+			],
+			tags: ['experimental']
+		},
+		[InlineChatConfigKeys.FinishOnType]: {
+			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),
+			default: false,
+			type: 'boolean'
+		},
+		[InlineChatConfigKeys.AcceptedOrDiscardBeforeSave]: {
+			description: localize('acceptedOrDiscardBeforeSave', "Whether pending inline chat sessions prevent saving."),
+			default: true,
+			type: 'boolean'
+		},
+		[InlineChatConfigKeys.HoldToSpeech]: {
+			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
+			default: true,
+			type: 'boolean'
 		}
 	}
 });

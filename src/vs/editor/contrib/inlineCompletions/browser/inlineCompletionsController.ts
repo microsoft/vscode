@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
@@ -52,6 +53,7 @@ export class InlineCompletionsController extends Disposable {
 		}
 	));
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	private _ghostTextWidget = this._register(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
 		ghostText: this.model.map((v, reader) => /** ghostText */ v?.ghostText.read(reader)),
@@ -110,6 +112,17 @@ export class InlineCompletionsController extends Disposable {
 					this.model.set(model, tx);
 				}
 			});
+		}));
+
+		const styleElement = this._register(createStyleSheet2());
+		this._register(autorun(reader => {
+			const fontFamily = this._fontFamily.read(reader);
+			styleElement.setStyle(fontFamily === '' || fontFamily === 'default' ? `` : `
+.monaco-editor .ghost-text-decoration,
+.monaco-editor .ghost-text-decoration-preview,
+.monaco-editor .ghost-text {
+	font-family: ${fontFamily};
+}`);
 		}));
 
 		const getReason = (e: IModelContentChangedEvent): VersionIdChangeReason => {

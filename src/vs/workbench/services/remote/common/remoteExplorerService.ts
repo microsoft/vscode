@@ -24,6 +24,7 @@ export const TUNNEL_VIEW_ID = '~remote.forwardedPorts';
 export const TUNNEL_VIEW_CONTAINER_ID = '~remote.forwardedPortsContainer';
 export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 export const PORT_AUTO_SOURCE_SETTING = 'remote.autoForwardPortsSource';
+export const PORT_AUTO_FALLBACK_SETTING = 'remote.autoForwardPortsFallback';
 export const PORT_AUTO_SOURCE_SETTING_PROCESS = 'process';
 export const PORT_AUTO_SOURCE_SETTING_OUTPUT = 'output';
 export const PORT_AUTO_SOURCE_SETTING_HYBRID = 'hybrid';

@@ -26,6 +26,9 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return Coverage metadata for all files involved in the test.
 		 */
+		// @API - pass something into the provide method:
+		// (1) have TestController#coverageProvider: TestCoverageProvider
+		// (2) pass TestRun into this method
 		provideFileCoverage(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
@@ -118,6 +121,9 @@ declare module 'vscode' {
 		);
 	}
 
+	// @API are StatementCoverage and BranchCoverage etc really needed
+	// or is a generic type with a kind-property enough
+
 	/**
 	 * Contains coverage information for a single statement or line.
 	 */
@@ -165,10 +171,16 @@ declare module 'vscode' {
 		location?: Position | Range;
 
 		/**
+		 * Label for the branch, used in the context of "the ${label} branch was
+		 * not taken," for example.
+		 */
+		label?: string;
+
+		/**
 		 * @param executionCount The number of times this branch was executed.
 		 * @param location The branch position.
 		 */
-		constructor(executionCount: number, location?: Position | Range);
+		constructor(executionCount: number, location?: Position | Range, label?: string);
 	}
 
 	/**

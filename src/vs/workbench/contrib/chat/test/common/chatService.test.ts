@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -123,20 +123,20 @@ suite('Chat', () => {
 
 		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
 		await session1.waitForInitialization();
-		session1!.addRequest({ parts: [], text: 'request 1' });
+		session1.addRequest({ parts: [], text: 'request 1' }, { message: 'request 1', variables: {} });
 
 		const session2 = testDisposables.add(testService.startSession('provider2', CancellationToken.None));
 		await session2.waitForInitialization();
-		session2!.addRequest({ parts: [], text: 'request 2' });
+		session2.addRequest({ parts: [], text: 'request 2' }, { message: 'request 2', variables: {} });
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService2.registerProvider(provider1));
 		testDisposables.add(testService2.registerProvider(provider2));
 		const retrieved1 = testDisposables.add(testService2.getOrRestoreSession(session1.sessionId)!);
-		await retrieved1!.waitForInitialization();
+		await retrieved1.waitForInitialization();
 		const retrieved2 = testDisposables.add(testService2.getOrRestoreSession(session2.sessionId)!);
-		await retrieved2!.waitForInitialization();
+		await retrieved2.waitForInitialization();
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});
@@ -208,7 +208,7 @@ suite('Chat', () => {
 		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.addCompleteRequest(model.sessionId, 'test request', { message: 'test response' });
+		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
@@ -226,8 +226,6 @@ suite('Chat', () => {
 
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
-
-		await response.responseCompletePromise;
 
 		assert.strictEqual(model.getRequests().length, 1);
 

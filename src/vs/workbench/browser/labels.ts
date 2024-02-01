@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -24,6 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IRange } from 'vs/editor/common/core/range';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -308,7 +310,8 @@ class ResourceLabelWidget extends IconLabel {
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService
 	) {
 		super(container, options);
 	}
@@ -462,6 +465,21 @@ class ResourceLabelWidget extends IconLabel {
 				} else {
 					options.title = untitledTitle;
 				}
+			}
+		}
+
+		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCell) {
+			// Notebook cells are embeded in a notebook document
+			// As such we always ask the actual notebook document
+			// for its position in the document.
+			const notebookDocument = this.notebookDocumentService.getNotebook(resource);
+			const cellIndex = notebookDocument?.getCellIndex(resource);
+			if (notebookDocument && cellIndex !== undefined && typeof label.name === 'string') {
+				options.title = localize('notebookCellLabel', "{0} • Cell {1}", label.name, `${cellIndex + 1}`);
+			}
+
+			if (typeof label.name === 'string' && notebookDocument && cellIndex !== undefined && typeof label.name === 'string') {
+				label.name = localize('notebookCellLabel', "{0} • Cell {1}", label.name, `${cellIndex + 1}`);
 			}
 		}
 

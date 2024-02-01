@@ -13,8 +13,8 @@ import { ITerminalInstance, Direction, ITerminalGroup, ITerminalService, ITermin
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { getPartByLocation } from 'vs/workbench/browser/parts/views/viewsService';
 import { getWindow } from 'vs/base/browser/dom';
+import { getPartByLocation } from 'vs/workbench/services/views/browser/viewsService';
 
 const enum Constants {
 	/**
@@ -332,7 +332,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._initInstanceListeners(instance);
 
 		if (this._splitPaneContainer) {
-			this._splitPaneContainer!.split(instance, parentIndex + 1);
+			this._splitPaneContainer.split(instance, parentIndex + 1);
 		}
 
 		this._onInstancesChanged.fire();

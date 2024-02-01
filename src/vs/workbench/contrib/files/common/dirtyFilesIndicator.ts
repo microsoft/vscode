@@ -14,6 +14,9 @@ import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/wor
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dirtyFilesIndicator';
+
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	private lastKnownDirtyCount = 0;
@@ -42,7 +45,7 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 
 	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
 		const gotDirty = workingCopy.isDirty();
-		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
+		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 

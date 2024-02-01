@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bannerpart';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -19,7 +19,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Emitter } from 'vs/base/common/event';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -285,12 +285,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 class FocusBannerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.focusBanner';
-	static readonly LABEL = localize('focusBanner', "Focus Banner");
+	static readonly LABEL = localize2('focusBanner', "Focus Banner");
 
 	constructor() {
 		super({
 			id: FocusBannerAction.ID,
-			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
+			title: FocusBannerAction.LABEL,
 			category: Categories.View,
 			f1: true
 		});

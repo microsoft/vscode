@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { AriaRole, alert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -26,9 +26,10 @@ import { ResourceMap } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { FileAccess } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
+import { basename } from 'vs/base/common/path';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
@@ -36,14 +37,12 @@ import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, FileType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -52,15 +51,15 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { annotateSpecialMarkdownContent, convertParsedRequestToMarkdown, extractVulnerabilitiesFromText, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
+import { ChatMarkdownDecorationsRenderer, annotateSpecialMarkdownContent, extractVulnerabilitiesFromText } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatContentReference, IChatProgressMessage, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
@@ -110,6 +109,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
 
 	private readonly renderer: MarkdownRenderer;
+	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
 
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatReplyFollowup>());
 	readonly onDidClickFollowup: Event<IChatReplyFollowup> = this._onDidClickFollowup.event;
@@ -139,12 +139,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IProductService productService: IProductService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
@@ -310,7 +309,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.progressSteps);
 		if (isResponseVM(element)) {
 			this.renderDetail(element, templateData);
-			this.renderProgressSteps(element, templateData);
 		}
 
 		// Do a progressive render if
@@ -343,7 +341,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (isRequestVM(element)) {
 			const markdown = 'kind' in element.message ?
 				element.message.message :
-				convertParsedRequestToMarkdown(element.message);
+				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
 			this.basicRenderElement([{ content: new MarkdownString(markdown), kind: 'markdownContent' }], element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
@@ -373,19 +371,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else {
 			templateData.detail.title = '';
 		}
-	}
-
-	private renderProgressSteps(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
-		if (element.response.value.length || element.isComplete) {
-			return;
-		}
-
-		element.progressMessages.forEach((msg, index) => {
-			const last = index === element.progressMessages.length - 1;
-			const icon = last ? ThemeIcon.modify(Codicon.sync, 'spin') : Codicon.check;
-			const step = dom.$('.progress-step', undefined, renderIcon(icon), dom.$('span.progress-step-message', undefined, msg.content));
-			templateData.progressSteps.appendChild(step);
-		});
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
@@ -451,15 +436,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 
 		let fileTreeIndex = 0;
-		for (const data of value) {
+		value.forEach((data, index) => {
 			const result = data.kind === 'treeData'
 				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
-					: this.renderPlaceholder(new MarkdownString(data.content), templateData);
-			templateData.value.appendChild(result.element);
-			templateData.elementDisposables.add(result);
-		}
+					: onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false)
+						: undefined;
+			if (result) {
+				templateData.value.appendChild(result.element);
+				templateData.elementDisposables.add(result);
+			}
+		});
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
 			const icon = element.errorDetails.responseIsFiltered ? Codicon.info : Codicon.error;
@@ -539,10 +527,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return true;
 		}
 
-		disposables.clear();
-
-		const annotatedResult = annotateSpecialMarkdownContent(element.response.value);
-		const renderableResponse = annotatedResult;
+		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 		let isFullyRendered = false;
 		if (element.isCanceled) {
 			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
@@ -554,7 +539,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData ??= { renderedParts: [] };
 			const renderedParts = element.renderData.renderedParts;
 			const wordCountResults: IWordCountResult[] = [];
-			const partsToRender: IChatResponseRenderData['renderedParts'] = [];
+			const partsToRender: IChatRenderData[] = [];
 
 			let somePartIsNotFullyRendered = false;
 			renderableResponse.forEach((part, index) => {
@@ -563,6 +548,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (!renderedPart) {
 					if (part.kind === 'treeData') {
 						partsToRender[index] = part.treeData;
+					} else if (part.kind === 'progressMessage') {
+						partsToRender[index] = {
+							progressMessage: part,
+							isAtEndOfResponse: onlyProgressMessagesAfterI(renderableResponse, index),
+							isLast: index === renderableResponse.length - 1,
+						} satisfies IChatProgressMessageRenderData;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
 						if (wordCountResult !== undefined) {
@@ -577,13 +568,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 				}
 
-				// Did this part go from being a placeholder string to resolved tree data?
-				else if (part.kind === 'treeData' && !isInteractiveProgressTreeData(renderedPart)) {
-					partsToRender[index] = part.treeData;
-				}
-
 				// Did this part's content change?
-				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart)) {
+				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart) && !isProgressMessageRenderData(renderedPart)) {
 					const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), renderedPart);
 					// Check if there are any new words to render
 					if (wordCountResult !== undefined && renderedPart.renderedWordCount !== wordCountResult?.actualWordCount) {
@@ -599,6 +585,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						somePartIsNotFullyRendered = true;
 					}
 				}
+
+				// Is it a progress message that needs to be rerendered?
+				else if (part.kind === 'progressMessage' && isProgressMessageRenderData(renderedPart) && (
+					(renderedPart.isAtEndOfResponse !== onlyProgressMessagesAfterI(renderableResponse, index)) ||
+					renderedPart.isLast !== (index === renderableResponse.length - 1))) {
+					partsToRender[index] = {
+						progressMessage: part,
+						isAtEndOfResponse: onlyProgressMessagesAfterI(renderableResponse, index),
+						isLast: index === renderableResponse.length - 1,
+					} satisfies IChatProgressMessageRenderData;
+				}
 			});
 
 			isFullyRendered = partsToRender.length === 0 && !somePartIsNotFullyRendered;
@@ -610,6 +607,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.clear();
 				this.basicRenderElement(renderableResponse, element, index, templateData);
 			} else if (!isFullyRendered) {
+				disposables.clear();
 				this.renderContentReferencesIfNeeded(element, templateData, disposables);
 				let hasRenderedOneMarkdownBlock = false;
 				partsToRender.forEach((partToRender, index) => {
@@ -617,21 +615,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return;
 					}
 
-					let result;
+					// Undefined => don't do anything. null => remove the rendered element
+					let result: { element: HTMLElement } & IDisposable | undefined | null;
 					if (isInteractiveProgressTreeData(partToRender)) {
 						result = this.renderTreeData(partToRender, element, templateData, index);
+					} else if (isProgressMessageRenderData(partToRender)) {
+						if (onlyProgressMessageRenderDatasAfterI(partsToRender, index)) {
+							result = this.renderProgressMessage(partToRender.progressMessage, index === partsToRender.length - 1);
+						} else {
+							result = null;
+						}
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
-					else if (!hasRenderedOneMarkdownBlock) {
+					else if (!hasRenderedOneMarkdownBlock && wordCountResults[index]) {
 						const { value } = wordCountResults[index];
-						result = renderableResponse[index].kind === 'asyncContent'
-							? this.renderPlaceholder(new MarkdownString(value), templateData)
-							: this.renderMarkdown(new MarkdownString(value), element, templateData, true);
+						result = this.renderMarkdown(new MarkdownString(value), element, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
 					}
 
-					if (!result) {
+					if (result === undefined) {
 						return;
 					}
 
@@ -639,11 +642,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					renderedParts[index] = partToRender;
 					const existingElement = templateData.value.children[index];
 					if (existingElement) {
-						templateData.value.replaceChild(result.element, existingElement);
-					} else {
+						if (result === null) {
+							templateData.value.replaceChild($('span.placeholder-for-deleted-thing'), existingElement);
+						} else {
+							templateData.value.replaceChild(result.element, existingElement);
+						}
+					} else if (result) {
 						templateData.value.appendChild(result.element);
 					}
-					disposables.add(result);
+
+					if (result) {
+						disposables.add(result);
+					}
 				});
 			} else {
 				// Nothing new to render, not done, keep waiting
@@ -800,16 +810,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		element.ariaLabel = expanded ? localize('usedReferencesExpanded', "{0}, expanded", label) : localize('usedReferencesCollapsed', "{0}, collapsed", label);
 	}
 
-	private renderPlaceholder(markdown: IMarkdownString, templateData: IChatListItemTemplate): IMarkdownRenderResult {
-		const codicon = $('.interactive-response-codicon-details', undefined, renderIcon({ id: 'sync~spin' }));
-		codicon.classList.add('interactive-response-placeholder-codicon');
-		const result = dom.append(templateData.value, codicon);
-
-		const content = this.renderer.render(markdown);
-		content.element.className = 'interactive-response-placeholder-content';
-		result.appendChild(content.element);
-
-		return { element: result, dispose: () => content.dispose() };
+	private renderProgressMessage(progress: IChatProgressMessage, showSpinner: boolean): IMarkdownRenderResult {
+		if (showSpinner) {
+			// this step is in progress, communicate it to SR users
+			alert(progress.content.value);
+		}
+		const codicon = showSpinner ? ThemeIcon.modify(Codicon.sync, 'spin').id : Codicon.check.id;
+		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
+			supportThemeIcons: true
+		});
+		const result = this.renderer.render(markdown);
+		result.element.classList.add('progress-step');
+		return result;
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
@@ -865,7 +877,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
 
-		walkTreeAndAnnotateReferenceLinks(result.element, this.keybindingService);
+		this.markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element);
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {
@@ -1150,6 +1162,17 @@ class ContentReferencesListPool extends Disposable {
 			[new ContentReferencesListRenderer(resourceLabels)],
 			{
 				alwaysConsumeMouseWheel: false,
+				accessibilityProvider: {
+					getAriaLabel: (element: IChatContentReference) => {
+						if (URI.isUri(element.reference)) {
+							return basename(element.reference.path);
+						} else {
+							return basename(element.reference.uri.path);
+						}
+					},
+
+					getWidgetAriaLabel: () => localize('usedReferences', "Used References")
+				},
 			});
 
 		return list;
@@ -1295,8 +1318,7 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 	}
 	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		const hasExtension = /\.[^/.]+$/.test(element.element.label);
-		if (!element.children.length && hasExtension) {
+		if (!element.children.length && element.element.type !== FileType.Directory) {
 			templateData.label.setFile(element.element.uri, {
 				fileKind: FileKind.FILE,
 				hidePath: true,
@@ -1325,10 +1347,26 @@ class ChatListTreeDataSource implements IAsyncDataSource<IChatResponseProgressFi
 	}
 }
 
-function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IMarkdownString): item is IChatResponseProgressFileTreeData {
+function isInteractiveProgressTreeData(item: Object): item is IChatResponseProgressFileTreeData {
 	return 'label' in item;
 }
 
 function contentToMarkdown(str: string | IMarkdownString): IMarkdownString {
 	return typeof str === 'string' ? { value: str } : str;
+}
+
+function isProgressMessage(item: any): item is IChatProgressMessage {
+	return item && 'kind' in item && item.kind === 'progressMessage';
+}
+
+function isProgressMessageRenderData(item: IChatRenderData): item is IChatProgressMessageRenderData {
+	return item && 'isAtEndOfResponse' in item;
+}
+
+function onlyProgressMessagesAfterI(items: ReadonlyArray<IChatProgressRenderableResponseContent>, i: number): boolean {
+	return items.slice(i).every(isProgressMessage);
+}
+
+function onlyProgressMessageRenderDatasAfterI(items: ReadonlyArray<IChatRenderData>, i: number): boolean {
+	return items.slice(i).every(isProgressMessageRenderData);
 }

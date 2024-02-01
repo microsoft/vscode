@@ -16,10 +16,7 @@ import { Event } from 'vs/base/common/event';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { EditSessionsStoreClient } from 'vs/workbench/contrib/editSessions/common/editSessionsStorageClient';
 
-export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
-	original: 'Cloud Changes',
-	value: localize('cloud changes', 'Cloud Changes')
-};
+export const EDIT_SESSION_SYNC_CATEGORY = localize2('cloud changes', 'Cloud Changes');
 
 export type SyncResource = 'editSessions' | 'workspaceState';
 

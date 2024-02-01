@@ -97,6 +97,29 @@ export interface INeverShowAgainOptions {
 	readonly scope?: NeverShowAgainScope;
 }
 
+export interface INotificationSource {
+
+	/**
+	 * The id of the source.
+	 */
+	readonly id: string;
+
+	/**
+	 * The label of the source.
+	 */
+	readonly label: string;
+}
+
+export function isNotificationSource(thing: unknown): thing is INotificationSource {
+	if (thing) {
+		const candidate = thing as INotificationSource;
+
+		return typeof candidate.id === 'string' && typeof candidate.label === 'string';
+	}
+
+	return false;
+}
+
 export interface INotification extends INotificationProperties {
 
 	/**
@@ -120,7 +143,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string | { label: string; id: string };
+	readonly source?: string | INotificationSource;
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -318,15 +341,13 @@ export enum NotificationsFilter {
 	OFF,
 
 	/**
-	 * All notifications are configured as silent. See
-	 * `INotificationProperties.silent` for more info.
-	 */
-	SILENT,
-
-	/**
 	 * All notifications are silent except error notifications.
 	*/
 	ERROR
+}
+
+export interface INotificationSourceFilter extends INotificationSource {
+	readonly filter: NotificationsFilter;
 }
 
 /**
@@ -339,13 +360,6 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * The DND mode can be enabled or disabled
-	 * and will result in all info and warning
-	 * notifications to be silent.
-	 */
-	doNotDisturbMode: boolean;
-
-	/**
 	 * Emitted when a new notification is added.
 	 */
 	readonly onDidAddNotification: Event<INotification>;
@@ -356,9 +370,31 @@ export interface INotificationService {
 	readonly onDidRemoveNotification: Event<INotification>;
 
 	/**
-	 * Emitted when a do not disturb mode has changed.
+	 * Emitted when the notifications filter changed.
 	 */
-	readonly onDidChangeDoNotDisturbMode: Event<void>;
+	readonly onDidChangeFilter: Event<void>;
+
+	/**
+	 * Sets a notification filter either for all notifications
+	 * or for a specific source.
+	 */
+	setFilter(filter: NotificationsFilter | INotificationSourceFilter): void;
+
+	/**
+	 * Gets the notification filter either for all notifications
+	 * or for a specific source.
+	 */
+	getFilter(source?: INotificationSource): NotificationsFilter;
+
+	/**
+	 * Returns all filters with their sources.
+	 */
+	getFilters(): INotificationSourceFilter[];
+
+	/**
+	 * Removes a filter for a specific source.
+	 */
+	removeFilter(sourceId: string): void;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
