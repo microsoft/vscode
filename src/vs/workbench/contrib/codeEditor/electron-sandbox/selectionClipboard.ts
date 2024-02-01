@@ -16,8 +16,7 @@ import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { mainWindow } from 'vs/base/browser/window';
@@ -144,7 +143,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 }
 
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard, EditorContributionInstantiation.Eager); // eager because it needs to listen to selection change events
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution2(SelectionClipboardPastePreventer.ID, SelectionClipboardPastePreventer, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(SelectionClipboardPastePreventer.ID, SelectionClipboardPastePreventer, WorkbenchContributionInstantiation.BlockRestore);
 if (platform.isLinux) {
 	registerEditorAction(PasteSelectionClipboardAction);
 }

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
+import { WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -98,8 +97,6 @@ class NotebookMarkerDecorationContribution extends Disposable implements INotebo
 	}
 }
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution2(MarkerListProvider.ID, MarkerListProvider, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(MarkerListProvider.ID, MarkerListProvider, WorkbenchContributionInstantiation.BlockRestore);
 
 registerNotebookContribution(NotebookMarkerDecorationContribution.id, NotebookMarkerDecorationContribution);

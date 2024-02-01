@@ -8,12 +8,11 @@ import { isWindows, isLinux } from 'vs/base/common/platform';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
@@ -89,5 +88,5 @@ class LinuxAccessibilityContribution implements IWorkbenchContribution {
 }
 
 if (isLinux) {
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution2(LinuxAccessibilityContribution.ID, LinuxAccessibilityContribution, WorkbenchContributionInstantiation.BlockRestore);
+	registerWorkbenchContribution2(LinuxAccessibilityContribution.ID, LinuxAccessibilityContribution, WorkbenchContributionInstantiation.BlockRestore);
 }

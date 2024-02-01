@@ -12,8 +12,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions, WorkbenchContributionInstantiation } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { URI } from 'vs/base/common/uri';
@@ -93,5 +92,4 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution2(RemoteConnectionFailureNotificationContribution.ID, RemoteConnectionFailureNotificationContribution, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(RemoteConnectionFailureNotificationContribution.ID, RemoteConnectionFailureNotificationContribution, WorkbenchContributionInstantiation.BlockRestore);

@@ -9,8 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
 import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
 import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
@@ -78,5 +77,4 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution2(DialogHandlerContribution.ID, DialogHandlerContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(DialogHandlerContribution.ID, DialogHandlerContribution, WorkbenchContributionInstantiation.BlockStartup);
