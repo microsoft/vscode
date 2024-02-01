@@ -57,11 +57,8 @@ export interface IssueReporterExtensionData {
 	extensionTemplate?: string;
 	hasIssueUriRequestHandler?: boolean;
 	hasIssueDataProviders?: boolean;
-	command?: {
-		data?: string;
-		template?: string;
-		uri?: UriComponents;
-	};
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -75,11 +72,8 @@ export interface IssueReporterData extends WindowData {
 	githubAccessToken: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
-	command?: {
-		data?: string;
-		template?: string;
-		uri?: UriComponents;
-	};
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface ISettingSearchResult {

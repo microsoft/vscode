@@ -743,10 +743,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'problems.visibility': {
 				'type': 'boolean',
 				'default': true,
-				'tags': ['experimental'],
 				'description': localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
 			},
-			// TODO: Add additional properties for problems (fine tuning in outline, marker file decorations, etc)
 		}
 	});
 
