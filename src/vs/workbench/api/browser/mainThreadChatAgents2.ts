@@ -94,7 +94,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 				return this._proxy.$provideFollowups(handle, sessionId, token);
 			},
-			lastSlashCommands,
+			get lastSlashCommands() {
+				return lastSlashCommands;
+			},
 			provideSlashCommands: async (token) => {
 				if (!this._agents.get(handle)?.hasSlashCommands) {
 					return []; // save an IPC call
