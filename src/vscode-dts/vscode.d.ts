@@ -657,7 +657,11 @@ declare module 'vscode' {
 		/**
 		 * Render the line numbers with values relative to the primary cursor location.
 		 */
-		Relative = 2
+		Relative = 2,
+		/**
+		 * Render the line numbers on every 10th line number.
+		 */
+		Interval = 3,
 	}
 
 	/**
@@ -11737,7 +11741,7 @@ declare module 'vscode' {
 		 * until `Terminal.show` is called. The typical usage for this is when you need to run
 		 * something that may need interactivity but only want to tell the user about it when
 		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
+		 * as normal and they will remain hidden when the workspace is reloaded.
 		 */
 		hideFromUser?: boolean;
 

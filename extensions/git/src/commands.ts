@@ -13,7 +13,7 @@ import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
+import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
@@ -3709,10 +3709,21 @@ export class CommandCenter {
 		}
 
 		const stashChanges = await repository.showStash(stash.index);
-		const stashParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
-
 		if (!stashChanges || stashChanges.length === 0) {
 			return;
+		}
+
+		// A stash commit can have up to 3 parents:
+		// 1. The first parent is the commit that was HEAD when the stash was created.
+		// 2. The second parent is the commit that represents the index when the stash was created.
+		// 3. The third parent (when present) represents the untracked files when the stash was created.
+		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
+		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
+		const stashUntrackedFiles: string[] = [];
+
+		if (stashUntrackedFilesParentCommit) {
+			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
+			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
@@ -3720,15 +3731,10 @@ export class CommandCenter {
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {
-			if (change.status === Status.INDEX_ADDED) {
-				resources.push({ originalUri: undefined, modifiedUri: toGitUri(change.uri, stash.hash) });
-			} else if (change.status === Status.DELETED) {
-				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: undefined });
-			} else if (change.status === Status.INDEX_RENAMED) {
-				resources.push({ originalUri: toGitUri(change.originalUri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
-			} else {
-				resources.push({ originalUri: toGitUri(change.uri, stashParentCommit), modifiedUri: toGitUri(change.uri, stash.hash) });
-			}
+			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
+			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
+
+			resources.push(toMultiFileDiffEditorUris(change, stashFirstParentCommit, modifiedUriRef));
 		}
 
 		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
@@ -3849,15 +3855,15 @@ export class CommandCenter {
 		}
 
 		const commit = await repository.getCommit(item.ref);
-		const commitFiles = await repository.getCommitFiles(item.ref);
+		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : `${commit.hash}^`;
+		const changes = await repository.diffBetween(commitParentId, commit.hash);
 
 		const title = `${item.shortRef} - ${commit.message}`;
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), item.ref, { scheme: 'git-commit' });
 
-		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
-		for (const commitFile of commitFiles) {
-			const commitFileUri = Uri.file(path.join(repository.root, commitFile));
-			resources.push({ originalUri: toGitUri(commitFileUri, item.previousRef), modifiedUri: toGitUri(commitFileUri, item.ref) });
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of changes) {
+			resources.push(toMultiFileDiffEditorUris(change, item.previousRef, item.ref));
 		}
 
 		return {
@@ -4054,15 +4060,14 @@ export class CommandCenter {
 	}
 
 	async _viewChanges(repository: Repository, historyItem: SourceControlHistoryItem, multiDiffSourceUri: Uri, title: string): Promise<void> {
-		const historyProvider = repository.historyProvider;
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
-		const files = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : `${historyItem.id}^`;
+		const changes = await repository.diffBetween(historyItemParentId, historyItem.id);
 
-		if (files.length === 0) {
+		if (changes.length === 0) {
 			return;
 		}
 
-		const resources = files.map(f => ({ originalUri: f.originalUri, modifiedUri: f.modifiedUri }));
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItem.id));
 
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}

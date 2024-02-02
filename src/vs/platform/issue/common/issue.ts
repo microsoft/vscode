@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -57,11 +57,8 @@ export interface IssueReporterExtensionData {
 	extensionTemplate?: string;
 	hasIssueUriRequestHandler?: boolean;
 	hasIssueDataProviders?: boolean;
-	command?: {
-		data?: string;
-		template?: string;
-		uri?: string;
-	};
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -75,11 +72,8 @@ export interface IssueReporterData extends WindowData {
 	githubAccessToken: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
-	command?: {
-		data?: string;
-		template?: string;
-		uri?: string;
-	};
+	data?: string;
+	uri?: UriComponents;
 }
 
 export interface ISettingSearchResult {

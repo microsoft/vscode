@@ -156,11 +156,7 @@ export type IChatProgress =
 
 export interface IChatProvider {
 	readonly id: string;
-	readonly displayName: string;
-	readonly iconUrl?: string;
 	prepareSession(token: CancellationToken): ProviderResult<IChat | undefined>;
-	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
-	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
 }
 
 export interface IChatReplyFollowup {
@@ -269,7 +265,6 @@ export interface IChatDetail {
 
 export interface IChatProviderInfo {
 	id: string;
-	displayName: string;
 }
 
 export interface IChatTransferredSessionData {
@@ -285,6 +280,7 @@ export interface IChatService {
 
 	onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>;
 	onDidRegisterProvider: Event<{ providerId: string }>;
+	onDidUnregisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	hasSessions(providerId: string): boolean;
 	getProviderInfos(): IChatProviderInfo[];

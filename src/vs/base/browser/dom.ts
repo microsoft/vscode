@@ -42,11 +42,20 @@ export const {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
-	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
+	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
+	windows.set(mainWindow.vscodeWindowId, mainWindowRegistration);
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
 	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
 	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
+
+	function getWindowById(windowId: number): IRegisteredCodeWindow | undefined;
+	function getWindowById(windowId: number | undefined, fallbackToMain: true): IRegisteredCodeWindow;
+	function getWindowById(windowId: number | undefined, fallbackToMain?: boolean): IRegisteredCodeWindow | undefined {
+		const window = typeof windowId === 'number' ? windows.get(windowId) : undefined;
+
+		return window ?? (fallbackToMain ? mainWindowRegistration : undefined);
+	}
 
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
@@ -90,9 +99,7 @@ export const {
 		hasWindow(windowId: number): boolean {
 			return windows.has(windowId);
 		},
-		getWindowById(windowId: number): IRegisteredCodeWindow | undefined {
-			return windows.get(windowId);
-		},
+		getWindowById,
 		getWindow(e: Node | UIEvent | undefined | null): CodeWindow {
 			const candidateNode = e as Node | undefined | null;
 			if (candidateNode?.ownerDocument?.defaultView) {
@@ -953,7 +960,7 @@ class WrappedStyleElement {
 
 	public dispose(): void {
 		if (this._styleSheet) {
-			clearNode(this._styleSheet);
+			this._styleSheet.remove();
 			this._styleSheet = undefined;
 		}
 	}

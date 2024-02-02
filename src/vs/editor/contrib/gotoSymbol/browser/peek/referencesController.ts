@@ -27,6 +27,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { OneReference, ReferencesModel } from '../referencesModel';
 import { LayoutData, ReferenceWidget } from './referencesWidget';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
 
@@ -367,7 +369,14 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
+	when: ContextKeyExpr.and(
+		ctxReferenceSearchVisible,
+		ContextKeyExpr.not('config.editor.stablePeek'),
+		ContextKeyExpr.or(
+			EditorContextKeys.editorTextFocus,
+			InputFocusedContext.negate()
+		)
+	)
 });
 
 

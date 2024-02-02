@@ -24,9 +24,11 @@ import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/common/native';
 import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -170,10 +172,10 @@ export class SaveExtensionHostProfileAction extends Action {
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 	) {
 		super(id, label, undefined, false);
 		this._extensionHostProfileService.onDidChangeLastProfile(() => {
@@ -186,24 +188,24 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		const picked = await this._nativeHostService.showSaveDialog({
+		const picked = await this._fileDialogService.showSaveDialog({
 			title: nls.localize('saveprofile.dialogTitle', "Save Extension Host Profile"),
-			buttonLabel: nls.localize('saveprofile.saveButton', "Save"),
-			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
+			availableFileSystems: [Schemas.file],
+			defaultUri: joinPath(await this._fileDialogService.defaultFilePath(), `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`),
 			filters: [{
 				name: 'CPU Profiles',
 				extensions: ['cpuprofile', 'txt']
 			}]
 		});
 
-		if (!picked || !picked.filePath || picked.canceled) {
+		if (!picked) {
 			return;
 		}
 
 		const profileInfo = this._extensionHostProfileService.lastProfile;
 		let dataToWrite: object = profileInfo ? profileInfo.data : {};
 
-		let savePath = picked.filePath;
+		let savePath = picked.fsPath;
 
 		if (this._environmentService.isBuilt) {
 			// when running from a not-development-build we remove

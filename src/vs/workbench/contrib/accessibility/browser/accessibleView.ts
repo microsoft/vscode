@@ -268,7 +268,7 @@ export class AccessibleView extends Disposable {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
-				return this._render(provider!, container, showAccessibleViewHelp);
+				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
 				if (!showAccessibleViewHelp) {
@@ -512,7 +512,7 @@ export class AccessibleView extends Disposable {
 			if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
 				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
-				const url: string = provider.options.readMoreUrl!;
+				const url: string = provider.options.readMoreUrl;
 				alert(AccessibilityHelpNLS.openingDocs);
 				this._openerService.open(URI.parse(url));
 				e.preventDefault();

@@ -718,7 +718,7 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
 			this.buildMediaComponent(id);
-			this.gettingStartedService.progressStep(id);
+			this.gettingStartedService.progressByEvent('stepSelected:' + id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -1440,6 +1440,7 @@ export class GettingStartedPage extends EditorPane {
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
 							'role': 'checkbox',
 							'tabindex': '0',
+							'aria-checked': step.done ? 'true' : 'false'
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });

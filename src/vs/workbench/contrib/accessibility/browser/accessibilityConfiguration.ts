@@ -302,6 +302,8 @@ export const SpeechTimeoutDefault = 1200;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.dynamicSpeechAccessibilityConfiguration';
+
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService
 	) {

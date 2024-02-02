@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { splitLines } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { ColumnRange, applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
@@ -61,13 +62,15 @@ export class GhostText {
 export class GhostTextPart {
 	constructor(
 		readonly column: number,
-		readonly lines: readonly string[],
+		readonly text: string,
 		/**
 		 * Indicates if this part is a preview of an inline suggestion when a suggestion is previewed.
 		*/
 		readonly preview: boolean,
 	) {
 	}
+
+	readonly lines = splitLines(this.text);;
 
 	equals(other: GhostTextPart): boolean {
 		return this.column === other.column &&
@@ -80,7 +83,7 @@ export class GhostTextReplacement {
 	public readonly parts: ReadonlyArray<GhostTextPart> = [
 		new GhostTextPart(
 			this.columnRange.endColumnExclusive,
-			this.newLines,
+			this.text,
 			false
 		),
 	];
@@ -88,9 +91,11 @@ export class GhostTextReplacement {
 	constructor(
 		readonly lineNumber: number,
 		readonly columnRange: ColumnRange,
-		readonly newLines: readonly string[],
+		readonly text: string,
 		public readonly additionalReservedLineCount: number = 0,
 	) { }
+
+	readonly newLines = splitLines(this.text);
 
 	renderForScreenReader(_lineText: string): string {
 		return this.newLines.join('\n');

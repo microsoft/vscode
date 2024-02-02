@@ -40,7 +40,12 @@ export function requireToContent(instantiationService: IInstantiationService, re
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.walkThroughSnippetContentProvider';
+
 	private loads = new Map<string, Promise<ITextBufferFactory>>();
+
+	readonly scheme = Schemas.walkThroughSnippet;
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -48,7 +53,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
+		this.textModelResolverService.registerTextModelContentProvider(this.scheme, this);
 	}
 
 	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {

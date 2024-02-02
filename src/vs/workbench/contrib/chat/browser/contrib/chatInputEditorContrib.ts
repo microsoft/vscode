@@ -15,9 +15,7 @@ import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList }
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -34,7 +32,6 @@ import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestP
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const decorationDescription = 'chat';
@@ -56,7 +53,6 @@ class InputEditorDecorations extends Disposable {
 
 	constructor(
 		private readonly widget: IChatWidget,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
@@ -155,7 +151,7 @@ class InputEditorDecorations extends Disposable {
 			return;
 		}
 
-		const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(viewModel.sessionId, inputValue)).parts;
+		const parsedRequest = this.widget.parsedInput.parts;
 
 		let placeholderDecoration: IDecorationOptions[] | undefined;
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
@@ -295,7 +291,6 @@ class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService
 	) {
 		super();
@@ -314,7 +309,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = widget.parsedInput.parts;
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
 				if (usedAgent) {
 					// No (classic) global slash commands when an agent is used
@@ -352,7 +347,6 @@ class AgentCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -365,7 +359,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = widget.parsedInput.parts;
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
 				if (usedAgent && !Range.containsPosition(usedAgent.editorRange, position)) {
 					// Only one agent allowed
@@ -386,7 +380,7 @@ class AgentCompletions extends Disposable {
 							label: withAt,
 							insertText: `${withAt} `,
 							detail: c.metadata.description,
-							range,
+							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
 					})
@@ -408,7 +402,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = widget.parsedInput.parts;
 				const usedAgentIdx = parsedRequest.findIndex((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 				if (usedAgentIdx < 0) {
 					return;
@@ -429,7 +423,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
-				const commands = await usedAgent.agent.provideSlashCommands(token);
+				const commands = await usedAgent.agent.provideSlashCommands(token); // Refresh the cache here
 
 				return <CompletionList>{
 					suggestions: commands.map((c, i) => {
@@ -512,8 +506,6 @@ class BuiltinDynamicCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -521,11 +513,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			_debugDisplayName: 'chatDynamicCompletions',
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
-				const fileVariablesEnabled = this.configurationService.getValue('chat.experimental.fileVariables') ?? this.productService.quality !== 'stable';
-				if (!fileVariablesEnabled) {
-					return;
-				}
-
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.supportsFileReferences) {
 					return null;
@@ -584,7 +571,6 @@ class VariableCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -603,33 +589,24 @@ class VariableCompletions extends Disposable {
 					return null;
 				}
 
-				const history = widget.viewModel!.getItems()
-					.filter(isResponseVM);
-
-				// TODO@roblourens work out a real API for this- maybe it can be part of the two-step flow that @file will probably use
-				const historyVariablesEnabled = this.configurationService.getValue('chat.experimental.historyVariables');
-				const historyItems = historyVariablesEnabled ? history.map((h, i): CompletionItem => ({
-					label: `${chatVariableLeader}response:${i + 1}`,
-					detail: h.response.asString(),
-					insertText: `${chatVariableLeader}response:${String(i + 1).padStart(String(history.length).length, '0')} `,
-					kind: CompletionItemKind.Text,
-					range,
-				})) : [];
-
-				const variableItems = Array.from(this.chatVariablesService.getVariables()).map(v => {
-					const withLeader = `${chatVariableLeader}${v.name}`;
-					return <CompletionItem>{
-						label: withLeader,
-						range,
-						insertText: withLeader + ' ',
-						detail: v.description,
-						kind: CompletionItemKind.Text, // The icons are disabled here anyway
-						sortText: 'z'
-					};
-				});
+				const usedVariables = widget.parsedInput.parts.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
+				const variableItems = Array.from(this.chatVariablesService.getVariables())
+					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
+					.filter(v => !usedVariables.some(usedVar => usedVar.variableName === v.name))
+					.map(v => {
+						const withLeader = `${chatVariableLeader}${v.name}`;
+						return <CompletionItem>{
+							label: withLeader,
+							range,
+							insertText: withLeader + ' ',
+							detail: v.description,
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway
+							sortText: 'z'
+						};
+					});
 
 				return <CompletionList>{
-					suggestions: [...variableItems, ...historyItems]
+					suggestions: variableItems
 				};
 			}
 		}));
@@ -663,22 +640,22 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue).then(previousParsedValue => {
-					// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
-					const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart);
-					deletableTokens.forEach(token => {
-						const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
-						// Part of this token was deleted, and the deletion range doesn't go off the front of the token, for simpler math
-						if ((deletedRangeOfToken && !deletedRangeOfToken.isEmpty()) && Range.compareRangesUsingStarts(token.editorRange, change.range) < 0) {
-							// Assume single line tokens
-							const length = deletedRangeOfToken.endColumn - deletedRangeOfToken.startColumn;
-							const rangeToDelete = new Range(token.editorRange.startLineNumber, token.editorRange.startColumn, token.editorRange.endLineNumber, token.editorRange.endColumn - length);
-							this.widget.inputEditor.executeEdits(this.id, [{
-								range: rangeToDelete,
-								text: '',
-							}]);
-						}
-					});
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue);
+
+				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
+				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart);
+				deletableTokens.forEach(token => {
+					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
+					// Part of this token was deleted, and the deletion range doesn't go off the front of the token, for simpler math
+					if ((deletedRangeOfToken && !deletedRangeOfToken.isEmpty()) && Range.compareRangesUsingStarts(token.editorRange, change.range) < 0) {
+						// Assume single line tokens
+						const length = deletedRangeOfToken.endColumn - deletedRangeOfToken.startColumn;
+						const rangeToDelete = new Range(token.editorRange.startLineNumber, token.editorRange.startColumn, token.editorRange.endLineNumber, token.editorRange.endColumn - length);
+						this.widget.inputEditor.executeEdits(this.id, [{
+							range: rangeToDelete,
+							text: '',
+						}]);
+					}
 				});
 			}
 

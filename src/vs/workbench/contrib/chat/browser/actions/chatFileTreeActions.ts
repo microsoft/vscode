@@ -5,23 +5,20 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { localize2 } from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { isResponseVM, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export function registerChatFileTreeActions() {
 	registerAction2(class NextFileTreeAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.nextFileTree',
-				title: {
-					value: localize('interactive.nextFileTree.label', "Next File Tree"),
-					original: 'Next File Tree'
-				},
+				title: localize2('interactive.nextFileTree.label', "Next File Tree"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -42,10 +39,7 @@ export function registerChatFileTreeActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.previousFileTree',
-				title: {
-					value: localize('interactive.previousFileTree.label', "Previous File Tree"),
-					original: 'Previous File Tree'
-				},
+				title: localize2('interactive.previousFileTree.label', "Previous File Tree"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,

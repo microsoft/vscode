@@ -50,7 +50,7 @@
       },
       response: [  ],
       responseErrorDetails: undefined,
-      followups: [  ],
+      followups: undefined,
       isCanceled: false,
       vote: undefined,
       agent: {

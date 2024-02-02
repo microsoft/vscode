@@ -45,6 +45,8 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
+	externalProvideLinksCb?: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processInfo: ITerminalProcessInfo,
@@ -91,6 +93,8 @@ export class TerminalLinkManager extends DisposableStore {
 		let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
 		this.add(toDisposable(() => {
+			this._clearLinkProviders();
+			dispose(this._externalLinkProviders);
 			activeHoverDisposable?.dispose();
 			activeTooltipScheduler?.dispose();
 		}));
@@ -347,20 +351,28 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _registerStandardLinkProviders(): void {
+		// Forward any external link provider requests to the registered provider if it exists. This
+		// helps maintain the relative priority of the link providers as it's defined by the order
+		// in which they're registered in xterm.js.
+		//
+		/**
+		 * There's a bit going on here but here's another view:
+		 * - {@link externalProvideLinksCb} The external callback that gives the links (eg. from
+		 *   exthost)
+		 * - {@link proxyLinkProvider} A proxy that forwards the call over to
+		 *   {@link externalProvideLinksCb}
+		 * - {@link wrappedLinkProvider} Wraps the above in an `TerminalLinkDetectorAdapter`
+		 */
+		const proxyLinkProvider: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']> = async (bufferLineNumber) => {
+			return this.externalProvideLinksCb?.(bufferLineNumber);
+		};
+		const detectorId = `extension-${this._externalLinkProviders.length}`;
+		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, proxyLinkProvider), true);
+		this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(wrappedLinkProvider));
+
 		for (const p of this._standardLinkProviders.values()) {
 			this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
 		}
-	}
-
-	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): IDisposable {
-		// Clear and re-register the standard link providers so they are a lower priority than the new one
-		this._clearLinkProviders();
-		const detectorId = `extension-${this._externalLinkProviders.length}`;
-		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, provideLinks), true);
-		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
-		this._externalLinkProviders.push(newLinkProvider);
-		this._registerStandardLinkProviders();
-		return newLinkProvider;
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
