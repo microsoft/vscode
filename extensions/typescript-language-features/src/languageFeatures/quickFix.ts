@@ -362,6 +362,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				const inferFromBody = new VsCodeCodeAction(action, 'Infer types using Copilot', vscode.CodeActionKind.QuickFix);
 				inferFromBody.edit = new vscode.WorkspaceEdit();
 				inferFromBody.diagnostics = [diagnostic];
+				inferFromBody.ranges = [diagnostic.range];
 				inferFromBody.isAI = true;
 				inferFromBody.command = {
 					command: EditorChatFollowUp.ID,
@@ -389,6 +390,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				aiCodeAction.edit = getEditForCodeAction(this.client, action);
 				aiCodeAction.edit?.insert(document.uri, diagnostic.range.start, '');
 				aiCodeAction.diagnostics = [diagnostic];
+				aiCodeAction.ranges = [diagnostic.range];
 				aiCodeAction.isAI = true;
 				aiCodeAction.command = {
 					command: CompositeCommand.ID,
