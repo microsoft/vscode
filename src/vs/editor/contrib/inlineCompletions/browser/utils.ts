@@ -117,7 +117,7 @@ export function lengthOfText(text: string): Position {
  * @returns new ranges post edits for every edit
  */
 export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
-	const ranges: Range[] = [];
+	const newRanges: Range[] = [];
 	let previousEditEndLineNumber = 0;
 	let lineOffset = 0;
 	let columnOffset = 0;
@@ -125,20 +125,20 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 	for (const edit of edits) {
 		const text = edit.text ?? '';
 		const textLength = lengthOfText(text);
-		const rangeStart = Position.lift({
+		const newRangeStart = Position.lift({
 			lineNumber: edit.range.startLineNumber + lineOffset,
 			column: edit.range.startColumn + (edit.range.startLineNumber === previousEditEndLineNumber ? columnOffset : 0)
 		});
-		const rangeEnd = addPositions(
-			rangeStart,
+		const newRangeEnd = addPositions(
+			newRangeStart,
 			textLength
 		);
-		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
+		newRanges.push(Range.fromPositions(newRangeStart, newRangeEnd));
 		lineOffset += textLength.lineNumber - edit.range.endLineNumber + edit.range.startLineNumber - 1;
-		columnOffset = rangeEnd.column - edit.range.endColumn;
+		columnOffset = newRangeEnd.column - edit.range.endColumn;
 		previousEditEndLineNumber = edit.range.endLineNumber;
 	}
-	return ranges;
+	return newRanges;
 }
 
 /**
@@ -150,10 +150,10 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 export function inverseEdits(model: TextModel, edits: ISingleEditOperation[]): ISingleEditOperation[] {
 	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
 	const sortedRanges = getNewRanges(sortPerm.apply(edits));
-	const ranges = sortPerm.inverse().apply(sortedRanges);
+	const newRanges = sortPerm.inverse().apply(sortedRanges);
 	const inverseEdits: ISingleEditOperation[] = [];
 	for (let i = 0; i < edits.length; i++) {
-		inverseEdits.push({ range: ranges[i], text: model.getValueInRange(edits[i].range) });
+		inverseEdits.push({ range: newRanges[i], text: model.getValueInRange(edits[i].range) });
 	}
 	return inverseEdits;
 }

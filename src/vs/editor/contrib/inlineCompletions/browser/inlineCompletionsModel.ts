@@ -459,9 +459,9 @@ export class InlineCompletionsModel extends Disposable {
 			})
 		];
 		const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
-		const sortedRanges = getNewRanges(sortPerm.apply(edits));
-		const ranges = sortPerm.inverse().apply(sortedRanges);
-		const editorSelections = ranges.map(range => Selection.fromPositions(range.getEndPosition()));
+		const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
+		const newRanges = sortPerm.inverse().apply(sortedNewRanges);
+		const editorSelections = newRanges.map(range => Selection.fromPositions(range.getEndPosition()));
 
 		return {
 			edits,
