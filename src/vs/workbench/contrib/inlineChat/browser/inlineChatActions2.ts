@@ -10,12 +10,11 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { LOCALIZED_START_INLINE_CHAT_STRING, START_INLINE_CHAT } from '../browser/inlineChatActions';
+import { LOCALIZED_START_INLINE_CHAT_STRING, START_INLINE_CHAT } from './inlineChatActions';
 import { disposableTimeout } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StartVoiceChatAction, StopListeningAction } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -96,13 +95,13 @@ function holdForSpeech(accessor: ServicesAccessor, ctrl: InlineChatController | 
 	let listening = false;
 	const handle = disposableTimeout(() => {
 		// start VOICE input
-		commandService.executeCommand(StartVoiceChatAction.ID, { voice: { disableTimeout: true } } satisfies IChatExecuteActionContext);
+		commandService.executeCommand('workbench.action.chat.startVoiceChat', { voice: { disableTimeout: true } } satisfies IChatExecuteActionContext);
 		listening = true;
 	}, 250);
 
 	holdMode.finally(() => {
 		if (listening) {
-			commandService.executeCommand(StopListeningAction.ID).finally(() => {
+			commandService.executeCommand('workbench.action.chat.stopListening').finally(() => {
 				ctrl!.acceptInput();
 			});
 		}
