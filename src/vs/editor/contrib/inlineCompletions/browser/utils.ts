@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareBy } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorunOpts } from 'vs/base/common/observable';
@@ -147,7 +148,7 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
  * @returns inverse edits
  */
 export function inverseEdits(model: TextModel, edits: ISingleEditOperation[]): ISingleEditOperation[] {
-	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
+	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
 	const sortedRanges = getNewRanges(sortPerm.apply(edits));
 	const ranges = sortPerm.inverse().apply(sortedRanges);
 	const inverseEdits: ISingleEditOperation[] = [];
