@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/platform/update/common/update.config.contribution';
-import { localize, localize2 } from 'vs/nls';
+import { localize, localize2, unlocalized2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -41,7 +41,7 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 				...localize2('showReleaseNotes', "Show Release Notes"),
 				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
 			},
-			category: { value: product.nameShort, original: product.nameShort },
+			category: unlocalized2(product.nameShort),
 			f1: true,
 			precondition: RELEASE_NOTES_URL,
 			menu: [{
@@ -80,7 +80,7 @@ export class CheckForUpdateAction extends Action2 {
 		super({
 			id: 'update.checkForUpdate',
 			title: localize2('checkForUpdates', 'Check for Updates...'),
-			category: { value: product.nameShort, original: product.nameShort },
+			category: unlocalized2(product.nameShort),
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
 		});
@@ -97,7 +97,7 @@ class DownloadUpdateAction extends Action2 {
 		super({
 			id: 'update.downloadUpdate',
 			title: localize2('downloadUpdate', 'Download Update'),
-			category: { value: product.nameShort, original: product.nameShort },
+			category: unlocalized2(product.nameShort),
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
 		});
@@ -113,7 +113,7 @@ class InstallUpdateAction extends Action2 {
 		super({
 			id: 'update.installUpdate',
 			title: localize2('installUpdate', 'Install Update'),
-			category: { value: product.nameShort, original: product.nameShort },
+			category: unlocalized2(product.nameShort),
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
 		});
@@ -129,7 +129,7 @@ class RestartToUpdateAction extends Action2 {
 		super({
 			id: 'update.restartToUpdate',
 			title: localize2('restartToUpdate', 'Restart to Update'),
-			category: { value: product.nameShort, original: product.nameShort },
+			category: unlocalized2(product.nameShort),
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});

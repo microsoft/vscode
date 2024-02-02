@@ -90,7 +90,7 @@ const USE_SLOW_PICKER = 'task.quickOpen.showAll';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
-	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
+	export const TEXT = nls.localize2('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
 export type TaskQuickPickEntryType = (IQuickPickItem & { task: Task }) | (IQuickPickItem & { folder: IWorkspaceFolder }) | (IQuickPickItem & { settingType: string });
@@ -2563,7 +2563,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const thisCapture: AbstractTaskService = this;
 		return new class extends Action {
 			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, () => { thisCapture._runConfigureTasks(); return Promise.resolve(undefined); });
+				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT.value, undefined, true, () => { thisCapture._runConfigureTasks(); return Promise.resolve(undefined); });
 			}
 		};
 	}
@@ -2576,7 +2576,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
 				this._notificationService.prompt(buildError.severity, buildError.message, [{
-					label: needsConfig ? ConfigureTaskAction.TEXT : nls.localize('TerminateAction.label', "Terminate Task"),
+					label: needsConfig ? ConfigureTaskAction.TEXT.value : nls.localize('TerminateAction.label', "Terminate Task"),
 					run: () => {
 						if (needsConfig) {
 							this._runConfigureTasks();
