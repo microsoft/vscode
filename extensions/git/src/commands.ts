@@ -23,7 +23,7 @@ import { RemoteSourceAction } from './api/git-base';
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
 	get description(): string { return ''; }
-	get alwaysShow(): boolean { return false; }
+	get alwaysShow(): boolean { return true; }
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
@@ -2481,6 +2481,7 @@ export class CommandCenter {
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
+			let filtering = false;
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
 			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
 			disposables.push((quickPick.onDidTriggerItemButton((e) => {
@@ -2492,6 +2493,23 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
+			disposables.push(quickPick.onDidChangeValue((v) => {
+				if (filtering !== !!v) {
+					filtering = !filtering;
+					const commands = picks.filter(p => p.alwaysShow);
+					if (commands.length > 0) {
+						// Add this to separate appended commands from preceding reference kinds
+						commands.unshift({ label: '', kind: QuickPickItemKind.Separator });
+					}
+					const choices = picks.filter(p => !p.alwaysShow);
+					if (filtering) {
+						quickPick.items = [...choices, ...commands];
+					}
+					else {
+						quickPick.items = [...commands, ...choices];
+					}
+				}
+			}));
 		});
 
 		dispose(disposables);
