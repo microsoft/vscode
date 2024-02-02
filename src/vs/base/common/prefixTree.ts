@@ -113,7 +113,8 @@ export class WellDefinedPrefixTree<V> {
 			node = next;
 		}
 
-		return node._value === unset ? undefined : node._value;
+		return node._value as any; // this is the invalid line, fix with:
+		// return node._value === unset ? undefined : node._value;
 	}
 
 	/** Gets whether the tree has the key, or a parent of the key, already inserted. */

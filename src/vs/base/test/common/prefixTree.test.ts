@@ -16,16 +16,23 @@ suite('WellDefinedPrefixTree', () => {
 		tree = new WellDefinedPrefixTree<number>();
 	});
 
-	test('find', () => {
-		const key1 = ['foo', 'bar'];
-		const key2 = ['foo', 'baz'];
-		tree.insert(key1, 42);
-		tree.insert(key2, 43);
-		assert.strictEqual(tree.find(key1), 42);
-		assert.strictEqual(tree.find(key2), 43);
-		assert.strictEqual(tree.find(['foo', 'baz', 'bop']), undefined);
-		assert.strictEqual(tree.find(['foo']), undefined);
-	});
+	// 1. "Test: Run Tests with Coverage in Current File", show `find` in prefixTree.ts is uncovered
+	// 2. uncomment this test case and run it
+	// 3. it fails, and debug it. Set a breakpoint on `tree.find(['foo', 'baz', 'bop'])`
+	//    and a triggered breakpoint on the `return` in prefixTree.ts
+	// 4. Apply the fix given in the comment in prefixTree.ts
+	// 5. Re-run with coverage. Toggle Inline Coverage and show the nice count badges :)
+
+	// test('find', () => {
+	// 	const key1 = ['foo', 'bar'];
+	// 	const key2 = ['foo', 'baz'];
+	// 	tree.insert(key1, 42);
+	// 	tree.insert(key2, 43);
+	// 	assert.strictEqual(tree.find(key1), 42);
+	// 	assert.strictEqual(tree.find(key2), 43);
+	// 	assert.strictEqual(tree.find(['foo', 'baz', 'bop']), undefined);
+	// 	assert.strictEqual(tree.find(['foo']), undefined);
+	// });
 
 	test('hasParentOfKey', () => {
 		const key = ['foo', 'bar'];
@@ -79,8 +86,8 @@ suite('WellDefinedPrefixTree', () => {
 			assert.strictEqual(value, 42);
 			return 44;
 		});
-		assert.strictEqual(tree.find(key1), 44);
-		assert.strictEqual(tree.find(key2), 43);
+		// assert.strictEqual(tree.find(key1), 44);
+		// assert.strictEqual(tree.find(key2), 43);
 	});
 
 	test('delete', () => {
@@ -92,13 +99,13 @@ suite('WellDefinedPrefixTree', () => {
 
 		assert.strictEqual(tree.delete(key1), 42);
 		assert.strictEqual(tree.size, 1);
-		assert.strictEqual(tree.find(key1), undefined);
-		assert.strictEqual(tree.find(key2), 43);
+		// assert.strictEqual(tree.find(key1), undefined);
+		// assert.strictEqual(tree.find(key2), 43);
 
 		assert.strictEqual(tree.delete(key2), 43);
 		assert.strictEqual(tree.size, 0);
-		assert.strictEqual(tree.find(key1), undefined);
-		assert.strictEqual(tree.find(key2), undefined);
+		// assert.strictEqual(tree.find(key1), undefined);
+		// assert.strictEqual(tree.find(key2), undefined);
 
 		tree.delete(key2);
 		assert.strictEqual(tree.size, 0);
@@ -113,8 +120,8 @@ suite('WellDefinedPrefixTree', () => {
 
 		assert.strictEqual(tree.delete(key2), 43);
 		assert.strictEqual(tree.size, 1);
-		assert.strictEqual(tree.find(key1), 42);
-		assert.strictEqual(tree.find(key2), undefined);
+		// assert.strictEqual(tree.find(key1), 42);
+		// assert.strictEqual(tree.find(key2), undefined);
 	});
 
 	test('delete noops if deleting parent', () => {
@@ -125,8 +132,8 @@ suite('WellDefinedPrefixTree', () => {
 
 		assert.strictEqual(tree.delete(key1), undefined);
 		assert.strictEqual(tree.size, 1);
-		assert.strictEqual(tree.find(key2), 43);
-		assert.strictEqual(tree.find(key1), undefined);
+		// assert.strictEqual(tree.find(key2), 43);
+		// assert.strictEqual(tree.find(key1), undefined);
 	});
 
 	test('values', () => {
