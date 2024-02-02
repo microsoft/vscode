@@ -19,6 +19,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
 import { ActionRunnerWithContext } from './utils';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -145,6 +146,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				shouldForwardArgs: true,
 			},
 			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
+			actionViewItemProvider: action => createActionViewItem(_instantiationService, action),
 		}));
 	}
 
