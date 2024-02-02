@@ -61,9 +61,9 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
-export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
+export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
-export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder...");
+export const NEW_FOLDER_LABEL = nls.localize2('newFolder', "New Folder...");
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename...");
 export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
 export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
@@ -481,12 +481,12 @@ async function askForOverwrite(fileService: IFileService, dialogService: IDialog
 export class GlobalCompareResourcesAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareFileWith';
-	static readonly LABEL = nls.localize('globalCompareFile', "Compare Active File With...");
+	static readonly LABEL = nls.localize2('globalCompareFile', "Compare Active File With...");
 
 	constructor() {
 		super({
 			id: GlobalCompareResourcesAction.ID,
-			title: { value: GlobalCompareResourcesAction.LABEL, original: 'Compare Active File With...' },
+			title: GlobalCompareResourcesAction.LABEL,
 			f1: true,
 			category: Categories.File,
 			precondition: ActiveEditorContext
@@ -609,12 +609,12 @@ export class CloseGroupAction extends Action {
 export class FocusFilesExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.focusFilesExplorer';
-	static readonly LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
+	static readonly LABEL = nls.localize2('focusFilesExplorer', "Focus on Files Explorer");
 
 	constructor() {
 		super({
 			id: FocusFilesExplorer.ID,
-			title: { value: FocusFilesExplorer.LABEL, original: 'Focus on Files Explorer' },
+			title: FocusFilesExplorer.LABEL,
 			f1: true,
 			category: Categories.File
 		});
@@ -629,12 +629,12 @@ export class FocusFilesExplorer extends Action2 {
 export class ShowActiveFileInExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Explorer View");
+	static readonly LABEL = nls.localize2('showInExplorer', "Reveal Active File in Explorer View");
 
 	constructor() {
 		super({
 			id: ShowActiveFileInExplorer.ID,
-			title: { value: ShowActiveFileInExplorer.LABEL, original: 'Reveal Active File in Explorer View' },
+			title: ShowActiveFileInExplorer.LABEL,
 			f1: true,
 			category: Categories.File
 		});
@@ -653,13 +653,13 @@ export class ShowActiveFileInExplorer extends Action2 {
 export class OpenActiveFileInEmptyWorkspace extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize('openFileInEmptyWorkspace', "Open Active File in New Empty Workspace");
+	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active File in New Empty Workspace");
 
 	constructor(
 	) {
 		super({
 			id: OpenActiveFileInEmptyWorkspace.ID,
-			title: { value: OpenActiveFileInEmptyWorkspace.LABEL, original: 'Open Active File in New Empty Workspace' },
+			title: OpenActiveFileInEmptyWorkspace.LABEL,
 			f1: true,
 			category: Categories.File,
 			precondition: EmptyWorkspaceSupportContext
@@ -763,12 +763,12 @@ function getWellFormedFileName(filename: string): string {
 export class CompareNewUntitledTextFilesAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareNewUntitledTextFiles';
-	static readonly LABEL = nls.localize('compareNewUntitledTextFiles', "Compare New Untitled Text Files");
+	static readonly LABEL = nls.localize2('compareNewUntitledTextFiles', "Compare New Untitled Text Files");
 
 	constructor() {
 		super({
 			id: CompareNewUntitledTextFilesAction.ID,
-			title: { value: CompareNewUntitledTextFilesAction.LABEL, original: 'Compare New Untitled Text Files' },
+			title: CompareNewUntitledTextFilesAction.LABEL,
 			f1: true,
 			category: Categories.File
 		});
@@ -788,7 +788,7 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 export class CompareWithClipboardAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
-	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
+	static readonly LABEL = nls.localize2('compareWithClipboard', "Compare Active File with Clipboard");
 
 	private registrationDisposal: IDisposable | undefined;
 	private static SCHEME_COUNTER = 0;
@@ -796,7 +796,7 @@ export class CompareWithClipboardAction extends Action2 {
 	constructor() {
 		super({
 			id: CompareWithClipboardAction.ID,
-			title: { value: CompareWithClipboardAction.LABEL, original: 'Compare Active File with Clipboard' },
+			title: CompareWithClipboardAction.LABEL,
 			f1: true,
 			category: Categories.File,
 			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib }
@@ -1261,12 +1261,12 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.setActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('setActiveEditorReadonlyInSession', "Set Active Editor Read-only in Session");
+	static readonly LABEL = nls.localize2('setActiveEditorReadonlyInSession', "Set Active Editor Read-only in Session");
 
 	constructor() {
 		super(
 			SetActiveEditorReadonlyInSession.ID,
-			{ value: SetActiveEditorReadonlyInSession.LABEL, original: 'Set Active Editor Readonly in Session' },
+			SetActiveEditorReadonlyInSession.LABEL,
 			true
 		);
 	}
@@ -1275,12 +1275,12 @@ export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonl
 export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.setActiveEditorWriteableInSession';
-	static readonly LABEL = nls.localize('setActiveEditorWriteableInSession', "Set Active Editor Writeable in Session");
+	static readonly LABEL = nls.localize2('setActiveEditorWriteableInSession', "Set Active Editor Writeable in Session");
 
 	constructor() {
 		super(
 			SetActiveEditorWriteableInSession.ID,
-			{ value: SetActiveEditorWriteableInSession.LABEL, original: 'Set Active Editor Writeable in Session' },
+			SetActiveEditorWriteableInSession.LABEL,
 			false
 		);
 	}
@@ -1289,12 +1289,12 @@ export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadon
 export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Read-only in Session");
+	static readonly LABEL = nls.localize2('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Read-only in Session");
 
 	constructor() {
 		super(
 			ToggleActiveEditorReadonlyInSession.ID,
-			{ value: ToggleActiveEditorReadonlyInSession.LABEL, original: 'Toggle Active Editor Readonly in Session' },
+			ToggleActiveEditorReadonlyInSession.LABEL,
 			'toggle'
 		);
 	}
@@ -1303,12 +1303,12 @@ export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorRead
 export class ResetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.resetActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('resetActiveEditorReadonlyInSession', "Reset Active Editor Read-only in Session");
+	static readonly LABEL = nls.localize2('resetActiveEditorReadonlyInSession', "Reset Active Editor Read-only in Session");
 
 	constructor() {
 		super(
 			ResetActiveEditorReadonlyInSession.ID,
-			{ value: ResetActiveEditorReadonlyInSession.LABEL, original: 'Reset Active Editor Readonly in Session' },
+			ResetActiveEditorReadonlyInSession.LABEL,
 			'reset'
 		);
 	}
