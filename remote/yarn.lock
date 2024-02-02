@@ -81,14 +81,14 @@
     proxy-from-env "^1.1.0"
     yauzl "^2.9.2"
 
-"@vscode/spdlog@^0.14.0":
-  version "0.14.0"
-  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.14.0.tgz#3cdf589ca59b9ce792ef58b5f773e29a732a360f"
-  integrity sha512-mpblZa3v6AGEJC1qTwIkpgTc6NItdiiuTxufGxr6XD14srXCvVAUXFIYNqszxC6RY57qDQMX1d9Wd4/oZDxuUQ==
+"@vscode/spdlog@^0.15.0":
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.15.0.tgz#37896541410ff036dc01c54e16bf131c522a057e"
+  integrity sha512-5UFcQXM/G6bTRF49zJJJH3A3+47nxaXuKzT26vhTXVIiMFoV1oI9559mWOzapLEmvrntAdYtjE7Jh74lSAuMcA==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^1.0.4"
-    nan "^2.17.0"
+    node-addon-api "7.1.0"
 
 "@vscode/vscode-languagedetection@1.0.21":
   version "1.0.21"
@@ -411,6 +411,11 @@ node-abi@^3.3.0:
   dependencies:
     semver "^7.3.5"
 
+node-addon-api@7.1.0, node-addon-api@^7.1.0:
+  version "7.1.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-7.1.0.tgz#71f609369379c08e251c558527a107107b5e0fdb"
+  integrity sha512-mNcltoe1R8o7STTegSOHdnJNN7s5EUvhoS7ShnTHDyOSd+8H+UdWODq6qSv67PjC8Zc5JRT8+oLAMCr0SIXw7g==
+
 node-addon-api@^3.0.2:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
@@ -425,11 +430,6 @@ node-addon-api@^4.3.0:
   version "4.3.0"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-4.3.0.tgz#52a1a0b475193e0928e98e0426a0d1254782b77f"
   integrity sha512-73sE9+3UaLYYFmDsFZnqCInzPyh3MqIwZO9cw58yIqAZhONrrabrYyYe3TuIqtIiOuTXVhsGau8hcrhhwSsDIQ==
-
-node-addon-api@^7.1.0:
-  version "7.1.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-7.1.0.tgz#71f609369379c08e251c558527a107107b5e0fdb"
-  integrity sha512-mNcltoe1R8o7STTegSOHdnJNN7s5EUvhoS7ShnTHDyOSd+8H+UdWODq6qSv67PjC8Zc5JRT8+oLAMCr0SIXw7g==
 
 node-gyp-build@^4.3.0:
   version "4.3.0"
