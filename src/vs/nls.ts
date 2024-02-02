@@ -202,16 +202,7 @@ export function localize2(data: ILocalizeInfo | string, message: string, ...args
 	return {
 		value: original,
 		original
-	} as ILocalizedString;
-}
-
-/**
- * Create a `ILocalizedString` object that represents an unlocalized string.
- *
- * This lets you explicitly pass in unlocalized strings to places that normally expect localized strings.
- */
-export function unlocalized2(str: string): ILocalizedString {
-	return { value: str, original: str } as ILocalizedString;
+	};
 }
 
 /**

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
+import { localize } from 'vs/nls';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -97,7 +97,10 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 
 		const reportIssue: ICommandAction = {
 			id: OpenIssueReporterActionId,
-			title: localize2({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue..."),
+			title: {
+				value: localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue..."),
+				original: 'Report Issue...'
+			},
 			category: Categories.Help
 		};
 

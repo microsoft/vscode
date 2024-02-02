@@ -177,7 +177,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 						super({
 							id: 'workbench.extensions.installLocalExtensions',
 							get title() {
-								return localize2('select and install local extensions', "Install Local Extensions in '{0}'...", server.label);
+								return {
+									value: localize('select and install local extensions', "Install Local Extensions in '{0}'...", server.label),
+									original: `Install Local Extensions in '${server.label}'...`,
+								};
 							},
 							category: REMOTE_CATEGORY,
 							icon: installLocalInRemoteIcon,

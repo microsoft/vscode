@@ -324,7 +324,7 @@ class SaveModelAsAction extends Action {
 		private model: ITextFileEditorModel,
 		@IEditorService private editorService: IEditorService
 	) {
-		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL.value);
+		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
 	}
 
 	override async run(): Promise<void> {

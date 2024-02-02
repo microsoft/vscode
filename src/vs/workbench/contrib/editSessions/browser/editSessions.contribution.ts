@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize, localize2, unlocalized2 } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId, EDIT_SESSIONS_PENDING } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -899,10 +899,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private generateStandaloneOptionCommand(commandId: string, qualifiedName: string, category: string | ILocalizedString | undefined, when: ContextKeyExpression | undefined, remoteGroup: string | undefined) {
-		const command: IAction2Options = {
+		const command = {
 			id: `${continueWorkingOnCommand.id}.${commandId}`,
-			title: unlocalized2(qualifiedName),
-			category: typeof category === 'string' ? unlocalized2(category) : category,
+			title: { original: qualifiedName, value: qualifiedName },
+			category: typeof category === 'string' ? { original: category, value: category } : category,
 			precondition: when,
 			f1: true
 		};

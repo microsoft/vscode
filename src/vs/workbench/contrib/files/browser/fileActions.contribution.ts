@@ -215,13 +215,13 @@ appendToCommandPalette({
 
 appendToCommandPalette({
 	id: SAVE_FILE_COMMAND_ID,
-	title: SAVE_FILE_LABEL,
+	title: { value: SAVE_FILE_LABEL, original: 'Save' },
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
-	title: SAVE_FILE_WITHOUT_FORMATTING_LABEL,
+	title: { value: SAVE_FILE_WITHOUT_FORMATTING_LABEL, original: 'Save without Formatting' },
 	category: Categories.File
 });
 
@@ -251,26 +251,26 @@ appendToCommandPalette({
 
 appendToCommandPalette({
 	id: SAVE_FILE_AS_COMMAND_ID,
-	title: SAVE_FILE_AS_LABEL,
+	title: { value: SAVE_FILE_AS_LABEL, original: 'Save As...' },
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: NEW_FILE_COMMAND_ID,
-	title: NEW_FILE_LABEL,
+	title: { value: NEW_FILE_LABEL, original: 'New File' },
 	category: Categories.File
 }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
 appendToCommandPalette({
 	id: NEW_FOLDER_COMMAND_ID,
-	title: NEW_FOLDER_LABEL,
+	title: { value: NEW_FOLDER_LABEL, original: 'New Folder' },
 	category: Categories.File,
 	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
 }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
 appendToCommandPalette({
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	title: NEW_UNTITLED_FILE_LABEL,
+	title: { value: NEW_UNTITLED_FILE_LABEL, original: 'New Untitled Text File' },
 	category: Categories.File
 });
 

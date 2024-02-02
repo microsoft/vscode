@@ -21,7 +21,10 @@ export class InstallShellScriptAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.installCommandLine',
-			title: localize2('install', "Install '{0}' command in PATH", product.applicationName),
+			title: {
+				value: localize('install', "Install '{0}' command in PATH", product.applicationName),
+				original: `Install \'${product.applicationName}\' command in PATH`
+			},
 			category: shellCommandCategory,
 			f1: true
 		});
@@ -51,7 +54,10 @@ export class UninstallShellScriptAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.uninstallCommandLine',
-			title: localize2('uninstall', "Uninstall '{0}' command from PATH", product.applicationName),
+			title: {
+				value: localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName),
+				original: `Uninstall \'${product.applicationName}\' command from PATH`
+			},
 			category: shellCommandCategory,
 			f1: true
 		});
