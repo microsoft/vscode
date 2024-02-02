@@ -6,7 +6,6 @@
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorunOpts } from 'vs/base/common/observable';
-import { splitLines } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
