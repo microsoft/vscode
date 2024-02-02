@@ -4,6 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+	export interface FindFiles2Options {
+		// note: this is just FindTextInFilesOptions without select properties (include, previewOptions, beforeContext, afterContext)
+
+		/**
+		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
+		 * apply.
+		 */
+		exclude?: GlobPattern;
+
+		/**
+		 * Whether to use the values for files.exclude. Defaults to false.
+		 */
+		useDefaultExcludes?: boolean;
+
+		/**
+		 * The maximum number of results to search for
+		 */
+		maxResults?: number;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
+		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 */
+		useGlobalIgnoreFiles?: boolean;
+
+		/**
+		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useParentIgnoreFiles"`.
+		 */
+		useParentIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
+		followSymlinks?: boolean;
+	}
+
 	/**
 	 * Represents a session of a currently logged in user.
 	 */
@@ -14,7 +59,7 @@ declare module 'vscode' {
 		 * @example
 		 * findFiles('**​/*.js', {useDefaultExclude: true, additionalExclude: '**​/out/**'}, 10)
 		 *
-		 * @param include A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
+		 * @param filePattern A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}
 		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 * @param exclude  Either:
@@ -33,6 +78,6 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * {@link workspace.workspaceFolders workspace folders} are opened.
 		 */
-		export function findFiles2(include: GlobPattern, exclude?: GlobPattern | { useDefaultExclude: boolean; additionalExclude?: GlobPattern }, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles2(filePattern: GlobPattern, options?: FindFiles2Options, token?: CancellationToken): Thenable<Uri[]>;
 	}
 }

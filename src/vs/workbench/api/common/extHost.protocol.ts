@@ -78,7 +78,7 @@ import { Dto, IRPCProtocol, SerializableObjectWithBuffers, createProxyIdentifier
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
-import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -1339,7 +1339,7 @@ export interface ITextSearchComplete {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string | null, includeFolder: UriComponents | null, excludePattern: string, maxResults: number | null, shouldUseExcludes: boolean, token: CancellationToken): Promise<UriComponents[] | null>;
+	$startFileSearch(includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
 	$save(uri: UriComponents, options: { saveAs: boolean }): Promise<UriComponents | undefined>;

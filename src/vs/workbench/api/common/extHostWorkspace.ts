@@ -28,7 +28,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
@@ -447,57 +447,70 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
 		let excludeString: string = '';
-		let disregardExcludes = false;
-		if (exclude === undefined) {
-			disregardExcludes = true;
-		} else if (exclude !== null) {
+		let useFileExcludes = true;
+		if (exclude === null) {
+			useFileExcludes = false;
+		} else if (exclude !== undefined) {
 			if (typeof exclude === 'string') {
 				excludeString = exclude;
 			} else {
 				excludeString = exclude.pattern;
 			}
 		}
-		return this._findFilesImpl(include, excludeString, maxResults, extensionId, disregardExcludes, token);
+		return this._findFilesImpl(include, undefined, {
+			exclude: excludeString,
+			maxResults,
+			useDefaultExcludes: useFileExcludes,
+			useIgnoreFiles: true
+		}, token);
 	}
 
-	findFiles2(include: vscode.GlobPattern | undefined,
-		exclude: vscode.GlobPattern | {
-			useDefaultExclude: boolean;
-			additionalExclude?: vscode.GlobPattern | undefined;
-		} | undefined,
-		maxResults: number | undefined,
+	findFiles2(filePattern: vscode.GlobPattern | undefined,
+		options: vscode.FindFiles2Options = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		const globToStr = (glob: vscode.GlobPattern): string => {
-			if (glob instanceof vscode.RelativePattern) {
-				return glob.pattern;
-			} else {
-				return glob;
-			}
-		};
-		let excludeString: string = '';
-		let disregardExcludes = false;
-		if (exclude instanceof vscode.RelativePattern || typeof exclude === 'string') {
-			excludeString = globToStr(exclude);
-		} else {
-			excludeString = globToStr(exclude?.additionalExclude ?? '');
-			disregardExcludes = exclude?.useDefaultExclude ?? false;
-		}
-		return this._findFilesImpl(include, excludeString, maxResults, extensionId, disregardExcludes, token);
+		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
+		return this._findFilesImpl(undefined, filePattern, options, token);
 	}
 
-	private _findFilesImpl(include: vscode.GlobPattern | undefined, exclude: string, maxResults: number | undefined, extensionId: ExtensionIdentifier, shouldUseExcludes: boolean = false, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+	private async _findFilesImpl(
+		// the old `findFiles` used `include` to query, but the new `findFiles2` uses `filePattern` to query.
+		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
+		include: vscode.GlobPattern | undefined,
+		filePattern: vscode.GlobPattern | undefined,
+		options: vscode.FindFiles2Options,
+		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		if (token && token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
 
-		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
+		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
+			options.exclude ? options.exclude.pattern : undefined;
+
+		const fileQueries = <IFileQueryBuilderOptions>{
+			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
+			disregardParentIgnoreFiles: typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined,
+			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : true,
+			maxResults: options.maxResults,
+			excludePattern: excludePattern,
+			_reason: 'startFileSearch'
+		};
+		let folderToUse: URI | undefined;
+		if (include) {
+			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
+			folderToUse = folder;
+			fileQueries.includePattern = includePattern;
+		} else {
+			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(filePattern));
+			folderToUse = folder;
+			fileQueries.filePattern = includePattern;
+		}
+
 		return this._proxy.$startFileSearch(
-			includePattern ?? null,
-			folder ?? null,
-			exclude,
-			maxResults ?? null,
-			shouldUseExcludes,
+			folderToUse ?? null,
+			fileQueries,
 			token
 		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);

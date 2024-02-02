@@ -41,7 +41,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch('foo', null, null, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: 'foo' }, new CancellationTokenSource().token);
 	});
 
 	test('exclude defaults', () => {
@@ -56,14 +56,14 @@ suite('MainThreadWorkspace', () => {
 			fileSearch(query: IFileQuery) {
 				assert.strictEqual(query.folderQueries.length, 1);
 				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true, 'searchExclude': true });
 
 				return Promise.resolve({ results: [], messages: [] });
 			}
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch('', null, null, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '' }, new CancellationTokenSource().token);
 	});
 
 	test('disregard excludes', () => {
@@ -76,7 +76,10 @@ suite('MainThreadWorkspace', () => {
 
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, {
+					"filesExclude": true,
+					"searchExclude": true
+				});
 				assert.deepStrictEqual(query.excludePattern, undefined);
 
 				return Promise.resolve({ results: [], messages: [] });
@@ -84,7 +87,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch('', null, false, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '' }, new CancellationTokenSource().token);
 	});
 
 	test('exclude string', () => {
@@ -98,6 +101,6 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch('', null, 'exclude/**', 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: 'exclude/**' }, new CancellationTokenSource().token);
 	});
 });
