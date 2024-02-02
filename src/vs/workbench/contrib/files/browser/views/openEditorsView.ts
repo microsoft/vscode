@@ -835,7 +835,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.files.saveAll',
-			title: SAVE_ALL_LABEL,
+			title: { value: SAVE_ALL_LABEL, original: 'Save All' },
 			f1: true,
 			icon: Codicon.saveAll,
 			menu: {

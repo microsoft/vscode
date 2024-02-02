@@ -835,7 +835,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getShowConflictsTitle(): ILocalizedString {
-		return localize2('resolveConflicts_global', "Show Conflicts ({0})", this.getConflictsCount());
+		return { value: localize('resolveConflicts_global', "Show Conflicts ({0})", this.getConflictsCount()), original: `Show Conflicts (${this.getConflictsCount()})` };
 	}
 
 	private conflictsActionDisposable = this._register(new MutableDisposable());

@@ -171,7 +171,7 @@ export function getQuickChatActionForProvider(id: string, label: string) {
 			super({
 				id: `workbench.action.openQuickChat.${id}`,
 				category: CHAT_CATEGORY,
-				title: localize2('interactiveSession.open', "Open Quick Chat ({0})", label),
+				title: { value: localize('interactiveSession.open', "Open Quick Chat ({0})", label), original: `Open Quick Chat (${label})` },
 				f1: true
 			});
 		}

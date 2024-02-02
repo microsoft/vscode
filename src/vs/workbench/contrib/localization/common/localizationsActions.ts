@@ -100,12 +100,12 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 
 export class ClearDisplayLanguageAction extends Action2 {
 	public static readonly ID = 'workbench.action.clearLocalePreference';
-	public static readonly LABEL = localize2('clearDisplayLanguage', "Clear Display Language Preference");
+	public static readonly LABEL = localize('clearDisplayLanguage', "Clear Display Language Preference");
 
 	constructor() {
 		super({
 			id: ClearDisplayLanguageAction.ID,
-			title: ClearDisplayLanguageAction.LABEL,
+			title: { original: 'Clear Display Language Preference', value: ClearDisplayLanguageAction.LABEL },
 			menu: {
 				id: MenuId.CommandPalette
 			}

@@ -104,12 +104,12 @@ export class WebViewEditorFindPreviousCommand extends Action2 {
 
 export class ReloadWebviewAction extends Action2 {
 	static readonly ID = 'workbench.action.webview.reloadWebviewAction';
-	static readonly LABEL = nls.localize2('refreshWebviewLabel', "Reload Webviews");
+	static readonly LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");
 
 	public constructor() {
 		super({
 			id: ReloadWebviewAction.ID,
-			title: ReloadWebviewAction.LABEL,
+			title: { value: ReloadWebviewAction.LABEL, original: 'Reload Webviews' },
 			category: Categories.Developer,
 			menu: [{
 				id: MenuId.CommandPalette
