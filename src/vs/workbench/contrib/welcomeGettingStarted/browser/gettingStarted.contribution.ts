@@ -63,6 +63,12 @@ registerAction2(class extends Action2 {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
 			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
 
+			// We're trying to open the welcome page from the Help menu
+			if (!selectedCategory || !selectedStep) {
+				editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
+				return;
+			}
+
 			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
