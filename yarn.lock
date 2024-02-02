@@ -1520,12 +1520,12 @@
     bindings "^1.2.1"
     nan "^2.17.0"
 
-"@vscode/windows-process-tree@^0.5.0":
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.5.0.tgz#b8205b862c75a1e0ad8b7bf4350dc85036ee3a2c"
-  integrity sha512-y8Oliel/rBSYh9f1T4F0zQjJNPeJRgYRhEKZsjas7JXKLf46FpE3Ux8e9+7HelUD8dXFH7C7N6895nU0WhrMlg==
+"@vscode/windows-process-tree@^0.6.0":
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.6.0.tgz#a62400c689b27688fd689e8cac71d63c6d1956da"
+  integrity sha512-7/DjBKKUtlmKNiAet2GRbdvfjgMKmfBeWVClIgONv8aqxGnaKca5N85eIDxh6rLMy2hKvFqIIsqgxs1Q26TWwg==
   dependencies:
-    nan "^2.17.0"
+    node-addon-api "7.1.0"
 
 "@vscode/windows-registry@^1.1.0":
   version "1.1.0"

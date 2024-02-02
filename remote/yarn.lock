@@ -102,12 +102,12 @@
   dependencies:
     node-addon-api "^3.0.2"
 
-"@vscode/windows-process-tree@^0.5.0":
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.5.0.tgz#b8205b862c75a1e0ad8b7bf4350dc85036ee3a2c"
-  integrity sha512-y8Oliel/rBSYh9f1T4F0zQjJNPeJRgYRhEKZsjas7JXKLf46FpE3Ux8e9+7HelUD8dXFH7C7N6895nU0WhrMlg==
+"@vscode/windows-process-tree@^0.6.0":
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.6.0.tgz#a62400c689b27688fd689e8cac71d63c6d1956da"
+  integrity sha512-7/DjBKKUtlmKNiAet2GRbdvfjgMKmfBeWVClIgONv8aqxGnaKca5N85eIDxh6rLMy2hKvFqIIsqgxs1Q26TWwg==
   dependencies:
-    nan "^2.17.0"
+    node-addon-api "7.1.0"
 
 "@vscode/windows-registry@^1.1.0":
   version "1.1.0"
@@ -388,11 +388,6 @@ ms@2.1.2:
   version "2.1.2"
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
-
-nan@^2.17.0:
-  version "2.17.0"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.17.0.tgz#c0150a2368a182f033e9aa5195ec76ea41a199cb"
-  integrity sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==
 
 napi-build-utils@^1.0.1:
   version "1.0.2"
