@@ -6,90 +6,113 @@
 .monaco-component.multiDiffEditor {
 	background: var(--vscode-multiDiffEditor-background);
 	overflow-y: hidden;
-	padding: 8px;
-}
 
-.monaco-component .multiDiffEntry {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	overflow: hidden;
-	border: 1px solid var(--vscode-multiDiffEditor-border);
-	border-radius: 2px;
-}
+	.multiDiffEntry {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		overflow: hidden;
 
-.monaco-component .multiDiffEntry .collapse-button {
-	margin: 0 5px;
-	cursor: pointer;
-}
 
-.monaco-component .multiDiffEntry .collapse-button a {
-	display: block;
-}
+		.collapse-button {
+			margin: 0 5px;
+			cursor: pointer;
 
-.monaco-component .multiDiffEntry .header {
-	display: flex;
-	align-items: center;
-	padding: 8px 5px;
-	color: var(--vscode-foreground);
-	background: var(--vscode-multiDiffEditor-headerBackground);
-	z-index: 1000;
-	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
-}
+			a {
+				display: block;
+			}
+		}
 
-.monaco-component .multiDiffEntry .header.shadow {
-	box-shadow: var(--vscode-scrollbar-shadow) 0px 6px 6px -6px;
-}
+		.header {
+			z-index: 1000;
+			background: var(--vscode-editor-background);
 
-.monaco-component .multiDiffEntry .header .file-path {
-	display: flex;
-	flex: 1;
-	min-width: 0;
-}
+			.header-content {
+				margin: 8px 8px 0px 8px;
+				padding: 8px 5px;
 
-.monaco-component .multiDiffEntry .header .file-path .title {
-	font-size: 14px;
-	line-height: 22px;
-}
+				border-top: 1px solid var(--vscode-multiDiffEditor-border);
+				border-right: 1px solid var(--vscode-multiDiffEditor-border);
+				border-left: 1px solid var(--vscode-multiDiffEditor-border);
+				border-top-left-radius: 2px;
+				border-top-right-radius: 2px;
 
-.monaco-component .multiDiffEntry .header .file-path .status {
+				display: flex;
+				align-items: center;
 
-	font-weight: 600;
-	opacity: 0.75;
-	margin: 0px 10px;
-	line-height: 22px;
-}
-/*
-TODO@hediet: move colors from git extension to core!
+				color: var(--vscode-foreground);
+				background: var(--vscode-multiDiffEditor-headerBackground);
 
-.monaco-component .multiDiffEntry .header .file-path .status.renamed {
-	color: va r(--vscode-gitDecoration-renamedResourceForeground);
-}
+				border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
 
-.monaco-component .multiDiffEntry .header .file-path .status.deleted {
-	color: va r(--vscode-gitDecoration-deletedResourceForeground);
-}
+				&.shadow {
+					box-shadow: var(--vscode-scrollbar-shadow) 0px 6px 6px -6px;
+				}
 
-.monaco-component .multiDiffEntry .header .file-path .status.added {
-	color: va r(--vscode-gitDecoration-addedResourceForeground);
-}
-*/
-.monaco-component .multiDiffEntry .header .file-path .title.original {
-	flex: 1;
-	min-width: 0;
-	text-overflow: ellipsis;
-}
+				.file-path {
+					display: flex;
+					flex: 1;
+					min-width: 0;
 
-.monaco-component .multiDiffEntry .header .actions {
-	padding: 0 8px;
-}
+					.title {
+						font-size: 14px;
+						line-height: 22px;
 
-.monaco-component .multiDiffEntry .editorParent {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-}
+						&.original {
+							flex: 1;
+							min-width: 0;
+							text-overflow: ellipsis;
+						}
+					}
 
-.monaco-component .multiDiffEntry .editorContainer {
-	flex: 1;
+					.status {
+						font-weight: 600;
+						opacity: 0.75;
+						margin: 0px 10px;
+						line-height: 22px;
+
+						/*
+							TODO@hediet: move colors from git extension to core!
+						&.renamed {
+							color: v ar(--vscode-gitDecoration-renamedResourceForeground);
+						}
+
+						&.deleted {
+							color: v ar(--vscode-gitDecoration-deletedResourceForeground);
+						}
+
+						&.added {
+							color: v ar(--vscode-gitDecoration-addedResourceForeground);
+						}
+						*/
+					}
+				}
+
+				.actions {
+					padding: 0 8px;
+				}
+			}
+
+
+		}
+
+		.editorParent {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+
+			margin-right: 8px;
+			margin-left: 8px;
+
+			border-right: 1px solid var(--vscode-multiDiffEditor-border);
+			border-left: 1px solid var(--vscode-multiDiffEditor-border);
+			border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+			border-radius: 2px;
+			overflow: hidden;
+		}
+
+		.editorContainer {
+			flex: 1;
+		}
+	}
 }
