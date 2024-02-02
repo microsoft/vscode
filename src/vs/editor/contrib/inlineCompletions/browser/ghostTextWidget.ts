@@ -60,10 +60,11 @@ export class GhostTextWidget extends Disposable {
 			return undefined;
 		}
 
-		const additionalLines: LineData[] = [];
-		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
-			if (additionalLines.length > 0) {
-				const lastLine = additionalLines[additionalLines.length - 1];
+		const additionalLines: LineData[][] = [];
+		function addToAdditionalLines(index: number, lines: readonly string[], className: string | undefined) {
+			const additionalLinesForIndex = additionalLines[index] ?? [];
+			if (additionalLinesForIndex.length > 0) {
+				const lastLine = additionalLinesForIndex[additionalLinesForIndex.length - 1];
 				if (className) {
 					lastLine.decorations.push(new LineDecoration(lastLine.content.length + 1, lastLine.content.length + 1 + lines[0].length, className, InlineDecorationType.Regular));
 				}
@@ -72,11 +73,12 @@ export class GhostTextWidget extends Disposable {
 				lines = lines.slice(1);
 			}
 			for (const line of lines) {
-				additionalLines.push({
+				additionalLinesForIndex.push({
 					content: line,
 					decorations: className ? [new LineDecoration(1, line.length + 1, className, InlineDecorationType.Regular)] : []
 				});
 			}
+			additionalLines[index] = additionalLinesForIndex;
 		}
 
 		const replacedRanges: (ColumnRange | undefined)[] = [];
@@ -88,7 +90,7 @@ export class GhostTextWidget extends Disposable {
 		const hiddenRanges: (ColumnRange | undefined)[] = [];
 		const lineNumbers: number[] = [];
 
-		for (const ghostText of ghostTexts) {
+		for (const [index, ghostText] of ghostTexts.entries()) {
 			const replacedRange = ghostText instanceof GhostTextReplacement ? ghostText.columnRange : undefined;
 			replacedRanges.push(replacedRange);
 			const inlineTextsForGhostText: { column: number; text: string; preview: boolean }[] = [];
@@ -107,11 +109,11 @@ export class GhostTextWidget extends Disposable {
 					});
 					lines = lines.slice(1);
 				} else {
-					addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
+					addToAdditionalLines(index, [textBufferLine.substring(lastIdx, part.column - 1)], undefined);
 				}
 
 				if (lines.length > 0) {
-					addToAdditionalLines(lines, GHOST_TEXT_DESCRIPTION);
+					addToAdditionalLines(index, lines, GHOST_TEXT_DESCRIPTION);
 					if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 						hiddenTextStartColumn = part.column;
 					}
@@ -120,7 +122,7 @@ export class GhostTextWidget extends Disposable {
 				lastIdx = part.column - 1;
 			}
 			if (hiddenTextStartColumn !== undefined) {
-				addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
+				addToAdditionalLines(index, [textBufferLine.substring(lastIdx)], undefined);
 			}
 
 			const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
@@ -226,7 +228,7 @@ class AdditionalLinesWidget extends Disposable {
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly languageIdCodec: ILanguageIdCodec,
-		private readonly lines: IObservable<{ targetTextModel: ITextModel; lineNumbers: number[]; additionalLines: LineData[]; minReservedLineCount: number } | undefined>
+		private readonly lines: IObservable<{ targetTextModel: ITextModel; lineNumbers: number[]; additionalLines: LineData[][]; minReservedLineCount: number } | undefined>
 	) {
 		super();
 
@@ -257,7 +259,7 @@ class AdditionalLinesWidget extends Disposable {
 		});
 	}
 
-	private updateLines(lineNumbers: number[], additionalLines: LineData[], minReservedLineCount: number): void {
+	private updateLines(lineNumbers: number[], additionalLines: LineData[][], minReservedLineCount: number): void {
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
@@ -273,10 +275,10 @@ class AdditionalLinesWidget extends Disposable {
 
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
-				const domNode = document.createElement('div');
-				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions(), this.languageIdCodec);
+				for (const [index, lineNumber] of lineNumbers.entries()) {
+					const domNode = document.createElement('div');
+					renderLines(domNode, tabSize, additionalLines[index], this.editor.getOptions(), this.languageIdCodec);
 
-				for (const lineNumber of lineNumbers) {
 					this._viewZoneId = changeAccessor.addZone({
 						afterLineNumber: lineNumber,
 						heightInLines: heightInLines,
