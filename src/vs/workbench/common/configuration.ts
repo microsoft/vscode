@@ -8,7 +8,7 @@ import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry, Extensi
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue, IInspectValue } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -117,24 +117,27 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 			['workspace', ConfigurationTarget.WORKSPACE],
 		];
 		for (const [dataKey, target] of targetPairs) {
+			const inspectValue = inspectData[dataKey] as IInspectValue<any> | undefined;
+			if (!inspectValue) {
+				continue;
+			}
+
 			const migrationValues: [[string, ConfigurationValue], string[]][] = [];
 
-			// Collect migrations for language overrides
-			for (const overrideIdentifier of inspectData.overrideIdentifiers ?? []) {
-				const keyValuePairs = await this.runMigration(migration, { resource, overrideIdentifier }, dataKey);
+			if (inspectValue.value !== undefined) {
+				const keyValuePairs = await this.runMigration(migration, dataKey, inspectValue.value, resource, undefined);
 				for (const keyValuePair of keyValuePairs ?? []) {
-					let keyValueAndOverridesPair = migrationValues.find(([[k, v]]) => k === keyValuePair[0] && equals(v.value, keyValuePair[1].value));
-					if (!keyValueAndOverridesPair) {
-						migrationValues.push(keyValueAndOverridesPair = [keyValuePair, []]);
-					}
-					keyValueAndOverridesPair[1].push(overrideIdentifier);
+					migrationValues.push([keyValuePair, []]);
 				}
 			}
 
-			// Collect migrations
-			const keyValuePairs = await this.runMigration(migration, { resource }, dataKey, inspectData);
-			for (const keyValuePair of keyValuePairs ?? []) {
-				migrationValues.push([keyValuePair, []]);
+			for (const { identifiers, value } of inspectValue.overrides ?? []) {
+				if (value !== undefined) {
+					const keyValuePairs = await this.runMigration(migration, dataKey, value, resource, identifiers);
+					for (const keyValuePair of keyValuePairs ?? []) {
+						migrationValues.push([keyValuePair, identifiers]);
+					}
+				}
 			}
 
 			if (migrationValues.length) {
@@ -145,22 +148,26 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 		}
 	}
 
-	private async runMigration(migration: ConfigurationMigration, overrides: IConfigurationOverrides, dataKey: keyof IConfigurationValue<any>, data?: IConfigurationValue<any>): Promise<ConfigurationKeyValuePairs | undefined> {
-		const valueAccessor = (key: string) => getInspectValue(this.configurationService.inspect(key, overrides));
-		const getInspectValue = (data: IConfigurationValue<any>) => {
-			const inspectValue: { value?: any; override?: any } | undefined = data[dataKey];
-			return overrides.overrideIdentifier ? inspectValue?.override : inspectValue?.value;
+	private async runMigration(migration: ConfigurationMigration, dataKey: keyof IConfigurationValue<any>, value: any, resource: URI | undefined, overrideIdentifiers: string[] | undefined): Promise<ConfigurationKeyValuePairs | undefined> {
+		const valueAccessor = (key: string) => {
+			const inspectData = this.configurationService.inspect(key, { resource });
+			const inspectValue = inspectData[dataKey] as IInspectValue<any> | undefined;
+			if (!inspectValue) {
+				return undefined;
+			}
+			if (!overrideIdentifiers) {
+				return inspectValue.value;
+			}
+			return inspectValue.overrides?.find(({ identifiers }) => equals(identifiers, overrideIdentifiers))?.value;
 		};
-		const value = data ? getInspectValue(data) : valueAccessor(migration.key);
-		if (value === undefined) {
-			return undefined;
-		}
 		const result = await migration.migrateFn(value, valueAccessor);
 		return Array.isArray(result) ? result : [[migration.key, result]];
 	}
 }
 
 export class DynamicWorkbenchConfigurationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dynamicWorkbenchConfiguration';
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService

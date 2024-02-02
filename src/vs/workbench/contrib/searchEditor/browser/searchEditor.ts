@@ -41,7 +41,6 @@ import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
-import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
@@ -62,6 +61,7 @@ import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/edi
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/browser/unusualLineTerminators';
 import { defaultToggleStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 import { ILogService } from 'vs/platform/log/common/log';
+import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -138,7 +138,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.createQueryEditor(
 			this.queryEditorContainer,
 			this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])),
-			InputBoxFocusedKey.bindTo(scopedContextKeyService)
+			SearchContext.InputBoxFocusedKey.bindTo(scopedContextKeyService)
 		);
 	}
 

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
@@ -20,10 +18,10 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionCh
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatFollowup, IChatProgress, IChatService, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 type AgentData = {
@@ -41,9 +39,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
-
-	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | IMarkdownString | IChatTreeData>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -80,13 +75,14 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void {
+		let lastSlashCommands: IChatAgentCommand[] | undefined;
 		const d = this._chatAgentService.registerAgent({
 			id: name,
 			metadata: revive(metadata),
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, request.sessionId, request.requestId, request, { history }, token) ?? {};
+					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
@@ -98,11 +94,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 				return this._proxy.$provideFollowups(handle, sessionId, token);
 			},
+			get lastSlashCommands() {
+				return lastSlashCommands;
+			},
 			provideSlashCommands: async (token) => {
 				if (!this._agents.get(handle)?.hasSlashCommands) {
 					return []; // save an IPC call
 				}
-				return this._proxy.$provideSlashCommands(handle, token);
+				lastSlashCommands = await this._proxy.$provideSlashCommands(handle, token);
+				return lastSlashCommands;
 			}
 		});
 		this._agents.set(handle, {
@@ -123,29 +123,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatAgentService.updateAgent(data.name, revive(metadataUpdate));
 	}
 
-	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
-		if (progress.kind === 'asyncContent') {
-			const handle = ++this._responsePartHandlePool;
-			const responsePartId = `${requestId}_${handle}`;
-			const deferredContentPromise = new DeferredPromise<string | IMarkdownString | IChatTreeData>();
-			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
-			this._pendingProgress.get(requestId)?.({ ...progress, resolvedContent: deferredContentPromise.p });
-			return handle;
-		} else if (typeof responsePartHandle === 'number') {
-			// Complete an existing deferred promise with resolved content
-			const responsePartId = `${requestId}_${responsePartHandle}`;
-			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
-			if (deferredContentPromise && progress.kind === 'treeData') {
-				const withRevivedUris = revive<IChatTreeData>(progress);
-				deferredContentPromise.complete(withRevivedUris);
-				this._activeResponsePartPromises.delete(responsePartId);
-			} else if (deferredContentPromise && progress.kind === 'content') {
-				deferredContentPromise.complete(progress.content);
-				this._activeResponsePartPromises.delete(responsePartId);
-			}
-			return responsePartHandle;
-		}
-
+	async $handleProgressChunk(requestId: string, progress: IChatProgressDto): Promise<number | void> {
 		const revivedProgress = revive(progress);
 		this._pendingProgress.get(requestId)?.(revivedProgress as IChatProgress);
 	}
@@ -168,7 +146,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = (await this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 				const thisAgentName = this._agents.get(handle)?.name;
 				if (agentPart?.agent.id !== thisAgentName) {

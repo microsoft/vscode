@@ -88,7 +88,7 @@ const openLocalFolderCommand: IAction2Options = {
 };
 const showOutputChannelCommand: IAction2Options = {
 	id: 'workbench.editSessions.actions.showOutputChannel',
-	title: { value: localize('show log', 'Show Log'), original: 'Show Log' },
+	title: localize2('show log', "Show Log"),
 	category: EDIT_SESSION_SYNC_CATEGORY
 };
 const installAdditionalContinueOnOptionsCommand = {

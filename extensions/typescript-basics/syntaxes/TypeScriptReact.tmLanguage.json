@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/8c7482b94b548eab56da64dbfb30b82589b3f747",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/b80b7509a78e642f789c567e144ed951ab98b4e3",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"patterns": [
@@ -2351,12 +2351,15 @@
 			]
 		},
 		"import-export-assert-clause": {
-			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(assert)\\s*(\\{)",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(with)|(assert))\\s*(\\{)",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.assert.tsx"
+					"name": "keyword.control.with.tsx"
 				},
 				"2": {
+					"name": "keyword.control.assert.tsx"
+				},
+				"3": {
 					"name": "punctuation.definition.block.tsx"
 				}
 			},

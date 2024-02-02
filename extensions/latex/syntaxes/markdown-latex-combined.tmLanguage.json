@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/ff5e3f24ff5f242d62954cf9e124184f27bf24dd",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/45c7b12ee68563afd50407e5eac02d30d33dbe7a",
 	"name": "Markdown",
 	"scopeName": "text.tex.markdown_latex_combined",
 	"patterns": [
@@ -2258,12 +2258,7 @@
 					]
 				}
 			},
-			"name": "markup.heading.markdown",
-			"patterns": [
-				{
-					"include": "#inline"
-				}
-			]
+			"name": "markup.heading.markdown"
 		},
 		"heading-setext": {
 			"patterns": [

@@ -322,7 +322,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 			await this.raw.start();
 			this.registerListeners();
-			await this.raw!.initialize({
+			await this.raw.initialize({
 				clientID: 'vscode',
 				clientName: this.productService.nameLong,
 				adapterID: this.configuration.type,

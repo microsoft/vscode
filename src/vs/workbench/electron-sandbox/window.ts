@@ -14,7 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
+import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
@@ -332,7 +332,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Window Zoom
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.zoomLevel')) {
+			if (e.affectsConfiguration('window.zoomLevel') || (e.affectsConfiguration('window.zoomPerWindow') && this.configurationService.getValue('window.zoomPerWindow') === false)) {
 				this.onDidChangeConfiguredWindowZoomLevel();
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
@@ -377,7 +377,7 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
+		if (isMacintosh && !hasNativeTitlebar(this.configurationService)) {
 			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 				const targetWindow = getWindow(container);
 				const targetWindowId = targetWindow.vscodeWindowId;
@@ -611,7 +611,7 @@ export class NativeWindow extends BaseWindow {
 		this.customTitleContextMenuDisposable.clear();
 
 		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || getTitleBarStyle(this.configurationService) !== 'custom') {
+		if (!filePath || !hasNativeTitlebar(this.configurationService)) {
 			return;
 		}
 
@@ -1187,7 +1187,7 @@ class ZoomStatusEntry extends Disposable {
 
 	private updateZoomLevelLabel(targetWindowId: number): void {
 		if (this.zoomLevelLabel) {
-			const targetWindow = getWindowById(targetWindowId)?.window ?? mainWindow;
+			const targetWindow = getWindowById(targetWindowId, true).window;
 			const zoomFactor = Math.round(getZoomFactor(targetWindow) * 100);
 			const zoomLevel = getZoomLevel(targetWindow);
 

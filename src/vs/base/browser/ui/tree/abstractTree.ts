@@ -1602,7 +1602,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		const isVisible = !!state && state.count > 0;
 
 		// If state has not changed, do nothing
-		if ((!wasVisible && !isVisible) || (wasVisible && isVisible && this._previousState!.equal(state!))) {
+		if ((!wasVisible && !isVisible) || (wasVisible && isVisible && this._previousState!.equal(state))) {
 			return;
 		}
 
@@ -1767,8 +1767,10 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	private _domHasFocus: boolean = false;
 	private get domHasFocus(): boolean { return this._domHasFocus; }
 	private set domHasFocus(hasFocus: boolean) {
-		this._domHasFocus = hasFocus;
-		this._onDidChangeHasFocus.fire(hasFocus);
+		if (hasFocus !== this._domHasFocus) {
+			this._onDidChangeHasFocus.fire(hasFocus);
+			this._domHasFocus = hasFocus;
+		}
 	}
 
 	constructor(
@@ -2549,7 +2551,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.findController = new FindController(this, this.model, this.view, filter!, _options.contextViewProvider, opts);
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
-			this.disposables.add(this.findController!);
+			this.disposables.add(this.findController);
 			this.onDidChangeFindMode = this.findController.onDidChangeMode;
 			this.onDidChangeFindMatchType = this.findController.onDidChangeMatchType;
 		} else {
@@ -2958,7 +2960,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			const node = queue.shift()!;
 
 			if (node !== root && node.collapsible) {
-				state.expanded[getId(node.element!)] = node.collapsed ? 0 : 1;
+				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
 			}
 
 			queue.push(...node.children);

@@ -560,7 +560,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
-		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel!.getLineCount(), this.textModel!.getLineLength(this.textModel!.getLineCount()));
+		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel.getLineCount(), this.textModel.getLineLength(this.textModel.getLineCount()));
 		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
 		if (selectionTop === lastViewLineTop) {

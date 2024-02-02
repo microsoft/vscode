@@ -4502,6 +4502,10 @@ declare namespace monaco.editor {
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
 		keepOnBlur?: boolean;
+		/**
+		 * Font family for inline suggestions.
+		 */
+		fontFamily?: string | 'default';
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -7098,6 +7102,7 @@ declare namespace monaco.languages {
 		isPreferred?: boolean;
 		isAI?: boolean;
 		disabled?: string;
+		ranges?: IRange[];
 	}
 
 	export enum CodeActionTriggerType {

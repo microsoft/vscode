@@ -10,7 +10,8 @@
   "enabledApiProposals": [
     "workspaceTrust",
     "multiDocumentHighlightProvider",
-    "mappedEditsProvider"
+    "mappedEditsProvider",
+    "codeActionAI"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -147,59 +148,6 @@
       "title": "%configuration.typescript%",
       "order": 20,
       "properties": {
-        "typescript.experimental.aiCodeActions": {
-          "type": "object",
-          "default": {},
-          "description": "%typescript.experimental.aiCodeActions%",
-          "scope": "resource",
-          "properties": {
-            "classIncorrectlyImplementsInterface": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.classIncorrectlyImplementsInterface%"
-            },
-            "classDoesntImplementInheritedAbstractMember": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.classDoesntImplementInheritedAbstractMember%"
-            },
-            "missingFunctionDeclaration": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.missingFunctionDeclaration%"
-            },
-            "inferAndAddTypes": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.inferAndAddTypes%"
-            },
-            "addNameToNamelessParameter": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.addNameToNamelessParameter%"
-            },
-            "extractConstant": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.extractConstant%"
-            },
-            "extractFunction": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.extractFunction%"
-            },
-            "extractType": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.extractType%"
-            },
-            "extractInterface": {
-              "type": "boolean",
-              "default": false,
-              "description": "%typescript.experimental.aiCodeActions.extractInterface%"
-            }
-          }
-        },
         "typescript.tsdk": {
           "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",

@@ -934,7 +934,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			// following calls to createTerminal will be created with the new environment. It will
 			// result in more noise by sending multiple updates when called but collections are
 			// expected to be small.
-			this._syncEnvironmentVariableCollection(extensionIdentifier, collection!);
+			this._syncEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}
 }

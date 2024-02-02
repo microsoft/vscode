@@ -6,7 +6,7 @@
 import 'vs/css!./media/menubarControl';
 import { localize, localize2 } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
+import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, hasNativeTitlebar, TitleBarSetting } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
@@ -351,7 +351,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.APPLICATION, false);
-		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
+		const usingCustomMenubar = !hasNativeTitlebar(this.configurationService);
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
 			return;
@@ -362,7 +362,7 @@ export abstract class MenubarControl extends Disposable {
 			{
 				label: localize('goToSetting', "Open Settings"),
 				run: () => {
-					return this.preferencesService.openUserSettings({ query: 'window.titleBarStyle' });
+					return this.preferencesService.openUserSettings({ query: TitleBarSetting.TITLE_BAR_STYLE });
 				}
 			}
 		]);

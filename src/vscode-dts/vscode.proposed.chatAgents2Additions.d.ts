@@ -26,7 +26,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSlashCommand;
+		command?: ChatAgentSubCommand;
 	}
 
 	export interface ChatAgentVulnerability {
@@ -111,7 +111,7 @@ declare module 'vscode' {
 	export interface ChatAgentCommandAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
-		command: any; // ChatAgentCommandButton;
+		command: ChatAgentCommandFollowup;
 	}
 
 	export interface ChatAgentSessionFollowupAction {

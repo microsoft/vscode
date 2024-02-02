@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { $window } from 'vs/base/browser/window';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -41,7 +42,8 @@ export interface NotebookDisplayOptions {
 	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
 	insertToolbarAlignment: 'left' | 'center';
 	globalToolbar: boolean;
-	stickyScroll: boolean;
+	stickyScrollEnabled: boolean;
+	stickyScrollMode: 'flat' | 'indented';
 	consolidatedOutputButton: boolean;
 	consolidatedRunButton: boolean;
 	showFoldingControls: 'always' | 'never' | 'mouseover';
@@ -92,7 +94,8 @@ export interface NotebookOptionsChangeEvent {
 	readonly insertToolbarPosition?: boolean;
 	readonly insertToolbarAlignment?: boolean;
 	readonly globalToolbar?: boolean;
-	readonly stickyScroll?: boolean;
+	readonly stickyScrollEnabled?: boolean;
+	readonly stickyScrollMode?: boolean;
 	readonly showFoldingControls?: boolean;
 	readonly consolidatedOutputButton?: boolean;
 	readonly consolidatedRunButton?: boolean;
@@ -139,12 +142,13 @@ export class NotebookOptions extends Disposable {
 		private readonly configurationService: IConfigurationService,
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		private isReadonly: boolean,
-		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScroll: boolean; dragAndDropEnabled: boolean }
+		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScrollEnabled: boolean; dragAndDropEnabled: boolean }
 	) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);
 		const globalToolbar = overrides?.globalToolbar ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.globalToolbar) ?? true;
-		const stickyScroll = overrides?.stickyScroll ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.stickyScroll) ?? false;
+		const stickyScrollEnabled = overrides?.stickyScrollEnabled ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.stickyScrollEnabled) ?? false;
+		const stickyScrollMode = this._computeStickyScrollModeOption();
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedRunButton) ?? false;
 		const dragAndDropEnabled = overrides?.dragAndDropEnabled ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.dragAndDropEnabled) ?? true;
@@ -220,7 +224,8 @@ export class NotebookOptions extends Disposable {
 			collapsedIndicatorHeight: 28,
 			showCellStatusBar,
 			globalToolbar,
-			stickyScroll,
+			stickyScrollEnabled,
+			stickyScrollMode,
 			consolidatedOutputButton,
 			consolidatedRunButton,
 			dragAndDropEnabled,
@@ -313,7 +318,7 @@ export class NotebookOptions extends Disposable {
 		if (lineHeight === 0) {
 			// use editor line height
 			const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-			const fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
+			const fontInfo = FontMeasurements.readFontInfo($window, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance($window).value));
 			lineHeight = fontInfo.lineHeight;
 		} else if (lineHeight < minimumLineHeight) {
 			// Values too small to be line heights in pixels are in ems.
@@ -343,7 +348,8 @@ export class NotebookOptions extends Disposable {
 		const insertToolbarPosition = e.affectsConfiguration(NotebookSetting.insertToolbarLocation);
 		const insertToolbarAlignment = e.affectsConfiguration(NotebookSetting.experimentalInsertToolbarAlignment);
 		const globalToolbar = e.affectsConfiguration(NotebookSetting.globalToolbar);
-		const stickyScroll = e.affectsConfiguration(NotebookSetting.stickyScroll);
+		const stickyScrollEnabled = e.affectsConfiguration(NotebookSetting.stickyScrollEnabled);
+		const stickyScrollMode = e.affectsConfiguration(NotebookSetting.stickyScrollMode);
 		const consolidatedOutputButton = e.affectsConfiguration(NotebookSetting.consolidatedOutputButton);
 		const consolidatedRunButton = e.affectsConfiguration(NotebookSetting.consolidatedRunButton);
 		const showFoldingControls = e.affectsConfiguration(NotebookSetting.showFoldingControls);
@@ -369,7 +375,8 @@ export class NotebookOptions extends Disposable {
 			&& !insertToolbarPosition
 			&& !insertToolbarAlignment
 			&& !globalToolbar
-			&& !stickyScroll
+			&& !stickyScrollEnabled
+			&& !stickyScrollMode
 			&& !consolidatedOutputButton
 			&& !consolidatedRunButton
 			&& !showFoldingControls
@@ -426,8 +433,12 @@ export class NotebookOptions extends Disposable {
 			configuration.globalToolbar = this.configurationService.getValue<boolean>(NotebookSetting.globalToolbar) ?? true;
 		}
 
-		if (stickyScroll && this.overrides?.stickyScroll === undefined) {
-			configuration.stickyScroll = this.configurationService.getValue<boolean>(NotebookSetting.stickyScroll) ?? false;
+		if (stickyScrollEnabled && this.overrides?.stickyScrollEnabled === undefined) {
+			configuration.stickyScrollEnabled = this.configurationService.getValue<boolean>(NotebookSetting.stickyScrollEnabled) ?? false;
+		}
+
+		if (stickyScrollMode) {
+			configuration.stickyScrollMode = this.configurationService.getValue<'flat' | 'indented'>(NotebookSetting.stickyScrollMode) ?? 'flat';
 		}
 
 		if (consolidatedOutputButton) {
@@ -499,7 +510,8 @@ export class NotebookOptions extends Disposable {
 			insertToolbarPosition,
 			insertToolbarAlignment,
 			globalToolbar,
-			stickyScroll,
+			stickyScrollEnabled,
+			stickyScrollMode,
 			showFoldingControls,
 			consolidatedOutputButton,
 			consolidatedRunButton,
@@ -532,6 +544,10 @@ export class NotebookOptions extends Disposable {
 
 	private _computeFocusIndicatorOption() {
 		return this.configurationService.getValue<'border' | 'gutter'>(NotebookSetting.focusIndicator) ?? 'gutter';
+	}
+
+	private _computeStickyScrollModeOption() {
+		return this.configurationService.getValue<'flat' | 'indented'>(NotebookSetting.stickyScrollMode) ?? 'flat';
 	}
 
 	getCellCollapseDefault(): NotebookCellDefaultCollapseConfig {

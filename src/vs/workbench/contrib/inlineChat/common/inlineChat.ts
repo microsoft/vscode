@@ -21,6 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { URI } from 'vs/base/common/uri';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -45,6 +46,7 @@ export interface IInlineChatRequest {
 	attempt: number;
 	requestId: string;
 	live: boolean;
+	previewDocument: URI;
 	withIntentDetection: boolean;
 }
 
@@ -150,7 +152,7 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 
 // --- (select) action identifier
 
-export const ACTION_ACCEPT_CHANGES = 'interactive.acceptChanges';
+export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 
@@ -217,7 +219,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
-			]
+			],
+			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.FinishOnType]: {
 			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),

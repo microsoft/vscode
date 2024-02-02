@@ -21,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
 	static readonly ID = 'workbench.action.configureLanguageBasedSettings';
-	static readonly LABEL = { value: nls.localize('configureLanguageBasedSettings', "Configure Language Specific Settings..."), original: 'Configure Language Specific Settings...' };
+	static readonly LABEL = nls.localize2('configureLanguageBasedSettings', "Configure Language Specific Settings...");
 
 	constructor(
 		id: string,

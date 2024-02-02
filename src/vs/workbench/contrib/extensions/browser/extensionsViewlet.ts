@@ -84,7 +84,7 @@ const SearchDeprecatedExtensionsContext = new RawContextKey<boolean>('searchDepr
 export const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', false);
 
-const REMOTE_CATEGORY: ILocalizedString = { value: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"), original: 'Remote' };
+const REMOTE_CATEGORY: ILocalizedString = localize2({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote");
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 

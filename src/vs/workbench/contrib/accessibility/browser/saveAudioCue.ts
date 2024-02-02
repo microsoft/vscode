@@ -10,6 +10,9 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class SaveAudioCueContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saveAudioCues';
+
 	constructor(
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,

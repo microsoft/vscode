@@ -9,6 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -105,6 +106,7 @@ export interface IChatWidget {
 	readonly inputEditor: ICodeEditor;
 	readonly providerId: string;
 	readonly supportsFileReferences: boolean;
+	readonly parsedInput: IParsedChatRequest;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
