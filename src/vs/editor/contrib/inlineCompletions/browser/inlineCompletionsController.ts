@@ -221,12 +221,14 @@ export class InlineCompletionsController extends Disposable {
 
 			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
 				lastInlineCompletionId = state.inlineCompletion.semanticId;
-				const lineText = model.textModel.getLineContent(state.ghostTexts[0].lineNumber);
-				this._audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
-					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						this.provideScreenReaderUpdate(state.ghostTexts[0].renderForScreenReader(lineText));
-					}
-				});
+				if (state.ghostTexts.length > 0) {
+					const lineText = model.textModel.getLineContent(state.ghostTexts[0].lineNumber);
+					this._audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
+						if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
+							this.provideScreenReaderUpdate(state.ghostTexts[0].renderForScreenReader(lineText));
+						}
+					});
+				}
 			}
 		}));
 
@@ -266,7 +268,7 @@ export class InlineCompletionsController extends Disposable {
 
 	public shouldShowHoverAt(range: Range) {
 		const ghostTexts = this.model.get()?.ghostTexts.get();
-		if (ghostTexts) {
+		if (ghostTexts && ghostTexts.length > 0) {
 			const ghostText = ghostTexts[0];
 			return ghostText.parts.some(p => range.containsPosition(new Position(ghostText.lineNumber, p.column)));
 		}

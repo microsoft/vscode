@@ -273,7 +273,7 @@ export class InlineCompletionsModel extends Disposable {
 				const cursor = this.cursorPosition.read(reader);
 				const ghostText = edit.computeGhostText(model, mode, cursor);
 				if (ghostText) {
-					ghostTexts.push();
+					ghostTexts.push(ghostText);
 				}
 			}
 			return ghostTexts ? { ghostTexts, edits, editorSelections, inlineCompletion: item, suggestItem: undefined } : undefined;
