@@ -738,7 +738,6 @@ export class ChatService extends Disposable implements IChatService {
 		return Array.from(this._providers.values()).map(provider => {
 			return {
 				id: provider.id,
-				displayName: provider.displayName
 			};
 		});
 	}

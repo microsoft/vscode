@@ -49,7 +49,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 		const unreg = this._chatService.registerProvider({
 			id,
-			displayName: registration.label,
 			prepareSession: async (token) => {
 				const session = await this._proxy.$prepareChat(handle, token);
 				if (!session) {
