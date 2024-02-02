@@ -149,8 +149,8 @@ export class NotebookCellsLayout implements IRangeMap {
 
 	/**
 	 * find position of whitespace
-	 * @param id
-	 * @returns
+	 * @param id: id of the whitespace
+	 * @returns: position in the list view
 	 */
 	getWhitespacePosition(id: string): number {
 		const whitespace = this._whitespace.find(ws => ws.id === id);
