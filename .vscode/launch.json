@@ -528,7 +528,7 @@
 		},
 		{
 			"name": "Monaco Editor Playground",
-			"type": "msedge",
+			"type": "chrome",
 			"request": "launch",
 			"url": "http://localhost:5001",
 			"preLaunchTask": "Launch Http Server",
