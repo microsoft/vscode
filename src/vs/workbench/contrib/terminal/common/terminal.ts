@@ -497,6 +497,9 @@ export const enum TerminalCommandId {
 	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
 	StartVoice = 'workbench.action.startTerminalVoice',
 	StopVoice = 'workbench.action.stopTerminalVoice',
+	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
+	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
+	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
 
 	// Developer commands
 

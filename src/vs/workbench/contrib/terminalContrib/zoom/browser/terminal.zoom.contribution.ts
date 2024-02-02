@@ -13,8 +13,12 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessInfo, ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { localize2 } from 'vs/nls';
+import { isNumber } from 'vs/base/common/types';
+import { defaultTerminalFontSize } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 
 class TerminalMouseWheelZoomContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.mouseWheelZoom';
@@ -69,7 +73,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		raw.attachCustomWheelEventHandler((e: WheelEvent) => {
 			const browserEvent = e as any as IMouseWheelEvent;
 			if (classifier.isPhysicalMouseWheel()) {
-				if (hasMouseWheelZoomModifiers(browserEvent)) {
+				if (this._hasMouseWheelZoomModifiers(browserEvent)) {
 					const delta = browserEvent.deltaY > 0 ? -1 : 1;
 					this._configurationService.updateValue(TerminalSettingId.FontSize, this._getConfigFontSize() + delta);
 					// EditorZoom.setZoomLevel(zoomLevel + delta);
@@ -84,7 +88,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 				if (Date.now() - prevMouseWheelTime > 50) {
 					// reset if more than 50ms have passed
 					gestureStartFontSize = this._getConfigFontSize();
-					gestureHasZoomModifiers = hasMouseWheelZoomModifiers(browserEvent);
+					gestureHasZoomModifiers = this._hasMouseWheelZoomModifiers(browserEvent);
 					gestureAccumulatedDelta = 0;
 				}
 
@@ -106,16 +110,49 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		});
 		this._listener.value = toDisposable(() => raw.attachCustomWheelEventHandler(() => true));
 	}
+
+	private _hasMouseWheelZoomModifiers(browserEvent: IMouseWheelEvent): boolean {
+		return (
+			isMacintosh
+				// on macOS we support cmd + two fingers scroll (`metaKey` set)
+				// and also the two fingers pinch gesture (`ctrKey` set)
+				? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
+				: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
+		);
+	}
 }
 
 registerTerminalContribution(TerminalMouseWheelZoomContribution.ID, TerminalMouseWheelZoomContribution, true);
 
-function hasMouseWheelZoomModifiers(browserEvent: IMouseWheelEvent): boolean {
-	return (
-		isMacintosh
-			// on macOS we support cmd + two fingers scroll (`metaKey` set)
-			// and also the two fingers pinch gesture (`ctrKey` set)
-			? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
-			: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
-	);
-}
+registerTerminalAction({
+	id: TerminalCommandId.FontZoomIn,
+	title: localize2('fontZoomIn', 'Increase Font Size'),
+	run: async (c, accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+		const value = configurationService.getValue(TerminalSettingId.FontSize);
+		if (isNumber(value)) {
+			await configurationService.updateValue(TerminalSettingId.FontSize, value + 1);
+		}
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.FontZoomOut,
+	title: localize2('fontZoomOut', 'Decrease Font Size'),
+	run: async (c, accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+		const value = configurationService.getValue(TerminalSettingId.FontSize);
+		if (isNumber(value)) {
+			await configurationService.updateValue(TerminalSettingId.FontSize, value - 1);
+		}
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.FontZoomReset,
+	title: localize2('fontZoomReset', 'Reset Font Size'),
+	run: async (c, accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(TerminalSettingId.FontSize, defaultTerminalFontSize);
+	}
+});
