@@ -124,17 +124,17 @@ export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
 
 	for (const edit of edits) {
 		const text = edit.text ?? '';
+		const textLength = lengthOfText(text);
 		const rangeStart = Position.lift({
 			lineNumber: edit.range.startLineNumber + lineOffset,
 			column: edit.range.startColumn + (edit.range.startLineNumber === previousEditEndLineNumber ? columnOffset : 0)
 		});
 		const rangeEnd = addPositions(
 			rangeStart,
-			lengthOfText(text)
+			textLength
 		);
 		ranges.push(Range.fromPositions(rangeStart, rangeEnd));
-		const splitText = splitLines(text);
-		lineOffset += splitText.length - edit.range.endLineNumber + edit.range.startLineNumber - 1;
+		lineOffset += textLength.lineNumber - edit.range.endLineNumber + edit.range.startLineNumber - 1;
 		columnOffset = rangeEnd.column - edit.range.endColumn;
 		previousEditEndLineNumber = edit.range.endLineNumber;
 	}
