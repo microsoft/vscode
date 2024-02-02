@@ -1017,7 +1017,7 @@ export class ExtHostDebugSession {
 
 	public get api(): vscode.DebugSession {
 		const that = this;
-		return this.apiSession = Object.freeze({
+		return this.apiSession ??= Object.freeze({
 			id: that._id,
 			type: that._type,
 			get name() {
