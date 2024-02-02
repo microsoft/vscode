@@ -8,11 +8,6 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "extensionDependencies": [
-    "vscode.json-language-features"
-  ],
-  "activationEvents": [],
-  "main": "",
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
@@ -119,11 +114,6 @@
         "language": "snippets",
         "scopeName": "source.json.comments.snippets",
         "path": "./syntaxes/snippets.tmLanguage.json"
-      }
-    ],
-    "jsonLanguageParticipants": [
-      {
-        "languageId": "snippets"
       }
     ]
   },
