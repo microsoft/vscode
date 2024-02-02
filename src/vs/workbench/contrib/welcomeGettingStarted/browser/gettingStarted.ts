@@ -1460,6 +1460,12 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedStep = undefined;
 			this.editorInput.showTelemetryNotice = false;
 
+			if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
+				// extensions may have changed in the time since we last displayed the walkthrough list
+				// rebuild the list
+				this.buildCategoriesSlide();
+			}
+
 			this.selectStep(undefined);
 			this.setSlide('categories');
 			this.container.focus();
