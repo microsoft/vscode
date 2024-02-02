@@ -159,8 +159,6 @@ export interface IChatProvider {
 	readonly displayName: string;
 	readonly iconUrl?: string;
 	prepareSession(token: CancellationToken): ProviderResult<IChat | undefined>;
-	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
-	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
 }
 
 export interface IChatReplyFollowup {

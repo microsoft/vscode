@@ -75,12 +75,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					}
 				};
 			},
-			provideWelcomeMessage: (token) => {
-				return this._proxy.$provideWelcomeMessage(handle, token);
-			},
-			provideSampleQuestions: (token) => {
-				return this._proxy.$provideSampleQuestions(handle, token);
-			},
 		});
 
 		this._providerRegistrations.set(handle, unreg);
