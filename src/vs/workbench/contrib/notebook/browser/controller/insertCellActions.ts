@@ -13,7 +13,7 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { CellOverflowToolbarGroups, INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -223,6 +223,50 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 
 		if (newCell) {
 			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		}
+	}
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.actions.insertWhitespace',
+				title: localize('notebook.actions.insertWhitespace', "Add Whitespace"),
+				f1: false,
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					group: CellOverflowToolbarGroups.Edit,
+					order: 0
+				}
+			});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
+		if (context) {
+			this.runWithContext(accessor, context);
+		}
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		if (context.cell) {
+			const index = context.notebookEditor.getCellIndex(context.cell);
+			if (index >= 0) {
+				const span = document.createElement('span');
+				span.innerText = 'Hello whitespace';
+				const domNode = document.createElement('div');
+				domNode.appendChild(span);
+				context.notebookEditor.changeViewZones(accessor => {
+					const id = accessor.addZone({
+						afterModelPosition: index + 1,
+						heightInPx: 100,
+						domNode: domNode
+					});
+
+					accessor.layoutZone(id);
+				});
+			}
 		}
 	}
 });
