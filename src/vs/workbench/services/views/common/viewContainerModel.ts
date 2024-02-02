@@ -21,12 +21,13 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { CounterSet } from 'vs/base/common/map';
+import { localize2 } from 'vs/nls';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: '_workbench.output.showViewsLog',
-			title: { value: 'Show Views Log', original: 'Show Views Log' },
+			title: localize2('showViewsLog', "Show Views Log"),
 			category: Categories.Developer,
 			f1: true
 		});
