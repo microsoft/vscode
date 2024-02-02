@@ -747,7 +747,8 @@
 		"--vscode-widget-border",
 		"--vscode-widget-shadow",
 		"--vscode-window-activeBorder",
-		"--vscode-window-inactiveBorder"
+		"--vscode-window-inactiveBorder",
+		"--vscode-multiDiffEditor-headerBackground"
 	],
 	"others": [
 		"--background-dark",

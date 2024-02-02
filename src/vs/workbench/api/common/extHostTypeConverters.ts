@@ -2003,18 +2003,18 @@ export namespace TestCoverage {
 	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
-				count: coverage.executionCount,
+				count: coverage.executed,
 				location: fromLocation(coverage.location),
 				type: DetailType.Statement,
 				branches: coverage.branches.length
-					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location), label: b.label }))
+					? coverage.branches.map(b => ({ count: b.executed, location: b.location && fromLocation(b.location), label: b.label }))
 					: undefined,
 			};
 		} else {
 			return {
 				type: DetailType.Function,
 				name: coverage.name,
-				count: coverage.executionCount,
+				count: coverage.executed,
 				location: fromLocation(coverage.location),
 			};
 		}

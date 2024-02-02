@@ -133,6 +133,7 @@ registerWorkbenchContribution2(UntitledTextEditorWorkingCopyEditorHandler.ID, Un
 registerWorkbenchContribution2(DynamicEditorConfigurations.ID, DynamicEditorConfigurations, WorkbenchContributionInstantiation.BlockRestore);
 
 registerEditorContribution(FloatingEditorClickMenu.ID, FloatingEditorClickMenu, EditorContributionInstantiation.AfterFirstRender);
+
 //#endregion
 
 //#region Quick Access

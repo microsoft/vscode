@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { raceCancellation } from 'vs/base/common/async';
-import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent } from './inlineChatSessionService';
+import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent, IInlineChatSessionEndEvent } from './inlineChatSessionService';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -43,8 +43,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _onDidMoveSession = new Emitter<IInlineChatSessionEvent>();
 	readonly onDidMoveSession: Event<IInlineChatSessionEvent> = this._onDidMoveSession.event;
 
-	private readonly _onDidEndSession = new Emitter<IInlineChatSessionEvent>();
-	readonly onDidEndSession: Event<IInlineChatSessionEvent> = this._onDidEndSession.event;
+	private readonly _onDidEndSession = new Emitter<IInlineChatSessionEndEvent>();
+	readonly onDidEndSession: Event<IInlineChatSessionEndEvent> = this._onDidEndSession.event;
 
 	private readonly _onDidStashSession = new Emitter<IInlineChatSessionEvent>();
 	readonly onDidStashSession: Event<IInlineChatSessionEvent> = this._onDidStashSession.event;
@@ -100,8 +100,15 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
-		this._logService.trace(`[IE] creating NEW session for ${editor.getId()},  ${provider.debugName}`);
+		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${provider.debugName}`);
 		const store = new DisposableStore();
+
+		store.add(this._inlineChatService.onDidChangeProviders(e => {
+			if (e.removed === provider) {
+				this._logService.trace(`[IE] provider GONE for ${editor.getId()}, ${provider.debugName}`);
+				this._releaseSession(session, true);
+			}
+		}));
 
 		const id = generateUuid();
 		const targetUri = textModel.uri;
@@ -131,7 +138,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		if (targetUri.scheme === Schemas.untitled) {
 			store.add(this._editorService.onDidCloseEditor(() => {
 				if (!this._editorService.isOpened({ resource: targetUri, typeId: UntitledTextEditorInput.ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
-					this.releaseSession(session);
+					this._releaseSession(session, true);
 				}
 			}));
 		}
@@ -139,6 +146,11 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		let wholeRange = options.wholeRange;
 		if (!wholeRange) {
 			wholeRange = rawSession.wholeRange ? Range.lift(rawSession.wholeRange) : editor.getSelection();
+		}
+
+		if (token.isCancellationRequested) {
+			store.dispose();
+			return undefined;
 		}
 
 		const session = new Session(
@@ -190,6 +202,10 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	releaseSession(session: Session): void {
+		this._releaseSession(session, false);
+	}
+
+	private _releaseSession(session: Session, byServer: boolean): void {
 
 		let tuple: [string, SessionData] | undefined;
 
@@ -211,11 +227,11 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 
 		const [key, value] = tuple;
-		value.store.dispose();
 		this._sessions.delete(key);
 		this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.debugName}`);
 
-		this._onDidEndSession.fire({ editor: value.editor, session });
+		this._onDidEndSession.fire({ editor: value.editor, session, endedByExternalCause: byServer });
+		value.store.dispose();
 	}
 
 	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession {
