@@ -135,6 +135,15 @@ export class GhostTextReplacement {
 
 export type GhostTextOrReplacement = GhostText | GhostTextReplacement;
 
+export function ghostTextsOrReplacementsEqual(a: GhostTextOrReplacement[] | undefined, b: GhostTextOrReplacement[] | undefined): boolean {
+	if (!a || !b) {
+		return false;
+	}
+	const firstEl = a[0];
+	const secondEl = b[0];
+	return ghostTextOrReplacementEquals(firstEl, secondEl);
+}
+
 export function ghostTextOrReplacementEquals(a: GhostTextOrReplacement | undefined, b: GhostTextOrReplacement | undefined): boolean {
 	if (a === b) {
 		return true;

@@ -33,10 +33,10 @@ export class InlineCompletionContextKeys extends Disposable {
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
 
-			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.ghostText !== undefined && !state?.ghostText.isEmpty();
+			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.ghostTexts !== undefined && !state?.ghostTexts.some(gh => gh.isEmpty());
 			this.inlineCompletionVisible.set(isInlineCompletionVisible);
 
-			if (state?.ghostText && state?.inlineCompletion) {
+			if (state?.ghostTexts && state?.inlineCompletion) {
 				this.suppressSuggestions.set(state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions);
 			}
 		}));
@@ -48,25 +48,28 @@ export class InlineCompletionContextKeys extends Disposable {
 			let startsWithIndentation = false;
 			let startsWithIndentationLessThanTabSize = true;
 
-			const ghostText = model?.ghostText.read(reader);
-			if (!!model?.selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
-				const { column, lines } = ghostText.parts[0];
+			const ghostTexts = model?.ghostTexts.read(reader);
+			if (ghostTexts) {
+				const ghostText = ghostTexts[0];
+				if (!!model?.selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
+					const { column, lines } = ghostText.parts[0];
 
-				const firstLine = lines[0];
+					const firstLine = lines[0];
 
-				const indentationEndColumn = model.textModel.getLineIndentColumn(ghostText.lineNumber);
-				const inIndentation = column <= indentationEndColumn;
+					const indentationEndColumn = model.textModel.getLineIndentColumn(ghostText.lineNumber);
+					const inIndentation = column <= indentationEndColumn;
 
-				if (inIndentation) {
-					let firstNonWsIdx = firstNonWhitespaceIndex(firstLine);
-					if (firstNonWsIdx === -1) {
-						firstNonWsIdx = firstLine.length - 1;
+					if (inIndentation) {
+						let firstNonWsIdx = firstNonWhitespaceIndex(firstLine);
+						if (firstNonWsIdx === -1) {
+							firstNonWsIdx = firstLine.length - 1;
+						}
+						startsWithIndentation = firstNonWsIdx > 0;
+
+						const tabSize = model.textModel.getOptions().tabSize;
+						const visibleColumnIndentation = CursorColumns.visibleColumnFromColumn(firstLine, firstNonWsIdx + 1, tabSize);
+						startsWithIndentationLessThanTabSize = visibleColumnIndentation < tabSize;
 					}
-					startsWithIndentation = firstNonWsIdx > 0;
-
-					const tabSize = model.textModel.getOptions().tabSize;
-					const visibleColumnIndentation = CursorColumns.visibleColumnFromColumn(firstLine, firstNonWsIdx + 1, tabSize);
-					startsWithIndentationLessThanTabSize = visibleColumnIndentation < tabSize;
 				}
 			}
 

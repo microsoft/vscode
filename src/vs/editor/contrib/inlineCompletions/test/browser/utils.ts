@@ -83,9 +83,10 @@ export class GhostTextContext extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description update */
-			const ghostText = model.ghostText.read(reader);
+			const ghostTexts = model.ghostTexts.read(reader);
 			let view: string | undefined;
-			if (ghostText) {
+			if (ghostTexts) {
+				const ghostText = ghostTexts[0];
 				view = ghostText.render(this.editor.getValue(), true);
 			} else {
 				view = this.editor.getValue();

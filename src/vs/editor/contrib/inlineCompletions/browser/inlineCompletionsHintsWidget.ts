@@ -40,7 +40,11 @@ export class InlineCompletionsHintsWidget extends Disposable {
 	private sessionPosition: Position | undefined = undefined;
 
 	private readonly position = derived(this, reader => {
-		const ghostText = this.model.read(reader)?.ghostText.read(reader);
+		const ghostTexts = this.model.read(reader)?.ghostTexts.read(reader);
+		if (!ghostTexts) {
+			return null;
+		}
+		const ghostText = ghostTexts[0];
 
 		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
 			this.sessionPosition = undefined;

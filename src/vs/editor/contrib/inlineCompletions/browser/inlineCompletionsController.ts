@@ -56,7 +56,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	private _ghostTextWidget = this._register(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
-		ghostText: this.model.map((v, reader) => /** ghostText */ v?.ghostText.read(reader)),
+		ghostTexts: this.model.map((v, reader) => /** ghostText */ v?.ghostTexts.read(reader)),
 		minReservedLineCount: constObservable(0),
 		targetTextModel: this.model.map(v => v?.textModel),
 	}));
@@ -99,6 +99,7 @@ export class InlineCompletionsController extends Disposable {
 				if (textModel) {
 					const model = _instantiationService.createInstance(
 						InlineCompletionsModel,
+						editor,
 						textModel,
 						this._suggestWidgetAdaptor.selectedItem,
 						this._cursorPosition,
@@ -188,7 +189,7 @@ export class InlineCompletionsController extends Disposable {
 			/** @description InlineCompletionsController.forceRenderingAbove */
 			const state = this.model.read(reader)?.state.read(reader);
 			if (state?.suggestItem) {
-				if (state.ghostText.lineCount >= 2) {
+				if (state.ghostTexts[0].lineCount >= 2) {
 					this._suggestWidgetAdaptor.forceRenderingAbove();
 				}
 			} else {
@@ -220,10 +221,10 @@ export class InlineCompletionsController extends Disposable {
 
 			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
 				lastInlineCompletionId = state.inlineCompletion.semanticId;
-				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
+				const lineText = model.textModel.getLineContent(state.ghostTexts[0].lineNumber);
 				this._audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						this.provideScreenReaderUpdate(state.ghostText.renderForScreenReader(lineText));
+						this.provideScreenReaderUpdate(state.ghostTexts[0].renderForScreenReader(lineText));
 					}
 				});
 			}
@@ -264,8 +265,9 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	public shouldShowHoverAt(range: Range) {
-		const ghostText = this.model.get()?.ghostText.get();
-		if (ghostText) {
+		const ghostTexts = this.model.get()?.ghostTexts.get();
+		if (ghostTexts) {
+			const ghostText = ghostTexts[0];
 			return ghostText.parts.some(p => range.containsPosition(new Position(ghostText.lineNumber, p.column)));
 		}
 		return false;
