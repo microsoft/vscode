@@ -300,6 +300,29 @@ suite('NotebookRangeMap with top padding', () => {
 		assert.strictEqual(rangeMap.size, 280);
 		assert.strictEqual(rangeMap.count, 13);
 	});
+
+	suite('indexAt, positionAt', () => {
+		test('empty', () => {
+			const rangeMap = new NotebookCellsLayout(10);
+			assert.strictEqual(rangeMap.indexAt(0), 0);
+			assert.strictEqual(rangeMap.indexAt(10), 0);
+			assert.strictEqual(rangeMap.indexAt(-1), -1);
+			assert.strictEqual(rangeMap.positionAt(0), -1);
+			assert.strictEqual(rangeMap.positionAt(10), -1);
+			assert.strictEqual(rangeMap.positionAt(-1), -1);
+		});
+
+		test('simple', () => {
+			const rangeMap = new NotebookCellsLayout(10);
+			rangeMap.splice(0, 0, [one]);
+			assert.strictEqual(rangeMap.indexAt(0), 0);
+			assert.strictEqual(rangeMap.indexAt(1), 0);
+			assert.strictEqual(rangeMap.indexAt(10), 0);
+			assert.strictEqual(rangeMap.indexAt(11), 1);
+			assert.strictEqual(rangeMap.positionAt(0), 10);
+			assert.strictEqual(rangeMap.positionAt(1), -1);
+		});
+	});
 });
 
 suite('NotebookRangeMap with whitesspaces', () => {

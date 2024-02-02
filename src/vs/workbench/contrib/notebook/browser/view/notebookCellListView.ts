@@ -159,7 +159,7 @@ export class NotebookCellsLayout implements IRangeMap {
 			return 0;
 		}
 
-		if (offset >= this._size) {
+		if (offset >= (this._size - this._paddingTop - whitespaceBeforeFirstItem)) {
 			return this.count;
 		}
 
