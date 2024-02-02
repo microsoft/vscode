@@ -183,6 +183,7 @@ class CellOutputElement extends Disposable {
 		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 
 		if (this.viewCell.isOutputCollapsed || !this.notebookEditor.hasModel()) {
+			this.cellOutputContainer.unrenderedChanges();
 			return undefined;
 		}
 
@@ -477,9 +478,14 @@ const enum CellOutputUpdateContext {
 
 export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
+	private _staleOutputs: boolean = false;
 
 	get renderedOutputEntries() {
 		return this._outputEntries;
+	}
+
+	unrenderedChanges() {
+		this._staleOutputs = true;
 	}
 
 	constructor(
@@ -569,6 +575,13 @@ export class CellOutputContainer extends CellContentPart {
 	}
 
 	viewUpdateShowOutputs(initRendering: boolean): void {
+		if (this._staleOutputs) {
+			this._staleOutputs = false;
+			this._outputEntries.forEach(entry => {
+				entry.element.rerender();
+			});
+		}
+
 		for (let index = 0; index < this._outputEntries.length; index++) {
 			const viewHandler = this._outputEntries[index];
 			const outputEntry = viewHandler.element;

@@ -2830,7 +2830,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async updateOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
-			if (this._isDisposed || !this._webview) {
+			if (this._isDisposed || !this._webview || cell.isOutputCollapsed) {
 				return;
 			}
 
