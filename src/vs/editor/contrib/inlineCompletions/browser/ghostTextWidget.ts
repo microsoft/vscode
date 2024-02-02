@@ -206,13 +206,13 @@ export class GhostTextWidget extends Disposable {
 	);
 
 	public ownsViewZone(viewZoneId: string): boolean {
-		return this.additionalLinesWidget.viewZoneId === viewZoneId;
+		return this.additionalLinesWidget.viewZoneIds.includes(viewZoneId);
 	}
 }
 
 class AdditionalLinesWidget extends Disposable {
-	private _viewZoneId: string | undefined = undefined;
-	public get viewZoneId(): string | undefined { return this._viewZoneId; }
+	private _viewZoneIds: string[] = [];
+	public get viewZoneIds(): string[] { return this._viewZoneIds; }
 
 	private readonly editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
 		this.editor.onDidChangeConfiguration,
@@ -252,9 +252,11 @@ class AdditionalLinesWidget extends Disposable {
 
 	private clear(): void {
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
+			if (this._viewZoneIds) {
+				for (const id of this._viewZoneIds) {
+					changeAccessor.removeZone(id);
+					this._viewZoneIds = [];
+				}
 			}
 		});
 	}
@@ -268,9 +270,11 @@ class AdditionalLinesWidget extends Disposable {
 		const { tabSize } = textModel.getOptions();
 
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
+			if (this._viewZoneIds) {
+				for (const id of this._viewZoneIds) {
+					changeAccessor.removeZone(id);
+					this._viewZoneIds = [];
+				}
 			}
 
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
@@ -279,12 +283,12 @@ class AdditionalLinesWidget extends Disposable {
 					const domNode = document.createElement('div');
 					renderLines(domNode, tabSize, additionalLines[index], this.editor.getOptions(), this.languageIdCodec);
 
-					this._viewZoneId = changeAccessor.addZone({
+					this._viewZoneIds.push(changeAccessor.addZone({
 						afterLineNumber: lineNumber,
 						heightInLines: heightInLines,
 						domNode,
 						afterColumnAffinity: PositionAffinity.Right
-					});
+					}));
 				}
 			}
 		});
