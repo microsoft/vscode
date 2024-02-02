@@ -115,10 +115,15 @@ export interface IInlineChatSessionProvider {
 
 export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
 
+export interface InlineChatProviderChangeEvent {
+	readonly added?: IInlineChatSessionProvider;
+	readonly removed?: IInlineChatSessionProvider;
+}
+
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
-	onDidChangeProviders: Event<void>;
+	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
