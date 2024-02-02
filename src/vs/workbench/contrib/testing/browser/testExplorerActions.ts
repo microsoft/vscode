@@ -75,9 +75,9 @@ const enum ActionOrder {
 
 const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
 
-const LABEL_RUN_TESTS = { value: localize('runSelectedTests', 'Run Tests'), original: 'Run Tests' };
-const LABEL_DEBUG_TESTS = { value: localize('debugSelectedTests', 'Debug Tests'), original: 'Debug Tests' };
-const LABEL_COVERAGE_TESTS = { value: localize('coverageSelectedTests', 'Run Tests with Coverage'), original: 'Run Tests withCoverage' };
+const LABEL_RUN_TESTS = localize2('runSelectedTests', "Run Tests");
+const LABEL_DEBUG_TESTS = localize2('debugSelectedTests', "Debug Tests");
+const LABEL_COVERAGE_TESTS = localize2('coverageSelectedTests', "Run Tests with Coverage");
 
 export class HideTestAction extends Action2 {
 	constructor() {
@@ -290,7 +290,6 @@ export class ContinuousRunTestAction extends Action2 {
 
 	public override async run(accessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
 		const crService = accessor.get(ITestingContinuousRunService);
-		const profileService = accessor.get(ITestProfileService);
 		for (const element of elements) {
 			const id = element.test.item.extId;
 			if (crService.isSpecificallyEnabledFor(id)) {
@@ -298,13 +297,7 @@ export class ContinuousRunTestAction extends Action2 {
 				continue;
 			}
 
-			const profiles = profileService.getGroupDefaultProfiles(TestRunProfileBitset.Run)
-				.filter(p => p.supportsContinuousRun && p.controllerId === element.test.controllerId);
-			if (!profiles.length) {
-				continue;
-			}
-
-			crService.start(profiles, id);
+			crService.start(TestRunProfileBitset.Run, id);
 		}
 	}
 }
@@ -350,7 +343,7 @@ export class ConfigureTestProfilesAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ConfigureTestProfilesAction,
-			title: { value: localize('testing.configureProfile', 'Configure Test Profiles'), original: 'Configure Test Profiles' },
+			title: localize2('testing.configureProfile', "Configure Test Profiles"),
 			icon: icons.testingUpdateProfiles,
 			f1: true,
 			category,
@@ -487,7 +480,7 @@ class StartContinuousRunAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.StartContinousRun,
-			title: { value: localize('testing.startContinuous', "Start Continuous Run"), original: 'Enable Continuous Run' },
+			title: localize2('testing.startContinuous', "Start Continuous Run"),
 			category,
 			icon: icons.testingTurnContinuousRunOn,
 			menu: continuousMenus(false),

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
-import { commonPrefixLength, getLeadingWhitespace, splitLines } from 'vs/base/common/strings';
+import { commonPrefixLength, getLeadingWhitespace } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
@@ -134,12 +134,10 @@ export class SingleTextEdit {
 			const italicText = edit.text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
 
 			if (nonPreviewText.length > 0) {
-				const lines = splitLines(nonPreviewText);
-				parts.push(new GhostTextPart(insertColumn, lines, false));
+				parts.push(new GhostTextPart(insertColumn, nonPreviewText, false));
 			}
 			if (italicText.length > 0) {
-				const lines = splitLines(italicText);
-				parts.push(new GhostTextPart(insertColumn, lines, true));
+				parts.push(new GhostTextPart(insertColumn, italicText, true));
 			}
 		}
 

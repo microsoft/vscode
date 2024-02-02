@@ -19,6 +19,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
 import { ActionRunnerWithContext } from './utils';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -59,13 +60,15 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 	private readonly _elements = h('div.multiDiffEntry', [
 		h('div.header@header', [
-			h('div.collapse-button@collapseButton'),
-			h('div.file-path', [
-				h('div.title.modified.show-file-icons@primaryPath', [] as any),
-				h('div.status.deleted@status', ['R']),
-				h('div.title.original.show-file-icons@secondaryPath', [] as any),
+			h('div.header-content', [
+				h('div.collapse-button@collapseButton'),
+				h('div.file-path', [
+					h('div.title.modified.show-file-icons@primaryPath', [] as any),
+					h('div.status.deleted@status', ['R']),
+					h('div.title.original.show-file-icons@secondaryPath', [] as any),
+				]),
+				h('div.actions@actions'),
 			]),
-			h('div.actions@actions'),
 		]),
 
 		h('div.editorParent', [
@@ -137,7 +140,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}));
 
 		this._container.appendChild(this._elements.root);
-		this._outerEditorHeight = 38;
+		this._outerEditorHeight = this._headerHeight;
 
 		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri))),
@@ -145,6 +148,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				shouldForwardArgs: true,
 			},
 			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
+			actionViewItemProvider: action => createActionViewItem(_instantiationService, action),
 		}));
 	}
 
@@ -216,7 +220,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		});
 	}
 
-	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 38;
+	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 48;
 
 	public render(verticalRange: OffsetRange, width: number, editorScroll: number, viewPort: OffsetRange): void {
 		this._elements.root.style.visibility = 'visible';
@@ -231,7 +235,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 		globalTransaction(tx => {
 			this.editor.layout({
-				width: width,
+				width: width - 2 * 8 - 2 * 1,
 				height: verticalRange.length - this._outerEditorHeight,
 			});
 		});

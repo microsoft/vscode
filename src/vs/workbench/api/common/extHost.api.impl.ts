@@ -241,7 +241,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					try {
 						listener.call(thisArgs, e);
 					} catch (err) {
-						errors.onUnexpectedExternalError(new Error(`[ExtensionListenerError] Extension '${extension.identifier.value}' FAILED to handle event`, { cause: err }));
+						errors.onUnexpectedExternalError(new Error(`[ExtensionListenerError] Extension '${extension.identifier.value}' FAILED to handle event: ${err.toString()}`, { cause: err }));
 						extHostTelemetry.onExtensionError(extension.identifier, err);
 					}
 				});
@@ -675,6 +675,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.terminals;
 			},
 			async showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor> {
+				if (URI.isUri(documentOrUri) && documentOrUri.scheme === Schemas.vscodeRemote && !documentOrUri.authority) {
+					extHostApiDeprecation.report('workspace.showTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
+				}
 				const document = await (URI.isUri(documentOrUri)
 					? Promise.resolve(workspace.openTextDocument(documentOrUri))
 					: Promise.resolve(<vscode.TextDocument>documentOrUri));
@@ -1004,6 +1007,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return uriPromise.then(uri => {
+					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
+						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
+					}
 					return extHostDocuments.ensureDocumentData(uri).then(documentData => {
 						return documentData.document;
 					});

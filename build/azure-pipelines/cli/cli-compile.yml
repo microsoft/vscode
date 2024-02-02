@@ -98,10 +98,6 @@ steps:
           archiveType: zip
           archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
 
-      - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
-        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
-        displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
-
     - ${{ else }}:
       - script: |
           set -e
@@ -120,10 +116,6 @@ steps:
             archiveType: zip
             archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
 
-        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
-          artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
-          displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
-
       - ${{ else }}:
         - task: ArchiveFiles@2
           displayName: Archive CLI
@@ -133,10 +125,6 @@ steps:
             archiveType: tar
             tarCompression: gz
             archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
-
-        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
-          artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
-          displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
 
     # Make a folder for the SBOM for the specific artifact
     - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
@@ -156,7 +144,3 @@ steps:
         BuildComponentPath: $(Build.SourcesDirectory)/cli
         BuildDropPath: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
         PackageName: Visual Studio Code CLI
-
-    - publish: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}/_manifest
-      displayName: Publish SBOM
-      artifact: sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}

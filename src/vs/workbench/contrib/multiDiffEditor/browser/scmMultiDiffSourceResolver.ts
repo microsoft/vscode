@@ -126,6 +126,9 @@ function promiseFromEventState<T>(event: Event<any>, checkState: () => T | false
 }
 
 export class ScmMultiDiffSourceResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.scmMultiDiffSourceResolver';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,

@@ -7,7 +7,7 @@
   "enabledApiProposals": [
     "authSession",
     "chatAgents2",
-    "chatVariables",
+    "defaultChatAgent",
     "contribViewsRemote",
     "contribStatusBarItems",
     "createFileSystemWatcher",
@@ -31,7 +31,6 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "readonlyMessage",
     "languageStatusText",
     "resolvers",
     "scmActionButton",
@@ -51,7 +50,6 @@
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
-    "testingActiveProfile",
     "windowActivity"
   ],
   "private": true,

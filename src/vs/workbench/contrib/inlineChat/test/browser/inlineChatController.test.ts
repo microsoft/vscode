@@ -36,12 +36,14 @@ import { IInlineChatSavingService } from '../../browser/inlineChatSavingService'
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
-import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatService, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatEditResponse, IInlineChatRequest, IInlineChatService, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestWorkerService } from './testWorkerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { Schemas } from 'vs/base/common/network';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
@@ -68,7 +70,7 @@ suite('InteractiveChatController', function () {
 
 				setTimeout(() => {
 					d.dispose();
-					reject(`timeout, \nWANTED ${states.join('>')}, \nGOT ${actual.join('>')}`);
+					reject(new Error(`timeout, \nEXPECTED: ${states.join('>')}, \nACTUAL  : ${actual.join('>')}`));
 				}, 1000);
 			});
 		}
@@ -105,6 +107,7 @@ suite('InteractiveChatController', function () {
 
 		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
+		configurationService.setUserConfiguration('inlineChat', { mode: 'livePreview' });
 		configurationService.setUserConfiguration('editor', {});
 
 		const serviceCollection = new ServiceCollection(
@@ -477,4 +480,100 @@ suite('InteractiveChatController', function () {
 
 	});
 
+	test('context has correct preview document', async function () {
+
+		const requests: IInlineChatRequest[] = [];
+
+		store.add(inlineChatService.addProvider({
+			debugName: 'Unit Test',
+			label: 'Unit Test',
+			prepareInlineChatSession() {
+				return {
+					id: Math.random()
+				};
+			},
+			provideResponse(_session, request) {
+				requests.push(request);
+				return undefined;
+			}
+		}));
+
+		async function makeRequest() {
+			const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+			const r = ctrl.run({ message: 'Hello', autoSend: true });
+			await p;
+			await ctrl.cancelSession();
+			await r;
+		}
+
+		// manual edits -> finish
+		ctrl = instaService.createInstance(TestController, editor);
+
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
+		await makeRequest();
+
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.LivePreview });
+		await makeRequest();
+
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Preview });
+		await makeRequest();
+
+		assert.strictEqual(requests.length, 3);
+
+		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
+		assert.strictEqual(requests[1].previewDocument.toString(), model.uri.toString()); // live preview
+		assert.strictEqual(requests[2].previewDocument.scheme, Schemas.vscode); // preview
+		assert.strictEqual(requests[2].previewDocument.authority, 'inline-chat');
+	});
+
+	test('start with existing exchange', async function () {
+
+		// don't call this provider
+		let providerCalled = 0;
+		store.add(inlineChatService.addProvider({
+			debugName: 'Unit Test',
+			label: 'Unit Test',
+			prepareInlineChatSession() {
+				return {
+					id: Math.random()
+				};
+			},
+			provideResponse(_session, request) {
+				providerCalled++;
+				return undefined;
+			}
+		}));
+
+		// use precooked response
+		const response = {
+			id: 1,
+			type: InlineChatResponseType.EditorEdit,
+			message: new MarkdownString('MD-message'),
+			edits: [{
+				text: 'Precooked Response\n',
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+			}]
+
+		} satisfies IInlineChatEditResponse;
+
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		ctrl.run({ existingExchange: { prompt: 'Hello', response } });
+
+		await p;
+
+		assert.strictEqual(providerCalled, 0);
+		assert.ok(ctrl.getWidgetPosition() !== undefined);
+
+		assert.ok(ctrl.getMessage() === 'MD-message');
+		assert.equal(model.getLineContent(1), 'Precooked Response');
+
+		await ctrl.cancelSession();
+		await ctrl.joinCurrentRun();
+
+		assert.ok(ctrl.getWidgetPosition() === undefined);
+
+	});
 });

@@ -33,6 +33,7 @@ declare module 'vscode' {
 		wholeRange: Range;
 		attempt: number;
 		live: boolean;
+		previewDocument: TextDocument | undefined;
 		withIntentDetection: boolean;
 	}
 
@@ -123,8 +124,6 @@ declare module 'vscode' {
 	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
-		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentReplyFollowup[]>;
 		prepareSession(token: CancellationToken): ProviderResult<S>;
 	}
 

@@ -14,6 +14,9 @@ import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/wor
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dirtyFilesIndicator';
+
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	private lastKnownDirtyCount = 0;

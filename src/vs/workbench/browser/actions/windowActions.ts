@@ -237,9 +237,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		super({
 			id: OpenRecentAction.ID,
 			title: {
-				value: localize('openRecent', "Open Recent..."),
+				...localize2('openRecent', "Open Recent..."),
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
-				original: 'Open Recent...'
 			},
 			category: Categories.File,
 			f1: true,
@@ -283,9 +282,8 @@ class ToggleFullScreenAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleFullScreen',
 			title: {
-				value: localize('toggleFullScreen', "Toggle Full Screen"),
+				...localize2('toggleFullScreen', "Toggle Full Screen"),
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
-				original: 'Toggle Full Screen'
 			},
 			category: Categories.View,
 			f1: true,
@@ -344,9 +342,8 @@ class ShowAboutDialogAction extends Action2 {
 		super({
 			id: 'workbench.action.showAboutDialog',
 			title: {
-				value: localize('about', "About"),
+				...localize2('about', "About"),
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
-				original: 'About'
 			},
 			category: Categories.Help,
 			f1: true,
@@ -372,9 +369,8 @@ class NewWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.newWindow',
 			title: {
-				value: localize('newWindow', "New Window"),
+				...localize2('newWindow', "New Window"),
 				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
-				original: 'New Window'
 			},
 			f1: true,
 			keybinding: {

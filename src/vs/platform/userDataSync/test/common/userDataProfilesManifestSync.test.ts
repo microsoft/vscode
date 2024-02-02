@@ -119,7 +119,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1' }, { id: '2', name: 'name 2', collection: '2' }]);
 	});
 
@@ -138,7 +138,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1' }]);
 	});
 
@@ -158,7 +158,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', shortName: 'short 1' }, { id: '2', name: 'name 2', collection: '2' }]);
 	});
 
@@ -178,7 +178,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 2', collection: '1', shortName: '2' }]);
 	});
 
@@ -199,7 +199,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '2', name: 'name 2', collection: '2' }]);
 	});
 
@@ -213,7 +213,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
 
 		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
@@ -234,7 +234,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
 		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
 	});
@@ -254,7 +254,7 @@ suite('UserDataProfilesManifestSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseRemoteProfiles(content!);
+		const actual = parseRemoteProfiles(content);
 		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
 
 		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);

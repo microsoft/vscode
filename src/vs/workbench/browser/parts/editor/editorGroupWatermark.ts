@@ -135,7 +135,7 @@ export class EditorGroupWatermark extends Disposable {
 
 		const update = () => {
 			clearNode(box);
-			selected.map(entry => {
+			selected.forEach(entry => {
 				const keys = this.keybindingService.lookupKeybinding(entry.id);
 				if (!keys) {
 					return;

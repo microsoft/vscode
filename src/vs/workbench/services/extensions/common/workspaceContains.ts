@@ -13,6 +13,7 @@ import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
+import { promiseWithResolvers } from 'vs/base/common/async';
 
 const WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
@@ -53,19 +54,18 @@ export function checkActivateWorkspaceContainsExtension(host: IExtensionActivati
 		return Promise.resolve(undefined);
 	}
 
-	let resolveResult: (value: IExtensionActivationResult | undefined) => void;
-	const result = new Promise<IExtensionActivationResult | undefined>((resolve, reject) => { resolveResult = resolve; });
-	const activate = (activationEvent: string) => resolveResult({ activationEvent });
+	const { promise, resolve } = promiseWithResolvers<IExtensionActivationResult | undefined>();
+	const activate = (activationEvent: string) => resolve({ activationEvent });
 
 	const fileNamePromise = Promise.all(fileNames.map((fileName) => _activateIfFileName(host, fileName, activate))).then(() => { });
 	const globPatternPromise = _activateIfGlobPatterns(host, desc.identifier, globPatterns, activate);
 
 	Promise.all([fileNamePromise, globPatternPromise]).then(() => {
 		// when all are done, resolve with undefined (relevant only if it was not activated so far)
-		resolveResult(undefined);
+		resolve(undefined);
 	});
 
-	return result;
+	return promise;
 }
 
 async function _activateIfFileName(host: IExtensionActivationHost, fileName: string, activate: (activationEvent: string) => void): Promise<void> {
