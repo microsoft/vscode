@@ -563,10 +563,7 @@ function registerDiffEditorCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_DIFF_SIDE_BY_SIDE,
-			title: {
-				value: localize('toggleInlineView', "Toggle Inline View"),
-				original: 'Compare: Toggle Inline View'
-			},
+			title: localize2('toggleInlineView', "Toggle Inline View"),
 			category: localize('compare', "Compare")
 		},
 		when: TextCompareEditorActiveContext
@@ -575,10 +572,7 @@ function registerDiffEditorCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: DIFF_SWAP_SIDES,
-			title: {
-				value: localize('swapDiffSides', "Swap Left and Right Editor Side"),
-				original: 'Compare: Swap Left and Right Editor Side'
-			},
+			title: localize2('swapDiffSides', "Swap Left and Right Editor Side"),
 			category: localize('compare', "Compare")
 		},
 		when: TextCompareEditorActiveContext

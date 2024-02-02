@@ -29,14 +29,11 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -44,7 +41,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ExpansionState, HunkData } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
@@ -57,7 +54,6 @@ import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { editorForeground, inputBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Lazy } from 'vs/base/common/lazy';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -249,7 +245,6 @@ export class InlineChatWidget {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -388,10 +383,6 @@ export class InlineChatWidget {
 			toolbarOptions: { primaryGroup: 'main' }
 		}));
 
-		this._progressBar = new ProgressBar(this._elements.progress);
-		this._store.add(this._progressBar);
-
-
 		const workbenchMenubarOptions: IWorkbenchButtonBarOptions = {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			buttonConfigProvider: action => {
@@ -423,6 +414,7 @@ export class InlineChatWidget {
 
 		// preview editors
 		this._previewDiffEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
+			useInlineViewWhenSpaceIsLimited: false,
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
 		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
@@ -472,21 +464,23 @@ export class InlineChatWidget {
 		return this._elements.root;
 	}
 
-	layout(dim: Dimension) {
+	layout(_dim: Dimension) {
 		this._isLayouting = true;
 		try {
 			const widgetToolbarWidth = getTotalWidth(this._elements.widgetToolbar);
-			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */) - (widgetToolbarWidth);
-			dim = new Dimension(innerEditorWidth, dim.height);
+			const editorToolbarWidth = getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */;
+			const innerEditorWidth = _dim.width - editorToolbarWidth - widgetToolbarWidth;
+			const dim = new Dimension(innerEditorWidth, _dim.height);
 			if (!this._lastDim || !Dimension.equals(this._lastDim, dim)) {
 				this._lastDim = dim;
 				this._inputEditor.layout(new Dimension(innerEditorWidth, this._inputEditor.getContentHeight()));
 				this._elements.placeholder.style.width = `${innerEditorWidth  /* input-padding*/}px`;
 
 				if (this._previewDiffEditor.hasValue) {
-					const previewDiffDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
-					this._previewDiffEditor.value.layout(previewDiffDim);
+					const previewDiffDim = new Dimension(_dim.width - 12, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
+					this._elements.previewDiff.style.width = `${previewDiffDim.width}px`;
 					this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
+					this._previewDiffEditor.value.layout(previewDiffDim);
 				}
 
 				if (this._previewCreateEditor.hasValue) {
@@ -521,9 +515,11 @@ export class InlineChatWidget {
 
 	updateProgress(show: boolean) {
 		if (show) {
+			this._progressBar.show();
 			this._progressBar.infinite();
 		} else {
 			this._progressBar.stop();
+			this._progressBar.hide();
 		}
 	}
 
@@ -751,47 +747,37 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	async showEditsPreview(textModel0: ITextModel, textModelN: ITextModel, allEdits: ISingleEditOperation[][]) {
+	showEditsPreview(hunks: HunkData, textModel0: ITextModel, textModelN: ITextModel) {
 
-		this._elements.previewDiff.classList.remove('hidden');
-
-		const languageSelection: ILanguageSelection = { languageId: textModel0.getLanguageId(), onDidChange: Event.None };
-		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel0.createSnapshot()), languageSelection, undefined, true);
-		for (const edits of allEdits) {
-			modified.applyEdits(edits, false);
-		}
-
-		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, modified.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		if (!diff || diff.changes.length === 0) {
+		if (hunks.size === 0) {
 			this.hideEditsPreview();
 			return;
 		}
 
-		this._previewDiffEditor.value.setModel({ original: textModel0, modified });
+		this._elements.previewDiff.classList.remove('hidden');
+
+		this._previewDiffEditor.value.setModel({ original: textModel0, modified: textModelN });
 
 		// joined ranges
-		let originalLineRange = diff.changes[0].original;
-		let modifiedLineRange = diff.changes[0].modified;
-		for (let i = 1; i < diff.changes.length; i++) {
-			originalLineRange = originalLineRange.join(diff.changes[i].original);
-			modifiedLineRange = modifiedLineRange.join(diff.changes[i].modified);
+		let originalLineRange: LineRange | undefined;
+		let modifiedLineRange: LineRange | undefined;
+		for (const item of hunks.getInfo()) {
+			const [first0] = item.getRanges0();
+			const [firstN] = item.getRangesN();
+
+			originalLineRange = !originalLineRange ? LineRange.fromRangeInclusive(first0) : originalLineRange.join(LineRange.fromRangeInclusive(first0));
+			modifiedLineRange = !modifiedLineRange ? LineRange.fromRangeInclusive(firstN) : modifiedLineRange.join(LineRange.fromRangeInclusive(firstN));
 		}
 
-		// apply extra padding
-		const pad = 3;
-		const newStartLine = Math.max(1, originalLineRange.startLineNumber - pad);
-		modifiedLineRange = new LineRange(newStartLine, modifiedLineRange.endLineNumberExclusive);
-		originalLineRange = new LineRange(newStartLine, originalLineRange.endLineNumberExclusive);
-
-		const newEndLineModified = Math.min(modifiedLineRange.endLineNumberExclusive + pad, modified.getLineCount());
-		modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, newEndLineModified);
-		const newEndLineOriginal = Math.min(originalLineRange.endLineNumberExclusive + pad, textModel0.getLineCount());
-		originalLineRange = new LineRange(originalLineRange.startLineNumber, newEndLineOriginal);
+		if (!originalLineRange || !modifiedLineRange) {
+			this.hideEditsPreview();
+			return;
+		}
 
 		const hiddenOriginal = invertLineRange(originalLineRange, textModel0);
-		const hiddenModified = invertLineRange(modifiedLineRange, modified);
-		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
-		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
+		const hiddenModified = invertLineRange(modifiedLineRange, textModelN);
+		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lr => asRange(lr, textModel0)), 'diff-hidden');
+		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lr => asRange(lr, textModelN)), 'diff-hidden');
 		this._previewDiffEditor.value.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
 
 		this._onDidChangeHeight.fire();
@@ -841,7 +827,7 @@ export class InlineChatWidget {
 		if (commands.length === 0) {
 			return;
 		}
-		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command!, detail: c.detail! }; });
+		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command, detail: c.detail! }; });
 
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {

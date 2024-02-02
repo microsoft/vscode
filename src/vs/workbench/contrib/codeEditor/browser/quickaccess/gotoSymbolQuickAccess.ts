@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -244,9 +244,8 @@ class GotoSymbolAction extends Action2 {
 		super({
 			id: GotoSymbolAction.ID,
 			title: {
-				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				...localize2('gotoSymbol', "Go to Symbol in Editor..."),
 				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
-				original: 'Go to Symbol in Editor...'
 			},
 			f1: true,
 			keybinding: {

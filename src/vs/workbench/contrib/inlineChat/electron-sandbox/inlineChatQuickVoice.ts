@@ -24,6 +24,7 @@ import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browse
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CTX_QUICK_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inlineChat.quickChatInProgress', false);
 
@@ -34,7 +35,7 @@ export class StartAction extends EditorAction2 {
 			id: 'inlineChat.quickVoice.start',
 			title: localize2('start', "Start Inline Voice Chat"),
 			category: AbstractInlineChatAction.category,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS.toNegated()),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS.toNegated(), EditorContextKeys.focus),
 			f1: true,
 			keybinding: {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI),
@@ -107,11 +108,15 @@ export class CancelAction extends EditorAction2 {
 class QuickVoiceWidget implements IContentWidget {
 
 	readonly suppressMouseDown = true;
+	readonly allowEditorOverflow = true;
 
 	private readonly _domNode = document.createElement('div');
 	private readonly _elements = dom.h('.inline-chat-quick-voice@main', [
 		dom.h('span@mic'),
-		dom.h('span.message@message'),
+		dom.h('span', [
+			dom.h('span.message@message'),
+			dom.h('span.preview@preview'),
+		])
 	]);
 
 	private _focusTracker: dom.IFocusTracker | undefined;
@@ -157,8 +162,10 @@ class QuickVoiceWidget implements IContentWidget {
 
 	beforeRender(): IDimension | null {
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		this._elements.main.style.lineHeight = `${lineHeight}px`;
-		this._elements.main.style.height = `${lineHeight}px`;
+		const width = this._editor.getLayoutInfo().contentWidth * 0.7;
+
+		this._elements.main.style.setProperty('--vscode-inline-chat-quick-voice-height', `${lineHeight}px`);
+		this._elements.main.style.setProperty('--vscode-inline-chat-quick-voice-width', `${width}px`);
 		return null;
 	}
 
@@ -171,9 +178,9 @@ class QuickVoiceWidget implements IContentWidget {
 
 	// ---
 
-	updateInput(input: string | undefined, isDefinite: boolean): void {
-		this._elements.message.classList.toggle('preview', !isDefinite);
-		this._elements.message.textContent = input ?? '';
+	updateInput(data: { message?: string; preview?: string }): void {
+		this._elements.message.textContent = data.message ?? '';
+		this._elements.preview.textContent = data.preview ?? '';
 	}
 
 	show() {
@@ -186,7 +193,8 @@ class QuickVoiceWidget implements IContentWidget {
 
 	hide() {
 		this._elements.main.classList.remove('recording');
-		this.updateInput(undefined, true);
+		this._elements.message.textContent = '';
+		this._elements.preview.textContent = '';
 		this._editor.removeContentWidget(this);
 		this._focusTracker?.dispose();
 	}
@@ -230,6 +238,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 		this._ctxQuickChatInProgress.set(true);
 
 		let message: string | undefined;
+		let preview: string | undefined;
 		const session = this._speechService.createSpeechToTextSession(cts.token);
 		const listener = session.onDidChange(e => {
 
@@ -244,11 +253,13 @@ export class InlineChatQuickVoice implements IEditorContribution {
 				case SpeechToTextStatus.Stopped:
 					break;
 				case SpeechToTextStatus.Recognizing:
-					this._widget.updateInput(!message ? e.text : `${message} ${e.text}`, false);
+					preview = e.text;
+					this._widget.updateInput({ message, preview });
 					break;
 				case SpeechToTextStatus.Recognized:
 					message = !message ? e.text : `${message} ${e.text}`;
-					this._widget.updateInput(message, true);
+					preview = '';
+					this._widget.updateInput({ message, preview });
 					break;
 			}
 		});
@@ -258,6 +269,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 			listener.dispose();
 			this._widget.hide();
 			this._ctxQuickChatInProgress.reset();
+			this._editor.focus();
 
 			if (!abort && message) {
 				InlineChatController.get(this._editor)?.run({ message, autoSend: true });

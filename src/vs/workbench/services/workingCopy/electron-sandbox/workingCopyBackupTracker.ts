@@ -28,6 +28,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 
 export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.nativeWorkingCopyBackupTracker';
+
 	constructor(
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,

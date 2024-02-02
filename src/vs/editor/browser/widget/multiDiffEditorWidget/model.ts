@@ -37,8 +37,15 @@ export class ConstLazyPromise<T> implements LazyPromise<T> {
 }
 
 export interface IDocumentDiffItem {
-	readonly original: ITextModel | undefined; // undefined if the file was created.
-	readonly modified: ITextModel | undefined; // undefined if the file was deleted.
+	/**
+	 * undefined if the file was created.
+	 */
+	readonly original: ITextModel | undefined;
+
+	/**
+	 * undefined if the file was deleted.
+	 */
+	readonly modified: ITextModel | undefined;
 	readonly options?: IDiffEditorOptions;
 	readonly onOptionsDidChange?: Event<void>;
 }

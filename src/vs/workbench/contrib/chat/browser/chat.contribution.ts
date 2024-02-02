@@ -13,7 +13,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { registerChatCodeBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
@@ -108,6 +108,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 class ChatResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatResolver';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -191,7 +194,7 @@ class ChatAccessibleViewContribution extends Disposable {
 				accessibleViewService.show({
 					id: AccessibleViewProviderId.Chat,
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-					provideContent(): string { return responseContent!; },
+					provideContent(): string { return responseContent; },
 					onClose() {
 						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {
@@ -265,7 +268,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${c.description}`;
 					}).join('\n');
 
-					return agentLine + '\n' + commandText;
+					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
 			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'markdownContent' });
 			if (defaultAgent?.metadata.helpTextPostfix) {
@@ -281,7 +284,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(ChatResolverContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchContributionInstantiation.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);

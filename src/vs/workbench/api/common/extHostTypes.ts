@@ -102,7 +102,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isBefore(result!)) {
+			if (p.isBefore(result)) {
 				result = p;
 			}
 		}
@@ -116,7 +116,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isAfter(result!)) {
+			if (p.isAfter(result)) {
 				result = p;
 			}
 		}
@@ -1821,7 +1821,8 @@ export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: st
 export enum TextEditorLineNumbersStyle {
 	Off = 0,
 	On = 1,
-	Relative = 2
+	Relative = 2,
+	Interval = 3
 }
 
 export enum TextDocumentSaveReason {
@@ -3448,6 +3449,13 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+export class DebugVisualization {
+	iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+	visualization?: vscode.Command | vscode.TreeDataProvider<unknown>;
+
+	constructor(public name: string) { }
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -3967,15 +3975,15 @@ export class FileCoverage implements vscode.FileCoverage {
 		for (const detail of details) {
 			if ('branches' in detail) {
 				statements.total += 1;
-				statements.covered += detail.executionCount > 0 ? 1 : 0;
+				statements.covered += detail.executed ? 1 : 0;
 
 				for (const branch of detail.branches) {
 					branches.total += 1;
-					branches.covered += branch.executionCount > 0 ? 1 : 0;
+					branches.covered += branch.executed ? 1 : 0;
 				}
 			} else {
 				fn.total += 1;
-				fn.covered += detail.executionCount > 0 ? 1 : 0;
+				fn.covered += detail.executed ? 1 : 0;
 			}
 		}
 
@@ -4006,25 +4014,37 @@ export class FileCoverage implements vscode.FileCoverage {
 }
 
 export class StatementCoverage implements vscode.StatementCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 		public branches: vscode.BranchCoverage[] = [],
 	) { }
 }
 
 export class BranchCoverage implements vscode.BranchCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 		public label?: string,
 	) { }
 }
 
 export class FunctionCoverage implements vscode.FunctionCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
 		public readonly name: string,
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 	) { }
 }

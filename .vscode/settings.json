@@ -153,5 +153,9 @@
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"inlineChat.mode": "live",
+<<<<<<< HEAD
 	"testing.defaultGutterClickAction": "runWithCoverage"
+=======
+	"testing.defaultGutterClickAction": "contextMenu",
+>>>>>>> origin/main
 }

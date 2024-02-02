@@ -495,8 +495,8 @@ export const enum TerminalCommandId {
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
-	StartSpeechToText = 'workbench.action.startTerminalSpeechToText',
-	StopSpeechToText = 'workbench.action.stopTerminalSpeechToText',
+	StartVoice = 'workbench.action.startTerminalVoice',
+	StopVoice = 'workbench.action.stopTerminalVoice',
 
 	// Developer commands
 

@@ -32,6 +32,10 @@ import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatC
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const $ = dom.$;
 
@@ -126,6 +130,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._viewModel;
 	}
 
+	private parsedChatRequest: IParsedChatRequest | undefined;
+	get parsedInput() {
+		if (this.parsedChatRequest === undefined) {
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput());
+		}
+
+		return this.parsedChatRequest;
+	}
+
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly viewOptions: IChatWidgetViewOptions,
@@ -133,11 +146,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -155,7 +170,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get inputEditor(): ICodeEditor {
-		return this.inputPart.inputEditor!;
+		return this.inputPart.inputEditor;
 	}
 
 	get inputUri(): URI {
@@ -434,11 +449,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
+		this._register(this.inputEditor.onDidChangeModelContent(() => this.parsedChatRequest = undefined));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.parsedChatRequest = undefined));
 	}
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
+		this.container.style.setProperty('--vscode-chat-list-background', this._themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
 	}
 
 	setModel(model: IChatModel, viewState: IChatViewState): void {
@@ -550,8 +568,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const lastResponse = responses?.[responses.length - 1];
 					this._chatAccessibilityService.acceptResponse(lastResponse, requestId);
 				});
-			} else {
-				this._chatAccessibilityService.acceptResponse(undefined, requestId);
 			}
 		}
 	}
@@ -680,22 +696,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, width);
+		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData.maxHeight, width);
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
-		const messages = totalMessages.slice(-this._dynamicMessageLayoutData!.numOfMessages);
+		const messages = totalMessages.slice(-this._dynamicMessageLayoutData.numOfMessages);
 
 		const needsRerender = messages.some(m => m.currentRenderedHeight === undefined);
 		const listHeight = needsRerender
-			? this._dynamicMessageLayoutData!.maxHeight
+			? this._dynamicMessageLayoutData.maxHeight
 			: messages.reduce((acc, message) => acc + message.currentRenderedHeight!, 0);
 
 		this.layout(
 			Math.min(
 				// we add an additional 18px in order to show that there is scrollable content
 				inputHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
-				this._dynamicMessageLayoutData!.maxHeight
+				this._dynamicMessageLayoutData.maxHeight
 			),
 			width
 		);

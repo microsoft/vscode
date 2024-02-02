@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareBy } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorunOpts } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 export function applyEdits(text: string, edits: { range: IRange; text: string }[]): string {
 	const transformer = new PositionOffsetTransformer(text);
@@ -105,4 +108,73 @@ export function lengthOfText(text: string): Position {
 		}
 	}
 	return new Position(line, column);
+}
+
+/**
+ * Given some text edits, this function finds the new ranges of the editted text post application of all edits.
+ * Assumes that the edit ranges are disjoint and they are sorted in the order of the ranges
+ * @param edits edits applied
+ * @returns new ranges post edits for every edit
+ */
+export function getNewRanges(edits: ISingleEditOperation[]): Range[] {
+	const newRanges: Range[] = [];
+	let previousEditEndLineNumber = 0;
+	let lineOffset = 0;
+	let columnOffset = 0;
+
+	for (const edit of edits) {
+		const text = edit.text ?? '';
+		const textLength = lengthOfText(text);
+		const newRangeStart = Position.lift({
+			lineNumber: edit.range.startLineNumber + lineOffset,
+			column: edit.range.startColumn + (edit.range.startLineNumber === previousEditEndLineNumber ? columnOffset : 0)
+		});
+		const newRangeEnd = addPositions(
+			newRangeStart,
+			textLength
+		);
+		newRanges.push(Range.fromPositions(newRangeStart, newRangeEnd));
+		lineOffset += textLength.lineNumber - edit.range.endLineNumber + edit.range.startLineNumber - 1;
+		columnOffset = newRangeEnd.column - edit.range.endColumn;
+		previousEditEndLineNumber = edit.range.endLineNumber;
+	}
+	return newRanges;
+}
+
+/**
+ * Given a text model and edits, this function finds the inverse text edits
+ * @param model model on which to apply the edits
+ * @param edits edits applied
+ * @returns inverse edits
+ */
+export function inverseEdits(model: TextModel, edits: ISingleEditOperation[]): ISingleEditOperation[] {
+	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
+	const sortedRanges = getNewRanges(sortPerm.apply(edits));
+	const newRanges = sortPerm.inverse().apply(sortedRanges);
+	const inverseEdits: ISingleEditOperation[] = [];
+	for (let i = 0; i < edits.length; i++) {
+		inverseEdits.push({ range: newRanges[i], text: model.getValueInRange(edits[i].range) });
+	}
+	return inverseEdits;
+}
+
+export class Permutation {
+	constructor(private readonly _indexMap: number[]) { }
+
+	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
+		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
+		return new Permutation(sortIndices);
+	}
+
+	apply<T>(arr: T[]): T[] {
+		return arr.map((_, index) => arr[this._indexMap[index]]);
+	}
+
+	inverse(): Permutation {
+		const inverseIndexMap = this._indexMap.slice();
+		for (let i = 0; i < this._indexMap.length; i++) {
+			inverseIndexMap[this._indexMap[i]] = i;
+		}
+		return new Permutation(inverseIndexMap);
+	}
 }

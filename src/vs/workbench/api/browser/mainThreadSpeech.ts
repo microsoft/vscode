@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
@@ -20,7 +20,7 @@ type KeywordRecognitionSession = {
 };
 
 @extHostNamedCustomer(MainContext.MainThreadSpeech)
-export class MainThreadSpeech extends Disposable implements MainThreadSpeechShape {
+export class MainThreadSpeech implements MainThreadSpeechShape {
 
 	private readonly proxy: ExtHostSpeechShape;
 
@@ -34,8 +34,6 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 		@ISpeechService private readonly speechService: ISpeechService,
 		@ILogService private readonly logService: ILogService
 	) {
-		super();
-
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostSpeech);
 	}
 
@@ -108,5 +106,16 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 	$emitKeywordRecognitionEvent(session: number, event: IKeywordRecognitionEvent): void {
 		const providerSession = this.keywordRecognitionSessions.get(session);
 		providerSession?.onDidChange.fire(event);
+	}
+
+	dispose(): void {
+		this.providerRegistrations.forEach(disposable => disposable.dispose());
+		this.providerRegistrations.clear();
+
+		this.speechToTextSessions.forEach(session => session.onDidChange.dispose());
+		this.speechToTextSessions.clear();
+
+		this.keywordRecognitionSessions.forEach(session => session.onDidChange.dispose());
+		this.keywordRecognitionSessions.clear();
 	}
 }

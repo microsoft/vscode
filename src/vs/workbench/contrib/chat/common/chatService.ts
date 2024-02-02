@@ -119,15 +119,6 @@ export interface IChatTreeData {
 	kind: 'treeData';
 }
 
-export interface IChatAsyncContent {
-	/**
-	 * The placeholder to show while the content is loading
-	 */
-	content: string;
-	resolvedContent: Promise<string | IMarkdownString | IChatTreeData>;
-	kind: 'asyncContent';
-}
-
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
@@ -157,7 +148,6 @@ export type IChatProgress =
 	| IChatAgentContentWithVulnerabilities
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
-	| IChatAsyncContent
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
@@ -295,6 +285,7 @@ export interface IChatService {
 
 	onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>;
 	onDidRegisterProvider: Event<{ providerId: string }>;
+	onDidUnregisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	hasSessions(providerId: string): boolean;
 	getProviderInfos(): IChatProviderInfo[];
@@ -323,3 +314,5 @@ export interface IChatService {
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }
+
+export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

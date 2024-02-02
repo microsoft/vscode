@@ -10,14 +10,13 @@ import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, getTitleBarStyle, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { join } from 'vs/base/common/path';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { Color } from 'vs/base/common/color';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -173,8 +172,8 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
 	}
 
-	const useCustomTitleStyle = getTitleBarStyle(configurationService) === 'custom';
-	if (useCustomTitleStyle) {
+	const hideNativeTitleBar = !hasNativeTitlebar(configurationService);
+	if (hideNativeTitleBar) {
 		options.titleBarStyle = 'hidden';
 		if (!isMacintosh) {
 			options.frame = false;
@@ -198,27 +197,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	}
 
 	return options;
-}
-
-export function getFocusedOrLastActiveWindow(accessor: ServicesAccessor): ICodeWindow | IAuxiliaryWindow | undefined {
-	const windowsMainService = accessor.get(IWindowsMainService);
-	const auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
-
-	// By: Electron focused window
-	const focusedWindow = windowsMainService.getFocusedWindow() ?? auxiliaryWindowsMainService.getFocusedWindow();
-	if (focusedWindow) {
-		return focusedWindow;
-	}
-
-	// By: Last active window
-	const mainLastActiveWindow = windowsMainService.getLastActiveWindow();
-	const auxiliaryLastActiveWindow = auxiliaryWindowsMainService.getLastActiveWindow();
-
-	if (mainLastActiveWindow && auxiliaryLastActiveWindow) {
-		return mainLastActiveWindow.lastFocusTime < auxiliaryLastActiveWindow.lastFocusTime ? auxiliaryLastActiveWindow : mainLastActiveWindow;
-	}
-
-	return mainLastActiveWindow ?? auxiliaryLastActiveWindow;
 }
 
 export function getLastFocused(windows: ICodeWindow[]): ICodeWindow | undefined;

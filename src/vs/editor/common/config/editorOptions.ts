@@ -2003,7 +2003,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 		}
 		const input = _input as IGotoLocationOptions;
 		return {
-			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple!, ['peek', 'gotoAndPeek', 'goto']),
+			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto']),
 			multipleDefinitions: input.multipleDefinitions ?? stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleTypeDefinitions: input.multipleTypeDefinitions ?? stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleDeclarations: input.multipleDeclarations ?? stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
@@ -2748,12 +2748,13 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.On };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
 				'editor.lightbulb.enabled': {
 					type: 'string',
+					tags: ['experimental'],
 					enum: [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On],
 					default: defaults.enabled,
 					enumDescriptions: [
@@ -2809,14 +2810,15 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor."),
+					tags: ['experimental']
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',

@@ -9,12 +9,12 @@ import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { marked } from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { requireToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
+import { WalkThroughSnippetContentProvider, requireToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { getWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 class WalkThroughModel extends EditorModel {
 
@@ -118,7 +118,7 @@ export class WalkThroughInput extends EditorInput {
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
 						i++;
-						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
+						const resource = this.options.resource.with({ scheme: getWorkbenchContribution<WalkThroughSnippetContentProvider>(WalkThroughSnippetContentProvider.ID).scheme, fragment: `${i}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
 					};

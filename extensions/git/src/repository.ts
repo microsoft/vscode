@@ -11,7 +11,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
+import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions, LsTreeElement } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
@@ -154,19 +154,19 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get leftUri(): Uri | undefined {
-		return this.resources[0];
+		return this.resources.left;
 	}
 
 	get rightUri(): Uri | undefined {
-		return this.resources[1];
+		return this.resources.right;
 	}
 
 	get multiDiffEditorOriginalUri(): Uri | undefined {
-		return this.leftUri;
+		return this.resources.original;
 	}
 
 	get multiFileDiffEditorModifiedUri(): Uri | undefined {
-		return this.rightUri;
+		return this.resources.modified;
 	}
 
 	@memoize
@@ -175,7 +175,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	@memoize
-	private get resources(): [Uri | undefined, Uri | undefined] {
+	private get resources(): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
 		return this._commandResolver.getResources(this);
 	}
 
@@ -534,53 +534,63 @@ class ResourceCommandResolver {
 		}
 	}
 
-	getResources(resource: Resource): [Uri | undefined, Uri | undefined] {
+	getResources(resource: Resource): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
 		for (const submodule of this.repository.submodules) {
 			if (path.join(this.repository.root, submodule.path) === resource.resourceUri.fsPath) {
-				return [undefined, toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root })];
+				const original = undefined;
+				const modified = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root });
+				return { left: original, right: modified, original, modified };
 			}
 		}
 
-		return [this.getLeftResource(resource), this.getRightResource(resource)];
+		const left = this.getLeftResource(resource);
+		const right = this.getRightResource(resource);
+
+		return {
+			left: left.original ?? left.modified,
+			right: right.original ?? right.modified,
+			original: left.original ?? right.original,
+			modified: left.modified ?? right.modified,
+		};
 	}
 
-	private getLeftResource(resource: Resource): Uri | undefined {
+	private getLeftResource(resource: Resource): ModifiedOrOriginal {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_RENAME:
 			case Status.TYPE_CHANGED:
-				return toGitUri(resource.original, 'HEAD');
+				return { original: toGitUri(resource.original, 'HEAD') };
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
-				return toGitUri(resource.resourceUri, '~');
+				return { original: toGitUri(resource.resourceUri, '~') };
 
 			case Status.DELETED_BY_US:
 			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~1');
+				return { original: toGitUri(resource.resourceUri, '~1') };
 		}
-		return undefined;
+		return {};
 	}
 
-	private getRightResource(resource: Resource): Uri | undefined {
+	private getRightResource(resource: Resource): ModifiedOrOriginal {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
-				return toGitUri(resource.resourceUri, '');
+				return { modified: toGitUri(resource.resourceUri, '') };
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return toGitUri(resource.resourceUri, 'HEAD');
+				return { original: toGitUri(resource.resourceUri, 'HEAD') };
 
 			case Status.DELETED_BY_US:
-				return toGitUri(resource.resourceUri, '~3');
+				return { original: toGitUri(resource.resourceUri, '~3') };
 
 			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~2');
+				return { original: toGitUri(resource.resourceUri, '~2') };
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
@@ -592,17 +602,17 @@ class ResourceCommandResolver {
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
 				if (indexStatus && indexStatus.renameResourceUri) {
-					return indexStatus.renameResourceUri;
+					return { modified: indexStatus.renameResourceUri };
 				}
 
-				return resource.resourceUri;
+				return { modified: resource.resourceUri };
 			}
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return resource.resourceUri;
+				return { modified: resource.resourceUri };
 		}
 
-		return undefined;
+		return {};
 	}
 
 	private getTitle(resource: Resource): string {
@@ -643,6 +653,11 @@ class ResourceCommandResolver {
 				return '';
 		}
 	}
+}
+
+interface ModifiedOrOriginal {
+	modified?: Uri | undefined;
+	original?: Uri | undefined;
 }
 
 interface BranchProtectionMatcher {
@@ -1637,10 +1652,6 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
-	async getCommitFiles(ref: string): Promise<string[]> {
-		return await this.repository.getCommitFiles(ref);
-	}
-
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
 	}
@@ -1940,6 +1951,10 @@ export class Repository implements Disposable {
 		});
 	}
 
+	getObjectFiles(ref: string): Promise<LsTreeElement[]> {
+		return this.run(Operation.GetObjectFiles, () => this.repository.lstree(ref));
+	}
+
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
 		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
@@ -1980,7 +1995,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
 	}
 
-	async showStash(index: number): Promise<string[] | undefined> {
+	async showStash(index: number): Promise<Change[] | undefined> {
 		return await this.run(Operation.Stash, () => this.repository.showStash(index));
 	}
 

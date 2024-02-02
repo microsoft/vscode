@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bannerpart';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -285,12 +285,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 class FocusBannerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.focusBanner';
-	static readonly LABEL = localize('focusBanner', "Focus Banner");
+	static readonly LABEL = localize2('focusBanner', "Focus Banner");
 
 	constructor() {
 		super({
 			id: FocusBannerAction.ID,
-			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
+			title: FocusBannerAction.LABEL,
 			category: Categories.View,
 			f1: true
 		});

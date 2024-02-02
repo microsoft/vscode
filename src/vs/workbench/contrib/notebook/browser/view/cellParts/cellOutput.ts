@@ -200,18 +200,23 @@ class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		const pickedMimeTypeRenderer = mimeTypes[pick];
-		const innerContainer = this._generateInnerOutputContainer(previousSibling, pickedMimeTypeRenderer);
+		const selectedPresentation = mimeTypes[pick];
+		let renderer = this.notebookService.getRendererInfo(selectedPresentation.rendererId);
+		if (!renderer && selectedPresentation.mimeType.indexOf('text/') > -1) {
+			renderer = this.notebookService.getRendererInfo('vscode.builtin-renderer');
+		}
+
+		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
 		this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 
 		this.renderedOutputContainer = DOM.append(innerContainer, DOM.$('.rendered-output'));
 
-		const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-		this.renderResult = renderer
-			? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-			: this._renderMissingRenderer(this.output, pickedMimeTypeRenderer.mimeType);
 
-		this.output.pickedMimeType = pickedMimeTypeRenderer;
+		this.renderResult = renderer
+			? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: selectedPresentation.mimeType }
+			: this._renderMissingRenderer(this.output, selectedPresentation.mimeType);
+
+		this.output.pickedMimeType = selectedPresentation;
 
 		if (!this.renderResult) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');

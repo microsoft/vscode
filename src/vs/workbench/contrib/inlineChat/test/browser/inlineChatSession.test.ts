@@ -41,12 +41,8 @@ import { assertType } from 'vs/base/common/types';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from 'vs/editor/common/services/editorWorker';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { TestWorkerService } from './testWorkerService';
 
 
 suite('ReplyResponse', function () {
@@ -85,69 +81,6 @@ suite('ReplyResponse', function () {
 		}
 	});
 });
-
-class TestWorkerService extends mock<IEditorWorkerService>() {
-
-	private readonly _worker = new EditorSimpleWorker(null!, null);
-
-	constructor(@IModelService private readonly _modelService: IModelService) {
-		super();
-	}
-
-	override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
-
-		const originalModel = this._modelService.getModel(original);
-		const modifiedModel = this._modelService.getModel(modified);
-
-		assertType(originalModel);
-		assertType(modifiedModel);
-
-		this._worker.acceptNewModel({
-			url: originalModel.uri.toString(),
-			versionId: originalModel.getVersionId(),
-			lines: originalModel.getLinesContent(),
-			EOL: originalModel.getEOL(),
-		});
-
-		this._worker.acceptNewModel({
-			url: modifiedModel.uri.toString(),
-			versionId: modifiedModel.getVersionId(),
-			lines: modifiedModel.getLinesContent(),
-			EOL: modifiedModel.getEOL(),
-		});
-
-		const result = await this._worker.computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
-		if (!result) {
-			return result;
-		}
-		// Convert from space efficient JSON data to rich objects.
-		const diff: IDocumentDiff = {
-			identical: result.identical,
-			quitEarly: result.quitEarly,
-			changes: toLineRangeMappings(result.changes),
-			moves: result.moves.map(m => new MovedText(
-				new LineRangeMapping(new LineRange(m[0], m[1]), new LineRange(m[2], m[3])),
-				toLineRangeMappings(m[4])
-			))
-		};
-		return diff;
-
-		function toLineRangeMappings(changes: readonly ILineChange[]): readonly DetailedLineRangeMapping[] {
-			return changes.map(
-				(c) => new DetailedLineRangeMapping(
-					new LineRange(c[0], c[1]),
-					new LineRange(c[2], c[3]),
-					c[4]?.map(
-						(c) => new RangeMapping(
-							new Range(c[0], c[1], c[2], c[3]),
-							new Range(c[4], c[5], c[6], c[7])
-						)
-					)
-				)
-			);
-		}
-	}
-}
 
 suite('InlineChatSession', function () {
 
@@ -431,6 +364,28 @@ suite('InlineChatSession', function () {
 		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three'].join('\n'));
 	});
 
+	test('HunkData, (mirror) edit after dicard ', async function () {
+
+		const lines = ['one', 'two', 'three'];
+		model.setValue(lines.join('\n'));
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI WAS HERE\n')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'AI WAS HERE', 'three'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), lines.join('\n'));
+
+		assert.strictEqual(session.hunkData.size, 1);
+		const [hunk] = session.hunkData.getInfo();
+		hunk.discardChanges();
+		assert.strictEqual(session.textModelN.getValue(), lines.join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), lines.join('\n'));
+
+		makeEdit([EditOperation.replace(new Range(3, 4, 3, 6), '3333')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'thr3333'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'thr3333'].join('\n'));
+	});
+
 	test('HunkData, (mirror) edit after, multi turn', async function () {
 
 		const lines = ['one', 'two', 'three', 'four', 'five'];
@@ -483,6 +438,12 @@ suite('InlineChatSession', function () {
 		makeEdit([EditOperation.replace(new Range(6, 3, 6, 5), 'vefivefi')]);
 		assert.strictEqual(session.textModelN.getValue(), ['one', 'twozwei', 'AI_EDIT', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
 		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
+
+		session.hunkData.getInfo()[0].acceptChanges();
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
+
+		makeEdit([EditOperation.replace(new Range(1, 1, 1, 1), 'done')]);
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
 	});
 
 });

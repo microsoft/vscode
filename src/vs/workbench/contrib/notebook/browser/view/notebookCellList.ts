@@ -18,7 +18,7 @@ import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -34,6 +34,7 @@ import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookCellAnchor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellAnchor';
+import { NotebookViewZones } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookViewZones';
 
 const enum CellRevealPosition {
 	Top,
@@ -76,6 +77,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	protected override readonly view!: NotebookCellListView<CellViewModel>;
+	private viewZones!: NotebookViewZones;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -299,7 +301,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	protected override createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<CellViewModel>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<CellViewModel>): IListView<CellViewModel> {
-		return new NotebookCellListView(container, virtualDelegate, renderers, viewOptions);
+		const listView = new NotebookCellListView(container, virtualDelegate, renderers, viewOptions);
+		this.viewZones = new NotebookViewZones(listView, this);
+		return listView;
 	}
 
 	attachWebview(element: HTMLElement) {
@@ -340,6 +344,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (this._isDisposed) {
 				return;
 			}
+
+			// update whitespaces which are anchored to the model indexes
+			this.viewZones.onCellsChanged(e);
 
 			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
 			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
@@ -446,6 +453,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (!hasDifference) {
 				// they call 'setHiddenAreas' for a reason, even if the ranges are still the same, it's possible that the hiddenRangeSum is not update to date
 				this._updateHiddenRangePrefixSum(newRanges);
+				this.viewZones.onHiddenRangesChange();
+				this.viewZones.layout();
 				return false;
 			}
 		}
@@ -457,11 +466,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		// set hidden ranges prefix sum
 		this._updateHiddenRangePrefixSum(newRanges);
+		// Update view zone positions after hidden ranges change
+		this.viewZones.onHiddenRangesChange();
 
 		if (triggerViewUpdate) {
 			this.updateHiddenAreasInView(oldRanges, newRanges);
 		}
 
+		this.viewZones.layout();
 		return true;
 	}
 
@@ -534,6 +546,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// after splice, the selected cells are deleted
 			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 		}
+
+		this.viewZones.layout();
 	}
 
 	getModelIndex(cell: CellViewModel): number | undefined {
@@ -570,6 +584,31 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return undefined;
 		} else {
 			return viewIndexInfo.index;
+		}
+	}
+
+	convertModelIndexToViewIndex(modelIndex: number): number {
+		if (!this.hiddenRangesPrefixSum) {
+			return modelIndex;
+		}
+
+		return this.hiddenRangesPrefixSum.getIndexOf(modelIndex).index;
+	}
+
+	modelIndexIsVisible(modelIndex: number): boolean {
+		if (!this.hiddenRangesPrefixSum) {
+			return true;
+		}
+
+		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+				// it's already after the last hidden range
+				return true;
+			}
+			return false;
+		} else {
+			return true;
 		}
 	}
 
@@ -1185,11 +1224,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				});
 			}
 			this.view.updateElementHeight(index, size, anchorElementIndex);
+			this.viewZones.layout();
 			return;
 		}
 
 		if (anchorElementIndex !== null) {
-			return this.view.updateElementHeight(index, size, anchorElementIndex);
+			this.view.updateElementHeight(index, size, anchorElementIndex);
+			this.viewZones.layout();
+			return;
 		}
 
 		const focused = this.getFocus();
@@ -1200,11 +1242,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const heightDelta = size - this.view.elementHeight(index);
 
 			if (this._notebookCellAnchor.shouldAnchor(this.view, focus, heightDelta, this.element(index))) {
-				return this.view.updateElementHeight(index, size, focus);
+				this.view.updateElementHeight(index, size, focus);
+				this.viewZones.layout();
+				return;
 			}
 		}
 
-		return this.view.updateElementHeight(index, size, null);
+		this.view.updateElementHeight(index, size, null);
+		this.viewZones.layout();
+		return;
+	}
+
+	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void {
+		this.viewZones.changeViewZones(callback);
 	}
 
 	// override
@@ -1368,6 +1418,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
 		this._notebookCellAnchor.dispose();
+		this.viewZones.dispose();
 		super.dispose();
 
 		// un-ref

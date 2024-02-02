@@ -1379,6 +1379,8 @@ export namespace TextEditorLineNumbersStyle {
 				return RenderLineNumbersType.Off;
 			case types.TextEditorLineNumbersStyle.Relative:
 				return RenderLineNumbersType.Relative;
+			case types.TextEditorLineNumbersStyle.Interval:
+				return RenderLineNumbersType.Interval;
 			case types.TextEditorLineNumbersStyle.On:
 			default:
 				return RenderLineNumbersType.On;
@@ -1390,6 +1392,8 @@ export namespace TextEditorLineNumbersStyle {
 				return types.TextEditorLineNumbersStyle.Off;
 			case RenderLineNumbersType.Relative:
 				return types.TextEditorLineNumbersStyle.Relative;
+			case RenderLineNumbersType.Interval:
+				return types.TextEditorLineNumbersStyle.Interval;
 			case RenderLineNumbersType.On:
 			default:
 				return types.TextEditorLineNumbersStyle.On;
@@ -1999,18 +2003,18 @@ export namespace TestCoverage {
 	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
-				count: coverage.executionCount,
+				count: coverage.executed,
 				location: fromLocation(coverage.location),
 				type: DetailType.Statement,
 				branches: coverage.branches.length
-					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location), label: b.label }))
+					? coverage.branches.map(b => ({ count: b.executed, location: b.location && fromLocation(b.location), label: b.label }))
 					: undefined,
 			};
 		} else {
 			return {
 				type: DetailType.Function,
 				name: coverage.name,
-				count: coverage.executionCount,
+				count: coverage.executed,
 				location: fromLocation(coverage.location),
 			};
 		}
@@ -2320,9 +2324,7 @@ export namespace InteractiveEditorResponseFeedbackKind {
 
 export namespace ChatResponseProgress {
 	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
-		if ('placeholder' in progress && 'resolvedContent' in progress) {
-			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
-		} else if ('markdownContent' in progress) {
+		if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
@@ -2430,11 +2432,10 @@ export namespace ChatResponseProgress {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, slashCommand: vscode.ChatAgentSlashCommand | undefined): vscode.ChatAgentRequest {
+	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
 		return {
 			prompt: request.message,
 			variables: ChatVariable.objectTo(request.variables),
-			slashCommand,
 			subCommand: request.command,
 			agentId: request.agentId,
 		};

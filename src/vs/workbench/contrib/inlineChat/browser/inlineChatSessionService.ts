@@ -10,7 +10,8 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Session } from './inlineChatSession';
+import { Session, StashedSession } from './inlineChatSession';
+import { IValidEditOperation } from 'vs/editor/common/model';
 
 
 export type Recording = {
@@ -25,14 +26,22 @@ export interface ISessionKeyComputer {
 
 export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
 
+export interface IInlineChatSessionEvent {
+	readonly editor: ICodeEditor;
+	readonly session: Session;
+}
+
+export interface IInlineChatSessionEndEvent extends IInlineChatSessionEvent {
+	readonly endedByExternalCause: boolean;
+}
+
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
 	onWillStartSession: Event<IActiveCodeEditor>;
-
-	onDidMoveSession: Event<{ editor: ICodeEditor; session: Session }>;
-
-	onDidEndSession: Event<{ editor: ICodeEditor; session: Session }>;
+	onDidMoveSession: Event<IInlineChatSessionEvent>;
+	onDidStashSession: Event<IInlineChatSessionEvent>;
+	onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
@@ -43,6 +52,8 @@ export interface IInlineChatSessionService {
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
 
 	releaseSession(session: Session): void;
+
+	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession;
 
 	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
 

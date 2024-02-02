@@ -5,16 +5,16 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DynamicSpeechAccessibilityConfiguration, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IAccessibleViewService, AccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibility/browser/unfocusedViewDimmingContribution';
 import { HoverAccessibleViewContribution, InlineCompletionsAccessibleViewContribution, NotificationAccessibleViewContribution } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibilityStatus } from 'vs/workbench/contrib/accessibility/browser/accessibilityStatus';
-import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/comments.contribution';
 import { EditorAccessibilityHelpContribution } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 import { SaveAudioCueContribution } from 'vs/workbench/contrib/accessibility/browser/saveAudioCue';
+import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -24,10 +24,10 @@ workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribut
 workbenchRegistry.registerWorkbenchContribution(CommentsAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(UnfocusedViewDimmingContribution, LifecyclePhase.Restored);
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(HoverAccessibleViewContribution, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(InlineCompletionsAccessibleViewContribution, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(AccessibilityStatus, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(SaveAudioCueContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(DynamicSpeechAccessibilityConfiguration, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(HoverAccessibleViewContribution, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(NotificationAccessibleViewContribution, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(InlineCompletionsAccessibleViewContribution, LifecyclePhase.Eventually);
+
+registerWorkbenchContribution2(AccessibilityStatus.ID, AccessibilityStatus, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(SaveAudioCueContribution.ID, SaveAudioCueContribution, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(DynamicSpeechAccessibilityConfiguration.ID, DynamicSpeechAccessibilityConfiguration, WorkbenchContributionInstantiation.AfterRestored);

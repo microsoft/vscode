@@ -21,6 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { URI } from 'vs/base/common/uri';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -45,6 +46,7 @@ export interface IInlineChatRequest {
 	attempt: number;
 	requestId: string;
 	live: boolean;
+	previewDocument: URI;
 	withIntentDetection: boolean;
 }
 
@@ -113,10 +115,15 @@ export interface IInlineChatSessionProvider {
 
 export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
 
+export interface InlineChatProviderChangeEvent {
+	readonly added?: IInlineChatSessionProvider;
+	readonly removed?: IInlineChatSessionProvider;
+}
+
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
-	onDidChangeProviders: Event<void>;
+	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
@@ -150,7 +157,7 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 
 // --- (select) action identifier
 
-export const ACTION_ACCEPT_CHANGES = 'interactive.acceptChanges';
+export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 

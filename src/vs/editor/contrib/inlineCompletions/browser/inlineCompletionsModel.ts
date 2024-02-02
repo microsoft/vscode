@@ -7,11 +7,13 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { commonPrefixLength } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
@@ -20,7 +22,7 @@ import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { Permutation, addPositions, getNewRanges, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -304,13 +306,12 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
-			editor.executeEdits(
-				'inlineSuggestion.accept',
-				[
-					EditOperation.replaceMove(completion.range, completion.insertText),
-					...completion.additionalTextEdits
-				]
-			);
+			const edits = this._getEdits(editor, completion.toSingleTextEdit());
+			editor.executeEdits('inlineSuggestion.accept', [
+				...edits.edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)),
+				...completion.additionalTextEdits
+			]);
+			editor.setSelections(edits.editorSelections, 'inlineCompletionAccept');
 		}
 
 		if (completion.command) {
@@ -393,15 +394,15 @@ export class InlineCompletionsModel extends Disposable {
 
 		const firstPart = ghostText.parts[0];
 		const position = new Position(ghostText.lineNumber, firstPart.column);
-		const line = firstPart.lines.join('\n');
-		const acceptUntilIndexExclusive = getAcceptUntilIndex(position, line);
+		const text = firstPart.text;
+		const acceptUntilIndexExclusive = getAcceptUntilIndex(position, text);
 
-		if (acceptUntilIndexExclusive === line.length && ghostText.parts.length === 1) {
+		if (acceptUntilIndexExclusive === text.length && ghostText.parts.length === 1) {
 			this.accept(editor);
 			return;
 		}
 
-		const partialText = line.substring(0, acceptUntilIndexExclusive);
+		const partialText = text.substring(0, acceptUntilIndexExclusive);
 
 		// Executing the edit might free the completion, so we have to hold a reference on it.
 		completion.source.addRef();
@@ -409,11 +410,14 @@ export class InlineCompletionsModel extends Disposable {
 			this._isAcceptingPartially = true;
 			try {
 				editor.pushUndoStop();
-				editor.executeEdits('inlineSuggestion.accept', [
-					EditOperation.replace(Range.fromPositions(position), partialText),
-				]);
-				const length = lengthOfText(partialText);
-				editor.setPosition(addPositions(position, length), 'inlineCompletionPartialAccept');
+				const replaceRange = Range.fromPositions(completion.range.getStartPosition(), position);
+				const newText = completion.insertText.substring(
+					0,
+					firstPart.column - completion.range.startColumn + acceptUntilIndexExclusive);
+				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
+				const edits = this._getEdits(editor, singleTextEdit);
+				editor.executeEdits('inlineSuggestion.accept', edits.edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
+				editor.setSelections(edits.editorSelections, 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
 			}
@@ -431,6 +435,38 @@ export class InlineCompletionsModel extends Disposable {
 		} finally {
 			completion.source.removeRef();
 		}
+	}
+
+	private _getEdits(editor: ICodeEditor, completion: SingleTextEdit): { edits: SingleTextEdit[]; editorSelections: Selection[] } {
+
+		const selections = editor.getSelections() ?? [];
+		const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
+		const primaryPosition = selections[0].getPosition();
+		const textModel = editor.getModel()!;
+		const replacedTextAfterPrimaryCursor = textModel
+			.getLineContent(primaryPosition.lineNumber)
+			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
+		const secondaryEditText = completion.text.substring(primaryPosition.column - completion.range.startColumn);
+		const edits = [
+			new SingleTextEdit(completion.range, completion.text),
+			...secondaryPositions.map(pos => {
+				const textAfterSecondaryCursor = this.textModel
+					.getLineContent(pos.lineNumber)
+					.substring(pos.column - 1);
+				const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+				const range = Range.fromPositions(pos, pos.delta(0, l));
+				return new SingleTextEdit(range, secondaryEditText);
+			})
+		];
+		const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
+		const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
+		const newRanges = sortPerm.inverse().apply(sortedNewRanges);
+		const editorSelections = newRanges.map(range => Selection.fromPositions(range.getEndPosition()));
+
+		return {
+			edits,
+			editorSelections
+		};
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
