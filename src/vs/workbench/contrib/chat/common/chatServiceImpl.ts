@@ -384,11 +384,16 @@ export class ChatService extends Disposable implements IChatService {
 
 			this.trace('startSession', `Provider returned session`);
 
-			const welcomeMessage = model.welcomeMessage ? undefined : await provider.provideWelcomeMessage?.(token) ?? undefined;
+			const defaultAgent = this.chatAgentService.getDefaultAgent();
+			if (!defaultAgent) {
+				throw new Error('No default agent');
+			}
+
+			const welcomeMessage = model.welcomeMessage ? undefined : await defaultAgent.provideWelcomeMessage?.(token) ?? undefined;
 			const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
 				model,
 				welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item),
-				await provider.provideSampleQuestions?.(token) ?? []
+				await defaultAgent.provideSampleQuestions?.(token) ?? []
 			);
 
 			model.initialize(session, welcomeModel);
@@ -733,7 +738,6 @@ export class ChatService extends Disposable implements IChatService {
 		return Array.from(this._providers.values()).map(provider => {
 			return {
 				id: provider.id,
-				displayName: provider.displayName
 			};
 		});
 	}

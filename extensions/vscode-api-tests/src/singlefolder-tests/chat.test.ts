@@ -36,6 +36,7 @@ suite('chat', () => {
 			deferred.complete(request);
 			return null;
 		});
+		agent.isDefault = true;
 		agent.subCommandProvider = {
 			provideSubCommands: (_token) => {
 				return [{ name: 'hello', description: 'Hello' }];
