@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isCI } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { WorkbenchContributionInstantiation, WorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { WorkbenchPhase, WorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
@@ -56,11 +56,11 @@ suite('Contributions', () => {
 
 		assert.throws(() => registry.getWorkbenchContribution('a'));
 
-		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.Lazy);
+		registry.registerWorkbenchContribution2('a', TestContributionA, 'lazy');
 		assert.throws(() => registry.getWorkbenchContribution('a'));
 
-		registry.registerWorkbenchContribution2('b', TestContributionB, WorkbenchContributionInstantiation.Lazy);
-		registry.registerWorkbenchContribution2('c', TestContributionError, WorkbenchContributionInstantiation.Lazy);
+		registry.registerWorkbenchContribution2('b', TestContributionB, 'lazy');
+		registry.registerWorkbenchContribution2('c', TestContributionError, 'lazy');
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		registry.start(instantiationService);
@@ -86,7 +86,7 @@ suite('Contributions', () => {
 
 		assert.throws(() => registry.getWorkbenchContribution('a'));
 
-		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.BlockRestore);
+		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchPhase.BlockRestore);
 
 		const instanceA = registry.getWorkbenchContribution('a');
 		assert.ok(instanceA instanceof TestContributionA);
@@ -105,7 +105,7 @@ suite('Contributions', () => {
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		registry.start(instantiationService);
 
-		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.BlockRestore);
+		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchPhase.BlockRestore);
 		assert.ok(!aCreated);
 
 		accessor.lifecycleService.phase = LifecyclePhase.Ready;
@@ -121,7 +121,7 @@ suite('Contributions', () => {
 		accessor.lifecycleService.usePhases = true;
 		accessor.lifecycleService.phase = LifecyclePhase.Restored;
 
-		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.BlockRestore);
+		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchPhase.BlockRestore);
 		registry.start(instantiationService);
 
 		await aCreatedPromise.p;
@@ -136,8 +136,8 @@ suite('Contributions', () => {
 		accessor.lifecycleService.usePhases = true;
 		registry.start(instantiationService);
 
-		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchContributionInstantiation.AfterRestored);
-		registry.registerWorkbenchContribution2('b', TestContributionB, WorkbenchContributionInstantiation.Eventually);
+		registry.registerWorkbenchContribution2('a', TestContributionA, WorkbenchPhase.AfterRestored);
+		registry.registerWorkbenchContribution2('b', TestContributionB, WorkbenchPhase.Eventually);
 		assert.ok(!aCreated);
 		assert.ok(!bCreated);
 

@@ -22,7 +22,7 @@ export namespace Extensions {
 	export const Workbench = 'workbench.contributions.kind';
 }
 
-export const enum WorkbenchContributionInstantiation {
+export const enum WorkbenchPhase {
 
 	/**
 	 * The first phase signals that we are about to startup getting ready.
@@ -52,37 +52,33 @@ export const enum WorkbenchContributionInstantiation {
 	 * The last phase after views, panels and editors have restored and
 	 * some time has passed (2-5 seconds).
 	 */
-	Eventually = LifecyclePhase.Eventually,
-
-	/**
-	 * The contribution is created only when explicitly requested via
-	 * `getContribution()`.
-	 */
-	Lazy = LifecyclePhase.Eventually + 1
+	Eventually = LifecyclePhase.Eventually
 }
 
-function toInstantiation(phase: LifecyclePhase): WorkbenchContributionInstantiation {
+export type WorkbenchContributionInstantiation = WorkbenchPhase | 'lazy' | 'onFileSystem' | 'onEditor';
+
+function toWorkbenchPhase(phase: LifecyclePhase): WorkbenchPhase {
 	switch (phase) {
 		case LifecyclePhase.Starting:
-			return WorkbenchContributionInstantiation.BlockStartup;
+			return WorkbenchPhase.BlockStartup;
 		case LifecyclePhase.Ready:
-			return WorkbenchContributionInstantiation.BlockRestore;
+			return WorkbenchPhase.BlockRestore;
 		case LifecyclePhase.Restored:
-			return WorkbenchContributionInstantiation.AfterRestored;
+			return WorkbenchPhase.AfterRestored;
 		case LifecyclePhase.Eventually:
-			return WorkbenchContributionInstantiation.Eventually;
+			return WorkbenchPhase.Eventually;
 	}
 }
 
-function toPhase(instantiation: WorkbenchContributionInstantiation.BlockStartup | WorkbenchContributionInstantiation.BlockRestore | WorkbenchContributionInstantiation.AfterRestored | WorkbenchContributionInstantiation.Eventually): LifecyclePhase {
+function toLifecyclePhase(instantiation: WorkbenchPhase): LifecyclePhase {
 	switch (instantiation) {
-		case WorkbenchContributionInstantiation.BlockStartup:
+		case WorkbenchPhase.BlockStartup:
 			return LifecyclePhase.Starting;
-		case WorkbenchContributionInstantiation.BlockRestore:
+		case WorkbenchPhase.BlockRestore:
 			return LifecyclePhase.Ready;
-		case WorkbenchContributionInstantiation.AfterRestored:
+		case WorkbenchPhase.AfterRestored:
 			return LifecyclePhase.Restored;
-		case WorkbenchContributionInstantiation.Eventually:
+		case WorkbenchPhase.Eventually:
 			return LifecyclePhase.Eventually;
 	}
 }
@@ -142,20 +138,24 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	private readonly pendingRestoredContributions = new DeferredPromise<void>();
 	readonly whenRestored = this.pendingRestoredContributions.p;
 
-	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, instantiation: WorkbenchContributionInstantiation): void {
+	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase): void;
+	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, lazy: 'lazy'): void;
+	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, onFileSystem: 'onFileSystem', scheme: string): void;
+	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, onEditor: 'onEditor', editorId: string): void;
+	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, instantiation: WorkbenchContributionInstantiation, schemeOrEditorId?: string): void {
 		const contribution: IWorkbenchContributionRegistration = { id, ctor };
 
 		// Instantiate directly if we are already matching the provided phase
-		if (instantiation !== WorkbenchContributionInstantiation.Lazy && this.instantiationService && this.lifecycleService && this.logService && this.environmentService && this.lifecycleService.phase >= instantiation) {
-			this.safeCreateContribution(this.instantiationService, this.logService, this.environmentService, contribution, toPhase(instantiation));
+		if (typeof instantiation === 'number' && this.instantiationService && this.lifecycleService && this.logService && this.environmentService && this.lifecycleService.phase >= instantiation) {
+			this.safeCreateContribution(this.instantiationService, this.logService, this.environmentService, contribution, toLifecyclePhase(instantiation));
 		}
 
 		// Otherwise keep contributions by instantiation kind for later instantiation
 		else {
 
 			// by phase
-			if (instantiation !== WorkbenchContributionInstantiation.Lazy) {
-				const phase = toPhase(instantiation);
+			if (typeof instantiation === 'number') {
+				const phase = toLifecyclePhase(instantiation);
 				let contributionsForPhase = this.contributionsByPhase.get(phase);
 				if (!contributionsForPhase) {
 					contributionsForPhase = [];
@@ -177,7 +177,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	}
 
 	registerWorkbenchContribution(ctor: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase): void {
-		this.registerWorkbenchContribution2(undefined, ctor, toInstantiation(phase));
+		this.registerWorkbenchContribution2(undefined, ctor, toWorkbenchPhase(phase));
 	}
 
 	getWorkbenchContribution<T extends IWorkbenchContribution>(id: string): T {
@@ -358,7 +358,12 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
  * Register a workbench contribution that will be instantiated
  * based on the `instantiation` property.
  */
-export const registerWorkbenchContribution2 = WorkbenchContributionsRegistry.INSTANCE.registerWorkbenchContribution2.bind(WorkbenchContributionsRegistry.INSTANCE) as { <Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, instantiation: WorkbenchContributionInstantiation): void };
+export const registerWorkbenchContribution2 = WorkbenchContributionsRegistry.INSTANCE.registerWorkbenchContribution2.bind(WorkbenchContributionsRegistry.INSTANCE) as {
+	<Services extends BrandedService[]>(id: string | undefined, ctor: IWorkbenchContributionSignature<Services>, phase: WorkbenchPhase): void;
+	<Services extends BrandedService[]>(id: string | undefined, ctor: IWorkbenchContributionSignature<Services>, lazy: 'lazy'): void;
+	<Services extends BrandedService[]>(id: string | undefined, ctor: IWorkbenchContributionSignature<Services>, onFileSystem: 'onFileSystem', scheme: string): void;
+	<Services extends BrandedService[]>(id: string | undefined, ctor: IWorkbenchContributionSignature<Services>, onEditor: 'onEditor', editorId: string): void;
+};
 
 /**
  * Provides access to a workbench contribution with a specific identifier.
