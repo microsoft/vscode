@@ -10,7 +10,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/ed
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
@@ -65,7 +65,10 @@ registerAction2(class extends Action2 {
 
 			// We're trying to open the welcome page from the Help menu
 			if (!selectedCategory && !selectedStep) {
-				editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
+				editorService.openEditor({
+					resource: GettingStartedInput.RESOURCE,
+					options: <GettingStartedEditorOptions>{ preserveFocus: toSide ?? false }
+				}, toSide ? SIDE_GROUP : undefined);
 				return;
 			}
 
@@ -110,13 +113,16 @@ registerAction2(class extends Action2 {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options: <GettingStartedEditorOptions>{ selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false }
-				}).then((editor) => {
+				}, toSide ? SIDE_GROUP : undefined).then((editor) => {
 					(editor as GettingStartedPage)?.makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 				});
 
 			}
 		} else {
-			editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
+			editorService.openEditor({
+				resource: GettingStartedInput.RESOURCE,
+				options: <GettingStartedEditorOptions>{ preserveFocus: toSide ?? false }
+			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}
 });
