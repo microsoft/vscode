@@ -140,8 +140,8 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 
 	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase): void;
 	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, lazy: 'lazy'): void;
-	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, onFileSystem: 'onFileSystem', scheme: string): void;
-	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, onEditor: 'onEditor', editorId: string): void;
+	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onFileSystem: 'onFileSystem', scheme: string): void;
+	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onEditor: 'onEditor', editorId: string): void;
 	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, instantiation: WorkbenchContributionInstantiation, schemeOrEditorId?: string): void {
 		const contribution: IWorkbenchContributionRegistration = { id, ctor };
 
@@ -359,10 +359,10 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
  * based on the `instantiation` property.
  */
 export const registerWorkbenchContribution2 = WorkbenchContributionsRegistry.INSTANCE.registerWorkbenchContribution2.bind(WorkbenchContributionsRegistry.INSTANCE) as {
-	<Services extends BrandedService[]>(id: string | undefined, ctor: IWorkbenchContributionSignature<Services>, phase: WorkbenchPhase): void;
+	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, phase: WorkbenchPhase): void;
 	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, lazy: 'lazy'): void;
-	<Services extends BrandedService[]>(id: string | undefined, ctor: IWorkbenchContributionSignature<Services>, onFileSystem: 'onFileSystem', scheme: string): void;
-	<Services extends BrandedService[]>(id: string | undefined, ctor: IWorkbenchContributionSignature<Services>, onEditor: 'onEditor', editorId: string): void;
+	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, onFileSystem: 'onFileSystem', scheme: string): void;
+	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, onEditor: 'onEditor', editorId: string): void;
 };
 
 /**
