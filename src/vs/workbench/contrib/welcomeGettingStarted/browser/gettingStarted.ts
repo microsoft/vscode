@@ -44,7 +44,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -281,6 +281,27 @@ export class GettingStartedPage extends EditorPane {
 				});
 			}
 			this.updateCategoryProgress();
+		}));
+
+		this._register(this.storageService.onWillSaveState((e) => {
+			if (e.reason !== WillSaveStateReason.SHUTDOWN) {
+				return;
+			}
+
+			if (this.workspaceContextService.getWorkspace().folders.length !== 0) {
+				return;
+			}
+
+			if (!this.editorInput || !this.currentWalkthrough || !this.editorInput.selectedCategory || !this.editorInput.selectedStep) {
+				return;
+			}
+
+			// Save the state of the walkthrough so we can restore it on reload
+			const restoreData: RestoreWalkthroughsConfigurationValue = { folder: UNKNOWN_EMPTY_WINDOW_WORKSPACE.id, category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
+			this.storageService.store(
+				restoreWalkthroughsConfigurationKey,
+				JSON.stringify(restoreData),
+				StorageScope.PROFILE, StorageTarget.MACHINE);
 		}));
 	}
 
