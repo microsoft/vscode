@@ -22,7 +22,7 @@ import { InputLatencyContrib } from 'vs/workbench/contrib/performance/browser/in
 registerWorkbenchContribution2(
 	PerfviewContrib.ID,
 	PerfviewContrib,
-	'lazy'
+	{ lazy: true }
 );
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(

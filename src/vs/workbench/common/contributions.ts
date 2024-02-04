@@ -55,14 +55,22 @@ export const enum WorkbenchPhase {
 	Eventually = LifecyclePhase.Eventually
 }
 
-export type WorkbenchContributionInstantiation = WorkbenchPhase | 'lazy' | 'onFileSystem' | 'onEditor';
+export interface ILazyWorkbenchContributionInstantiation {
+	readonly lazy: true;
+}
 
-function toWorkbenchPhase(phase: LifecyclePhase): WorkbenchPhase {
+export interface IOnFilesystemWorkbenchContributionInstantiation {
+	readonly scheme: string;
+}
+
+export interface IOnEditorWorkbenchContributionInstantiation {
+	readonly editorId: string;
+}
+
+export type WorkbenchContributionInstantiation = WorkbenchPhase | ILazyWorkbenchContributionInstantiation | IOnFilesystemWorkbenchContributionInstantiation | IOnEditorWorkbenchContributionInstantiation;
+
+function toWorkbenchPhase(phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): WorkbenchPhase.AfterRestored | WorkbenchPhase.Eventually {
 	switch (phase) {
-		case LifecyclePhase.Starting:
-			return WorkbenchPhase.BlockStartup;
-		case LifecyclePhase.Ready:
-			return WorkbenchPhase.BlockRestore;
 		case LifecyclePhase.Restored:
 			return WorkbenchPhase.AfterRestored;
 		case LifecyclePhase.Eventually:
@@ -138,11 +146,12 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	private readonly pendingRestoredContributions = new DeferredPromise<void>();
 	readonly whenRestored = this.pendingRestoredContributions.p;
 
-	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase): void;
-	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, lazy: 'lazy'): void;
-	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onFileSystem: 'onFileSystem', scheme: string): void;
-	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onEditor: 'onEditor', editorId: string): void;
-	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, instantiation: WorkbenchContributionInstantiation, schemeOrEditorId?: string): void {
+	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase.BlockStartup | WorkbenchPhase.BlockRestore): void;
+	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase.AfterRestored | WorkbenchPhase.Eventually): void;
+	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, lazy: ILazyWorkbenchContributionInstantiation): void;
+	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onFileSystem: IOnFilesystemWorkbenchContributionInstantiation): void;
+	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onEditor: IOnEditorWorkbenchContributionInstantiation): void;
+	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, instantiation: WorkbenchContributionInstantiation): void {
 		const contribution: IWorkbenchContributionRegistration = { id, ctor };
 
 		// Instantiate directly if we are already matching the provided phase
@@ -176,7 +185,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		}
 	}
 
-	registerWorkbenchContribution(ctor: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase): void {
+	registerWorkbenchContribution(ctor: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void {
 		this.registerWorkbenchContribution2(undefined, ctor, toWorkbenchPhase(phase));
 	}
 
@@ -359,10 +368,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
  * based on the `instantiation` property.
  */
 export const registerWorkbenchContribution2 = WorkbenchContributionsRegistry.INSTANCE.registerWorkbenchContribution2.bind(WorkbenchContributionsRegistry.INSTANCE) as {
-	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, phase: WorkbenchPhase): void;
-	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, lazy: 'lazy'): void;
-	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, onFileSystem: 'onFileSystem', scheme: string): void;
-	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, onEditor: 'onEditor', editorId: string): void;
+	<Services extends BrandedService[]>(id: string, ctor: IWorkbenchContributionSignature<Services>, instantiation: WorkbenchContributionInstantiation): void;
 };
 
 /**

@@ -56,11 +56,11 @@ suite('Contributions', () => {
 
 		assert.throws(() => registry.getWorkbenchContribution('a'));
 
-		registry.registerWorkbenchContribution2('a', TestContributionA, 'lazy');
+		registry.registerWorkbenchContribution2('a', TestContributionA, { lazy: true });
 		assert.throws(() => registry.getWorkbenchContribution('a'));
 
-		registry.registerWorkbenchContribution2('b', TestContributionB, 'lazy');
-		registry.registerWorkbenchContribution2('c', TestContributionError, 'lazy');
+		registry.registerWorkbenchContribution2('b', TestContributionB, { lazy: true });
+		registry.registerWorkbenchContribution2('c', TestContributionError, { lazy: true });
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		registry.start(instantiationService);
