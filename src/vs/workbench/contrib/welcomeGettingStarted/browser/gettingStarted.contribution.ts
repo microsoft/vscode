@@ -64,7 +64,7 @@ registerAction2(class extends Action2 {
 			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
 
 			// We're trying to open the welcome page from the Help menu
-			if (!selectedCategory || !selectedStep) {
+			if (!selectedCategory && !selectedStep) {
 				editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
 				return;
 			}
