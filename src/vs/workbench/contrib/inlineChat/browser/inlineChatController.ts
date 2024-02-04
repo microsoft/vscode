@@ -23,7 +23,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { TextEdit } from 'vs/editor/common/languages';
+import { ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
@@ -78,18 +78,22 @@ export abstract class InlineChatRunOptions {
 	message?: string;
 	autoSend?: boolean;
 	existingSession?: Session;
+	existingExchange?: { prompt: string; response: IInlineChatResponse };
 	isUnstashed?: boolean;
 	position?: IPosition;
 	withIntentDetection?: boolean;
 
 	static isInteractiveEditorOptions(options: any): options is InlineChatRunOptions {
-		const { initialSelection, initialRange, message, autoSend, position } = options;
+		const { initialSelection, initialRange, message, autoSend, position, existingExchange, existingSession } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
 			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)
 			|| typeof initialSelection !== 'undefined' && !Selection.isISelection(initialSelection)
-			|| typeof position !== 'undefined' && !Position.isIPosition(position)) {
+			|| typeof position !== 'undefined' && !Position.isIPosition(position)
+			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
+			|| typeof existingExchange !== 'undefined' && typeof existingExchange !== 'object'
+		) {
 			return false;
 		}
 		return true;
@@ -168,6 +172,16 @@ export class InlineChatController implements IEditorContribution {
 
 			this._log('session RESUMING after model change', e);
 			await this.run({ existingSession });
+		}));
+
+		this._store.add(this._inlineChatSessionService.onDidEndSession(e => {
+			if (e.session === this._session && e.endedByExternalCause) {
+				this._log('session ENDED by external cause');
+				this._session = undefined;
+				this._strategy?.cancel();
+				this._resetWidget();
+				this.cancelSession();
+			}
 		}));
 
 		this._store.add(this._inlineChatSessionService.onDidMoveSession(async e => {
@@ -439,6 +453,11 @@ export class InlineChatController implements IEditorContribution {
 
 		this._updatePlaceholder();
 
+		if (options.existingExchange) {
+			options.message = options.existingExchange.prompt;
+			options.autoSend = true;
+		}
+
 		if (options.message) {
 			this.updateInput(options.message);
 			aria.alert(options.message);
@@ -638,8 +657,15 @@ export class InlineChatController implements IEditorContribution {
 		const a11yVerboseInlineChat = this._configurationService.getValue<boolean>('accessibility.verbosity.inlineChat') === true;
 		const requestId = this._chatAccessibilityService.acceptRequest();
 
-		const task = this._session.provider.provideResponse(this._session.session, request, progress, requestCts.token);
-		this._log('request started', this._session.provider.debugName, this._session.session, request);
+		let task: ProviderResult<IInlineChatResponse>;
+		if (options.existingExchange) {
+			task = options.existingExchange.response;
+			delete options.existingExchange;
+			this._log('using READY-response', this._session.provider.debugName, this._session.session);
+		} else {
+			task = this._session.provider.provideResponse(this._session.session, request, progress, requestCts.token);
+			this._log('request started', this._session.provider.debugName, this._session.session, request);
+		}
 
 		let response: ReplyResponse | ErrorResponse | EmptyResponse;
 		let reply: IInlineChatResponse | null | undefined;

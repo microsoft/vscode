@@ -15,6 +15,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/objects';
+import { DeferredPromise } from 'vs/base/common/async';
 
 export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'id': 'application',
@@ -75,6 +76,8 @@ const configurationMigrationRegistry = new ConfigurationMigrationRegistry();
 Registry.add(Extensions.ConfigurationMigration, configurationMigrationRegistry);
 
 export class ConfigurationMigrationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.configurationMigration';
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -165,47 +168,60 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 	}
 }
 
-export class DynamicWorkbenchConfigurationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+export class DynamicWorkbenchSecurityConfiguration extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.dynamicWorkbenchConfiguration';
+	static readonly ID = 'workbench.contrib.dynamicWorkbenchSecurityConfiguration';
+
+	private readonly _ready = new DeferredPromise<void>();
+	readonly ready = this._ready.p;
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
-		(async () => {
-			if (!isWindows) {
-				const remoteEnvironment = await remoteAgentService.getEnvironment();
-				if (remoteEnvironment?.os !== OperatingSystem.Windows) {
-					return;
+		this.create();
+	}
+
+	private async create(): Promise<void> {
+		try {
+			await this.doCreate();
+		} finally {
+			this._ready.complete();
+		}
+	}
+
+	private async doCreate(): Promise<void> {
+		if (!isWindows) {
+			const remoteEnvironment = await this.remoteAgentService.getEnvironment();
+			if (remoteEnvironment?.os !== OperatingSystem.Windows) {
+				return;
+			}
+		}
+
+		// Windows: UNC allow list security configuration
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		registry.registerConfiguration({
+			...securityConfigurationNodeBase,
+			'properties': {
+				'security.allowedUNCHosts': {
+					'type': 'array',
+					'items': {
+						'type': 'string',
+						'pattern': '^[^\\\\]+$',
+						'patternErrorMessage': localize('security.allowedUNCHosts.patternErrorMessage', 'UNC host names must not contain backslashes.')
+					},
+					'default': [],
+					'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
+					'scope': ConfigurationScope.MACHINE
+				},
+				'security.restrictUNCAccess': {
+					'type': 'boolean',
+					'default': true,
+					'markdownDescription': localize('security.restrictUNCAccess', 'If enabled, only allows access to UNC host names that are allowed by the `#security.allowedUNCHosts#` setting or after user confirmation. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
+					'scope': ConfigurationScope.MACHINE
 				}
 			}
-
-			// Windows: UNC allow list security configuration
-			const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-			registry.registerConfiguration({
-				...securityConfigurationNodeBase,
-				'properties': {
-					'security.allowedUNCHosts': {
-						'type': 'array',
-						'items': {
-							'type': 'string',
-							'pattern': '^[^\\\\]+$',
-							'patternErrorMessage': localize('security.allowedUNCHosts.patternErrorMessage', 'UNC host names must not contain backslashes.')
-						},
-						'default': [],
-						'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-						'scope': ConfigurationScope.MACHINE
-					},
-					'security.restrictUNCAccess': {
-						'type': 'boolean',
-						'default': true,
-						'markdownDescription': localize('security.restrictUNCAccess', 'If enabled, only allows access to UNC host names that are allowed by the `#security.allowedUNCHosts#` setting or after user confirmation. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-						'scope': ConfigurationScope.MACHINE
-					}
-				}
-			});
-		})();
+		});
 	}
 }

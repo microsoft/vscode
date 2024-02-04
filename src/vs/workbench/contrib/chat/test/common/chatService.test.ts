@@ -172,7 +172,6 @@ suite('Chat', () => {
 		const id = 'testProvider';
 		testDisposables.add(testService.registerProvider({
 			id,
-			displayName: 'Test',
 			prepareSession: function (token: CancellationToken): ProviderResult<IChat | undefined> {
 				throw new Error('Function not implemented.');
 			}
@@ -181,7 +180,6 @@ suite('Chat', () => {
 		assert.throws(() => {
 			testDisposables.add(testService.registerProvider({
 				id,
-				displayName: 'Test',
 				prepareSession: function (token: CancellationToken): ProviderResult<IChat | undefined> {
 					throw new Error('Function not implemented.');
 				}
@@ -226,8 +224,6 @@ suite('Chat', () => {
 
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
-
-		await response.responseCompletePromise;
 
 		assert.strictEqual(model.getRequests().length, 1);
 

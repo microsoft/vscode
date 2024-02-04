@@ -135,7 +135,7 @@ export class IssueReporter extends Disposable {
 		this.updateUnsupportedMode(configuration.data.isUnsupported);
 
 		// Handle case where extension is pre-selected through the command
-		if (configuration.data.command && targetExtension) {
+		if ((configuration.data.data || configuration.data.uri) && targetExtension) {
 			this.updateExtensionStatus(targetExtension);
 		}
 	}
@@ -249,8 +249,8 @@ export class IssueReporter extends Disposable {
 
 	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
 		try {
-			if (extension.command?.uri) {
-				const uri = URI.revive(extension.command.uri);
+			if (extension.uri) {
+				const uri = URI.revive(extension.uri);
 				extension.bugsUrl = uri.toString();
 			} else {
 				const uri = await this.issueMainService.$getIssueReporterUri(extension.id);
@@ -813,8 +813,8 @@ export class IssueReporter extends Disposable {
 			show(extensionDataBlock);
 		}
 
-		if (fileOnExtension && selectedExtension?.command?.data) {
-			const data = selectedExtension?.command?.data;
+		if (fileOnExtension && selectedExtension?.data) {
+			const data = selectedExtension?.data;
 			(extensionDataTextArea as HTMLElement).innerText = data.toString();
 			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
 			show(extensionDataBlock);
@@ -959,8 +959,8 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		if (selectedExtension?.command?.uri) {
-			const uri = URI.revive(selectedExtension.command.uri);
+		if (selectedExtension?.uri) {
+			const uri = URI.revive(selectedExtension.uri);
 			issueUrl = uri.toString();
 		}
 
@@ -1174,7 +1174,8 @@ export class IssueReporter extends Disposable {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 					if (selectedExtension) {
-						selectedExtension.command = undefined;
+						selectedExtension.data = undefined;
+						selectedExtension.uri = undefined;
 					}
 					this.updateExtensionStatus(matches[0]);
 				} else {
@@ -1192,33 +1193,33 @@ export class IssueReporter extends Disposable {
 
 	private clearExtensionData(): void {
 		this.issueReporterModel.update({ extensionData: undefined });
-		this.configuration.data.command = undefined;
+		this.configuration.data.data = undefined;
+		this.configuration.data.uri = undefined;
 	}
 
 	private async updateExtensionStatus(extension: IssueReporterExtensionData) {
 		this.issueReporterModel.update({ selectedExtension: extension });
-		if (this.configuration.data.command) {
-			const template = this.configuration.data.command.template;
-			if (template) {
-				const descriptionTextArea = this.getElementById('description')!;
-				const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
-				if (descriptionText === '' || !descriptionText.includes(template.toString())) {
-					const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template.toString();
-					(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
-					this.issueReporterModel.update({ issueDescription: fullTextArea });
-				}
+		const template = this.configuration.data.issueBody;
+		if (template) {
+			const descriptionTextArea = this.getElementById('description')!;
+			const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
+			if (descriptionText === '' || !descriptionText.includes(template.toString())) {
+				const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template.toString();
+				(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
+				this.issueReporterModel.update({ issueDescription: fullTextArea });
 			}
-			const data = this.configuration.data.command.data;
-			if (data) {
-				const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
-				show(extensionDataBlock);
-				this.issueReporterModel.update({ extensionData: data });
-			}
+		}
 
-			const uri = this.configuration.data.command.uri;
-			if (uri) {
-				this.updateIssueReporterUri(extension);
-			}
+		const data = this.configuration.data.data;
+		if (data) {
+			const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
+			show(extensionDataBlock);
+			this.issueReporterModel.update({ extensionData: data });
+		}
+
+		const uri = this.configuration.data.uri;
+		if (uri) {
+			this.updateIssueReporterUri(extension);
 		}
 
 		// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
@@ -1274,7 +1275,7 @@ export class IssueReporter extends Disposable {
 			this.removeLoading(iconElement);
 		} else {
 			this.validateSelectedExtension();
-			this.issueReporterModel.update({ extensionData: extension.command?.data ?? undefined });
+			this.issueReporterModel.update({ extensionData: extension.data ?? undefined });
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 			this.searchExtensionIssues(title);
 		}

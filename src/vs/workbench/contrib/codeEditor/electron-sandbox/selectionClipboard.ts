@@ -90,30 +90,28 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 	}
 }
 
-class SelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
+class LinuxSelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.selectionClipboardPastePreventer';
+	static readonly ID = 'workbench.contrib.linuxSelectionClipboardPastePreventer';
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
-		if (platform.isLinux) {
-			this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-				disposables.add(addDisposableListener(window.document, 'mouseup', e => {
-					if (e.button === 1) {
-						// middle button
-						const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
-						if (!config.selectionClipboard) {
-							// selection clipboard is disabled
-							// try to stop the upcoming paste
-							e.preventDefault();
-						}
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window.document, 'mouseup', e => {
+				if (e.button === 1) {
+					// middle button
+					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
+					if (!config.selectionClipboard) {
+						// selection clipboard is disabled
+						// try to stop the upcoming paste
+						e.preventDefault();
 					}
-				}));
-			}, { window: mainWindow, disposables: this._store }));
-		}
+				}
+			}));
+		}, { window: mainWindow, disposables: this._store }));
 	}
 }
 
@@ -143,7 +141,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 }
 
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard, EditorContributionInstantiation.Eager); // eager because it needs to listen to selection change events
-registerWorkbenchContribution2(SelectionClipboardPastePreventer.ID, SelectionClipboardPastePreventer, WorkbenchContributionInstantiation.BlockRestore);
 if (platform.isLinux) {
+	registerWorkbenchContribution2(LinuxSelectionClipboardPastePreventer.ID, LinuxSelectionClipboardPastePreventer, WorkbenchContributionInstantiation.BlockRestore); // eager because it listens to mouse-up events globally
 	registerEditorAction(PasteSelectionClipboardAction);
 }

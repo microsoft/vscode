@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as DOM from 'vs/base/browser/window';
-import { promiseWithResolvers } from 'vs/base/common/async';
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
@@ -96,6 +95,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const isChrome = (userAgent.indexOf('Chrome') >= 0);
 	const textEncoder = new TextEncoder();
 	const textDecoder = new TextDecoder();
+
+	function promiseWithResolvers<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void; reject: (err?: any) => void } {
+		let resolve: (value: T | PromiseLike<T>) => void;
+		let reject: (reason?: any) => void;
+		const promise = new Promise<T>((res, rej) => {
+			resolve = res;
+			reject = rej;
+		});
+		return { promise, resolve: resolve!, reject: reject! };
+	}
 
 	let currentOptions = ctx.options;
 	const isWorkspaceTrusted = ctx.isWorkspaceTrusted;

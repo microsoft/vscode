@@ -181,7 +181,7 @@ declare module 'vscode' {
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
 	 */
-	export interface FollowupProvider<TResult extends ChatAgentResult2> {
+	export interface ChatAgentFollowupProvider<TResult extends ChatAgentResult2> {
 		/**
 		 *
 		 * @param result The same instance of the result object that was returned by the chat agent, and it can be extended with arbitrary properties if needed.
@@ -229,7 +229,7 @@ declare module 'vscode' {
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
-		followupProvider?: FollowupProvider<TResult>;
+		followupProvider?: ChatAgentFollowupProvider<TResult>;
 
 		/**
 		 * When the user clicks this agent in `/help`, this text will be submitted to this subCommand

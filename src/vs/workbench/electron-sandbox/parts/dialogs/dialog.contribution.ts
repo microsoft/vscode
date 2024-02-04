@@ -18,13 +18,14 @@ import { NativeDialogHandler } from 'vs/workbench/electron-sandbox/parts/dialogs
 import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.dialogHandler';
 
-	private nativeImpl: IDialogHandler;
-	private browserImpl: IDialogHandler;
+	private nativeImpl: Lazy<IDialogHandler>;
+	private browserImpl: Lazy<IDialogHandler>;
 
 	private model: IDialogsModel;
 	private currentDialog: IDialogViewItem | undefined;
@@ -42,8 +43,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		this.browserImpl = new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService);
-		this.nativeImpl = new NativeDialogHandler(logService, nativeHostService, productService, clipboardService);
+		this.browserImpl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService));
+		this.nativeImpl = new Lazy(() => new NativeDialogHandler(logService, nativeHostService, productService, clipboardService));
 
 		this.model = (this.dialogService as DialogService).model;
 
@@ -67,30 +68,30 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 				if (this.currentDialog.args.confirmArgs) {
 					const args = this.currentDialog.args.confirmArgs;
 					result = (this.useCustomDialog || args?.confirmation.custom) ?
-						await this.browserImpl.confirm(args.confirmation) :
-						await this.nativeImpl.confirm(args.confirmation);
+						await this.browserImpl.value.confirm(args.confirmation) :
+						await this.nativeImpl.value.confirm(args.confirmation);
 				}
 
 				// Input (custom only)
 				else if (this.currentDialog.args.inputArgs) {
 					const args = this.currentDialog.args.inputArgs;
-					result = await this.browserImpl.input(args.input);
+					result = await this.browserImpl.value.input(args.input);
 				}
 
 				// Prompt
 				else if (this.currentDialog.args.promptArgs) {
 					const args = this.currentDialog.args.promptArgs;
 					result = (this.useCustomDialog || args?.prompt.custom) ?
-						await this.browserImpl.prompt(args.prompt) :
-						await this.nativeImpl.prompt(args.prompt);
+						await this.browserImpl.value.prompt(args.prompt) :
+						await this.nativeImpl.value.prompt(args.prompt);
 				}
 
 				// About
 				else {
 					if (this.useCustomDialog) {
-						await this.browserImpl.about();
+						await this.browserImpl.value.about();
 					} else {
-						await this.nativeImpl.about();
+						await this.nativeImpl.value.about();
 					}
 				}
 			} catch (error) {
@@ -107,4 +108,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-registerWorkbenchContribution2(DialogHandlerContribution.ID, DialogHandlerContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(
+	DialogHandlerContribution.ID,
+	DialogHandlerContribution,
+	WorkbenchContributionInstantiation.BlockStartup // Block to allow for dialogs to show before restore finished
+);

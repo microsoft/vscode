@@ -15,13 +15,14 @@ import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogH
 import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.dialogHandler';
 
 	private readonly model: IDialogsModel;
-	private readonly impl: IDialogHandler;
+	private readonly impl: Lazy<IDialogHandler>;
 
 	private currentDialog: IDialogViewItem | undefined;
 
@@ -36,7 +37,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		this.impl = new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService);
+		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService));
 
 		this.model = (this.dialogService as DialogService).model;
 
@@ -57,15 +58,15 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 			try {
 				if (this.currentDialog.args.confirmArgs) {
 					const args = this.currentDialog.args.confirmArgs;
-					result = await this.impl.confirm(args.confirmation);
+					result = await this.impl.value.confirm(args.confirmation);
 				} else if (this.currentDialog.args.inputArgs) {
 					const args = this.currentDialog.args.inputArgs;
-					result = await this.impl.input(args.input);
+					result = await this.impl.value.input(args.input);
 				} else if (this.currentDialog.args.promptArgs) {
 					const args = this.currentDialog.args.promptArgs;
-					result = await this.impl.prompt(args.prompt);
+					result = await this.impl.value.prompt(args.prompt);
 				} else {
-					await this.impl.about();
+					await this.impl.value.about();
 				}
 			} catch (error) {
 				result = error;
@@ -77,4 +78,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-registerWorkbenchContribution2(DialogHandlerContribution.ID, DialogHandlerContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(
+	DialogHandlerContribution.ID,
+	DialogHandlerContribution,
+	WorkbenchContributionInstantiation.BlockStartup // Block to allow for dialogs to show before restore finished
+);

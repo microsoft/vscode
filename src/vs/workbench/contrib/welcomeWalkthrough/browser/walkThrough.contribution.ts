@@ -29,7 +29,7 @@ registerAction2(EditorWalkThroughAction);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
 
-registerWorkbenchContribution2(WalkThroughSnippetContentProvider.ID, WalkThroughSnippetContentProvider, WorkbenchContributionInstantiation.BlockRestore /* cannot be on a later phase because an editor might need this on startup */);
+registerWorkbenchContribution2(WalkThroughSnippetContentProvider.ID, WalkThroughSnippetContentProvider, WorkbenchContributionInstantiation.Lazy);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughArrowUp);
 
