@@ -10,7 +10,7 @@ import { isCI } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { WorkbenchPhase, WorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Contributions', () => {
 	const disposables = new DisposableStore();
@@ -52,7 +52,7 @@ suite('Contributions', () => {
 	}
 
 	test('getWorkbenchContribution() - with lazy contributions', () => {
-		const registry = new WorkbenchContributionsRegistry();
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
 
 		assert.throws(() => registry.getWorkbenchContribution('a'));
 
@@ -77,7 +77,7 @@ suite('Contributions', () => {
 	});
 
 	test('getWorkbenchContribution() - with non-lazy contributions', async () => {
-		const registry = new WorkbenchContributionsRegistry();
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -99,7 +99,7 @@ suite('Contributions', () => {
 	});
 
 	test('lifecycle phase instantiation works when phase changes', async () => {
-		const registry = new WorkbenchContributionsRegistry();
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -114,7 +114,7 @@ suite('Contributions', () => {
 	});
 
 	test('lifecycle phase instantiation works when phase was already met', async () => {
-		const registry = new WorkbenchContributionsRegistry();
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -129,7 +129,7 @@ suite('Contributions', () => {
 	});
 
 	(isCI ? test.skip /* runWhenIdle seems flaky in CI on Windows */ : test)('lifecycle phase instantiation works for late phases', async () => {
-		const registry = new WorkbenchContributionsRegistry();
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -148,6 +148,27 @@ suite('Contributions', () => {
 		assert.ok(aCreated);
 
 		accessor.lifecycleService.phase = LifecyclePhase.Eventually;
+		await bCreatedPromise.p;
+		assert.ok(bCreated);
+	});
+
+	test('contribution on file system', async function () {
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
+
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(accessor.fileService.registerProvider('testBefore', disposables.add(new TestInMemoryFileSystemProvider())));
+
+		registry.registerWorkbenchContribution2('a', TestContributionA, { scheme: 'testBefore' });
+		registry.start(instantiationService);
+
+		await aCreatedPromise.p;
+		assert.ok(aCreated);
+
+		registry.registerWorkbenchContribution2('b', TestContributionB, { scheme: 'testAfter' });
+
+		accessor.fileService.activateProvider('testAfter');
+
 		await bCreatedPromise.p;
 		assert.ok(bCreated);
 	});

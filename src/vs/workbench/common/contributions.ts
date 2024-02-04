@@ -10,6 +10,9 @@ import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from 'vs/base/common
 import { mark } from 'vs/base/common/performance';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { getOrSet } from 'vs/base/common/map';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
@@ -65,6 +68,16 @@ export interface IOnFilesystemWorkbenchContributionInstantiation {
 
 export interface IOnEditorWorkbenchContributionInstantiation {
 	readonly editorId: string;
+}
+
+function isOnFilesystemWorkbenchContributionInstantiation(obj: unknown): obj is IOnFilesystemWorkbenchContributionInstantiation {
+	const candidate = obj as IOnFilesystemWorkbenchContributionInstantiation | undefined;
+	return !!candidate && typeof candidate.scheme === 'string';
+}
+
+function isOnEditorWorkbenchContributionInstantiation(obj: unknown): obj is IOnEditorWorkbenchContributionInstantiation {
+	const candidate = obj as IOnEditorWorkbenchContributionInstantiation | undefined;
+	return !!candidate && typeof candidate.editorId === 'string';
 }
 
 export type WorkbenchContributionInstantiation = WorkbenchPhase | ILazyWorkbenchContributionInstantiation | IOnFilesystemWorkbenchContributionInstantiation | IOnEditorWorkbenchContributionInstantiation;
@@ -123,7 +136,7 @@ interface IWorkbenchContributionRegistration {
 	readonly ctor: IConstructorSignature<IWorkbenchContribution>;
 }
 
-export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+export class WorkbenchContributionsRegistry extends Disposable implements IWorkbenchContributionsRegistry {
 
 	static readonly INSTANCE = new WorkbenchContributionsRegistry();
 
@@ -134,8 +147,11 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	private lifecycleService: ILifecycleService | undefined;
 	private logService: ILogService | undefined;
 	private environmentService: IEnvironmentService | undefined;
+	private fileService: IFileService | undefined;
 
 	private readonly contributionsByPhase = new Map<LifecyclePhase, IWorkbenchContributionRegistration[]>();
+	private readonly contributionsByFilesystem = new Map<string, IWorkbenchContributionRegistration[]>();
+	private readonly contributionsByEditor = new Map<string, IWorkbenchContributionRegistration[]>();
 	private readonly contributionsById = new Map<string, IWorkbenchContributionRegistration>();
 
 	private readonly instancesById = new Map<string, IWorkbenchContribution>();
@@ -154,9 +170,15 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, instantiation: WorkbenchContributionInstantiation): void {
 		const contribution: IWorkbenchContributionRegistration = { id, ctor };
 
-		// Instantiate directly if we are already matching the provided phase
-		if (typeof instantiation === 'number' && this.instantiationService && this.lifecycleService && this.logService && this.environmentService && this.lifecycleService.phase >= instantiation) {
-			this.safeCreateContribution(this.instantiationService, this.logService, this.environmentService, contribution, toLifecyclePhase(instantiation));
+		// Instantiate directly if we already have a matching instantiation condition
+		if (
+			this.instantiationService && this.lifecycleService && this.logService && this.environmentService && this.fileService &&
+			(
+				(typeof instantiation === 'number' && this.lifecycleService.phase >= instantiation) ||
+				(typeof id === 'string' && isOnFilesystemWorkbenchContributionInstantiation(instantiation) && this.fileService.getProvider(instantiation.scheme))
+			)
+		) {
+			this.safeCreateContribution(this.instantiationService, this.logService, this.environmentService, contribution, typeof instantiation === 'number' ? toLifecyclePhase(instantiation) : this.lifecycleService.phase);
 		}
 
 		// Otherwise keep contributions by instantiation kind for later instantiation
@@ -164,22 +186,26 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 
 			// by phase
 			if (typeof instantiation === 'number') {
-				const phase = toLifecyclePhase(instantiation);
-				let contributionsForPhase = this.contributionsByPhase.get(phase);
-				if (!contributionsForPhase) {
-					contributionsForPhase = [];
-					this.contributionsByPhase.set(phase, contributionsForPhase);
-				}
-
-				contributionsForPhase.push(contribution);
+				getOrSet(this.contributionsByPhase, toLifecyclePhase(instantiation), []).push(contribution);
 			}
 
-			// by id
 			if (typeof id === 'string') {
+
+				// by id
 				if (!this.contributionsById.has(id)) {
 					this.contributionsById.set(id, contribution);
 				} else {
 					console.error(`IWorkbenchContributionsRegistry#registerWorkbenchContribution(): Can't register multiple contributions with same id '${id}'`);
+				}
+
+				// by filesystem
+				if (isOnFilesystemWorkbenchContributionInstantiation(instantiation)) {
+					getOrSet(this.contributionsByFilesystem, instantiation.scheme, []).push(contribution);
+				}
+
+				// by editor
+				if (isOnEditorWorkbenchContributionInstantiation(instantiation)) {
+					getOrSet(this.contributionsByEditor, instantiation.editorId, []).push(contribution);
 				}
 			}
 		}
@@ -207,9 +233,8 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 			throw new Error(`IWorkbenchContributionsRegistry#getContribution('${id}'): contribution with that identifier is unknown.`);
 		}
 
-		const phase = lifecycleService.phase;
-		if (phase < LifecyclePhase.Restored) {
-			logService.warn(`IWorkbenchContributionsRegistry#getContribution('${id}'): lazy contribution instantiated before LifecyclePhase.Restored!`);
+		if (lifecycleService.phase < LifecyclePhase.Restored) {
+			logService.warn(`IWorkbenchContributionsRegistry#getContribution('${id}'): contribution instantiated before LifecyclePhase.Restored!`);
 		}
 
 		this.safeCreateContribution(instantiationService, logService, environmentService, contribution, lifecycleService.phase);
@@ -227,9 +252,30 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
 		const logService = this.logService = accessor.get(ILogService);
 		const environmentService = this.environmentService = accessor.get(IEnvironmentService);
+		const fileService = this.fileService = accessor.get(IFileService);
 
+		// Instantiate contributions by phase when they are ready
 		for (const phase of [LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually]) {
 			this.instantiateByPhase(instantiationService, lifecycleService, logService, environmentService, phase);
+		}
+
+		// Instantiate contributions by filesystem when they are activated or ready
+		for (const scheme of this.contributionsByFilesystem.keys()) {
+			if (fileService.getProvider(scheme)) {
+				this.onFilesystem(scheme, instantiationService, lifecycleService, logService, environmentService);
+			}
+		}
+		this._register(fileService.onWillActivateFileSystemProvider(e => this.onFilesystem(e.scheme, instantiationService, lifecycleService, logService, environmentService)));
+	}
+
+	private onFilesystem(scheme: string, instantiationService: IInstantiationService, lifecycleService: ILifecycleService, logService: ILogService, environmentService: IEnvironmentService): void {
+		const contributions = this.contributionsByFilesystem.get(scheme);
+		if (contributions) {
+			this.contributionsByFilesystem.delete(scheme);
+
+			for (const contribution of contributions) {
+				this.safeCreateContribution(instantiationService, logService, environmentService, contribution, lifecycleService.phase);
+			}
 		}
 	}
 
