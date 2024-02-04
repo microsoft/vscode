@@ -1,5 +1,6 @@
 {
 	"root": true,
+	"root": false,
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
 		"ecmaVersion": 6,
@@ -8,7 +9,7 @@
 	"plugins": [
 		"@typescript-eslint",
 		"jsdoc",
-		"header",
+		"header",  
 		"local"
 	],
 	"rules": {
