@@ -134,7 +134,6 @@ export class InlineEditHintsContentWidget extends Disposable implements IContent
 			const extraActions = [];
 
 			for (const [_, group] of this.inlineCompletionsActionsMenus.getActions()) {
-				console.log(JSON.stringify(group, undefined, 2));
 				for (const action of group) {
 					if (action instanceof MenuItemAction) {
 						extraActions.push(action);
