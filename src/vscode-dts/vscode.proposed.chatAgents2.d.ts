@@ -274,16 +274,57 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
+	export interface ChatAgentResponseItemMetadata {
+		title: string;
+		// annotations: any[]; // future OffsetbasedAnnotation and Annotation
+	}
+
+	export interface ChatAgentResponseStream {
+
+		// RENDERED
+
+		text(value: string, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+
+		markdown(value: string | MarkdownString, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+
+		files(value: ChatAgentFileTreeData, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+
+		anchor(value: Uri | Location, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+
+		// META
+
+		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
+		progress(value: string): ChatAgentResponseStream;
+
+		// TODO@API support non-file uris, like http://example.com
+		// TODO@API support mapped edits
+		reference(value: Uri | Location): ChatAgentResponseStream;
+
+		/**
+		 * @deprecated use above methods instread
+		 */
+		report(value: ChatAgentProgress): void;
+	}
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
 		| ChatAgentInlineContentReference;
 
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
 	export type ChatAgentMetadataProgress =
 		| ChatAgentUsedContext
 		| ChatAgentContentReference
 		| ChatAgentProgressMessage;
 
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
 	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
 
 	/**
@@ -380,7 +421,7 @@ declare module 'vscode' {
 		documents: ChatAgentDocumentContext[];
 	}
 
-	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 

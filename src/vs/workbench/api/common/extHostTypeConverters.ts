@@ -123,6 +123,14 @@ export namespace Range {
 }
 
 export namespace Location {
+
+	export function from(location: vscode.Location): Dto<languages.Location> {
+		return {
+			uri: location.uri,
+			range: Range.from(location.range)
+		};
+	}
+
 	export function to(location: Dto<languages.Location>): vscode.Location {
 		return new types.Location(URI.revive(location.uri), Range.to(location.range));
 	}
