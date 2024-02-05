@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -24,5 +24,5 @@ registerSingleton(ISplashStorageService, SplashStorageService, InstantiationType
 registerWorkbenchContribution2(
 	PartsSplash.ID,
 	PartsSplash,
-	WorkbenchContributionInstantiation.BlockStartup
+	WorkbenchPhase.BlockStartup
 );

@@ -9,7 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
 import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
 import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
@@ -81,5 +81,5 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 registerWorkbenchContribution2(
 	DialogHandlerContribution.ID,
 	DialogHandlerContribution,
-	WorkbenchContributionInstantiation.BlockStartup // Block to allow for dialogs to show before restore finished
+	WorkbenchPhase.BlockStartup // Block to allow for dialogs to show before restore finished
 );
