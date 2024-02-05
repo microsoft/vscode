@@ -41,6 +41,27 @@ export class AcceptInlineEdit extends EditorAction {
 	}
 }
 
+export class TriggerInlineEdit extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineEdit.trigger',
+			label: 'Trigger Inline Edit',
+			alias: 'Trigger Inline Edit',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyG,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, ContextKeyExpr.not(InlineEditController.inlineEditVisibleKey))
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = InlineEditController.get(editor);
+		controller?.trigger();
+	}
+}
+
 export class JumpToInlineEdit extends EditorAction {
 	constructor() {
 		const activeExpr = ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext, ContextKeyExpr.not(InlineEditController.cursorAtInlineEditKey));

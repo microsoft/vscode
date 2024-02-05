@@ -32,7 +32,8 @@ export class InlineEditWidget implements IDisposable {
 export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';
 
-	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>('inlineEditVisible', false);
+	public static readonly inlineEditVisibleKey = 'inlineEditVisible';
+	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>(InlineEditController.inlineEditVisibleKey, false);
 	private _isVisibleContext = InlineEditController.inlineEditVisibleContext.bindTo(this.contextKeyService);
 
 	public static readonly cursorAtInlineEditKey = 'cursorAtInlineEdit';
@@ -69,21 +70,7 @@ export class InlineEditController extends Disposable {
 			if (!this._enabled.get()) {
 				return;
 			}
-			this._isCursorAtInlineEditContext.set(false);
-			this.clear(false);
-			this._isAccepting = false;
-			const edit = await this.fetchInlineEdit(editor, true);
-			if (!edit) {
-				return;
-			}
-			const ghostText = new GhostText(edit.position.lineNumber, [new GhostTextPart(edit.position.column, edit.text.split('\n'), false)]);
-			const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
-				ghostText: constObservable(ghostText),
-				minReservedLineCount: constObservable(0),
-				targetTextModel: constObservable(this.editor.getModel() ?? undefined),
-				removeRange: constObservable(edit.replaceRange)
-			});
-			this._currentEdit.set(new InlineEditWidget(instance, edit), undefined);
+			await this.getInlineEdit(editor, true);
 		}));
 
 		//Check if the cursor is at the ghost text
@@ -171,6 +158,28 @@ export class InlineEditController extends Disposable {
 			return;
 		}
 		return edit;
+	}
+
+	private async getInlineEdit(editor: ICodeEditor, auto: boolean) {
+		this._isCursorAtInlineEditContext.set(false);
+		this.clear(false);
+		this._isAccepting = false;
+		const edit = await this.fetchInlineEdit(editor, auto);
+		if (!edit) {
+			return;
+		}
+		const ghostText = new GhostText(edit.position.lineNumber, [new GhostTextPart(edit.position.column, edit.text.split('\n'), false)]);
+		const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
+			ghostText: constObservable(ghostText),
+			minReservedLineCount: constObservable(0),
+			targetTextModel: constObservable(this.editor.getModel() ?? undefined),
+			removeRange: constObservable(edit.replaceRange)
+		});
+		this._currentEdit.set(new InlineEditWidget(instance, edit), undefined);
+	}
+
+	public async trigger() {
+		await this.getInlineEdit(this.editor, false);
 	}
 
 	public async jumpBack() {
