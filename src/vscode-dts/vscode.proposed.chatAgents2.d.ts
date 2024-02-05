@@ -274,16 +274,50 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
+	export interface ChatAgentResponseStream {
+
+		// RENDERED
+		markdown(value: string | MarkdownString): ChatAgentResponseStream;
+		text(value: string): ChatAgentResponseStream;
+		files(value: ChatAgentFileTreeData): ChatAgentResponseStream;
+		// TODO@jrieken is this sugar for markdown syntax? should we have more like codeblock, bulletlist etc?
+		anchor(value: Uri | Location, attributes?: { title?: string }): ChatAgentResponseStream;
+
+		// META
+		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
+		progress(value: string): ChatAgentResponseStream;
+
+		// TODO@API support non-file uris, like http://example.com
+		reference(value: Uri | Location): ChatAgentResponseStream;
+
+		// TODO@API define support annotations
+		// annotation(value: string | MarkdownString | ChatXYZAnnotation, references?: string): ChatAgentResponseStream;
+
+		/**
+		 * @deprecated use above methods instread
+		 */
+		report(value: ChatAgentProgress): void;
+	}
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
 		| ChatAgentInlineContentReference;
 
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
 	export type ChatAgentMetadataProgress =
 		| ChatAgentUsedContext
 		| ChatAgentContentReference
 		| ChatAgentProgressMessage;
 
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
 	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
 
 	/**
@@ -380,7 +414,7 @@ declare module 'vscode' {
 		documents: ChatAgentDocumentContext[];
 	}
 
-	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 
