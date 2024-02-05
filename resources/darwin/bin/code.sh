@@ -31,5 +31,7 @@ fi
 CONTENTS="$APP_PATH/Contents"
 ELECTRON="$CONTENTS/MacOS/Electron"
 CLI="$CONTENTS/Resources/app/out/cli.js"
+unset NODE_OPTIONS
+unset NODE_REPL_EXTERNAL_MODULE
 ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?
