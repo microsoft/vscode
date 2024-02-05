@@ -50,7 +50,7 @@ export class TriggerInlineEdit extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyG,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, ContextKeyExpr.not(InlineEditController.inlineEditVisibleKey))
 			},
 		});
@@ -73,7 +73,7 @@ export class JumpToInlineEdit extends EditorAction {
 			precondition: activeExpr,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyG,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
 				kbExpr: activeExpr
 			},
 			menuOpts: [{
@@ -103,7 +103,7 @@ export class JumpBackInlineEdit extends EditorAction {
 			precondition: activeExpr,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 10,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyG,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
 				kbExpr: activeExpr
 			},
 			menuOpts: [{
