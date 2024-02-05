@@ -233,15 +233,17 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
-
-			if (
+			if (argvValue) {
 				// Color profile
-				argvKey === 'force-color-profile' ||
-				// Password store
-				argvKey === 'password-store'
-			) {
-				if (argvValue) {
+				if (argvKey === 'force-color-profile') {
 					app.commandLine.appendSwitch(argvKey, argvValue);
+				// Password store
+				} else if (argvKey === 'password-store') {
+					let migratedArgvValue = argvValue;
+					if (argvValue === 'gnome' || argvValue === 'gnome-keyring') {
+						migratedArgvValue = 'gnome-libsecret';
+					}
+					app.commandLine.appendSwitch(argvKey, migratedArgvValue);
 				}
 			}
 
