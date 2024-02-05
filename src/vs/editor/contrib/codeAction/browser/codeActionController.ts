@@ -304,12 +304,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
 				if (action && action.action) {
-					const { ranges, diagnostics } = action.action;
+					const ranges = action.action.ranges;
+					const diagnostics = action.action.diagnostics;
 					currentDecorations.clear();
 					if (ranges && ranges.length > 0) {
-						const decorations: IModelDeltaDecoration[] = (diagnostics && diagnostics?.length > 1)
-							? diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }))
-							: ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+						const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
 						currentDecorations.set(decorations);
 					} else if (diagnostics && diagnostics.length > 0) {
 						const decorations: IModelDeltaDecoration[] = diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
