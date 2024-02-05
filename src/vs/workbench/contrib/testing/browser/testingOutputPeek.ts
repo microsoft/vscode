@@ -1105,6 +1105,8 @@ export class TestResultsView extends ViewPane {
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
+		// Avoid rendering into the body until it's attached the DOM, as it can
+		// result in rendering issues in the terminal (#194156)
 		if (this.isBodyVisible()) {
 			this.renderContent(container);
 		} else {
