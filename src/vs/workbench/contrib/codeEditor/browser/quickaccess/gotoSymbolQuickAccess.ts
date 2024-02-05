@@ -33,7 +33,7 @@ import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
+import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
