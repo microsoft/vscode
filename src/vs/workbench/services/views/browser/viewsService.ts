@@ -501,10 +501,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
-				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
+				const title = localize2({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name.original} View`, value: title },
+					title,
 					category,
 					menu: [{
 						id: MenuId.CommandPalette,
@@ -520,7 +520,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						win: viewDescriptor.focusCommand?.keybindings?.win
 					},
 					metadata: {
-						description: title,
+						description: title.value,
 						args: [
 							{
 								name: 'focusOptions',

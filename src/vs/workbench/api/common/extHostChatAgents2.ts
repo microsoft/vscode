@@ -8,6 +8,7 @@ import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -19,7 +20,7 @@ import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatReplyFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -218,12 +219,30 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const items = await agent.invokeCompletionProvider(query, token);
 		return items.map(typeConvert.ChatAgentCompletionItem.from);
 	}
+
+	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+
+		return await agent.provideWelcomeMessage(token);
+	}
+
+	async $provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+
+		return await agent.provideSampleQuestions(token);
+	}
 }
 
 class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 
 	private _subCommandProvider: vscode.ChatAgentSubCommandProvider | undefined;
-	private _followupProvider: vscode.FollowupProvider<TResult> | undefined;
+	private _followupProvider: vscode.ChatAgentFollowupProvider<TResult> | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
@@ -236,6 +255,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
+	private _welcomeMessageProvider?: vscode.ChatAgentWelcomeMessageProvider | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -288,6 +308,35 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 			return [];
 		}
 		return followups.map(f => typeConvert.ChatFollowup.from(f));
+	}
+
+	async provideWelcomeMessage(token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
+		if (!this._welcomeMessageProvider) {
+			return [];
+		}
+		const content = await this._welcomeMessageProvider.provideWelcomeMessage(token);
+		if (!content) {
+			return [];
+		}
+		return content.map(item => {
+			if (typeof item === 'string') {
+				return item;
+			} else {
+				return typeConvert.MarkdownString.from(item);
+			}
+		});
+	}
+
+	async provideSampleQuestions(token: CancellationToken): Promise<IChatReplyFollowup[]> {
+		if (!this._welcomeMessageProvider || !this._welcomeMessageProvider.provideSampleQuestions) {
+			return [];
+		}
+		const content = await this._welcomeMessageProvider.provideSampleQuestions(token);
+		if (!content) {
+			return [];
+		}
+
+		return content?.map(f => typeConvert.ChatReplyFollowup.from(f));
 	}
 
 	get apiAgent(): vscode.ChatAgent2<TResult> {
@@ -443,6 +492,13 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 			},
 			get agentVariableProvider() {
 				return that._agentVariableProvider;
+			},
+			set welcomeMessageProvider(v) {
+				that._welcomeMessageProvider = v;
+				updateMetadataSoon();
+			},
+			get welcomeMessageProvider() {
+				return that._welcomeMessageProvider;
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
 				? undefined!

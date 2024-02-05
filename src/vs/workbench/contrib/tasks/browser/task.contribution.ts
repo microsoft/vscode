@@ -246,7 +246,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: ConfigureTaskAction.ID,
-		title: { value: ConfigureTaskAction.TEXT, original: 'Configure Task' },
+		title: ConfigureTaskAction.TEXT,
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext

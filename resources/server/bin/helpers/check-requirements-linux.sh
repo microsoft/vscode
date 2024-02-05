@@ -56,7 +56,7 @@ elif [ -f /sbin/ldconfig ]; then
     libstdcpp_paths=$(/sbin/ldconfig -p | grep 'libstdc++.so.6')
 
     if [ "$(echo "$libstdcpp_paths" | wc -l)" -gt 1 ]; then
-        libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
+        libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}' | head -n1)
     else
         libstdcpp_path=$(echo "$libstdcpp_paths" | awk '{print $NF}')
     fi
@@ -90,7 +90,7 @@ if [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
         libc_paths=$(/sbin/ldconfig -p | grep 'libc.so.6')
 
         if [ "$(echo "$libc_paths" | wc -l)" -gt 1 ]; then
-            libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
+            libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}' | head -n1)
         else
             libc_path=$(echo "$libc_paths" | awk '{print $NF}')
         fi

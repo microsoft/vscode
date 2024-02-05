@@ -77,6 +77,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { getWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { DynamicWorkbenchSecurityConfiguration } from 'vs/workbench/common/configuration';
 
 export class NativeWindow extends BaseWindow {
 
@@ -301,7 +303,7 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Allow to update security settings around allowed UNC Host
-		ipcRenderer.on('vscode:configureAllowedUNCHost', (event: unknown, host: string) => {
+		ipcRenderer.on('vscode:configureAllowedUNCHost', async (event: unknown, host: string) => {
 			if (!isWindows) {
 				return; // only supported on Windows
 			}
@@ -320,6 +322,7 @@ export class NativeWindow extends BaseWindow {
 			if (!allowedUncHosts.has(host)) {
 				allowedUncHosts.add(host);
 
+				await getWorkbenchContribution<DynamicWorkbenchSecurityConfiguration>(DynamicWorkbenchSecurityConfiguration.ID).ready; // ensure this setting is registered
 				this.configurationService.updateValue('security.allowedUNCHosts', [...allowedUncHosts.values()], ConfigurationTarget.USER);
 			}
 		});
