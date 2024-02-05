@@ -195,19 +195,22 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 						item.highlights = undefined;
 						return true;
 					}
-					const labelWithoutIcons = stripIcons(item.label);
-					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/,
-						labelWithoutIcons, labelWithoutIcons.toLowerCase(), 0,
+
+					const trimmedQuery = picker.value.substring(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim();
+					const parsedLabel = parseLabelWithIcons(item.label);
+					const score = fuzzyScore(trimmedQuery, trimmedQuery.toLowerCase(), 0,
+						parsedLabel.text, parsedLabel.text.toLowerCase(), 0,
 						{ firstMatchCanBeWeak: true, boostFullMatch: true });
+
 					if (!score) {
 						return false;
 					}
 
 					item.score = score[1];
-					const matches = matchesFuzzyIconAware(picker.value.substring(1).trim(), parseLabelWithIcons(item.label)) ?? undefined;
-					item.highlights = { label: matches };
+					item.highlights = { label: matchesFuzzyIconAware(trimmedQuery, parsedLabel) ?? undefined };
 					return true;
 				});
+
 				if (filteredItems.length === 0) {
 					const label = localize('empty', 'No matching entries');
 					picker.items = [{ label, index: -1, kind: SymbolKind.String }];
