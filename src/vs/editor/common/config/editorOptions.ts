@@ -428,7 +428,7 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	inlineSuggest?: IInlineSuggestOptions;
-	inlineEdit?: IInlineEditOptions;
+	experimentalInlineEdit?: IInlineEditOptions;
 	/**
 	 * Smart select options.
 	 */
@@ -4101,14 +4101,14 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 		};
 
 		super(
-			EditorOption.inlineEdit, 'inlineEdit', defaults,
+			EditorOption.inlineEdit, 'experimentalInlineEdit', defaults,
 			{
-				'editor.inlineEdit.enabled': {
+				'editor.experimentalInlineEdit.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineEdit.enabled', "Controls whether to show inline edits in the editor.")
 				},
-				'editor.inlineEdit.showToolbar': {
+				'editor.experimentalInlineEdit.showToolbar': {
 					type: 'string',
 					default: defaults.showToolbar,
 					enum: ['always', 'onHover', 'never'],
@@ -4119,7 +4119,7 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 					],
 					description: nls.localize('inlineEdit.showToolbar', "Controls when to show the inline edit toolbar."),
 				},
-				'editor.inlineEdit.fontFamily': {
+				'editor.experimentalInlineEdit.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
 					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
