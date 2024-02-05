@@ -59,14 +59,26 @@ export const enum WorkbenchPhase {
 	Eventually = LifecyclePhase.Eventually
 }
 
+/**
+ * A workbenchch contribution that will only be instantiated
+ * when calling `getWorkbenchContribution`.
+ */
 export interface ILazyWorkbenchContributionInstantiation {
 	readonly lazy: true;
 }
 
+/**
+ * A workbench contribution that will be instantiated when the
+ * corresponding file system scheme is used.
+ */
 export interface IOnFilesystemWorkbenchContributionInstantiation {
 	readonly scheme: string;
 }
 
+/**
+ * A workbench contribution that will be instantiated when the
+ * corresponding editor is being created.
+ */
 export interface IOnEditorWorkbenchContributionInstantiation {
 	readonly editorTypeId: string;
 }
