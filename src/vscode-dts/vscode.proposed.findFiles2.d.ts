@@ -57,23 +57,13 @@ declare module 'vscode' {
 		 * Find files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 *
 		 * @example
-		 * findFiles('**​/*.js', {useDefaultExclude: true, additionalExclude: '**​/out/**'}, 10)
+		 * findFiles('**​/*.js', {exclude: '**​/out/**', useIgnoreFiles: true}, 10)
 		 *
 		 * @param filePattern A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}
 		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
-		 * @param exclude  Either:
-		 * 1. A {@link GlobPattern glob pattern} that defines files and folders to exclude. Using this form would be the same as using the second form as
-		 * `{ useDefaultExclude: false; additionalExclude?: excludeString }`. Therefore, this assumes that you ignore the default exclude settings.
-		 *
-		 * Or
-		 *
-		 * 2. An object with:
-		 * - useDefaultExclude: a boolean to used to determine whether to incorporate any excludes that already come with the workspace settings (ie: `search.excludes`)
-		 * - additionalExclude: a {@link GlobPattern glob pattern}` that contains any extra excludes that are not covered by the default or the `search.excludes` settings.
-		 *
-		 * In all cases, the glob pattern will be matched against the file paths of resulting matches relative to their workspace.
-		 * @param maxResults An upper-bound for the result.
+		 * @param options A set of {@link FindFiles2Options FindFiles2Options} that defines where and how to search (e.g. exclude settings).
+		 * If enabled, any ignore files will take prescendence over any files found in the `filePattern` parameter.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * {@link workspace.workspaceFolders workspace folders} are opened.
