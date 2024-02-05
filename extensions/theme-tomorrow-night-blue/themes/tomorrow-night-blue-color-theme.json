@@ -140,10 +140,7 @@
 		},
 		{
 			"name": "Keyword, Storage",
-			"scope": [
-				"keyword, storage, storage.type, entity.name.tag.css",
-				"entity.name.tag.less"
-			],
+			"scope": "keyword, storage, storage.type, entity.name.tag.css, entity.name.tag.less",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#EBBBFF"
