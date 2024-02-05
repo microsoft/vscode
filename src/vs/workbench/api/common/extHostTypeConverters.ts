@@ -36,9 +36,8 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/edit
 import { IViewBadge } from 'vs/workbench/common/views';
 import { IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatFollowup, IChatReplyFollowup, IChatResponseCommandFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatCommandFollowup, IInlineChatFollowup, IInlineChatReplyFollowup, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -50,6 +49,7 @@ import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 
 export namespace Command {
 
@@ -2190,8 +2190,8 @@ export namespace DataTransfer {
 	}
 }
 
-export namespace ChatReplyFollowup {
-	export function from(followup: vscode.ChatAgentReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
+export namespace ChatFollowup {
+	export function from(followup: vscode.ChatAgentFollowup): IChatFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
@@ -2201,21 +2201,25 @@ export namespace ChatReplyFollowup {
 	}
 }
 
-export namespace ChatFollowup {
-	export function from(followup: string | vscode.ChatAgentFollowup): IChatFollowup {
-		if (typeof followup === 'string') {
-			return <IChatReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
-		} else if ('commandId' in followup) {
-			return <IChatResponseCommandFollowup>{
+export namespace ChatInlineFollowup {
+	export function from(followup: vscode.InteractiveEditorFollowup): IInlineChatFollowup {
+		if ('commandId' in followup) {
+			return {
 				kind: 'command',
 				title: followup.title ?? '',
 				commandId: followup.commandId ?? '',
 				when: followup.when ?? '',
 				args: followup.args
-			};
+			} satisfies IInlineChatCommandFollowup;
 		} else {
-			return ChatReplyFollowup.from(followup);
+			return {
+				kind: 'reply',
+				message: followup.message,
+				title: followup.title,
+				tooltip: followup.tooltip,
+			} satisfies IInlineChatReplyFollowup;
 		}
+
 	}
 }
 

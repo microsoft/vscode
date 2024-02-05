@@ -113,7 +113,7 @@ declare module 'vscode' {
 	export interface ChatAgentCommandAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
-		command: ChatAgentCommandFollowup;
+		// command: ChatAgentCommandFollowup;
 	}
 
 	export interface ChatAgentSessionFollowupAction {

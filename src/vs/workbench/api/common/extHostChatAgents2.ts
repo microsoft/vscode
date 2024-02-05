@@ -19,7 +19,7 @@ import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatFollowup, IChatProgress, IChatReplyFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
@@ -319,7 +319,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return await agent.provideWelcomeMessage(token);
 	}
 
-	async $provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
+	async $provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatFollowup[] | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
@@ -417,7 +417,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		});
 	}
 
-	async provideSampleQuestions(token: CancellationToken): Promise<IChatReplyFollowup[]> {
+	async provideSampleQuestions(token: CancellationToken): Promise<IChatFollowup[]> {
 		if (!this._welcomeMessageProvider || !this._welcomeMessageProvider.provideSampleQuestions) {
 			return [];
 		}
@@ -426,7 +426,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 			return [];
 		}
 
-		return content?.map(f => typeConvert.ChatReplyFollowup.from(f));
+		return content?.map(f => typeConvert.ChatFollowup.from(f));
 	}
 
 	get apiAgent(): vscode.ChatAgent2<TResult> {

@@ -147,19 +147,10 @@ declare module 'vscode' {
 		provideSubCommands(token: CancellationToken): ProviderResult<ChatAgentSubCommand[]>;
 	}
 
-	// TODO@API This should become a progress type, and use vscode.Command
-	// TODO@API what's the when-property for? how about not returning it in the first place?
-	export interface ChatAgentCommandFollowup {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
-	}
-
 	/**
 	 * A followup question suggested by the model.
 	 */
-	export interface ChatAgentReplyFollowup {
+	export interface ChatAgentFollowup {
 		/**
 		 * The message to send to the chat.
 		 */
@@ -175,8 +166,6 @@ declare module 'vscode' {
 		 */
 		title?: string;
 	}
-
-	export type ChatAgentFollowup = ChatAgentCommandFollowup | ChatAgentReplyFollowup;
 
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
@@ -312,7 +301,8 @@ declare module 'vscode' {
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
-		| ChatAgentInlineContentReference;
+		| ChatAgentInlineContentReference
+		/* | ChatAgentCommandButton */;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
@@ -358,6 +348,13 @@ declare module 'vscode' {
 		 */
 		title?: string;
 	}
+
+	/**
+	 * Displays a {@link Command command} as a button in the chat response.
+	 */
+	// export interface ChatAgentCommandButton {
+	// 	command: Command;
+	// }
 
 	/**
 	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.

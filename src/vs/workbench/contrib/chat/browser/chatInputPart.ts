@@ -37,7 +37,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -64,7 +64,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatReplyFollowup; response: IChatResponseViewModel | undefined }>());
+	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
 	private inputEditorHeight = 0;
@@ -338,7 +338,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	async renderFollowups(items: IChatReplyFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
+	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
 		if (!this.options.renderFollowups) {
 			return;
 		}
