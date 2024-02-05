@@ -50,11 +50,11 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 		group: IEditorGroup
 	): void {
 		if (!(editor instanceof WebviewInput) || editor.typeId !== WebviewInput.typeId) {
-			return undefined;
+			return;
 		}
 
 		if (group.contains(editor)) {
-			return undefined;
+			return;
 		}
 
 		let previousGroup: IEditorGroup | undefined;
@@ -67,7 +67,7 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 		}
 
 		if (!previousGroup) {
-			return undefined;
+			return;
 		}
 
 		previousGroup.closeEditor(editor);
