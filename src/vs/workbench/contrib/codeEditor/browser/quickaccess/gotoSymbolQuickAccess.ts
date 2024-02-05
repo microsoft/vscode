@@ -20,7 +20,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/languages';
-import { fuzzyScore, createMatches } from 'vs/base/common/filters';
+import { fuzzyScore } from 'vs/base/common/filters';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -33,6 +33,7 @@ import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -194,12 +195,17 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 						item.highlights = undefined;
 						return true;
 					}
-					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/, item.label, item.label.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+					const labelWithoutIcons = stripIcons(item.label);
+					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/,
+						labelWithoutIcons, labelWithoutIcons.toLowerCase(), 0,
+						{ firstMatchCanBeWeak: true, boostFullMatch: true });
 					if (!score) {
 						return false;
 					}
+
 					item.score = score[1];
-					item.highlights = { label: createMatches(score) };
+					const matches = matchesFuzzyIconAware(picker.value.substring(1).trim(), parseLabelWithIcons(item.label)) ?? undefined;
+					item.highlights = { label: matches };
 					return true;
 				});
 				if (filteredItems.length === 0) {

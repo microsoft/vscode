@@ -105,6 +105,7 @@ type documentSymbol = ReturnType<outlineModel['getTopLevelSymbols']>[number];
 
 function createOutlineEntries(symbols: documentSymbol[], level: number): entryDesc[] {
 	const entries: entryDesc[] = [];
+
 	symbols.forEach(symbol => {
 		entries.push({ name: symbol.name, range: symbol.range, level, kind: symbol.kind });
 		if (symbol.children) {
