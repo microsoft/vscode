@@ -325,4 +325,4 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	domNode.innerHTML = trustedhtml as string;
 }
 
-const ttPolicy = createTrustedTypesPolicy('editorGhostText', { createHTML: value => value });
+export const ttPolicy = createTrustedTypesPolicy('editorGhostText', { createHTML: value => value });

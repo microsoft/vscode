@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
@@ -342,5 +341,3 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
 	domNode.innerHTML = trustedhtml as string;
 }
-
-const ttPolicy = createTrustedTypesPolicy('editorGhostText', { createHTML: value => value });
