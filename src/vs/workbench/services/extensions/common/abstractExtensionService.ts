@@ -5,8 +5,9 @@
 
 import { Barrier } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as perf from 'vs/base/common/performance';
 import { isCI } from 'vs/base/common/platform';
@@ -17,19 +18,23 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
-import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesExtensions, IExtensionFeatureMarkdownRenderer, IRenderedData, } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionDescriptionRegistryLock, ExtensionDescriptionRegistrySnapshot, IActivationEventsReader, LockableExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
@@ -1342,3 +1347,74 @@ export class ImplicitActivationAwareReader implements IActivationEventsReader {
 		return ImplicitActivationEvents.readActivationEvents(extensionDescription);
 	}
 }
+
+class ActivationFeatureMarkdowneRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+
+	readonly type = 'markdown';
+
+	constructor(
+		@IExtensionService private readonly _extensionService: IExtensionService
+	) {
+		super();
+	}
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
+		if (this._extensionService.extensions.some(e => ExtensionIdentifier.equals(e.identifier, extensionId))) {
+			return !!manifest.main || !!manifest.browser;
+		}
+		return false;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
+		const disposables = new DisposableStore();
+		if (!manifest.main && !manifest.browser) {
+			return {
+				onDidChange: Event.None,
+				data: new MarkdownString().appendText('This extension does not have a main or browser entry point'),
+				dispose: () => disposables.dispose()
+			};
+		}
+
+		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
+		const extension = this._extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extensionId));
+		if (!extension) {
+			return {
+				onDidChange: Event.None,
+				data: new MarkdownString().appendText('This extension is not running'),
+				dispose: () => disposables.dispose()
+			};
+		}
+
+		return {
+			onDidChange: Event.None,
+			data: this.getActivationData(extensionId),
+			dispose: () => disposables.dispose()
+		};
+	}
+
+	private getActivationData(extensionId: ExtensionIdentifier): IMarkdownString {
+		const status = this._extensionService.getExtensionsStatus()[extensionId.value];
+		if (status.activationTimes) {
+			const data = new MarkdownString();
+			if (status.activationTimes.activationReason.startup) {
+				data.appendText('Activated on startup in `')
+					.appendText(`${status.activationTimes.activateCallTime}ms`)
+					.appendText('`');
+			} else {
+				data.appendMarkdown('Activated in `' + status.activationTimes.activateCallTime + 'ms` by `' + status.activationTimes.activationReason.activationEvent + '` event.');
+			}
+			return data;
+		}
+		return new MarkdownString().appendText('Not yet activated');
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'activation',
+	label: nls.localize('activation', "Activation"),
+	enablement: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ActivationFeatureMarkdowneRenderer),
+});

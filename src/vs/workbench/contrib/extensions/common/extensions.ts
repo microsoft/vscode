@@ -134,6 +134,7 @@ export interface IExtensionsWorkbenchService {
 export const enum ExtensionEditorTab {
 	Readme = 'readme',
 	Contributions = 'contributions',
+	Contributions2 = 'contributions2',
 	Changelog = 'changelog',
 	Dependencies = 'dependencies',
 	ExtensionPack = 'extensionPack',

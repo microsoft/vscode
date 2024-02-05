@@ -5,11 +5,14 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableMap } from 'vs/base/common/lifecycle';
+import Severity from 'vs/base/common/severity';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatProviderShape, ExtHostContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatResponseProviderMetadata, IChatResponseFragment, IChatProviderService, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { CHAT_FEATURE_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { IExtensionFeaturesManagementService } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChatProvider)
@@ -22,6 +25,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatProviderService private readonly _chatProviderService: IChatProviderService,
+		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
@@ -55,7 +59,15 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $prepareChatAccess(providerId: string): Promise<IChatResponseProviderMetadata | undefined> {
+	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string): Promise<IChatResponseProviderMetadata | false | undefined> {
+		const access = await this.extensionFeaturesManagementService.getAccess(extension, CHAT_FEATURE_ID);
+		if (!access) {
+			return false;
+		}
+		const accessData = this.extensionFeaturesManagementService.getAccessData(extension, CHAT_FEATURE_ID);
+		if ((accessData?.totalCount ?? 0) > 10) {
+			this.extensionFeaturesManagementService.setStatus(extension, CHAT_FEATURE_ID, { severity: Severity.Warning, message: 'You have reached the maximum number of chat requests' });
+		}
 		return this._chatProviderService.lookupChatResponseProvider(providerId);
 	}
 

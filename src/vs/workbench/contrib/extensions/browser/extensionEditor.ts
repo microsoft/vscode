@@ -53,6 +53,7 @@ import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticip
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ExtensionFeaturesTab } from 'vs/workbench/contrib/extensions/browser/extensionFeaturesTab';
 import {
 	ActionWithDropDownAction,
 	ClearLanguageAction,
@@ -576,8 +577,11 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		if (manifest && manifest.contributes) {
+		if (manifest) {
 			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+		}
+		if (manifest) {
+			template.navbar.push(ExtensionEditorTab.Contributions2, localize('contributions2', "Feature Contributions2"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 		}
 		if (extension.hasChangelog()) {
 			template.navbar.push(ExtensionEditorTab.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
@@ -658,6 +662,7 @@ export class ExtensionEditor extends EditorPane {
 		switch (id) {
 			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
 			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
+			case ExtensionEditorTab.Contributions2: return this.openContributions2(template, token);
 			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
 			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
@@ -976,7 +981,25 @@ export class ExtensionEditor extends EditorPane {
 		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
 	}
 
-	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		if (!manifest) {
+			return null;
+		}
+
+		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest));
+		const layout = () => extensionFeaturesTab.layout(template.content.clientHeight, template.content.clientWidth);
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+		append(template.content, extensionFeaturesTab.domNode);
+		layout();
+		return extensionFeaturesTab.domNode;
+	}
+
+	private openContributions2(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const content = $('div.subcontent.feature-contributions', { tabindex: '0' });
 		return this.loadContents(() => this.extensionManifest!.get(), template.content)
 			.then(manifest => {

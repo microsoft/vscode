@@ -148,7 +148,11 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
-		const metadata = await this._proxy.$prepareChatAccess(identifier);
+		const metadata = await this._proxy.$prepareChatAccess(from, identifier);
+		if (metadata === false) {
+			throw new Error('Extension is NOT allowed to make chat requests');
+		}
+
 		if (!metadata) {
 			throw new Error(`ChatAccess '${identifier}' NOT found`);
 		}
