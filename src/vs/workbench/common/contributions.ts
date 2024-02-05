@@ -10,7 +10,6 @@ import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from 'vs/base/common
 import { mark } from 'vs/base/common/performance';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
 import { getOrSet } from 'vs/base/common/map';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
@@ -69,23 +68,10 @@ export interface ILazyWorkbenchContributionInstantiation {
 
 /**
  * A workbench contribution that will be instantiated when the
- * corresponding file system scheme is used.
- */
-export interface IOnFilesystemWorkbenchContributionInstantiation {
-	readonly scheme: string;
-}
-
-/**
- * A workbench contribution that will be instantiated when the
  * corresponding editor is being created.
  */
 export interface IOnEditorWorkbenchContributionInstantiation {
 	readonly editorTypeId: string;
-}
-
-function isOnFilesystemWorkbenchContributionInstantiation(obj: unknown): obj is IOnFilesystemWorkbenchContributionInstantiation {
-	const candidate = obj as IOnFilesystemWorkbenchContributionInstantiation | undefined;
-	return !!candidate && typeof candidate.scheme === 'string';
 }
 
 function isOnEditorWorkbenchContributionInstantiation(obj: unknown): obj is IOnEditorWorkbenchContributionInstantiation {
@@ -93,7 +79,7 @@ function isOnEditorWorkbenchContributionInstantiation(obj: unknown): obj is IOnE
 	return !!candidate && typeof candidate.editorTypeId === 'string';
 }
 
-export type WorkbenchContributionInstantiation = WorkbenchPhase | ILazyWorkbenchContributionInstantiation | IOnFilesystemWorkbenchContributionInstantiation | IOnEditorWorkbenchContributionInstantiation;
+export type WorkbenchContributionInstantiation = WorkbenchPhase | ILazyWorkbenchContributionInstantiation | IOnEditorWorkbenchContributionInstantiation;
 
 function toWorkbenchPhase(phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): WorkbenchPhase.AfterRestored | WorkbenchPhase.Eventually {
 	switch (phase) {
@@ -160,11 +146,9 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 	private lifecycleService: ILifecycleService | undefined;
 	private logService: ILogService | undefined;
 	private environmentService: IEnvironmentService | undefined;
-	private fileService: IFileService | undefined;
 	private editorPaneService: IEditorPaneService | undefined;
 
 	private readonly contributionsByPhase = new Map<LifecyclePhase, IWorkbenchContributionRegistration[]>();
-	private readonly contributionsByFilesystem = new Map<string, IWorkbenchContributionRegistration[]>();
 	private readonly contributionsByEditor = new Map<string, IWorkbenchContributionRegistration[]>();
 	private readonly contributionsById = new Map<string, IWorkbenchContributionRegistration>();
 
@@ -179,17 +163,15 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase.BlockStartup | WorkbenchPhase.BlockRestore): void;
 	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase.AfterRestored | WorkbenchPhase.Eventually): void;
 	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, lazy: ILazyWorkbenchContributionInstantiation): void;
-	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onFileSystem: IOnFilesystemWorkbenchContributionInstantiation): void;
 	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, onEditor: IOnEditorWorkbenchContributionInstantiation): void;
 	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, instantiation: WorkbenchContributionInstantiation): void {
 		const contribution: IWorkbenchContributionRegistration = { id, ctor };
 
 		// Instantiate directly if we already have a matching instantiation condition
 		if (
-			this.instantiationService && this.lifecycleService && this.logService && this.environmentService && this.fileService && this.editorPaneService &&
+			this.instantiationService && this.lifecycleService && this.logService && this.environmentService && this.editorPaneService &&
 			(
 				(typeof instantiation === 'number' && this.lifecycleService.phase >= instantiation) ||
-				(typeof id === 'string' && isOnFilesystemWorkbenchContributionInstantiation(instantiation) && this.fileService.getProvider(instantiation.scheme)) ||
 				(typeof id === 'string' && isOnEditorWorkbenchContributionInstantiation(instantiation) && this.editorPaneService.didInstantiateEditorPane(instantiation.editorTypeId))
 			)
 		) {
@@ -211,11 +193,6 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 					this.contributionsById.set(id, contribution);
 				} else {
 					console.error(`IWorkbenchContributionsRegistry#registerWorkbenchContribution(): Can't register multiple contributions with same id '${id}'`);
-				}
-
-				// by filesystem
-				if (isOnFilesystemWorkbenchContributionInstantiation(instantiation)) {
-					getOrSet(this.contributionsByFilesystem, instantiation.scheme, []).push(contribution);
 				}
 
 				// by editor
@@ -267,21 +244,12 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 		const lifecycleService = this.lifecycleService = accessor.get(ILifecycleService);
 		const logService = this.logService = accessor.get(ILogService);
 		const environmentService = this.environmentService = accessor.get(IEnvironmentService);
-		const fileService = this.fileService = accessor.get(IFileService);
 		const editorPaneService = this.editorPaneService = accessor.get(IEditorPaneService);
 
 		// Instantiate contributions by phase when they are ready
 		for (const phase of [LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually]) {
 			this.instantiateByPhase(instantiationService, lifecycleService, logService, environmentService, phase);
 		}
-
-		// Instantiate contributions by filesystem when they are activated or ready
-		for (const scheme of this.contributionsByFilesystem.keys()) {
-			if (fileService.getProvider(scheme)) {
-				this.onFilesystem(scheme, instantiationService, lifecycleService, logService, environmentService);
-			}
-		}
-		this._register(fileService.onWillActivateFileSystemProvider(e => this.onFilesystem(e.scheme, instantiationService, lifecycleService, logService, environmentService)));
 
 		// Instantiate contributions by editor when they are created or have been
 		for (const editorTypeId of this.contributionsByEditor.keys()) {
@@ -290,17 +258,6 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 			}
 		}
 		this._register(editorPaneService.onWillInstantiateEditorPane(e => this.onEditor(e.typeId, instantiationService, lifecycleService, logService, environmentService)));
-	}
-
-	private onFilesystem(scheme: string, instantiationService: IInstantiationService, lifecycleService: ILifecycleService, logService: ILogService, environmentService: IEnvironmentService): void {
-		const contributions = this.contributionsByFilesystem.get(scheme);
-		if (contributions) {
-			this.contributionsByFilesystem.delete(scheme);
-
-			for (const contribution of contributions) {
-				this.safeCreateContribution(instantiationService, logService, environmentService, contribution, lifecycleService.phase);
-			}
-		}
 	}
 
 	private onEditor(editorTypeId: string, instantiationService: IInstantiationService, lifecycleService: ILifecycleService, logService: ILogService, environmentService: IEnvironmentService): void {

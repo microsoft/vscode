@@ -8,4 +8,4 @@ import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/com
 import { LocalHistoryTimeline } from 'vs/workbench/contrib/localHistory/browser/localHistoryTimeline';
 
 // Register Local History Timeline
-registerWorkbenchContribution2(LocalHistoryTimeline.ID, LocalHistoryTimeline, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(LocalHistoryTimeline.ID, LocalHistoryTimeline, WorkbenchPhase.BlockRestore /* registrations only */);

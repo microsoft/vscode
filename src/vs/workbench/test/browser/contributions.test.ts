@@ -17,7 +17,7 @@ import { EditorService } from 'vs/workbench/services/editor/browser/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITestInstantiationService, TestFileEditorInput, TestInMemoryFileSystemProvider, TestServiceAccessor, TestSingletonFileEditorInput, createEditorPart, registerTestEditor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, TestSingletonFileEditorInput, createEditorPart, registerTestEditor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Contributions', () => {
 	const disposables = new DisposableStore();
@@ -170,27 +170,6 @@ suite('Contributions', () => {
 		assert.ok(aCreated);
 
 		accessor.lifecycleService.phase = LifecyclePhase.Eventually;
-		await bCreatedPromise.p;
-		assert.ok(bCreated);
-	});
-
-	test('contribution on file system', async function () {
-		const registry = disposables.add(new WorkbenchContributionsRegistry());
-
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const accessor = instantiationService.createInstance(TestServiceAccessor);
-		disposables.add(accessor.fileService.registerProvider('testBefore', disposables.add(new TestInMemoryFileSystemProvider())));
-
-		registry.registerWorkbenchContribution2('a', TestContributionA, { scheme: 'testBefore' });
-		registry.start(instantiationService);
-
-		await aCreatedPromise.p;
-		assert.ok(aCreated);
-
-		registry.registerWorkbenchContribution2('b', TestContributionB, { scheme: 'testAfter' });
-
-		accessor.fileService.activateProvider('testAfter');
-
 		await bCreatedPromise.p;
 		assert.ok(bCreated);
 	});

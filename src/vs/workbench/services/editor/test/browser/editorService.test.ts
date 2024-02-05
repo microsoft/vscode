@@ -98,6 +98,11 @@ suite('EditorService', () => {
 			visibleEditorChangeEventCounter++;
 		}));
 
+		let willOpenEditorListenerCounter = 0;
+		disposables.add(editorService.onWillOpenEditor(() => {
+			willOpenEditorListenerCounter++;
+		}));
+
 		let didCloseEditorListenerCounter = 0;
 		disposables.add(editorService.onDidCloseEditor(() => {
 			didCloseEditorListenerCounter++;
@@ -131,6 +136,7 @@ suite('EditorService', () => {
 		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: 'unknownTypeId', editorId: 'unknownTypeId' }), false);
 		assert.strictEqual(editorService.isVisible(input), true);
 		assert.strictEqual(editorService.isVisible(otherInput), false);
+		assert.strictEqual(willOpenEditorListenerCounter, 1);
 		assert.strictEqual(activeEditorChangeEventCounter, 1);
 		assert.strictEqual(visibleEditorChangeEventCounter, 1);
 		assert.ok(editorPaneService.didInstantiateEditorPane(TEST_EDITOR_ID));
@@ -170,6 +176,7 @@ suite('EditorService', () => {
 		assert.strictEqual(editorService.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
 		assert.strictEqual(activeEditorChangeEventCounter, 4);
+		assert.strictEqual(willOpenEditorListenerCounter, 3);
 		assert.strictEqual(visibleEditorChangeEventCounter, 4);
 
 		const stickyInput = createTestFileEditorInput(URI.parse('my://resource3-basics'), TEST_EDITOR_INPUT_ID);
