@@ -73,7 +73,7 @@ class ChatAgentResponseStream {
 			};
 
 			this._apiObject = {
-				markdown(value) {
+				markdown(value, meta) {
 					throwIfDone(this.markdown);
 					_report({
 						kind: 'markdownContent',
@@ -81,12 +81,12 @@ class ChatAgentResponseStream {
 					});
 					return this;
 				},
-				text(value) {
+				text(value, meta) {
 					throwIfDone(this.text);
-					this.markdown(new MarkdownString().appendText(value));
+					this.markdown(new MarkdownString().appendText(value), meta);
 					return this;
 				},
-				files(value) {
+				files(value, meta) {
 					throwIfDone(this.files);
 					_report({
 						kind: 'treeData',
@@ -94,10 +94,11 @@ class ChatAgentResponseStream {
 					});
 					return this;
 				},
-				anchor(value) {
+				anchor(value, meta) {
 					throwIfDone(this.anchor);
 					_report({
 						kind: 'inlineReference',
+						name: meta?.title,
 						inlineReference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
 					});
 					return this;
@@ -118,10 +119,6 @@ class ChatAgentResponseStream {
 					});
 					return this;
 				},
-				// annotation(value) {
-				// 	_report(value);
-				// 	return this;
-				// },
 				report(progress) {
 					throwIfDone(this.report);
 					if ('placeholder' in progress && 'resolvedContent' in progress) {

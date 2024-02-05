@@ -274,24 +274,31 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
+	export interface ChatAgentResponseItemMetadata {
+		title: string;
+		// annotations: any[]; // future OffsetbasedAnnotation and Annotation
+	}
+
 	export interface ChatAgentResponseStream {
 
 		// RENDERED
-		markdown(value: string | MarkdownString): ChatAgentResponseStream;
-		text(value: string): ChatAgentResponseStream;
-		files(value: ChatAgentFileTreeData): ChatAgentResponseStream;
-		// TODO@jrieken is this sugar for markdown syntax? should we have more like codeblock, bulletlist etc?
-		anchor(value: Uri | Location, attributes?: { title?: string }): ChatAgentResponseStream;
+
+		text(value: string, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+
+		markdown(value: string | MarkdownString, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+
+		files(value: ChatAgentFileTreeData, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+
+		anchor(value: Uri | Location, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
 
 		// META
+
 		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
 		progress(value: string): ChatAgentResponseStream;
 
 		// TODO@API support non-file uris, like http://example.com
+		// TODO@API support mapped edits
 		reference(value: Uri | Location): ChatAgentResponseStream;
-
-		// TODO@API define support annotations
-		// annotation(value: string | MarkdownString | ChatXYZAnnotation, references?: string): ChatAgentResponseStream;
 
 		/**
 		 * @deprecated use above methods instread
