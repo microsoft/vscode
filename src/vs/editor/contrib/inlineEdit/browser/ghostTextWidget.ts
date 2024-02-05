@@ -3,27 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
-import * as strings from 'vs/base/common/strings';
+import { IObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import 'vs/css!./inlineEdit';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { ttPolicy } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
-import { GhostText } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
-import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineEdit/browser/utils';
+import { AdditionalLinesWidget, LineData } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
+import { GhostText } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
 export const INLINE_EDIT_DESCRIPTION = 'inline-edit';
 export interface IGhostTextWidgetModel {
@@ -203,145 +195,4 @@ export class GhostTextWidget extends Disposable {
 	public ownsViewZone(viewZoneId: string): boolean {
 		return this.additionalLinesWidget.viewZoneId === viewZoneId;
 	}
-}
-
-class AdditionalLinesWidget extends Disposable {
-	private _viewZoneId: string | undefined = undefined;
-	public get viewZoneId(): string | undefined { return this._viewZoneId; }
-
-	private readonly editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
-		this.editor.onDidChangeConfiguration,
-		e => e.hasChanged(EditorOption.disableMonospaceOptimizations)
-			|| e.hasChanged(EditorOption.stopRenderingLineAfter)
-			|| e.hasChanged(EditorOption.renderWhitespace)
-			|| e.hasChanged(EditorOption.renderControlCharacters)
-			|| e.hasChanged(EditorOption.fontLigatures)
-			|| e.hasChanged(EditorOption.fontInfo)
-			|| e.hasChanged(EditorOption.lineHeight)
-	));
-
-	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly languageIdCodec: ILanguageIdCodec,
-		private readonly lines: IObservable<{ targetTextModel: ITextModel; lineNumber: number; additionalLines: LineData[]; minReservedLineCount: number } | undefined>
-	) {
-		super();
-
-		this._register(autorun(reader => {
-			/** @description update view zone */
-			const lines = this.lines.read(reader);
-			this.editorOptionsChanged.read(reader);
-
-			if (lines) {
-				this.updateLines(lines.lineNumber, lines.additionalLines, lines.minReservedLineCount);
-			} else {
-				this.clear();
-			}
-		}));
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		this.clear();
-	}
-
-	private clear(): void {
-		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
-			}
-		});
-	}
-
-	private updateLines(lineNumber: number, additionalLines: LineData[], minReservedLineCount: number): void {
-		const textModel = this.editor.getModel();
-		if (!textModel) {
-			return;
-		}
-
-		const { tabSize } = textModel.getOptions();
-
-		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
-			}
-
-			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
-			if (heightInLines > 0) {
-				const domNode = document.createElement('div');
-				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions(), this.languageIdCodec);
-
-				this._viewZoneId = changeAccessor.addZone({
-					afterLineNumber: lineNumber,
-					heightInLines: heightInLines,
-					domNode,
-					afterColumnAffinity: PositionAffinity.Right
-				});
-			}
-		});
-	}
-}
-
-interface LineData {
-	content: string; // Must not contain a linebreak!
-	decorations: LineDecoration[];
-}
-
-function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions, languageIdCodec: ILanguageIdCodec): void {
-	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
-	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
-	// To avoid visual confusion, we don't want to render visible whitespace
-	const renderWhitespace = 'none';
-	const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
-	const fontLigatures = opts.get(EditorOption.fontLigatures);
-	const fontInfo = opts.get(EditorOption.fontInfo);
-	const lineHeight = opts.get(EditorOption.lineHeight);
-
-	const sb = new StringBuilder(10000);
-	sb.appendString('<div class="suggest-preview-text">');
-
-	for (let i = 0, len = lines.length; i < len; i++) {
-		const lineData = lines[i];
-		const line = lineData.content;
-		sb.appendString('<div class="view-line');
-		sb.appendString('" style="top:');
-		sb.appendString(String(i * lineHeight));
-		sb.appendString('px;width:1000000px;">');
-
-		const isBasicASCII = strings.isBasicASCII(line);
-		const containsRTL = strings.containsRTL(line);
-		const lineTokens = LineTokens.createEmpty(line, languageIdCodec);
-
-		renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !disableMonospaceOptimizations),
-			fontInfo.canUseHalfwidthRightwardsArrow,
-			line,
-			false,
-			isBasicASCII,
-			containsRTL,
-			0,
-			lineTokens,
-			lineData.decorations,
-			tabSize,
-			0,
-			fontInfo.spaceWidth,
-			fontInfo.middotWidth,
-			fontInfo.wsmiddotWidth,
-			stopRenderingLineAfter,
-			renderWhitespace,
-			renderControlCharacters,
-			fontLigatures !== EditorFontLigatures.OFF,
-			null
-		), sb);
-
-		sb.appendString('</div>');
-	}
-	sb.appendString('</div>');
-
-	applyFontInfo(domNode, fontInfo);
-	const html = sb.build();
-	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
-	domNode.innerHTML = trustedhtml as string;
 }

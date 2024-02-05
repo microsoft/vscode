@@ -184,7 +184,7 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
-class AdditionalLinesWidget extends Disposable {
+export class AdditionalLinesWidget extends Disposable {
 	private _viewZoneId: string | undefined = undefined;
 	public get viewZoneId(): string | undefined { return this._viewZoneId; }
 
@@ -263,12 +263,12 @@ class AdditionalLinesWidget extends Disposable {
 	}
 }
 
-interface LineData {
+export interface LineData {
 	content: string; // Must not contain a linebreak!
 	decorations: LineDecoration[];
 }
 
-function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions, languageIdCodec: ILanguageIdCodec): void {
+export function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions, languageIdCodec: ILanguageIdCodec): void {
 	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
 	// To avoid visual confusion, we don't want to render visible whitespace
