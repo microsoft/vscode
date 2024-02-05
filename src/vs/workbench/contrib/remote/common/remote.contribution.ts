@@ -29,6 +29,12 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Codicon } from 'vs/base/common/codicons';
+import Severity from 'vs/base/common/severity';
 
 export class LabelContribution implements IWorkbenchContribution {
 
@@ -144,21 +150,95 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 	}
 }
 
+const enum ConnectionChoice {
+	Allow = 1,
+	LearnMore = 2,
+	Cancel = 0
+}
+
+const REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY = 'remote.unsupportedConnectionChoice';
+
 class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IBannerService private readonly bannerService: IBannerService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IHostService private readonly hostService: IHostService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		if (this._environmentService.remoteAuthority) {
 			this._checkInitialRemoteConnectionHealth();
 		}
 	}
 
+	private async _confirmConnection(): Promise<boolean> {
+		const { result, checkboxChecked } = await this.dialogService.prompt<ConnectionChoice>({
+			type: Severity.Warning,
+			message: localize('unsupportedGlibcWarning', "You are about to connect to an OS that is unsupported by VS Code."),
+			buttons: [
+				{
+					label: localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
+					run: () => ConnectionChoice.Allow
+				},
+				{
+					label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+					run: async () => { await this.openerService.open('https://aka.ms/vscode-remote/faq/old-linux'); return ConnectionChoice.LearnMore; }
+				}
+			],
+			cancelButton: {
+				run: () => ConnectionChoice.Cancel
+			},
+			checkbox: {
+				label: localize('remember', "Do not ask me again"),
+			}
+		});
+
+		if (result === ConnectionChoice.LearnMore) {
+			return await this._confirmConnection();
+		}
+
+		const allowed = result === ConnectionChoice.Allow;
+		if (checkboxChecked) {
+			this.storageService.store(REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY, allowed, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+
+		return allowed;
+	}
+
 	private async _checkInitialRemoteConnectionHealth(): Promise<void> {
 		try {
-			await this._remoteAgentService.getRawEnvironment();
+			const environment = await this._remoteAgentService.getRawEnvironment();
+
+			if (environment && environment.isUnsupportedGlibc) {
+				let allowed = this.storageService.getBoolean(REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY, StorageScope.WORKSPACE);
+				if (allowed === undefined) {
+					allowed = await this._confirmConnection();
+				}
+				if (allowed) {
+					const actions = [
+						{
+							label: localize('unsupportedGlibcBannerLearnMore', "Learn More"),
+							href: 'https://aka.ms/vscode-remote/faq/old-linux'
+						}
+					];
+					this.bannerService.show({
+						id: 'unsupportedGlibcWarning.banner',
+						message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS that is unsupported by VS Code"),
+						actions,
+						icon: Codicon.warning,
+						disableCloseAction: true
+					});
+				} else {
+					const connection = this._remoteAgentService.getConnection();
+					connection?.dispose();
+					this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
+					return;
+				}
+			}
 
 			type RemoteConnectionSuccessClassification = {
 				owner: 'alexdima';
