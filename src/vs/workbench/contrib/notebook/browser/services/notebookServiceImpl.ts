@@ -44,8 +44,8 @@ import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/ext
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { INotebookDocument, INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
-import { $window } from 'vs/base/browser/window';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -604,7 +604,7 @@ export class NotebookService extends Disposable implements INotebookService {
 							// there is a `::before` or `::after` text decoration whose position is above or below current line
 							// we at least make sure that the editor top padding is at least one line
 							const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance($window).value).lineHeight + 2);
+							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(mainWindow).value).lineHeight + 2);
 							decorationTriggeredAdjustment = true;
 							break;
 						}
