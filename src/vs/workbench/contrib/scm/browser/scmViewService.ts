@@ -32,6 +32,8 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 }
 
 export const RepositoryContextKeys = {
+	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
+	ActiveRepositoryBranchName: new RawContextKey<string>('scmActiveRepositoryBranchName', ''),
 	RepositorySortKey: new RawContextKey<ISCMRepositorySortKey>('scmRepositorySortKey', ISCMRepositorySortKey.DiscoveryTime),
 };
 
@@ -156,6 +158,9 @@ export class SCMViewService implements ISCMViewService {
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
 
+	private _activeRepositoryNameContextKey: IContextKey<string>;
+	private _activeRepositoryBranchNameContextKey: IContextKey<string>;
+
 	constructor(
 		@ISCMService scmService: ISCMService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -175,6 +180,9 @@ export class SCMViewService implements ISCMViewService {
 		this._repositoriesSortKey = this.previousState?.sortKey ?? this.getViewSortOrder();
 		this._sortKeyContextKey = RepositoryContextKeys.RepositorySortKey.bindTo(contextKeyService);
 		this._sortKeyContextKey.set(this._repositoriesSortKey);
+
+		this._activeRepositoryNameContextKey = RepositoryContextKeys.ActiveRepositoryName.bindTo(contextKeyService);
+		this._activeRepositoryBranchNameContextKey = RepositoryContextKeys.ActiveRepositoryBranchName.bindTo(contextKeyService);
 
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
@@ -317,6 +325,9 @@ export class SCMViewService implements ISCMViewService {
 		this._repositories.forEach(r => r.focused = r.repository === repository);
 
 		if (this._repositories.find(r => r.focused)) {
+			this._activeRepositoryNameContextKey.set(repository?.provider.name ?? '');
+			this._activeRepositoryBranchNameContextKey.set(repository?.provider.historyProvider?.currentHistoryItemGroup?.label ?? '');
+
 			this._onDidFocusRepository.fire(repository);
 		}
 	}

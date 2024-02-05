@@ -26,6 +26,7 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -66,6 +67,7 @@ export class WindowTitle extends Disposable {
 		private readonly targetWindow: Window,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -92,6 +94,13 @@ export class WindowTitle extends Disposable {
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
 		this._register(this.viewsService.onDidChangeFocusedView(() => {
 			if (this.titleIncludesFocusedView) {
+				this.titleUpdater.schedule();
+			}
+		}));
+
+		const scmContextKeys = new Set(['scmActiveRepositoryName', 'scmActiveRepositoryBranchName']);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(scmContextKeys)) {
 				this.titleUpdater.schedule();
 			}
 		}));
@@ -240,6 +249,8 @@ export class WindowTitle extends Disposable {
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
 	 * {focusedView}: e.g. Terminal
+	 * {activeRepositoryName}: e.g. vscode
+	 * {activeRepositoryBranchName}: e.g. main
 	 * {separator}: conditional separator
 	 */
 	getWindowTitle(): string {
@@ -302,6 +313,8 @@ export class WindowTitle extends Disposable {
 		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
 		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 		const focusedView: string = this.viewsService.getFocusedViewName();
+		const activeRepositoryName = this.contextKeyService.getContextKeyValue<string>('scmActiveRepositoryName') ?? '';
+		const activeRepositoryBranchName = this.contextKeyService.getContextKeyValue<string>('scmActiveRepositoryBranchName') ?? '';
 
 		return template(titleTemplate, {
 			activeEditorShort,
@@ -320,6 +333,8 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
+			activeRepositoryName,
+			activeRepositoryBranchName,
 			separator: { label: separator }
 		});
 	}
