@@ -10,7 +10,7 @@ import { IObservable, autorun, derived, observableFromEvent, observableSignalFro
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./ghostText';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -60,7 +60,11 @@ export class GhostTextWidget extends Disposable {
 			return undefined;
 		}
 
+		const replacedRanges: (ColumnRange | undefined)[] = [];
+
+		const inlineTexts: { column: number; text: string; preview: boolean }[][] = [];
 		const additionalLines: LineData[][] = [];
+
 		function addToAdditionalLines(index: number, lines: readonly string[], className: string | undefined) {
 			const additionalLinesForIndex = additionalLines[index] ?? [];
 			if (additionalLinesForIndex.length > 0) {
@@ -81,19 +85,11 @@ export class GhostTextWidget extends Disposable {
 			additionalLines[index] = additionalLinesForIndex;
 		}
 
-		const replacedRanges: (ColumnRange | undefined)[] = [];
-		const inlineTexts: {
-			column: number;
-			text: string;
-			preview: boolean;
-		}[][] = [];
 		const hiddenRanges: (ColumnRange | undefined)[] = [];
 		const lineNumbers: number[] = [];
 
 		for (const [index, ghostText] of ghostTexts.entries()) {
-			const replacedRange = ghostText instanceof GhostTextReplacement ? ghostText.columnRange : undefined;
-			replacedRanges.push(replacedRange);
-			const inlineTextsForGhostText: { column: number; text: string; preview: boolean }[] = [];
+			const inlineText: { column: number; text: string; preview: boolean }[] = [];
 
 			const textBufferLine = textModel.getLineContent(ghostText.lineNumber);
 
@@ -102,7 +98,7 @@ export class GhostTextWidget extends Disposable {
 			for (const part of ghostText.parts) {
 				let lines = part.lines;
 				if (hiddenTextStartColumn === undefined) {
-					inlineTextsForGhostText.push({
+					inlineText.push({
 						column: part.column,
 						text: lines[0],
 						preview: part.preview,
@@ -126,11 +122,12 @@ export class GhostTextWidget extends Disposable {
 			}
 
 			const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
+			const replacedRange = ghostText instanceof GhostTextReplacement ? ghostText.columnRange : undefined;
 			hiddenRanges.push(hiddenRange);
+			replacedRanges.push(replacedRange);
 			lineNumbers.push(ghostText.lineNumber);
-			inlineTexts.push(inlineTextsForGhostText);
+			inlineTexts.push(inlineText);
 		}
-
 
 		return {
 			replacedRanges,
@@ -159,9 +156,7 @@ export class GhostTextWidget extends Disposable {
 					options: { inlineClassName: 'inline-completion-text-to-replace', description: 'GhostTextReplacement' }
 				});
 			}
-		}
 
-		for (let i = 0; i < uiState.hiddenRanges.length; i++) {
 			const hiddenRange = uiState.hiddenRanges[i];
 			if (hiddenRange) {
 				decorations.push({
@@ -169,9 +164,7 @@ export class GhostTextWidget extends Disposable {
 					options: { inlineClassName: 'ghost-text-hidden', description: 'ghost-text-hidden', }
 				});
 			}
-		}
 
-		for (let i = 0; i < uiState.inlineTexts.length; i++) {
 			const inlineText = uiState.inlineTexts[i];
 			for (const p of inlineText) {
 				decorations.push({
@@ -252,13 +245,17 @@ class AdditionalLinesWidget extends Disposable {
 
 	private clear(): void {
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneIds) {
-				for (const id of this._viewZoneIds) {
-					changeAccessor.removeZone(id);
-					this._viewZoneIds = [];
-				}
-			}
+			this._clear(changeAccessor);
 		});
+	}
+
+	private _clear(changeAccessor: IViewZoneChangeAccessor): void {
+		if (this._viewZoneIds) {
+			for (const id of this._viewZoneIds) {
+				changeAccessor.removeZone(id);
+				this._viewZoneIds = [];
+			}
+		}
 	}
 
 	private updateLines(lineNumbers: number[], additionalLines: LineData[][], minReservedLineCount: number): void {
@@ -270,24 +267,21 @@ class AdditionalLinesWidget extends Disposable {
 		const { tabSize } = textModel.getOptions();
 
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneIds) {
-				for (const id of this._viewZoneIds) {
-					changeAccessor.removeZone(id);
-					this._viewZoneIds = [];
-				}
-			}
+			this._clear(changeAccessor);
 
-			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
-			if (heightInLines > 0) {
-				for (const [index, lineNumber] of lineNumbers.entries()) {
+			for (let i = 0; i < additionalLines.length; i++) {
+				const heightInLines = Math.max(additionalLines[i].length, minReservedLineCount);
+				if (heightInLines > 0) {
+					const afterLineNumber = lineNumbers[i];
+					const afterColumnAffinity = PositionAffinity.Right;
 					const domNode = document.createElement('div');
-					renderLines(domNode, tabSize, additionalLines[index], this.editor.getOptions(), this.languageIdCodec);
+					renderLines(domNode, tabSize, additionalLines[i], this.editor.getOptions(), this.languageIdCodec);
 
 					this._viewZoneIds.push(changeAccessor.addZone({
-						afterLineNumber: lineNumber,
-						heightInLines: heightInLines,
+						afterLineNumber,
+						heightInLines,
 						domNode,
-						afterColumnAffinity: PositionAffinity.Right
+						afterColumnAffinity
 					}));
 				}
 			}

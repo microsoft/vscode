@@ -139,9 +139,15 @@ export function ghostTextsOrReplacementsEqual(a: GhostTextOrReplacement[] | unde
 	if (!a || !b) {
 		return false;
 	}
-	const firstEl = a[0];
-	const secondEl = b[0];
-	return ghostTextOrReplacementEquals(firstEl, secondEl);
+	if (a.length !== b.length) {
+		return false;
+	}
+	for (let i = 0; i < a.length; i++) {
+		if (!ghostTextOrReplacementEquals(a[i], b[i])) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export function ghostTextOrReplacementEquals(a: GhostTextOrReplacement | undefined, b: GhostTextOrReplacement | undefined): boolean {

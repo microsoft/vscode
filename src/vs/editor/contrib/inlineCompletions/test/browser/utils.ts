@@ -73,7 +73,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 export class GhostTextContext extends Disposable {
 	public readonly prettyViewStates = new Array<string | undefined>();
-	private _currentPrettyViewState: string | undefined;
+	private _currentPrettyViewState: string[] = [];
 	public get currentPrettyViewState() {
 		return this._currentPrettyViewState;
 	}
@@ -84,18 +84,19 @@ export class GhostTextContext extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update */
 			const ghostTexts = model.ghostTexts.read(reader);
-			let view: string | undefined;
+			const views: string[] = [];
 			if (ghostTexts) {
-				const ghostText = ghostTexts[0];
-				view = ghostText.render(this.editor.getValue(), true);
+				for (const ghostText of ghostTexts) {
+					views.push(ghostText.render(this.editor.getValue(), true));
+				}
 			} else {
-				view = this.editor.getValue();
+				views.push(this.editor.getValue());
 			}
 
-			if (this._currentPrettyViewState !== view) {
-				this.prettyViewStates.push(view);
+			if (this._currentPrettyViewState !== views) {
+				this.prettyViewStates.push(...views);
 			}
-			this._currentPrettyViewState = view;
+			this._currentPrettyViewState = views;
 		}));
 	}
 

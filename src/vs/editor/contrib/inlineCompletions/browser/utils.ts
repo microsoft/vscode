@@ -78,6 +78,7 @@ export class ColumnRange {
 }
 
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
+	console.log('insie of applyObservableDecorations');
 	const d = new DisposableStore();
 	const decorationsCollection = editor.createDecorationsCollection();
 	d.add(autorunOpts({ debugName: () => `Apply decorations from ${decorations.debugName}` }, reader => {

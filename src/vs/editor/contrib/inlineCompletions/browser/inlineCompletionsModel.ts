@@ -49,7 +49,7 @@ export class InlineCompletionsModel extends Disposable {
 		public readonly editor: ICodeEditor,
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
-		public readonly cursorPosition: IObservable<Position>,
+		public readonly selections: IObservable<Selection[]>,
 		public readonly textModelVersionId: IObservable<number, VersionIdChangeReason>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _suggestPreviewEnabled: IObservable<boolean>,
@@ -127,12 +127,12 @@ export class InlineCompletionsModel extends Disposable {
 			});
 		}
 
-		const cursorPosition = this.cursorPosition.read(reader);
+		const selections = this.selections.read(reader);
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 		};
-		return this._source.fetch(cursorPosition, context, itemToPreserve);
+		return this._source.fetch(selections[0].getPosition(), context, itemToPreserve);
 	});
 
 	public async trigger(tx?: ITransaction): Promise<void> {
@@ -158,8 +158,8 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _filteredInlineCompletionItems = derived(this, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return []; }
-		const cursorPosition = this.cursorPosition.read(reader);
-		const filteredCompletions = c.inlineCompletions.filter(c => c.isVisible(this.textModel, cursorPosition, reader));
+		const selections = this.selections.read(reader);
+		const filteredCompletions = c.inlineCompletions.filter(c => c.isVisible(this.textModel, selections[0].getPosition(), reader));
 		return filteredCompletions;
 	});
 
@@ -203,15 +203,9 @@ export class InlineCompletionsModel extends Disposable {
 		owner: this,
 		equalityComparer: (a, b) => {
 			if (!a || !b) { return a === b; }
-			if (a.inlineCompletion !== b.inlineCompletion || a.suggestItem === b.suggestItem) {
-				return false;
-			}
-			for (let i = 0; i < a.ghostTexts.length; i++) {
-				if (!ghostTextOrReplacementEquals(a.ghostTexts[i], b.ghostTexts[i])) {
-					return false;
-				}
-			}
-			return true;
+			return a.ghostTexts.every((ghostText, index) => ghostTextOrReplacementEquals(ghostText, b.ghostTexts[index]))
+				&& a.inlineCompletion === b.inlineCompletion
+				&& a.suggestItem === b.suggestItem;
 		}
 	}, (reader) => {
 		const model = this.textModel;
@@ -223,60 +217,53 @@ export class InlineCompletionsModel extends Disposable {
 
 			const isSuggestionPreviewEnabled = this._suggestPreviewEnabled.read(reader);
 			if (!isSuggestionPreviewEnabled && !augmentedCompletion) { return undefined; }
+
 			const inlineCompletion = augmentedCompletion?.completion;
 
-			// -- added
-			let edits: SingleTextEdit[];
-			let editorSelections: Selection[];
+			const mode = this._suggestPreviewMode.read(reader);
+
+			const edits: SingleTextEdit[] = [];
+			const editorSelections: Selection[] = [];
 			if (inlineCompletion) {
 				const completion = inlineCompletion?.toInlineCompletion(undefined);
 				const _edits = this._getEdits(this.editor, completion.toSingleTextEdit());
-				edits = _edits.edits;
-				editorSelections = _edits.editorSelections;
-			} else {
-				edits = [];
-				editorSelections = [];
+				edits.push(..._edits.edits);
+				editorSelections.push(..._edits.editorSelections);
 			}
 
 			const ghostTexts: GhostText[] = [];
-			for (const edit of edits) {
+			for (const [index, edit] of edits.entries()) {
 				const suggestCompletion = edit.removeCommonPrefix(model);
 				const augmentedCompletion = this._computeAugmentedCompletion(suggestCompletion, reader);
-
-				const isSuggestionPreviewEnabled = this._suggestPreviewEnabled.read(reader);
-				if (!isSuggestionPreviewEnabled && !augmentedCompletion) { return undefined; }
-
 				const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
-
-				const mode = this._suggestPreviewMode.read(reader);
-				const cursor = this.cursorPosition.read(reader);
-				const newGhostText = edit.computeGhostText(model, mode, cursor, editPreviewLength);
+				const selections = this.selections.read(reader);
+				const newGhostText = edit.computeGhostText(model, mode, selections[index].getPosition(), editPreviewLength);
 
 				// Show an invisible ghost text to reserve space
 				ghostTexts.push(newGhostText ?? new GhostText(edit.range.endLineNumber, []));
 			}
-			// -- added
 			return { ghostTexts, edits, editorSelections, inlineCompletion, suggestItem };
 		} else {
 			if (!this._isActive.read(reader)) { return undefined; }
 			const item = this.selectedInlineCompletion.read(reader);
 			if (!item) { return undefined; }
 
-			const completion = item?.toInlineCompletion(undefined);
+			const completion = item.toInlineCompletion(undefined);
 			const _edits = this._getEdits(this.editor, completion.toSingleTextEdit());
 			const edits = _edits.edits;
 			const editorSelections = _edits.editorSelections;
+			const mode = this._inlineSuggestMode.read(reader);
 
 			const ghostTexts: GhostTextOrReplacement[] = [];
-			for (const edit of edits) {
-				const mode = this._inlineSuggestMode.read(reader);
-				const cursor = this.cursorPosition.read(reader);
-				const ghostText = edit.computeGhostText(model, mode, cursor);
-				if (ghostText) {
-					ghostTexts.push(ghostText);
+			for (const [index, edit] of edits.entries()) {
+				const selections = this.selections.read(reader);
+				const ghostText = edit.computeGhostText(model, mode, selections[index].getPosition());
+				if (!ghostText) {
+					return undefined;
 				}
+				ghostTexts.push(ghostText);
 			}
-			return ghostTexts ? { ghostTexts, edits, editorSelections, inlineCompletion: item, suggestItem: undefined } : undefined;
+			return { ghostTexts, inlineCompletion: item, suggestItem: undefined, edits, editorSelections };
 		}
 	});
 
@@ -338,7 +325,6 @@ export class InlineCompletionsModel extends Disposable {
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
-			// todo: does the following also need to use the _getEdits method?
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[

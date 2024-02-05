@@ -29,6 +29,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -39,7 +40,7 @@ export class InlineCompletionsController extends Disposable {
 
 	public readonly model = disposableObservableValue<InlineCompletionsModel | undefined>('inlineCompletionModel', undefined);
 	private readonly _textModelVersionId = observableValue<number, VersionIdChangeReason>(this, -1);
-	private readonly _cursorPosition = observableValue<Position>(this, new Position(1, 1));
+	private readonly _selections = observableValue<Selection[]>(this, [new Selection(1, 1, 1, 1)]);
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
 		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
@@ -102,7 +103,7 @@ export class InlineCompletionsController extends Disposable {
 						editor,
 						textModel,
 						this._suggestWidgetAdaptor.selectedItem,
-						this._cursorPosition,
+						this._selections,
 						this._textModelVersionId,
 						this._debounceValue,
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
@@ -189,7 +190,7 @@ export class InlineCompletionsController extends Disposable {
 			/** @description InlineCompletionsController.forceRenderingAbove */
 			const state = this.model.read(reader)?.state.read(reader);
 			if (state?.suggestItem) {
-				if (state.ghostTexts[0].lineCount >= 2) {
+				if (state.ghostTexts.length > 0 && state.ghostTexts[0].lineCount >= 2) {
 					this._suggestWidgetAdaptor.forceRenderingAbove();
 				}
 			} else {
@@ -263,14 +264,13 @@ export class InlineCompletionsController extends Disposable {
 	private updateObservables(tx: ITransaction, changeReason: VersionIdChangeReason): void {
 		const newModel = this.editor.getModel();
 		this._textModelVersionId.set(newModel?.getVersionId() ?? -1, tx, changeReason);
-		this._cursorPosition.set(this.editor.getPosition() ?? new Position(1, 1), tx);
+		this._selections.set(this.editor.getSelections() ?? [], tx);
 	}
 
 	public shouldShowHoverAt(range: Range) {
 		const ghostTexts = this.model.get()?.ghostTexts.get();
-		if (ghostTexts && ghostTexts.length > 0) {
-			const ghostText = ghostTexts[0];
-			return ghostText.parts.some(p => range.containsPosition(new Position(ghostText.lineNumber, p.column)));
+		if (ghostTexts) {
+			return ghostTexts.some(ghostText => ghostText.parts.some(p => range.containsPosition(new Position(ghostText.lineNumber, p.column))));
 		}
 		return false;
 	}
