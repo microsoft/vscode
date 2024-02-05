@@ -23,6 +23,19 @@
 	opacity: .8;
 }
 
+.monaco-editor .rename-box .new-name-candidates-container {
+	margin-top: 4px;
+}
+
+.monaco-editor .rename-box .new-name-candidate {
+	/* FIXME@ulugbekna: adapt colors to be nice */
+	background-color: rgb(2, 96, 190);
+	color: white;
+
+	margin: 2px;
+	padding: 2px;
+}
+
 .monaco-editor .rename-box.preview .rename-label {
 	display: inherit;
 }
