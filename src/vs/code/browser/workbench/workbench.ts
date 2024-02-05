@@ -12,6 +12,7 @@ import {
 } from "vs/workbench/browser/web.api";
 import { ISecretStorageProvider } from "vs/platform/secrets/common/secrets";
 declare const window: any;
+type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 class SecretStorageProvider implements ISecretStorageProvider {
 	public type: "persisted";
@@ -20,6 +21,24 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	}
 	async get(key: any): Promise<string | undefined> {
 		const secret = JSON.parse(key);
+		if (
+			secret.extensionId === "membrane.membrane" &&
+			secret.key === "membraneApiToken"
+		) {
+			const allKeys = Object.keys(localStorage);
+			// Find the first key that matches the pattern of auth0 React
+			const filteredKeys = allKeys.filter((key) =>
+				key.includes("::default::openid")
+			);
+			if (filteredKeys.length > 0) {
+				const firstMatchingKey = filteredKeys[0];
+				const values = localStorage.getItem(firstMatchingKey);
+				const value = JSON.parse(values!);
+				return value.body.access_token;
+			} else {
+				throw new Error("No matching keys found");
+			}
+		}
 		const value = localStorage.getItem(secret.key);
 		if (!value) {
 			throw new Error("Secret not found");
@@ -36,7 +55,7 @@ class SecretStorageProvider implements ISecretStorageProvider {
 
 (async function () {
 	// create workbench
-	let config: IWorkbenchConstructionOptions & {
+	let config: Writeable<IWorkbenchConstructionOptions> & {
 		folderUri?: UriComponents;
 		workspaceUri?: UriComponents;
 		domElementId?: string;
@@ -49,13 +68,13 @@ class SecretStorageProvider implements ISecretStorageProvider {
 		config = await result.json();
 	}
 
-	if (Array.isArray(config.additionalBuiltinExtensions)) {
-		const tempConfig = { ...config };
+	const isHttps = window.location.protocol === "https:";
+	const extUrl = {
+		scheme: isHttps ? "https" : "http",
+		path: "/membrane",
+	};
 
-		tempConfig.additionalBuiltinExtensions =
-			config.additionalBuiltinExtensions.map((ext) => URI.revive(ext));
-		config = tempConfig;
-	}
+	config.additionalBuiltinExtensions = [URI.revive(extUrl)];
 
 	let workspace;
 	if (config.folderUri) {
