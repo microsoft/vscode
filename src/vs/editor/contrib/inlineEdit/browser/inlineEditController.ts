@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, constObservable, disposableObservableValue } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -18,6 +18,8 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { InlineEditHintsWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { createStyleSheet2 } from 'vs/base/browser/dom';
 
 export class InlineEditWidget implements IDisposable {
 	constructor(public readonly widget: GhostTextWidget, public readonly edit: IInlineEdit) { }
@@ -47,6 +49,10 @@ export class InlineEditController extends Disposable {
 	private _jumpBackPosition: Position | undefined;
 	private _isAccepting: boolean = false;
 
+	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
+	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).fontFamily);
+
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -60,6 +66,9 @@ export class InlineEditController extends Disposable {
 		//Cancel the previous request if there is one
 		//Remove the previous ghost text
 		this._register(editor.onDidChangeModelContent(async () => {
+			if (!this._enabled.get()) {
+				return;
+			}
 			this._isCursorAtInlineEditContext.set(false);
 			this.clear(false);
 			this._isAccepting = false;
@@ -79,6 +88,9 @@ export class InlineEditController extends Disposable {
 
 		//Check if the cursor is at the ghost text
 		this._register(editor.onDidChangeCursorPosition((e) => {
+			if (!this._enabled.get()) {
+				return;
+			}
 			if (!this._currentEdit) {
 				this._isCursorAtInlineEditContext.set(false);
 				return;
@@ -111,6 +123,17 @@ export class InlineEditController extends Disposable {
 			}
 			this._isVisibleContext.set(true);
 			this._isCursorAtInlineEditContext.set(false);
+		}));
+
+		const styleElement = this._register(createStyleSheet2());
+		this._register(autorun(reader => {
+			const fontFamily = this._fontFamily.read(reader);
+			styleElement.setStyle(fontFamily === '' || fontFamily === 'default' ? `` : `
+.monaco-editor .inline-edit-decoration,
+.monaco-editor .inline-edit-decoration-preview,
+.monaco-editor .inline-edit {
+	font-family: ${fontFamily};
+}`);
 		}));
 
 		this._register(new InlineEditHintsWidget(this.editor, this._currentEdit, this.instantiationService));

@@ -22,13 +22,13 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
+import { GhostText } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineEdit/browser/utils';
 
-export const GHOST_TEXT_DESCRIPTION = 'ghost-text';
+export const INLINE_EDIT_DESCRIPTION = 'inline-edit';
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
-	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
+	readonly ghostText: IObservable<GhostText | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
 	readonly removeRange?: IObservable<IRange | undefined>;
 }
@@ -62,8 +62,6 @@ export class GhostTextWidget extends Disposable {
 		}
 		const removeRange = this.model.removeRange?.read(reader);
 
-		const replacedRange = ghostText instanceof GhostTextReplacement ? ghostText.columnRange : undefined;
-
 		const inlineTexts: { column: number; text: string; preview: boolean }[] = [];
 		const additionalLines: LineData[] = [];
 
@@ -93,7 +91,7 @@ export class GhostTextWidget extends Disposable {
 			let lines = part.lines;
 			//If remove range is set, we want to push all new liens to virtual area
 			if (removeRange) {
-				addToAdditionalLines(lines, 'ghost-text');
+				addToAdditionalLines(lines, INLINE_EDIT_DESCRIPTION);
 				lines = [];
 			}
 			if (hiddenTextStartColumn === undefined) {
@@ -108,7 +106,7 @@ export class GhostTextWidget extends Disposable {
 			}
 
 			if (lines.length > 0) {
-				addToAdditionalLines(lines, GHOST_TEXT_DESCRIPTION);
+				addToAdditionalLines(lines, INLINE_EDIT_DESCRIPTION);
 				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 					hiddenTextStartColumn = part.column;
 				}
@@ -124,7 +122,6 @@ export class GhostTextWidget extends Disposable {
 
 
 		return {
-			replacedRange,
 			inlineTexts,
 			additionalLines,
 			hiddenRange,
@@ -143,17 +140,10 @@ export class GhostTextWidget extends Disposable {
 
 		const decorations: IModelDeltaDecoration[] = [];
 
-		if (uiState.replacedRange) {
-			decorations.push({
-				range: uiState.replacedRange.toRange(uiState.lineNumber),
-				options: { inlineClassName: 'inline-completion-text-to-replace', description: 'GhostTextReplacement' }
-			});
-		}
-
 		if (uiState.hiddenRange) {
 			decorations.push({
 				range: uiState.hiddenRange.toRange(uiState.lineNumber),
-				options: { inlineClassName: 'ghost-text-hidden', description: 'ghost-text-hidden', }
+				options: { inlineClassName: 'inline-edit-hidden', description: 'inline-edit-hidden', }
 			});
 		}
 
@@ -170,7 +160,7 @@ export class GhostTextWidget extends Disposable {
 			for (const range of ranges) {
 				decorations.push({
 					range,
-					options: { inlineClassName: 'ghost-text-remove', description: 'ghost-text-remove', }
+					options: { inlineClassName: 'inline-edit-remove', description: 'inline-edit-remove', }
 				});
 			}
 		}
@@ -180,8 +170,8 @@ export class GhostTextWidget extends Disposable {
 			decorations.push({
 				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 				options: {
-					description: GHOST_TEXT_DESCRIPTION,
-					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
+					description: INLINE_EDIT_DESCRIPTION,
+					after: { content: p.text, inlineClassName: p.preview ? 'inline-edit-decoration-preview' : 'inline-edit-decoration', cursorStops: InjectedTextCursorStops.Left },
 					showIfCollapsed: true,
 				}
 			});
