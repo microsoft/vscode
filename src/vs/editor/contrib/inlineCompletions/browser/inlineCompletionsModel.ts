@@ -159,7 +159,7 @@ export class InlineCompletionsModel extends Disposable {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return []; }
 		const selections = this.selections.read(reader);
-		const filteredCompletions = c.inlineCompletions.filter(c => c.isVisible(this.textModel, selections[0].getPosition(), reader));
+		const filteredCompletions = c.inlineCompletions.filter((c, index) => c.isVisible(this.textModel, selections[index].getPosition(), reader));
 		return filteredCompletions;
 	});
 

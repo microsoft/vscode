@@ -14,6 +14,7 @@ import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { autorun } from 'vs/base/common/observable';
 import { MersenneTwister } from 'vs/editor/test/common/model/bracketPairColorizer/combineTextEditInfos.test';
+import { equals } from 'vs/base/common/arrays';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -92,8 +93,7 @@ export class GhostTextContext extends Disposable {
 			} else {
 				views.push(this.editor.getValue());
 			}
-
-			if (this._currentPrettyViewState !== views) {
+			if (!equals(this._currentPrettyViewState, views)) {
 				this.prettyViewStates.push(...views);
 			}
 			this._currentPrettyViewState = views;
