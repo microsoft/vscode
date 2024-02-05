@@ -200,6 +200,12 @@ const configuration: IConfigurationNode = {
 			'default': true,
 			tags: ['accessibility']
 		},
+		[AccessibilityAlertSettingId.TerminalCommandSucceded]: {
+			'markdownDescription': localize('alert.terminalCommandSucceded', "Alerts when a terminal command succeeds (zero exit code). Also see {0}.", '`#audioCues.terminalCommandSucceded#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
 		[AccessibilityAlertSettingId.TaskFailed]: {
 			'markdownDescription': localize('alert.taskFailed', "Alerts when a task fails (non-zero exit code). Also see {0}.", '`#audioCues.taskFailed#`'),
 			'type': 'boolean',

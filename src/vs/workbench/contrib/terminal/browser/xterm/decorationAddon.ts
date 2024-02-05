@@ -220,6 +220,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this.registerCommandDecoration(command);
 			if (command.exitCode) {
 				this._audioCueService.playAudioCue(AudioCue.terminalCommandFailed);
+			} else {
+				this._audioCueService.playAudioCue(AudioCue.terminalCommandSucceded);
 			}
 		}));
 		// Command invalidated

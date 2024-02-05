@@ -344,6 +344,7 @@ export const enum AccessibilityAlertSettingId {
 	TerminalQuickFix = 'accessibility.alert.terminalQuickFix',
 	TerminalBell = 'accessibility.alert.terminalBell',
 	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
+	TerminalCommandSucceded = 'accessibility.alert.terminalCommandSucceded',
 	TaskCompleted = 'accessibility.alert.taskCompleted',
 	TaskFailed = 'accessibility.alert.taskFailed',
 	ChatRequestSent = 'accessibility.alert.chatRequestSent',
@@ -461,6 +462,14 @@ export class AudioCue {
 		settingsKey: 'audioCues.terminalCommandFailed',
 		alertSettingsKey: AccessibilityAlertSettingId.TerminalCommandFailed,
 		alertMessage: localize('audioCues.terminalCommandFailed.alertMessage', 'Command Failed')
+	});
+
+	public static readonly terminalCommandSucceded = AudioCue.register({
+		name: localize('audioCues.terminalCommandSucceded', 'Terminal Command Succeded'),
+		sound: Sound.error,
+		settingsKey: 'audioCues.terminalCommandSucceded',
+		alertSettingsKey: AccessibilityAlertSettingId.TerminalCommandSucceded,
+		alertMessage: localize('audioCues.terminalCommandSucceded.alertMessage', 'Command Succeded')
 	});
 
 	public static readonly terminalBell = AudioCue.register({
