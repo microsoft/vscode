@@ -5,11 +5,14 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
 import { ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
 
 suite('UserDataProfilesManifestMerge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge returns local profiles if remote does not exist', () => {
 		const localProfiles: IUserDataProfile[] = [
@@ -71,6 +74,8 @@ suite('UserDataProfilesManifestMerge', () => {
 			toUserDataProfile('5', '5', URI.file('5'), URI.file('cache')),
 			toUserDataProfile('6', '6', URI.file('6'), URI.file('cache')),
 			toUserDataProfile('8', '8', URI.file('8'), URI.file('cache')),
+			toUserDataProfile('10', '10', URI.file('8'), URI.file('cache'), { useDefaultFlags: { tasks: true } }),
+			toUserDataProfile('11', '11', URI.file('1'), URI.file('cache'), { useDefaultFlags: { keybindings: true } }),
 		];
 		const base: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
@@ -79,6 +84,8 @@ suite('UserDataProfilesManifestMerge', () => {
 			{ id: '4', name: '4', collection: '4' },
 			{ id: '5', name: '5', collection: '5' },
 			{ id: '6', name: '6', collection: '6' },
+			{ id: '10', name: '10', collection: '10', useDefaultFlags: { tasks: true } },
+			{ id: '11', name: '11', collection: '11' },
 		];
 		const remoteProfiles: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
@@ -87,15 +94,18 @@ suite('UserDataProfilesManifestMerge', () => {
 			{ id: '4', name: 'changed remote', collection: '4' },
 			{ id: '5', name: '5', collection: '5' },
 			{ id: '7', name: '7', collection: '7' },
+			{ id: '9', name: '9', collection: '9', useDefaultFlags: { snippets: true } },
+			{ id: '10', name: '10', collection: '10' },
+			{ id: '11', name: '11', collection: '11' },
 		];
 
 		const actual = merge(localProfiles, remoteProfiles, base, []);
 
-		assert.deepStrictEqual(actual.local.added, [remoteProfiles[5]]);
+		assert.deepStrictEqual(actual.local.added, [remoteProfiles[5], remoteProfiles[6]]);
 		assert.deepStrictEqual(actual.local.removed, [localProfiles[4]]);
-		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[2], remoteProfiles[3]]);
+		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[2], remoteProfiles[3], remoteProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.added, [localProfiles[5]]);
-		assert.deepStrictEqual(actual.remote?.updated, [localProfiles[0]]);
+		assert.deepStrictEqual(actual.remote?.updated, [localProfiles[0], localProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.removed, [remoteProfiles[1]]);
 	});
 

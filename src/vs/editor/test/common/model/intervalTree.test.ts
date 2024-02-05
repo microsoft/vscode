@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IntervalNode, IntervalTree, NodeColor, SENTINEL, getNodeColor, intervalCompare, nodeAcceptEdit, setNodeStickiness } from 'vs/editor/common/model/intervalTree';
 
@@ -17,7 +18,9 @@ const MAX_INSERTS = 30;
 const MIN_CHANGE_CNT = 10;
 const MAX_CHANGE_CNT = 20;
 
-suite('IntervalTree', () => {
+suite('IntervalTree 1', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class Interval {
 		_intervalBrand: void = undefined;
@@ -554,7 +557,10 @@ suite('IntervalTree', () => {
 	});
 });
 
-suite('IntervalTree', () => {
+suite('IntervalTree 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function assertNodeAcceptEdit(msg: string, nodeStart: number, nodeEnd: number, nodeStickiness: TrackedRangeStickiness, start: number, end: number, textLength: number, forceMoveMarkers: boolean, expectedNodeStart: number, expectedNodeEnd: number): void {
 		const node = new IntervalNode('', nodeStart, nodeEnd);
 		setNodeStickiness(node, nodeStickiness);

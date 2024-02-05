@@ -27,17 +27,17 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 		@IThemeService themeService: IThemeService,
 	) {
 		super(themeService);
-		this.onCodeEditorAdd(() => this._checkContextKey());
-		this.onCodeEditorRemove(() => this._checkContextKey());
+		this._register(this.onCodeEditorAdd(() => this._checkContextKey()));
+		this._register(this.onCodeEditorRemove(() => this._checkContextKey()));
 		this._editorIsOpen = contextKeyService.createKey('editorIsOpen', false);
 		this._activeCodeEditor = null;
 
-		this.registerCodeEditorOpenHandler(async (input, source, sideBySide) => {
+		this._register(this.registerCodeEditorOpenHandler(async (input, source, sideBySide) => {
 			if (!source) {
 				return null;
 			}
 			return this.doOpenEditor(source, input);
-		});
+		}));
 	}
 
 	private _checkContextKey(): void {

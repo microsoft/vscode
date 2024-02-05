@@ -19,4 +19,5 @@ export class TestAccessibilityService implements IAccessibilityService {
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
 	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
 	alert(message: string): void { }
+	status(message: string): void { }
 }

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { promises as fs } from 'fs';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
+import { chunkInput } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum ShutdownConstants {
 	/**
@@ -55,14 +55,6 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
-
-	/**
-	 * Writing large amounts of data can be corrupted for some reason, after looking into this is
-	 * appears to be a race condition around writing to the FD which may be based on how powerful
-	 * the hardware is. The workaround for this is to space out when large amounts of data is being
-	 * written to the terminal. See https://github.com/microsoft/vscode/issues/38137
-	 */
-	WriteMaxChunkSize = 50,
 	/**
 	 * How long to wait between chunk writes.
 	 */
@@ -107,7 +99,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _ptyProcess: IPty | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
-	private _isDisposed: boolean = false;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
@@ -191,6 +182,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
 		}
+		this._register(toDisposable(() => {
+			if (this._titleInterval) {
+				clearInterval(this._titleInterval);
+				this._titleInterval = null;
+			}
+		}));
 	}
 
 	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
@@ -213,9 +210,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						await Promises.mkdir(path.dirname(f.dest), { recursive: true });
 						try {
-							await fs.copyFile(f.source, f.dest);
+							await Promises.copyFile(f.source, f.dest);
 						} catch {
 							// Swallow error, this should only happen when multiple users are on the same
 							// machine. Since the shell integration scripts rarely change, plus the other user
@@ -236,7 +233,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			return undefined;
 		} catch (err) {
-			this._logService.trace('IPty#spawn native exception', err);
+			this._logService.trace('node-pty.node-pty.IPty#spawn native exception', err);
 			return { message: `A native exception occurred during launch (${err.message})` };
 		}
 	}
@@ -264,7 +261,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd;
 		const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-		const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
+		const executable = await findExecutable(slc.executable, cwd, envPaths, this._executableEnv);
 		if (!executable) {
 			return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 		}
@@ -294,7 +291,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	): Promise<void> {
 		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
-		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
+		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
@@ -312,7 +309,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 
 			// Refire the data event
-			this._logService.trace('IPty#onData', data);
+			this._logService.trace('node-pty.IPty#onData', data);
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				this._queueProcessExit();
@@ -326,15 +323,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		});
 		this._sendProcessId(ptyProcess.pid);
 		this._setupTitlePolling(ptyProcess);
-	}
-
-	override dispose(): void {
-		this._isDisposed = true;
-		if (this._titleInterval) {
-			clearInterval(this._titleInterval);
-		}
-		this._titleInterval = null;
-		super.dispose();
 	}
 
 	private _setupTitlePolling(ptyProcess: IPty) {
@@ -353,6 +341,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	// Allow any trailing data events to be sent before the exit event is sent.
 	// See https://github.com/Tyriar/node-pty/issues/72
 	private _queueProcessExit() {
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace('TerminalProcess#_queueProcessExit', new Error().stack?.replace(/^Error/, ''));
+		}
 		if (this._closeTimeout) {
 			clearTimeout(this._closeTimeout);
 		}
@@ -366,7 +357,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
 		// process start.
 		await this._processStartupComplete;
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		// Attempt to kill the pty, it may have already been killed at this
@@ -374,7 +365,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		try {
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
-				this._logService.trace('IPty#kill');
+				this._logService.trace('node-pty.IPty#kill');
 				this._ptyProcess.kill();
 			}
 		} catch (ex) {
@@ -406,7 +397,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessTitle(ptyProcess: IPty): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		this._currentTitle = ptyProcess.process;
@@ -417,17 +408,20 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	shutdown(immediate: boolean): void {
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace('TerminalProcess#shutdown', new Error().stack?.replace(/^Error/, ''));
+		}
 		// don't force immediate disposal of the terminal processes on Windows as an additional
 		// mitigation for https://github.com/microsoft/vscode/issues/71966 which causes the pty host
 		// to become unresponsive, disconnecting all terminals across all windows.
 		if (immediate && !isWindows) {
 			this._kill();
 		} else {
-			if (!this._closeTimeout && !this._isDisposed) {
+			if (!this._closeTimeout && !this._store.isDisposed) {
 				this._queueProcessExit();
 				// Allow a maximum amount of time for the process to exit, otherwise force kill it
 				setTimeout(() => {
-					if (this._closeTimeout && !this._isDisposed) {
+					if (this._closeTimeout && !this._store.isDisposed) {
 						this._closeTimeout = undefined;
 						this._kill();
 					}
@@ -436,17 +430,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	input(data: string, isBinary?: boolean): void {
-		if (this._isDisposed || !this._ptyProcess) {
+	input(data: string, isBinary: boolean = false): void {
+		if (this._store.isDisposed || !this._ptyProcess) {
 			return;
 		}
-		for (let i = 0; i <= Math.floor(data.length / Constants.WriteMaxChunkSize); i++) {
-			const obj = {
-				isBinary: isBinary || false,
-				data: data.substr(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
-			};
-			this._writeQueue.push(obj);
-		}
+		this._writeQueue.push(...chunkInput(data).map(e => {
+			return { isBinary, data: e };
+		}));
 		this._startWrite();
 	}
 
@@ -508,7 +498,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
-		this._logService.trace('IPty#write', object.data);
+		this._logService.trace('node-pty.IPty#write', object.data);
 		if (object.isBinary) {
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
@@ -518,7 +508,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
@@ -537,12 +527,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				return;
 			}
 
-			this._logService.trace('IPty#resize', cols, rows);
+			this._logService.trace('node-pty.IPty#resize', cols, rows);
 			try {
 				this._ptyProcess.resize(cols, rows);
 			} catch (e) {
 				// Swallow error if the pty has already exited
-				this._logService.trace('IPty#resize exception ' + e.message);
+				this._logService.trace('node-pty.IPty#resize exception ' + e.message);
 				if (this._exitCode !== undefined &&
 					e.message !== 'ioctl(2) failed, EBADF' &&
 					e.message !== 'Cannot resize a pty that has already exited') {
@@ -594,7 +584,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					resolve(this._initialCwd);
 					return;
 				}
-				this._logService.trace('IPty#pid');
+				this._logService.trace('node-pty.IPty#pid');
 				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
@@ -610,7 +600,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (!this._ptyProcess) {
 				return this._initialCwd;
 			}
-			this._logService.trace('IPty#pid');
+			this._logService.trace('node-pty.IPty#pid');
 			try {
 				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
 			} catch (error) {
@@ -619,10 +609,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		return this._initialCwd;
-	}
-
-	getLatency(): Promise<number> {
-		return Promise.resolve(0);
 	}
 
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
@@ -649,15 +635,6 @@ class DelayedResizer extends Disposable {
 		this._timeout = setTimeout(() => {
 			this._onTrigger.fire({ rows: this.rows, cols: this.cols });
 		}, 1000);
-		this._register({
-			dispose: () => {
-				clearTimeout(this._timeout);
-			}
-		});
-	}
-
-	override dispose(): void {
-		super.dispose();
-		clearTimeout(this._timeout);
+		this._register(toDisposable(() => clearTimeout(this._timeout)));
 	}
 }

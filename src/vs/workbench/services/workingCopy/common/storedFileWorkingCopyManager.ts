@@ -208,9 +208,9 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		// Lifecycle
 		if (isWeb) {
-			this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdownWeb(), 'veto.fileWorkingCopyManager'));
+			this._register(this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdownWeb(), 'veto.fileWorkingCopyManager')));
 		} else {
-			this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdownDesktop(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") }));
+			this._register(this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdownDesktop(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") })));
 		}
 	}
 
@@ -293,9 +293,9 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		// Resolves a working copy to update (use a queue to prevent accumulation of
 		// resolve when the resolving actually takes long. At most we only want the
 		// queue to have a size of 2 (1 running resolve and 1 queued resolve).
-		const queue = this.workingCopyResolveQueue.queueFor(workingCopy.resource);
-		if (queue.size <= 1) {
-			queue.queue(async () => {
+		const queueSize = this.workingCopyResolveQueue.queueSize(workingCopy.resource);
+		if (queueSize <= 1) {
+			this.workingCopyResolveQueue.queueFor(workingCopy.resource, async () => {
 				try {
 					await this.reload(workingCopy);
 				} catch (error) {
@@ -475,7 +475,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		const resolveOptions: IStoredFileWorkingCopyResolveOptions = {
 			contents: options?.contents,
-			forceReadFromFile: options?.reload?.force
+			forceReadFromFile: options?.reload?.force,
+			limits: options?.limits
 		};
 
 		// Working copy exists

@@ -43,7 +43,8 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark {
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark {
 	max-width: 200px;
 	height: calc(100% - 70px);
 }
@@ -71,6 +72,7 @@
 }
 
 .monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark > .shortcuts,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark > .shortcuts,
 .monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark > .shortcuts {
 	display: none;
 }
@@ -85,6 +87,7 @@
 	display: table-row;
 	opacity: .8;
 	cursor: default;
+	color: var(--vscode-editorWatermark-foreground);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt {
@@ -101,27 +104,6 @@
 	display: table-cell;
 	vertical-align: middle;
 }
-
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt,
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dl {
-	color: rgba(0,0,0,.68);
-}
-
-.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .shortcuts dt,
-.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .shortcuts dl {
-	color: rgba(255,255,255,.6);
-}
-
-.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .shortcuts dt,
-.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .shortcuts dt {
-	color: var(--vscode-editor-foreground);
-}
-.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .shortcuts dl,
-.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .shortcuts dl {
-	color: var(--vscode-editor-foreground);
-	opacity: 1;
-}
-
 
 /* Title */
 
@@ -159,8 +141,10 @@
 	height: 35px;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar {
-	display: block;
+.monaco-workbench .part.editor > .content .editor-group-container.empty.locked > .editor-group-container-toolbar,
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-container-toolbar {
+	display: block; /* show toolbar when more than one editor group or always when auxiliary or locked */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .actions-container {

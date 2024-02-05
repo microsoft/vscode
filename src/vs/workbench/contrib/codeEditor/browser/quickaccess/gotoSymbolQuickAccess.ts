@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -31,6 +31,8 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -242,13 +244,12 @@ class GotoSymbolAction extends Action2 {
 		super({
 			id: GotoSymbolAction.ID,
 			title: {
-				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				...localize2('gotoSymbol', "Go to Symbol in Editor..."),
 				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
-				original: 'Go to Symbol in Editor...'
 			},
 			f1: true,
 			keybinding: {
-				when: undefined,
+				when: ContextKeyExpr.and(accessibleViewIsShown.negate(), accessibilityHelpIsShown.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO
 			},
@@ -273,7 +274,15 @@ Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQui
 	contextKey: 'inFileSymbolsPicker',
 	placeholder: localize('gotoSymbolQuickAccessPlaceholder', "Type the name of a symbol to go to."),
 	helpEntries: [
-		{ description: localize('gotoSymbolQuickAccess', "Go to Symbol in Editor"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX, commandId: GotoSymbolAction.ID },
-		{ description: localize('gotoSymbolByCategoryQuickAccess', "Go to Symbol in Editor by Category"), prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY }
+		{
+			description: localize('gotoSymbolQuickAccess', "Go to Symbol in Editor"),
+			prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX,
+			commandId: GotoSymbolAction.ID,
+			commandCenterOrder: 40
+		},
+		{
+			description: localize('gotoSymbolByCategoryQuickAccess', "Go to Symbol in Editor by Category"),
+			prefix: AbstractGotoSymbolQuickAccessProvider.PREFIX_BY_CATEGORY
+		}
 	]
 });

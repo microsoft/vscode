@@ -138,25 +138,24 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]> {
 		const result = new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>();
-		this.map.forEach((mutators, _key) => {
+		for (const mutators of this.map.values()) {
 			const filteredMutators = mutators.filter(m => filterScope(m, scope));
 			if (filteredMutators.length > 0) {
 				// All of these mutators are for the same variable because they are in the same scope, hence choose anyone to form a key.
 				result.set(filteredMutators[0].variable, filteredMutators);
 			}
-		});
+		}
 		return result;
 	}
 
 	getDescriptionMap(scope: EnvironmentVariableScope | undefined): Map<string, string | undefined> {
 		const result = new Map<string, string | undefined>();
-		this.descriptionMap.forEach((mutators, _key) => {
+		for (const mutators of this.descriptionMap.values()) {
 			const filteredMutators = mutators.filter(m => filterScope(m, scope, true));
-			if (filteredMutators.length > 0) {
-				// There should be exactly one description per extension per scope.
-				result.set(filteredMutators[0].extensionIdentifier, filteredMutators[0].description);
+			for (const mutator of filteredMutators) {
+				result.set(mutator.extensionIdentifier, mutator.description);
 			}
-		});
+		}
 		return result;
 	}
 

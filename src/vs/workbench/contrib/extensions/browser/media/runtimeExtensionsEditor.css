@@ -31,7 +31,7 @@
 	text-align: right;
 }
 
-.runtime-extensions-editor .extension .desc>.msg>span:not(:last-child)::after {
+.runtime-extensions-editor .extension .desc > .msg > span:not(:last-child)::after {
 	content: '\2022';
 	padding: 0 4px;
 	opacity: .8;

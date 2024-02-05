@@ -24,7 +24,7 @@ import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/ed
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
-const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
+const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
 const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -57,13 +57,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', 0);
+appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL.value, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', 0);
 
 // Menu registration - open editors
 
 const revealInOsCommand = {
 	id: REVEAL_IN_OS_COMMAND_ID,
-	title: REVEAL_IN_OS_LABEL
+	title: REVEAL_IN_OS_LABEL.value
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
@@ -89,5 +89,9 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 // Command Palette
 
-const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
-appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' }, category, REVEAL_IN_OS_WHEN_CONTEXT);
+const category = nls.localize2('filesCategory', "File");
+appendToCommandPalette({
+	id: REVEAL_IN_OS_COMMAND_ID,
+	title: REVEAL_IN_OS_LABEL,
+	category: category
+}, REVEAL_IN_OS_WHEN_CONTEXT);

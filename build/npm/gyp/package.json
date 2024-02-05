@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "devDependencies": {
-    "node-gyp": "^8.4.1"
+    "node-gyp": "^9.4.0"
   },
   "scripts": {}
 }

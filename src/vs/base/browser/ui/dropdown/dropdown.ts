@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, EventHelper, EventType } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -56,7 +56,7 @@ class BaseDropdown extends ActionRunner {
 
 		for (const event of [EventType.MOUSE_DOWN, GestureEventType.Tap]) {
 			this._register(addDisposableListener(this._label, event, e => {
-				if (e instanceof MouseEvent && (e.detail > 1 || e.button !== 0)) {
+				if (isMouseEvent(e) && (e.detail > 1 || e.button !== 0)) {
 					// prevent right click trigger to allow separate context menu (https://github.com/microsoft/vscode/issues/151064)
 					// prevent multiple clicks to open multiple context menus (https://github.com/microsoft/vscode/issues/41363)
 					return;

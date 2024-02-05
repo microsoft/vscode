@@ -124,22 +124,24 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		const extensionsToRemove: IScannedProfileExtension[] = [];
 		const extensionsToAdd: IScannedProfileExtension[] = [];
 		try {
-			await this.withProfileExtensions(profileLocation, profileExtensions => {
+			await this.withProfileExtensions(profileLocation, existingExtensions => {
 				const result: IScannedProfileExtension[] = [];
-				for (const extension of profileExtensions) {
-					if (extensions.some(([e]) => areSameExtensions(e.identifier, extension.identifier) && e.manifest.version !== extension.version)) {
+				for (const existing of existingExtensions) {
+					if (extensions.some(([e]) => areSameExtensions(e.identifier, existing.identifier) && e.manifest.version !== existing.version)) {
 						// Remove the existing extension with different version
-						extensionsToRemove.push(extension);
+						extensionsToRemove.push(existing);
 					} else {
-						result.push(extension);
+						result.push(existing);
 					}
 				}
 				for (const [extension, metadata] of extensions) {
-					if (!result.some(e => areSameExtensions(e.identifier, extension.identifier) && e.version === extension.manifest.version)) {
-						// Add only if the same version of the extension is not already added
-						const extensionToAdd = { identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata };
+					const index = result.findIndex(e => areSameExtensions(e.identifier, extension.identifier) && e.version === extension.manifest.version);
+					const extensionToAdd = { identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata };
+					if (index === -1) {
 						extensionsToAdd.push(extensionToAdd);
 						result.push(extensionToAdd);
+					} else {
+						result.splice(index, 1, extensionToAdd);
 					}
 				}
 				if (extensionsToAdd.length) {
@@ -189,7 +191,6 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 
 	async removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void> {
 		const extensionsToRemove: IScannedProfileExtension[] = [];
-		this._onRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
 		try {
 			await this.withProfileExtensions(profileLocation, profileExtensions => {
 				const result: IScannedProfileExtension[] = [];
@@ -252,12 +253,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						// Extension in new format. No migration needed.
 						location = this.resolveExtensionLocation(e.relativeLocation);
 					} else if (isString(e.location)) {
-						// Extension in intermediate format. Migrate to new format.
-						location = this.resolveExtensionLocation(e.location);
-						migrate = true;
-						e.relativeLocation = e.location;
-						// retain old format so that old clients can read it
-						e.location = location.toJSON();
+						this.logService.warn(`Extensions profile: Ignoring extension with invalid location: ${e.location}`);
+						continue;
 					} else {
 						location = URI.revive(e.location);
 						const relativePath = this.toRelativePath(location);
@@ -266,6 +263,10 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 							migrate = true;
 							e.relativeLocation = relativePath;
 						}
+					}
+					if (isUndefined(e.metadata?.hasPreReleaseVersion) && e.metadata?.preRelease) {
+						migrate = true;
+						e.metadata.hasPreReleaseVersion = true;
 					}
 					extensions.push({
 						identifier: e.identifier,

@@ -6,8 +6,11 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "chatAgents2",
+    "defaultChatAgent",
     "contribViewsRemote",
     "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
@@ -19,6 +22,8 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "interactive",
+    "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -26,8 +31,8 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
+    "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -36,21 +41,16 @@
     "terminalDataWriteEvent",
     "terminalDimensions",
     "tunnels",
-    "envShellEvent",
     "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeItemCheckbox",
+    "treeViewActiveItem",
     "treeViewReveal",
-    "testInvalidateResults",
     "workspaceTrust",
     "telemetry",
-    "windowActivity",
-    "interactiveUserActions",
-    "envCollectionWorkspace",
-    "envCollectionOptions"
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],
@@ -164,6 +164,12 @@
         ]
       }
     ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
+      }
+    ],
     "notebooks": [
       {
         "type": "notebookCoreTest",
@@ -213,7 +219,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

@@ -21,7 +21,7 @@ export interface ILanguageStatus {
 	readonly name: string;
 	readonly selector: LanguageSelector;
 	readonly severity: Severity;
-	readonly label: string;
+	readonly label: string | { value: string; shortValue: string };
 	readonly detail: string;
 	readonly busy: boolean;
 	readonly source: string;

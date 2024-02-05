@@ -74,7 +74,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			return Promise.resolve(undefined);
 		}
 
-		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection!, up));
+		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection, up));
 
 		return this.currentRequest.then(result => {
 
@@ -91,7 +91,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			// Selection
 			const editRange = Range.lift(result.range);
 			let highlightRange = result.range;
-			const diff = result.value.length - (selection!.endColumn - selection!.startColumn);
+			const diff = result.value.length - (selection.endColumn - selection.startColumn);
 
 			// highlight
 			highlightRange = {
@@ -101,11 +101,11 @@ class InPlaceReplaceController implements IEditorContribution {
 				endColumn: highlightRange.startColumn + result.value.length
 			};
 			if (diff > 1) {
-				selection = new Selection(selection!.startLineNumber, selection!.startColumn, selection!.endLineNumber, selection!.endColumn + diff - 1);
+				selection = new Selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn + diff - 1);
 			}
 
 			// Insert new text
-			const command = new InPlaceReplaceCommand(editRange, selection!, result.value);
+			const command = new InPlaceReplaceCommand(editRange, selection, result.value);
 
 			this.editor.pushUndoStop();
 			this.editor.executeCommand(source, command);

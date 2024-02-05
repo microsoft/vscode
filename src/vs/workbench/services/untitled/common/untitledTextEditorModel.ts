@@ -12,13 +12,13 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -273,16 +273,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	async revert(): Promise<void> {
 
+		// Reset contents to be empty
+		this.ignoreDirtyOnModelContentChange = true;
+		try {
+			this.updateTextEditorModel(createTextBufferFactory(''));
+		} finally {
+			this.ignoreDirtyOnModelContentChange = false;
+		}
+
 		// No longer dirty
 		this.setDirty(false);
 
 		// Emit as event
 		this._onDidRevert.fire();
-
-		// A reverted untitled model is invalid because it has
-		// no actual source on disk to revert to. As such we
-		// dispose the model.
-		this.dispose();
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
@@ -295,7 +298,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		if (this.isResolved()) {
 			// Fill in content the same way we would do when saving the file
 			// via the text file service encoding support (hardcode UTF-8)
-			content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+			content = await this.textFileService.getEncodedReadable(this.resource, this.createSnapshot() ?? undefined, { encoding: UTF8 });
 		} else if (typeof this.initialValue === 'string') {
 			content = bufferToReadable(VSBuffer.fromString(this.initialValue));
 		}
@@ -306,6 +309,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	//#endregion
 
 	//#region Resolve
+
+	private ignoreDirtyOnModelContentChange = false;
 
 	override async resolve(): Promise<void> {
 
@@ -375,16 +380,18 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {
+		if (!this.ignoreDirtyOnModelContentChange) {
 
-		// mark the untitled text editor as non-dirty once its content becomes empty and we do
-		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineContent(1) === '') {
-			this.setDirty(false);
-		}
+			// mark the untitled text editor as non-dirty once its content becomes empty and we do
+			// not have an associated path set. we never want dirty indicator in that case.
+			if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineLength(1) === 0) {
+				this.setDirty(false);
+			}
 
-		// turn dirty otherwise
-		else {
-			this.setDirty(true);
+			// turn dirty otherwise
+			else {
+				this.setDirty(true);
+			}
 		}
 
 		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH columns
@@ -419,7 +426,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				startColumn: 1,
 				endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH + 1		// first cap at FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH
 			})
-			.trim().replace(/\s+/g, ' '); 														// normalize whitespaces
+			.trim().replace(/\s+/g, ' ') 														// normalize whitespaces
+			.replace(/\u202E/g, '');															// drop Right-to-Left Override character (#190133)
 		firstLineText = firstLineText.substr(0, getCharContainingOffset(						// finally cap at FIRST_LINE_NAME_MAX_LENGTH (grapheme aware #111235)
 			firstLineText,
 			UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)[0]

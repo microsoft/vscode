@@ -7,17 +7,15 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, dirname } from 'vs/base/common/resources';
+import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
+import { dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 export class FileElement {
 	constructor(
@@ -125,7 +123,7 @@ export class BreadcrumbsModel {
 		}
 
 		const info: FileInfo = {
-			folder: withNullAsUndefined(this._workspaceService.getWorkspaceFolder(uri)),
+			folder: this._workspaceService.getWorkspaceFolder(uri) ?? undefined,
 			path: []
 		};
 

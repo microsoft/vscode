@@ -90,7 +90,7 @@ export interface IUntitledFileWorkingCopyInitialContents {
 	readonly markModified?: boolean;
 }
 
-export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
+export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M> {
 
 	readonly capabilities = this.isScratchpad ? WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad : WorkingCopyCapabilities.Untitled;
 
@@ -251,6 +251,10 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 
 	//#region Backup
+
+	get backupDelay(): number | undefined {
+		return this.model?.configuration?.backupDelay;
+	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		let content: VSBufferReadableStream | undefined = undefined;

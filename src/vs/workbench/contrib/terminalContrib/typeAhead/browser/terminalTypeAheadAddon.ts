@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { XtermAttributes, IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
+import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from '@xterm/xterm';
 
 const enum VT {
 	Esc = '\x1b',
@@ -1383,6 +1383,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				}
 			},
 			Math.max(500, this.stats.maxLatency * 3 / 2),
+			this._store
 		);
 	}
 
@@ -1486,12 +1487,12 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 					flushOutput(this._timeline.terminal);
 				}
 
-				if (this._timeline.tentativeCursor(buffer).x <= this._lastRow!.startingX) {
+				if (this._timeline.tentativeCursor(buffer).x <= this._lastRow.startingX) {
 					this._timeline.addBoundary(buffer, new BackspacePrediction(this._timeline.terminal));
 				} else {
 					// Backspace decrements our ability to go right.
 					this._lastRow.endingX--;
-					this._timeline!.addPrediction(buffer, new BackspacePrediction(this._timeline.terminal));
+					this._timeline.addPrediction(buffer, new BackspacePrediction(this._timeline.terminal));
 				}
 
 				continue;

@@ -5,27 +5,27 @@
 
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Untitled text editors', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(accessor.untitledTextEditorService);
 	});
 
 	teardown(() => {
-		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('backup and restore (simple)', async function () {
@@ -39,24 +39,21 @@ suite('Untitled text editors', () => {
 
 	async function testBackupAndRestore(content: string) {
 		const service = accessor.untitledTextEditorService;
-		const originalInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-		const restoredInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+		const originalInput = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, service.create()));
+		const restoredInput = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, service.create()));
 
-		const originalModel = await originalInput.resolve();
+		const originalModel = disposables.add(await originalInput.resolve());
 		originalModel.textEditorModel?.setValue(content);
 
 		const backup = await originalModel.backup(CancellationToken.None);
 		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: restoredInput.resource };
 		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
 
-		const restoredModel = await restoredInput.resolve();
+		const restoredModel = disposables.add(await restoredInput.resolve());
 
 		assert.strictEqual(restoredModel.textEditorModel?.getValue(), content);
 		assert.strictEqual(restoredModel.isDirty(), true);
-
-		originalInput.dispose();
-		originalModel.dispose();
-		restoredInput.dispose();
-		restoredModel.dispose();
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

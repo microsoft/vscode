@@ -220,11 +220,11 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 
 	constructor(
 		readonly id: string,
-		private key: string,
-		private memento: MementoObject,
-		private limit: number,
-		private editorGroupService: IEditorGroupsService,
-		private configurationService: ITextResourceConfigurationService
+		private readonly key: string,
+		private readonly memento: MementoObject,
+		private readonly limit: number,
+		private readonly editorGroupService: IEditorGroupsService,
+		private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super();
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 
 /**
  * An object holding strings shared by multiple parts of the terminal
@@ -14,66 +14,32 @@ export const terminalStrings = {
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
-	actionCategory: {
-		value: localize('terminalCategory', "Terminal"),
-		original: 'Terminal'
-	},
-	focus: {
-		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
-		original: 'Focus Terminal'
-	},
+	typeTask: localize('task', "Task"),
+	typeLocal: localize('local', "Local"),
+	actionCategory: localize2('terminalCategory', "Terminal"),
+	focus: localize2('workbench.action.terminal.focus', "Focus Terminal"),
+	focusAndHideAccessibleBuffer: localize2('workbench.action.terminal.focusAndHideAccessibleBuffer', "Focus Terminal and Hide Accessible Buffer"),
 	kill: {
-		value: localize('killTerminal', "Kill Terminal"),
-		original: 'Kill Terminal',
+		...localize2('killTerminal', "Kill Terminal"),
 		short: localize('killTerminal.short', "Kill"),
 	},
-	moveToEditor: {
-		value: localize('moveToEditor', "Move Terminal into Editor Area"),
-		original: 'Move Terminal into Editor Area',
-	},
-	moveToTerminalPanel: {
-		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
-		original: 'Move Terminal into Panel'
-	},
-	changeIcon: {
-		value: localize('workbench.action.terminal.changeIcon', "Change Icon..."),
-		original: 'Change Icon...'
-	},
-	changeColor: {
-		value: localize('workbench.action.terminal.changeColor', "Change Color..."),
-		original: 'Change Color...'
-	},
+	moveToEditor: localize2('moveToEditor', "Move Terminal into Editor Area"),
+	moveIntoNewWindow: localize2('moveIntoNewWindow', "Move Terminal into New Window"),
+	moveToTerminalPanel: localize2('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
+	changeIcon: localize2('workbench.action.terminal.changeIcon', "Change Icon..."),
+	changeColor: localize2('workbench.action.terminal.changeColor', "Change Color..."),
 	split: {
-		value: localize('splitTerminal', "Split Terminal"),
-		original: 'Split Terminal',
+		...localize2('splitTerminal', "Split Terminal"),
 		short: localize('splitTerminal.short', "Split"),
 	},
-	unsplit: {
-		value: localize('unsplitTerminal', "Unsplit Terminal"),
-		original: 'Unsplit Terminal'
-	},
-	rename: {
-		value: localize('workbench.action.terminal.rename', "Rename..."),
-		original: 'Rename...'
-	},
-	toggleSizeToContentWidth: {
-		value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
-		original: 'Toggle Size to Content Width'
-	},
-	focusHover: {
-		value: localize('workbench.action.terminal.focusHover', "Focus Hover"),
-		original: 'Focus Hover'
-	},
-	sendSequence: {
-		value: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
-		original: 'Send Custom Sequence To Terminal'
-	},
-	newWithCwd: {
-		value: localize('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
-		original: 'Create New Terminal Starting in a Custom Working Directory'
-	},
-	renameWithArgs: {
-		value: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
-		original: 'Rename the Currently Active Terminal'
-	}
+	unsplit: localize2('unsplitTerminal', "Unsplit Terminal"),
+	rename: localize2('workbench.action.terminal.rename', "Rename..."),
+	toggleSizeToContentWidth: localize2('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
+	focusHover: localize2('workbench.action.terminal.focusHover', "Focus Hover"),
+	sendSequence: localize2('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
+	newWithCwd: localize2('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
+	renameWithArgs: localize2('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
+	stickyScroll: localize2('stickyScroll', "Sticky Scroll"),
+	scrollToPreviousCommand: localize2('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"),
+	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command")
 };

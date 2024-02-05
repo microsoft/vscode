@@ -74,6 +74,10 @@ class RenameSkeleton {
 			return res;
 		}
 
+		// we are here when no provider prepared a location which means we can
+		// just rely on the word under cursor and start with the first provider
+		this._providerRenameIdx = 0;
+
 		const word = this.model.getWordAtPosition(this.position);
 		if (!word) {
 			return {
@@ -250,7 +254,7 @@ class RenameController implements IEditorContribution {
 				respectAutoSaveConfig: true
 			}).then(result => {
 				if (result.ariaSummary) {
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, inputFieldResult.newName, result.ariaSummary));
 				}
 			}).catch(err => {
 				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));

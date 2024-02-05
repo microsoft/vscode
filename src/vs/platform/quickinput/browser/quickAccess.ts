@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessProviderRunOptions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
@@ -92,6 +92,9 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			}
 		}
 
+		// Store the existing selection if there was one.
+		const visibleSelection = visibleQuickAccess?.picker?.valueSelection;
+
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const disposables = new DisposableStore();
@@ -112,7 +115,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		let pickPromise: DeferredPromise<IQuickPickItem[]> | undefined = undefined;
 		if (pick) {
 			pickPromise = new DeferredPromise<IQuickPickItem[]>();
-			disposables.add(once(picker.onWillAccept)(e => {
+			disposables.add(Event.once(picker.onWillAccept)(e => {
 				e.veto();
 				picker.hide();
 			}));
@@ -131,7 +134,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		// Finally, trigger disposal and cancellation when the picker
 		// hides depending on items selected or not.
-		once(picker.onDidHide)(() => {
+		Event.once(picker.onDidHide)(() => {
 			if (picker.selectedItems.length === 0) {
 				cts.cancel();
 			}
@@ -147,6 +150,11 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// may not call this and then our disposables would leak that rely
 		// on the onDidHide event.
 		picker.show();
+
+		// If the previous picker had a selection, we should set that in the new picker.
+		if (visibleSelection) {
+			picker.valueSelection = visibleSelection;
+		}
 
 		// Pick mode: return with promise
 		if (pick) {

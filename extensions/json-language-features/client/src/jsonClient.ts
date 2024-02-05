@@ -6,7 +6,7 @@
 export type JSONLanguageStatus = { schemas: string[] };
 
 import {
-	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
+	workspace, window, languages, commands, OutputChannel, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
@@ -19,6 +19,7 @@ import {
 
 import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
+import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -51,7 +52,14 @@ interface DocumentSortingParams {
 }
 
 namespace DocumentSortingRequest {
-	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+	export interface ITextEdit {
+		range: {
+			start: { line: number; character: number };
+			end: { line: number; character: number };
+		};
+		newText: string;
+	}
+	export const type: RequestType<DocumentSortingParams, ITextEdit[], any> = new RequestType('json/sort');
 }
 
 export interface ISchemaAssociations {
@@ -119,6 +127,9 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 export interface Runtime {
 	schemaRequests: SchemaRequestService;
 	telemetry?: TelemetryReporter;
+	readonly timer: {
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
+	};
 }
 
 export interface SchemaRequestService {
@@ -134,13 +145,51 @@ let jsoncFoldingLimit = 5000;
 let jsonColorDecoratorLimit = 5000;
 let jsoncColorDecoratorLimit = 5000;
 
-export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
+export interface AsyncDisposable {
+	dispose(): Promise<void>;
+}
 
-	const toDispose = context.subscriptions;
+export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
+	const outputChannel = window.createOutputChannel(languageServerDescription);
+
+	const languageParticipants = getLanguageParticipants();
+	context.subscriptions.push(languageParticipants);
+
+	let client: Disposable | undefined = await startClientWithParticipants(context, languageParticipants, newLanguageClient, outputChannel, runtime);
+
+	let restartTrigger: Disposable | undefined;
+	languageParticipants.onDidChange(() => {
+		if (restartTrigger) {
+			restartTrigger.dispose();
+		}
+		restartTrigger = runtime.timer.setTimeout(async () => {
+			if (client) {
+				outputChannel.appendLine('Extensions have changed, restarting JSON server...');
+				outputChannel.appendLine('');
+				const oldClient = client;
+				client = undefined;
+				await oldClient.dispose();
+				client = await startClientWithParticipants(context, languageParticipants, newLanguageClient, outputChannel, runtime);
+			}
+		}, 2000);
+	});
+
+	return {
+		dispose: async () => {
+			restartTrigger?.dispose();
+			await client?.dispose();
+			outputChannel.dispose();
+		}
+	};
+}
+
+async function startClientWithParticipants(context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, outputChannel: OutputChannel, runtime: Runtime): Promise<AsyncDisposable> {
+
+	const toDispose: Disposable[] = [];
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-	const documentSelector = ['json', 'jsonc'];
+	const documentSelector = languageParticipants.documentSelector;
 
 	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem('status.json.resolveError', StatusBarAlignment.Right, 0);
 	schemaResolutionErrorStatusBarItem.name = l10n.t('JSON: Schema Resolution Error');
@@ -163,25 +212,14 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
+
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
-				const document = textEditor.document;
-				const filesConfig = workspace.getConfiguration('files', document);
-				const options: SortOptions = {
-					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
-					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
-					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
-					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
-					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
-				};
-				const params: DocumentSortingParams = {
-					uri: document.uri.toString(),
-					options
-				};
-				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				const documentOptions = textEditor.options;
+				const textEdits = await getSortTextEdits(textEditor.document, documentOptions.tabSize, documentOptions.insertSpaces);
 				const success = await textEditor.edit(mutator => {
 					for (const edit of textEdits) {
 						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
@@ -310,6 +348,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	};
 
+	clientOptions.outputChannel = outputChannel;
 	// Create the language client and start the client.
 	const client = newLanguageClient('json', languageServerDescription, clientOptions);
 	client.registerProposedFeatures();
@@ -471,7 +510,36 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	}
 
-	return client;
+	async function getSortTextEdits(document: TextDocument, tabSize: string | number = 4, insertSpaces: string | boolean = true): Promise<TextEdit[]> {
+		const filesConfig = workspace.getConfiguration('files', document);
+		const options: SortOptions = {
+			tabSize: Number(tabSize),
+			insertSpaces: Boolean(insertSpaces),
+			trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+			trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+			insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+		};
+		const params: DocumentSortingParams = {
+			uri: document.uri.toString(),
+			options
+		};
+		const edits = await client.sendRequest(DocumentSortingRequest.type, params);
+		// Here we convert the JSON objects to real TextEdit objects
+		return edits.map((edit) => {
+			return new TextEdit(
+				new Range(edit.range.start.line, edit.range.start.character, edit.range.end.line, edit.range.end.character),
+				edit.newText
+			);
+		});
+	}
+
+	return {
+		dispose: async () => {
+			await client.stop();
+			toDispose.forEach(d => d.dispose());
+			rangeFormatting?.dispose();
+		}
+	};
 }
 
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {

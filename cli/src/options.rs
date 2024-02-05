@@ -7,7 +7,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::constants::{APPLICATION_NAME_MAP, PRODUCT_NAME_LONG_MAP, SERVER_NAME_MAP};
+use crate::constants::SERVER_NAME_MAP;
 
 #[derive(clap::ValueEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Quality {
@@ -38,30 +38,12 @@ impl Quality {
 		}
 	}
 
-	/// Product long name
-	pub fn get_long_name(&self) -> &'static str {
-		PRODUCT_NAME_LONG_MAP
-			.as_ref()
-			.and_then(|m| m.get(self))
-			.map(|s| s.as_str())
-			.unwrap_or("Code - OSS")
-	}
-
-	/// Product application name
-	pub fn get_application_name(&self) -> &'static str {
-		APPLICATION_NAME_MAP
-			.as_ref()
-			.and_then(|m| m.get(self))
-			.map(|s| s.as_str())
-			.unwrap_or("code")
-	}
-
 	/// Server application name
 	pub fn server_entrypoint(&self) -> String {
 		let mut server_name = SERVER_NAME_MAP
 			.as_ref()
 			.and_then(|m| m.get(self))
-			.map(|s| s.as_str())
+			.map(|s| s.server_application_name.as_str())
 			.unwrap_or("code-server-oss")
 			.to_string();
 

@@ -49,7 +49,6 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		function findName(cmd: string): string {
 
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
-			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
 			const WINPTY = /\\pipe\\winpty-control/i;
 			const CONPTY = /conhost\.exe.+--headless/i;
@@ -103,11 +102,6 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				}
 			}
 
-			// find Electron node.js processes
-			if (NODEJS_PROCESS_HINT.exec(cmd)) {
-				return `electron-nodejs (${cmd})`;
-			}
-
 			return cmd;
 		}
 
@@ -115,13 +109,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			const cleanUNCPrefix = (value: string): string => {
 				if (value.indexOf('\\\\?\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('\\??\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('"\\\\?\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else if (value.indexOf('"\\??\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else {
 					return value;
 				}
@@ -169,10 +163,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							reject(new Error(`Root process ${rootPid} not found`));
 						}
 					});
-				},
-					// Workaround duplicate enum identifiers issue in @vscode/windows-process-tree
-					// Ref https://github.com/microsoft/vscode/pull/179508
-					(windowsProcessTree.ProcessDataFlag as any).CommandLine | (windowsProcessTree.ProcessDataFlag as any).Memory);
+				}, windowsProcessTree.ProcessDataFlag.CommandLine | windowsProcessTree.ProcessDataFlag.Memory);
 			});
 		} else {	// OS X & Linux
 			function calculateLinuxCpuUsage() {

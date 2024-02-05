@@ -78,7 +78,7 @@ export default abstract class BaseErrorTelemetry {
 
 	private _onErrorEvent(err: any): void {
 
-		if (!err) {
+		if (!err || err.code) {
 			return;
 		}
 
@@ -89,7 +89,7 @@ export default abstract class BaseErrorTelemetry {
 
 		// If it's the no telemetry error it doesn't get logged
 		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
-		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || err?.message?.includes('Unable to read file')) {
+		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 

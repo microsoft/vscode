@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { addSetting, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import type { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 const formattingOptions = { eol: '\n', insertSpaces: false, tabSize: 4 };
 
 suite('SettingsMerge - Merge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify({ 'a': 1 });
@@ -744,6 +747,8 @@ suite('SettingsMerge - Merge', () => {
 
 suite('SettingsMerge - Compute Remote Content', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('local content is returned when there are no ignored settings', async () => {
 		const localContent = stringify({
 			'a': 1,
@@ -804,6 +809,8 @@ suite('SettingsMerge - Compute Remote Content', () => {
 });
 
 suite('SettingsMerge - Add Setting', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Insert after a setting without comments', () => {
 

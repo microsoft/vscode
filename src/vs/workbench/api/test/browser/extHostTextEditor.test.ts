@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/common/extHostTypes';
-import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { Lazy } from 'vs/base/common/lazy';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { ExtHostTextEditor, ExtHostTextEditorOptions } from 'vs/workbench/api/common/extHostTextEditor';
+import { Range, TextEditorLineNumbersStyle } from 'vs/workbench/api/common/extHostTypes';
 
 suite('ExtHostTextEditor', () => {
 
@@ -21,7 +22,7 @@ suite('ExtHostTextEditor', () => {
 	], '\n', 1, 'text', false);
 
 	setup(() => {
-		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4, originalIndentSize: 'tabSize' }, [], 1);
 	});
 
 	test('disposed editor', () => {
@@ -48,7 +49,7 @@ suite('ExtHostTextEditor', () => {
 					applyCount += 1;
 					return Promise.resolve(true);
 				}
-			}, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+			}, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4, originalIndentSize: 'tabSize' }, [], 1);
 
 		await editor.value.edit(edit => { });
 		assert.strictEqual(applyCount, 0);
@@ -59,6 +60,8 @@ suite('ExtHostTextEditor', () => {
 		await editor.value.edit(edit => { edit.delete(new Range(0, 0, 1, 1)); });
 		assert.strictEqual(applyCount, 2);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('ExtHostTextEditorOptions', () => {
@@ -91,6 +94,7 @@ suite('ExtHostTextEditorOptions', () => {
 		opts = new ExtHostTextEditorOptions(mockProxy, '1', {
 			tabSize: 4,
 			indentSize: 4,
+			originalIndentSize: 'tabSize',
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
@@ -102,7 +106,7 @@ suite('ExtHostTextEditorOptions', () => {
 		calls = null!;
 	});
 
-	function assertState(opts: ExtHostTextEditorOptions, expected: IResolvedTextEditorConfiguration): void {
+	function assertState(opts: ExtHostTextEditorOptions, expected: Omit<IResolvedTextEditorConfiguration, 'originalIndentSize'>): void {
 		const actual = {
 			tabSize: opts.value.tabSize,
 			indentSize: opts.value.indentSize,
@@ -230,7 +234,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assert.deepStrictEqual(calls, [{ indentSize: 4 }]);
 	});
 
 	test('can change indentSize to positive integer', () => {
@@ -464,7 +468,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assert.deepStrictEqual(calls, [{ indentSize: 4 }]);
 	});
 
 	test('can do bulk updates 1', () => {
@@ -512,4 +516,5 @@ suite('ExtHostTextEditorOptions', () => {
 		assert.deepStrictEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: RenderLineNumbersType.Relative }]);
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

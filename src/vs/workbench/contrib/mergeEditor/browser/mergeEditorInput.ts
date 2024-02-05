@@ -8,6 +8,7 @@ import { autorun } from 'vs/base/common/observable';
 import { isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -60,9 +61,10 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
-		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService);
+		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
 	}
 
 	override dispose(): void {
@@ -106,7 +108,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 			}));
 			this._inputModel = inputModel;
 
-			this._register(autorun('fire dirty event', (reader) => {
+			this._register(autorun(reader => {
+				/** @description fire dirty event */
 				inputModel.isDirty.read(reader);
 				this._onDidChangeDirty.fire();
 			}));
