@@ -84,7 +84,7 @@ abstract class BaseZoomAction extends Action2 {
 
 		let level: number;
 		if (typeof levelOrReset === 'number') {
-			level = levelOrReset;
+			level = Math.round(levelOrReset); // prevent fractional zoom levels
 		} else {
 
 			// reset to 0 when we apply to all windows
@@ -102,8 +102,6 @@ abstract class BaseZoomAction extends Action2 {
 				}
 			}
 		}
-
-		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
 		if (level > MAX_ZOOM_LEVEL || level < MIN_ZOOM_LEVEL) {
 			return; // https://github.com/microsoft/vscode/issues/48357
