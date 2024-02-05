@@ -1395,9 +1395,8 @@ class InlineEditAdapter {
 		}
 
 		const langResult: languages.IInlineEdit = {
-			position: typeConvert.Position.from(result.position),
 			text: result.text,
-			replaceRange: typeConvert.Range.from(result.replaceRange),
+			range: typeConvert.Range.from(result.range),
 			accepted: acceptCommand,
 			rejected: rejectCommand,
 		};

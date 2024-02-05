@@ -7931,9 +7931,8 @@ declare namespace monaco.languages {
 	}
 
 	export interface IInlineEdit {
-		position: IPosition;
 		text: string;
-		replaceRange?: IRange;
+		range: IRange;
 		accepted?: Command;
 		rejected?: Command;
 	}

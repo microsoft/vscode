@@ -88,15 +88,7 @@ export class InlineEditController extends Disposable {
 				return;
 			}
 			const pos = e.position;
-
-			if (gt.replaceRange && Range.containsPosition(gt.replaceRange, pos)) {
-				this._isCursorAtInlineEditContext.set(true);
-			}
-			else if (gt.replaceRange === undefined && Position.equals(gt.position, pos)) {
-				this._isCursorAtInlineEditContext.set(true);
-			} else {
-				this._isCursorAtInlineEditContext.set(false);
-			}
+			this._isCursorAtInlineEditContext.set(Range.containsPosition(gt.range, pos));
 		}));
 
 		//Perform stuff when the current edit has changed
@@ -168,12 +160,15 @@ export class InlineEditController extends Disposable {
 		if (!edit) {
 			return;
 		}
-		const ghostText = new GhostText(edit.position.lineNumber, [new GhostTextPart(edit.position.column, edit.text.split('\n'), false)]);
+		console.log('got inline edit\n\n', JSON.stringify(edit, undefined, 2));
+		const line = edit.range.endLineNumber;
+		const column = edit.range.endColumn;
+		const ghostText = new GhostText(line, [new GhostTextPart(column, edit.text.split('\n'), false)]);
 		const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
 			ghostText: constObservable(ghostText),
 			minReservedLineCount: constObservable(0),
 			targetTextModel: constObservable(this.editor.getModel() ?? undefined),
-			removeRange: constObservable(edit.replaceRange)
+			range: constObservable(edit.range),
 		});
 		this._currentEdit.set(new InlineEditWidget(instance, edit), undefined);
 	}
@@ -204,12 +199,7 @@ export class InlineEditController extends Disposable {
 			text = data.text.substring(1);
 		}
 		this.editor.pushUndoStop();
-		if (data.replaceRange) {
-			this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.replaceRange), text)]);
-		}
-		else {
-			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), text)]);
-		}
+		this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.range), text)]);
 		if (data.accepted) {
 			this._commandService.executeCommand(data.accepted.id, ...data.accepted.arguments || []);
 		}
@@ -223,10 +213,7 @@ export class InlineEditController extends Disposable {
 		if (!data) {
 			return;
 		}
-		const position = data.replaceRange ?
-			Position.lift({ lineNumber: data.replaceRange.startLineNumber, column: data.replaceRange.startColumn }) :
-			Position.lift(data.position);
-
+		const position = Position.lift({ lineNumber: data.range.startLineNumber, column: data.range.startColumn });
 		this.editor.setPosition(position);
 		//if position is outside viewports, scroll to it
 		this.editor.revealPositionInCenterIfOutsideViewport(position);
@@ -247,11 +234,9 @@ export class InlineEditController extends Disposable {
 		}
 		const edit = currentEdit.edit;
 		const model = currentEdit.widget.model;
-		if (edit.replaceRange) {
-			const overReplaceRange = Range.containsPosition(edit.replaceRange, range.getStartPosition()) || Range.containsPosition(edit.replaceRange, range.getEndPosition());
-			if (overReplaceRange) {
-				return true;
-			}
+		const overReplaceRange = Range.containsPosition(edit.range, range.getStartPosition()) || Range.containsPosition(edit.range, range.getEndPosition());
+		if (overReplaceRange) {
+			return true;
 		}
 		const ghostText = model.ghostText.get();
 		if (ghostText) {

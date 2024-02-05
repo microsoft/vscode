@@ -5,10 +5,7 @@
 
 declare module 'vscode' {
 	export class InlineEdit {
-		/**
-		 * The position of the edit.
-		 */
-		position: Position;
+
 
 		/**
 		 * The new text for this edit.
@@ -16,9 +13,10 @@ declare module 'vscode' {
 		text: string;
 
 		/**
-		 * An optional range that will be replaced by the text of the inline edit.
+		 * An range that will be replaced by the text of the inline edit.
+		 * If change is only additive, this can be empty (same start and end position).
 		 */
-		replaceRange?: Range;
+		range: Range;
 
 		/**
 		 * An optional command that will be executed after applying the inline edit.
@@ -33,11 +31,10 @@ declare module 'vscode' {
 		/**
 		 * Creates a new inline edit.
 		 *
-		 * @param position The position of the edit.
 		 * @param text The new text for this edit.
-		 * @param replaceRange An optional range that will be replaced by the text of the inline edit.
+		 * @param replaceRange An range that will be replaced by the text of the inline edit.
 		 */
-		constructor(position: Position, text: string, replaceRange?: Range);
+		constructor(text: string, range: Range);
 	}
 
 	export interface InlineEditContext {

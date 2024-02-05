@@ -21,6 +21,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
+import { ttPolicy } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import { GhostText } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineEdit/browser/utils';
 
@@ -29,7 +30,7 @@ export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
-	readonly removeRange?: IObservable<IRange | undefined>;
+	readonly range: IObservable<IRange | undefined>;
 }
 
 export class GhostTextWidget extends Disposable {
@@ -59,7 +60,10 @@ export class GhostTextWidget extends Disposable {
 		if (!ghostText) {
 			return undefined;
 		}
-		const removeRange = this.model.removeRange?.read(reader);
+		let removeRange = this.model.range?.read(reader);
+		if (removeRange && removeRange.startLineNumber === removeRange.endLineNumber && removeRange.startColumn === removeRange.endColumn) {
+			removeRange = undefined;
+		}
 
 		const inlineTexts: { column: number; text: string; preview: boolean }[] = [];
 		const additionalLines: LineData[] = [];
@@ -124,7 +128,7 @@ export class GhostTextWidget extends Disposable {
 			inlineTexts,
 			additionalLines,
 			hiddenRange,
-			lineNumber: removeRange ? removeRange.endLineNumber : ghostText.lineNumber,
+			lineNumber: ghostText.lineNumber,
 			additionalReservedLineCount: this.model.minReservedLineCount.read(reader),
 			targetTextModel: textModel,
 			removeRange,

@@ -2145,9 +2145,8 @@ export interface MappedEditsProvider {
 }
 
 export interface IInlineEdit {
-	position: IPosition;
 	text: string;
-	replaceRange?: IRange;
+	range: IRange;
 	accepted?: Command;
 	rejected?: Command;
 }
