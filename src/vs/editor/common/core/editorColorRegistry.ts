@@ -61,7 +61,6 @@ export const editorUnnecessaryCodeOpacity = registerColor('editorUnnecessaryCode
 
 export const ghostTextBorder = registerColor('editorGhostText.border', { dark: null, light: null, hcDark: Color.fromHex('#fff').transparent(0.8), hcLight: Color.fromHex('#292929').transparent(0.8) }, nls.localize('editorGhostTextBorder', 'Border color of ghost text in the editor.'));
 export const ghostTextForeground = registerColor('editorGhostText.foreground', { dark: Color.fromHex('#ffffff56'), light: Color.fromHex('#0007'), hcDark: null, hcLight: null }, nls.localize('editorGhostTextForeground', 'Foreground color of the ghost text in the editor.'));
-export const ghostTextForegroundSelected = registerColor('editorGhostText.selected', { dark: Color.fromHex('#ffffff90'), light: Color.fromHex('#0004'), hcDark: null, hcLight: null }, nls.localize('editorGhostTextForegroundSelected', 'Foreground color of the selected ghost text in the editor.'));
 export const ghostTextBackground = registerColor('editorGhostText.background', { dark: null, light: null, hcDark: null, hcLight: null }, nls.localize('editorGhostTextBackground', 'Background color of the ghost text in the editor.'));
 
 const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
