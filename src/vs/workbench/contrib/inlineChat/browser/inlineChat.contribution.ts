@@ -20,6 +20,10 @@ import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browse
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 
+import { StartSessionAction, HoldToSpeak } from '../browser/inlineChatActions2';
+registerAction2(StartSessionAction);
+registerAction2(HoldToSpeak);
+
 
 // --- browser
 
