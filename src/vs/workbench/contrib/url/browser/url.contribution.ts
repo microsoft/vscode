@@ -66,12 +66,12 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 registerWorkbenchContribution2(
 	TrustedDomainsFileSystemProvider.ID,
 	TrustedDomainsFileSystemProvider,
-	WorkbenchPhase.BlockRestore
+	WorkbenchPhase.BlockRestore // registration only
 );
 registerWorkbenchContribution2(
 	ExternalUriResolverContribution.ID,
 	ExternalUriResolverContribution,
-	WorkbenchPhase.BlockRestore
+	WorkbenchPhase.BlockRestore // registration only
 );
 
 

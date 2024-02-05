@@ -425,7 +425,7 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 	}
 }
 
-registerWorkbenchContribution2(ExtensionUrlBootstrapHandler.ID, ExtensionUrlBootstrapHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ExtensionUrlBootstrapHandler.ID, ExtensionUrlBootstrapHandler, WorkbenchPhase.BlockRestore /* registration only */);
 
 class ManageAuthorizedExtensionURIsAction extends Action2 {
 
