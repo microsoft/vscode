@@ -466,7 +466,7 @@ export class AudioCue {
 
 	public static readonly terminalCommandSucceded = AudioCue.register({
 		name: localize('audioCues.terminalCommandSucceded', 'Terminal Command Succeded'),
-		sound: Sound.error,
+		sound: Sound.terminalBell,
 		settingsKey: 'audioCues.terminalCommandSucceded',
 		alertSettingsKey: AccessibilityAlertSettingId.TerminalCommandSucceded,
 		alertMessage: localize('audioCues.terminalCommandSucceded.alertMessage', 'Command Succeded')
