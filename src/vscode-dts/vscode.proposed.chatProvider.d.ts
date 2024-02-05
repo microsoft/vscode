@@ -10,6 +10,8 @@ declare module 'vscode' {
 		part: string;
 	}
 
+	// @API extension ship a d.ts files for their options
+
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	 */

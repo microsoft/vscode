@@ -64,6 +64,9 @@ declare module 'vscode' {
 		 * If the request resulted in an error, this property defines the error details.
 		 */
 		errorDetails?: ChatAgentErrorDetails;
+
+		// TODO@API
+		// add CATCH-all signature [name:string]: string|boolean|number instead of `T extends...`
 	}
 
 	/**
