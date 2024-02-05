@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -30,6 +31,7 @@ export class RenameInputField implements IContentWidget {
 	private _position?: Position;
 	private _domNode?: HTMLElement;
 	private _input?: HTMLInputElement;
+	private _newNameCandidates?: NewSymbolNameCandidates;
 	private _label?: HTMLDivElement;
 	private _visible?: boolean;
 	private readonly _visibleContextKey: IContextKey<boolean>;
@@ -77,6 +79,11 @@ export class RenameInputField implements IContentWidget {
 			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 			this._domNode.appendChild(this._input);
 
+			// TODO@ulugbekna: add keyboard support for cycling through the candidates
+			this._newNameCandidates = new NewSymbolNameCandidates();
+			this._domNode.appendChild(this._newNameCandidates!.domNode);
+			this._disposables.add(this._newNameCandidates);
+
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
 			this._domNode.appendChild(this._label);
@@ -108,7 +115,7 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private _updateFont(): void {
-		if (!this._input || !this._label) {
+		if (!this._input || !this._label || !this._newNameCandidates) {
 			return;
 		}
 
@@ -116,6 +123,10 @@ export class RenameInputField implements IContentWidget {
 		this._input.style.fontFamily = fontInfo.fontFamily;
 		this._input.style.fontWeight = fontInfo.fontWeight;
 		this._input.style.fontSize = `${fontInfo.fontSize}px`;
+
+		this._newNameCandidates.domNode.style.fontFamily = fontInfo.fontFamily;
+		this._newNameCandidates.domNode.style.fontWeight = fontInfo.fontWeight;
+		this._newNameCandidates.domNode.style.fontSize = `${fontInfo.fontSize}px`;
 
 		this._label.style.fontSize = `${fontInfo.fontSize * 0.8}px`;
 	}
@@ -155,7 +166,7 @@ export class RenameInputField implements IContentWidget {
 		this._currentCancelInput?.(focusEditor);
 	}
 
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, newNameCandidates: Promise<string[]>, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {
 
 		this._domNode!.classList.toggle('preview', supportPreview);
 
@@ -167,26 +178,39 @@ export class RenameInputField implements IContentWidget {
 
 		const disposeOnDone = new DisposableStore();
 
+		newNameCandidates.then(candidates => {
+			this._newNameCandidates!.setCandidates(candidates);
+		});
+
 		return new Promise<RenameInputFieldResult | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
+				this._newNameCandidates?.clearCandidates();
 				resolve(focusEditor);
 				return true;
 			};
 
 			this._currentAcceptInput = (wantsPreview) => {
-				if (this._input!.value.trim().length === 0 || this._input!.value === value) {
+				if (this._input!.value.trim().length === 0) {
 					// empty or whitespace only or not changed
+					this.cancelInput(true);
+					return;
+				}
+
+				const selectedCandidate = this._newNameCandidates?.selectedCandidate;
+				if ((selectedCandidate === undefined && this._input!.value === value) || selectedCandidate === value) {
 					this.cancelInput(true);
 					return;
 				}
 
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
+				this._newNameCandidates?.clearCandidates();
+
 				resolve({
-					newName: this._input!.value,
+					newName: selectedCandidate ?? this._input!.value,
 					wantsPreview: supportPreview && wantsPreview
 				});
 			};
@@ -220,5 +244,47 @@ export class RenameInputField implements IContentWidget {
 		this._visible = false;
 		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
+	}
+}
+
+class NewSymbolNameCandidates implements IDisposable {
+
+	public readonly domNode: HTMLDivElement;
+
+	private _candidates: HTMLSpanElement[] = [];
+	private _disposables = new DisposableStore();
+
+	constructor() {
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'new-name-candidates-container';
+		this.domNode.tabIndex = -1; // Make the div unfocusable
+	}
+
+	get selectedCandidate(): string | undefined {
+		const activeDocument = dom.getActiveDocument();
+		const activeElement = activeDocument.activeElement;
+		const index = this._candidates.indexOf(activeElement as HTMLSpanElement);
+		return index !== -1 ? this._candidates[index].innerText : undefined;
+	}
+
+	setCandidates(candidates: string[]): void {
+		for (let i = 0; i < candidates.length; i++) {
+			const candidate = candidates[i];
+			const candidateElt = document.createElement('span');
+			candidateElt.className = 'new-name-candidate';
+			candidateElt.innerText = candidate;
+			candidateElt.tabIndex = 0;
+			this.domNode.appendChild(candidateElt);
+			this._candidates.push(candidateElt);
+		}
+	}
+
+	clearCandidates(): void {
+		this.domNode.innerText = ''; // TODO@ulugbekna: make sure this is the right way to clean up children
+		this._candidates = [];
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
 	}
 }
