@@ -85,6 +85,7 @@ export class GhostTextWidget extends Disposable {
 			additionalLines[index] = additionalLinesForIndex;
 		}
 
+		const additionalReservedLineCount = this.model.minReservedLineCount.read(reader);
 		const hiddenRanges: (ColumnRange | undefined)[] = [];
 		const lineNumbers: number[] = [];
 
@@ -135,7 +136,7 @@ export class GhostTextWidget extends Disposable {
 			additionalLines,
 			hiddenRanges,
 			lineNumbers,
-			additionalReservedLineCount: this.model.minReservedLineCount.read(reader),
+			additionalReservedLineCount,
 			targetTextModel: textModel,
 		};
 	});

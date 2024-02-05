@@ -219,6 +219,7 @@ export class InlineCompletionsModel extends Disposable {
 			if (!isSuggestionPreviewEnabled && !augmentedCompletion) { return undefined; }
 
 			const inlineCompletion = augmentedCompletion?.completion;
+			const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
 
 			const mode = this._suggestPreviewMode.read(reader);
 
@@ -233,16 +234,13 @@ export class InlineCompletionsModel extends Disposable {
 
 			const ghostTexts: GhostText[] = [];
 			for (const [index, edit] of edits.entries()) {
-				const suggestCompletion = edit.removeCommonPrefix(model);
-				const augmentedCompletion = this._computeAugmentedCompletion(suggestCompletion, reader);
-				const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
 				const selections = this.selections.read(reader);
 				const newGhostText = edit.computeGhostText(model, mode, selections[index].getPosition(), editPreviewLength);
 
 				// Show an invisible ghost text to reserve space
 				ghostTexts.push(newGhostText ?? new GhostText(edit.range.endLineNumber, []));
 			}
-			return { ghostTexts, edits, editorSelections, inlineCompletion, suggestItem };
+			return { ghostTexts, inlineCompletion, suggestItem, edits, editorSelections };
 		} else {
 			if (!this._isActive.read(reader)) { return undefined; }
 			const item = this.selectedInlineCompletion.read(reader);

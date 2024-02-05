@@ -264,7 +264,7 @@ export class InlineCompletionsController extends Disposable {
 	private updateObservables(tx: ITransaction, changeReason: VersionIdChangeReason): void {
 		const newModel = this.editor.getModel();
 		this._textModelVersionId.set(newModel?.getVersionId() ?? -1, tx, changeReason);
-		this._selections.set(this.editor.getSelections() ?? [], tx);
+		this._selections.set(this.editor.getSelections() ?? [new Selection(1, 1, 1, 1)], tx);
 	}
 
 	public shouldShowHoverAt(range: Range) {
