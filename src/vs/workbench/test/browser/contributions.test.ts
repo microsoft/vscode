@@ -7,10 +7,17 @@ import * as assert from 'assert';
 import { DeferredPromise } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isCI } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { WorkbenchPhase, WorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ITestInstantiationService, TestFileEditorInput, TestInMemoryFileSystemProvider, TestServiceAccessor, TestSingletonFileEditorInput, createEditorPart, registerTestEditor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Contributions', () => {
 	const disposables = new DisposableStore();
@@ -21,15 +28,30 @@ suite('Contributions', () => {
 	let bCreated: boolean;
 	let bCreatedPromise: DeferredPromise<void>;
 
+	const TEST_EDITOR_ID = 'MyTestEditorForContributions';
+	const TEST_EDITOR_INPUT_ID = 'testEditorInputForContributions';
+
+	async function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[EditorPart, EditorService]> {
+		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
+
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
+
+		return [part, editorService];
+	}
+
 	setup(() => {
 		aCreated = false;
 		aCreatedPromise = new DeferredPromise<void>();
 
 		bCreated = false;
 		bCreatedPromise = new DeferredPromise<void>();
+
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(TestSingletonFileEditorInput)], TEST_EDITOR_INPUT_ID));
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.clear();
 	});
 
@@ -171,6 +193,49 @@ suite('Contributions', () => {
 
 		await bCreatedPromise.p;
 		assert.ok(bCreated);
+	});
+
+	test('contribution on editor - editor exists before start', async function () {
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
+
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+
+		const [, editorService] = await createEditorService(instantiationService);
+
+		const input = disposables.add(new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID));
+		await editorService.openEditor(input, { pinned: true });
+
+		registry.registerWorkbenchContribution2('a', TestContributionA, { editorTypeId: TEST_EDITOR_ID });
+		registry.start(instantiationService.createChild(new ServiceCollection([IEditorService, editorService])));
+
+		await aCreatedPromise.p;
+		assert.ok(aCreated);
+
+		registry.registerWorkbenchContribution2('b', TestContributionB, { editorTypeId: TEST_EDITOR_ID });
+
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('my://resource-basics2'), TEST_EDITOR_INPUT_ID));
+		await editorService.openEditor(input2, { pinned: true }, SIDE_GROUP);
+
+		await bCreatedPromise.p;
+		assert.ok(bCreated);
+	});
+
+	test('contribution on editor - editor does not exist before start', async function () {
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
+
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+
+		const [, editorService] = await createEditorService(instantiationService);
+
+		const input = disposables.add(new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID));
+
+		registry.registerWorkbenchContribution2('a', TestContributionA, { editorTypeId: TEST_EDITOR_ID });
+		registry.start(instantiationService.createChild(new ServiceCollection([IEditorService, editorService])));
+
+		await editorService.openEditor(input, { pinned: true });
+
+		await aCreatedPromise.p;
+		assert.ok(aCreated);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
