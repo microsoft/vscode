@@ -44,11 +44,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -76,15 +74,6 @@ interface IVoiceChatSessionController {
 	clearInputPlaceholder(): void;
 }
 
-function getFocusedCodeEditor(editorService: IEditorService, codeEditorService: ICodeEditorService): ICodeEditor | null {
-	const codeEditor = getCodeEditor(codeEditorService.getFocusedCodeEditor());
-	if (codeEditor && !(codeEditor instanceof EmbeddedCodeEditorWidget)) {
-		return codeEditor;
-	}
-
-	return getCodeEditor(editorService.activeTextEditorControl);
-}
-
 class VoiceChatSessionControllerFactory {
 
 	static create(accessor: ServicesAccessor, context: 'inline'): Promise<IVoiceChatSessionController | undefined>;
@@ -96,7 +85,6 @@ class VoiceChatSessionControllerFactory {
 		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
 		const chatContributionService = accessor.get(IChatContributionService);
-		const codeEditorService = accessor.get(ICodeEditorService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
@@ -127,7 +115,7 @@ class VoiceChatSessionControllerFactory {
 			}
 
 			// Try with the inline chat
-			const activeCodeEditor = getFocusedCodeEditor(editorService, codeEditorService);
+			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
 			if (activeCodeEditor) {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat?.hasFocus()) {
@@ -149,7 +137,7 @@ class VoiceChatSessionControllerFactory {
 
 		// Inline Chat
 		if (context === 'inline') {
-			const activeCodeEditor = getFocusedCodeEditor(editorService, codeEditorService);
+			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
 			if (activeCodeEditor) {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat) {
@@ -794,7 +782,6 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IHostService private readonly hostService: IHostService,
 		@IChatService private readonly chatService: IChatService
@@ -850,7 +837,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 						localize('voice.keywordActivation.off', "Keyword activation is disabled."),
 						localize('voice.keywordActivation.chatInView', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the chat view."),
 						localize('voice.keywordActivation.quickChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the quick chat."),
-						localize('voice.keywordActivation.inlineChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor."),
+						localize('voice.keywordActivation.inlineChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor if possible."),
 						localize('voice.keywordActivation.chatInContext', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor or view depending on keyboard focus.")
 					],
 					'description': localize('voice.keywordActivation', "Controls whether the keyword phrase 'Hey Code' is recognized to start a voice chat session. Enabling this will start recording from the microphone but the audio is processed locally and never sent to a server."),
@@ -912,10 +899,12 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 				return InlineVoiceChatAction.ID;
 			case KeywordActivationContribution.SETTINGS_VALUE.QUICK_CHAT:
 				return QuickVoiceChatAction.ID;
-			case KeywordActivationContribution.SETTINGS_VALUE.CHAT_IN_CONTEXT:
-				if (getFocusedCodeEditor(this.editorService, this.codeEditorService)) {
+			case KeywordActivationContribution.SETTINGS_VALUE.CHAT_IN_CONTEXT: {
+				const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
+				if (activeCodeEditor?.hasWidgetFocus()) {
 					return InlineVoiceChatAction.ID;
 				}
+			}
 			default:
 				return VoiceChatInChatViewAction.ID;
 		}
