@@ -197,7 +197,6 @@
 		"--vscode-editorGhostText-background",
 		"--vscode-editorGhostText-border",
 		"--vscode-editorGhostText-foreground",
-		"--vscode-editorGhostText-selected",
 		"--vscode-editorGroup-border",
 		"--vscode-editorGroup-dropBackground",
 		"--vscode-editorGroup-dropIntoPromptBackground",
