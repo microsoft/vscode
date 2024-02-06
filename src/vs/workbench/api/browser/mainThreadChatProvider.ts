@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableMap } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -19,6 +19,7 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChatProvider implements MainThreadChatProviderShape {
 
 	private readonly _proxy: ExtHostChatProviderShape;
+	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
 	private readonly _pendingProgress = new Map<number, IProgress<IChatResponseFragment>>();
 
@@ -29,10 +30,14 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
+
+		this._proxy.$updateProviderList({ added: _chatProviderService.getProviders() });
+		this._store.add(_chatProviderService.onDidChangeProviders(this._proxy.$updateProviderList, this._proxy));
 	}
 
 	dispose(): void {
 		this._providerRegistrations.dispose();
+		this._store.dispose();
 	}
 
 	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void {
