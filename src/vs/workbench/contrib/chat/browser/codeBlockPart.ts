@@ -13,7 +13,7 @@ import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecy
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -256,11 +256,14 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 	}
 
 	layout(width: number): void {
-		const realContentHeight = this.editor.getContentHeight();
+		const contentHeight = this.getContentHeight();
 		const editorBorder = 2;
-		// TODO: Min added for testing. Compute proper height based on range
-		this.editor.layout({ width: width - editorBorder, height: Math.min(realContentHeight, 100) });
+		this.editor.layout({ width: width - editorBorder, height: contentHeight });
 		this.updatePaddingForLayout();
+	}
+
+	protected getContentHeight() {
+		return this.editor.getContentHeight();
 	}
 
 	async render(data: Data, width: number) {
@@ -323,8 +326,8 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 			buttonSeparator: undefined,
 			supportIcons: true
 		});
-
-		this.textModel = this._register(this.modelService.createModel('', null, undefined, true));
+		const x = URI.from({ scheme: 'ai', path: `chat-code-block-${Date.now()}.txt` });
+		this.textModel = this._register(this.modelService.createModel('', null, x, true));
 		this.editor.setModel(this.textModel);
 
 		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
@@ -455,6 +458,15 @@ export class LocalFileCodeBlockPart extends BaseCodeBlockPart<ILocalFileCodeBloc
 
 	get uri(): URI {
 		return this.currentCodeBlockData!.uri;
+	}
+
+	protected override getContentHeight() {
+		if (this.currentCodeBlockData?.range) {
+			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
+			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			return lineCount * lineHeight;
+		}
+		return super.getContentHeight();
 	}
 
 	protected override createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget {
