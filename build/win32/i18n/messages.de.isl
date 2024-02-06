@@ -7,4 +7,4 @@ RunAfter=%1 nach der Installation ausf�hren
 Other=Andere:
 SourceFile=%1-Quelldatei
 OpenWithCodeContextMenu=Mit %1 �ffnen
-UpdatingVisualStudioCode="Visual Studio Code wird aktualisiert..."
+UpdatingVisualStudioCode=Visual Studio Code wird aktualisiert...
