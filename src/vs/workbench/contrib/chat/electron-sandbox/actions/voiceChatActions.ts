@@ -47,6 +47,9 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -499,6 +502,39 @@ export class StartVoiceChatAction extends Action2 {
 			// fallback to Quick Voice Chat command
 			commandService.executeCommand(QuickVoiceChatAction.ID, context);
 		}
+	}
+}
+
+export class InstallVoiceChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.installVoiceChat';
+
+	constructor() {
+		super({
+			id: InstallVoiceChatAction.ID,
+			title: localize2('workbench.action.chat.startVoiceChat.label', "Use Microphone"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.mic,
+			menu: [{
+				id: MenuId.ChatExecute,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation',
+				order: -1
+			}, {
+				id: MENU_INLINE_CHAT_INPUT,
+				when: HasSpeechProvider.negate(),
+				group: 'main',
+				order: -1
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const extensionsViewlet = await paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true);
+		(extensionsViewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search('ms-vscode.vscode-speech');
+		extensionsViewlet?.focus();
 	}
 }
 
