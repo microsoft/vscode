@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -179,9 +179,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
 
-		const commandExecution = new DeferredPromise<void>();
-		token.onCancellationRequested(() => commandExecution.complete());
-		this._extHostChatProvider.allowListExtensionWhile(agent.extension.identifier, commandExecution.p);
+		this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: true }]);
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService);
 		try {
@@ -217,7 +215,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		} finally {
 			stream.close();
-			commandExecution.complete();
+			this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: false }]);
 		}
 	}
 
