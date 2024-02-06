@@ -135,7 +135,7 @@ elif [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
         fi
 	libc_path="$(echo "$libc_path" | tail -n +2)"    # remove first line
     done
-    if [ -z "$libc_path" ]; then
+    if [ "$found_required_glibc" = "0" ]; then
         echo "Warning: Missing GLIBC >= 2.28! from $libc_real_path"
     fi
 else
