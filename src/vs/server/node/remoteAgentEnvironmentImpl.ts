@@ -97,8 +97,14 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			await this._userDataProfilesService.createProfile(profile, profile);
 		}
 		type ProcessWithGlibc = NodeJS.Process & {
-			isUnsupportedGlibc: boolean;
+			glibcVersion?: string;
 		};
+		let isUnsupportedGlibc = false;
+		if (process.platform === 'linux') {
+			const glibcVersion = (process as ProcessWithGlibc).glibcVersion;
+			const minorVersion = glibcVersion ? parseInt(glibcVersion.split('.')[1]) : 28;
+			isUnsupportedGlibc = (minorVersion <= 27);
+		}
 		return {
 			pid: process.pid,
 			connectionToken: (this._connectionToken.type !== ServerConnectionTokenType.None ? this._connectionToken.value : ''),
@@ -118,7 +124,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				home: this._userDataProfilesService.profilesHome,
 				all: [...this._userDataProfilesService.profiles].map(profile => ({ ...profile }))
 			},
-			isUnsupportedGlibc: (process as ProcessWithGlibc).isUnsupportedGlibc
+			isUnsupportedGlibc
 		};
 	}
 
