@@ -10,6 +10,8 @@ import * as ansiColors from 'ansi-colors';
 import * as crypto from 'crypto';
 import * as through2 from 'through2';
 import { Stream } from 'stream';
+import { env } from 'process';
+import { fetch, RequestInit, ProxyAgent } from 'undici';
 
 export interface IFetchOptions {
 	base?: string;
@@ -43,6 +45,14 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 
 export async function fetchUrl(url: string, options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
 	const verbose = !!options.verbose ?? (!!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']);
+
+	// Proxy setup
+	let agent: ProxyAgent | undefined;
+	const proxyUrl = env['https_proxy'] || env['http_proxy'] || '';
+	if (proxyUrl !== '') {
+		agent = new ProxyAgent(proxyUrl);
+	}
+
 	try {
 		let startTime = 0;
 		if (verbose) {
@@ -54,6 +64,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 		try {
 			const response = await fetch(url, {
 				...options.nodeFetchOptions,
+				dispatcher: agent,
 				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
 			});
 			if (verbose) {
