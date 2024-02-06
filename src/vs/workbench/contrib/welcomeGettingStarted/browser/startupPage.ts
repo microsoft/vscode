@@ -95,6 +95,7 @@ export class StartupPageRunnerContribution implements IWorkbenchContribution {
 
 	private async run() {
 
+		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
