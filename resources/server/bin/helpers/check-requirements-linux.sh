@@ -84,7 +84,7 @@ while [ -n "$libstdcpp_path" ]; do
         found_required_glibcxx=1
         break
     fi
-    libstdcpp_path="$(echo "$libstdcpp_path" | tail -n +2)"    # remove first line
+    libstdcpp_path=$(echo "$libstdcpp_path" | tail -n +2)    # remove first line
 done
 if [ "$found_required_glibcxx" = "0" ]; then
     echo "Warning: Missing GLIBCXX >= 3.4.25! from $libstdcpp_real_path"
