@@ -49,7 +49,7 @@ export class InlineCompletionContextKeys extends Disposable {
 			let startsWithIndentationLessThanTabSize = true;
 
 			const ghostTexts = model?.ghostTexts.read(reader);
-			if (!!model?.selectedSuggestItem && ghostTexts && ghostTexts[0].parts.length > 0) {
+			if (!!model?.selectedSuggestItem && ghostTexts && ghostTexts.length > 0 && ghostTexts[0].parts.length > 0) {
 				const ghostText = ghostTexts[0];
 				const { column, lines } = ghostText.parts[0];
 

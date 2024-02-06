@@ -233,11 +233,11 @@ export class InlineCompletionsController extends Disposable {
 
 			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
 				lastInlineCompletionId = state.inlineCompletion.semanticId;
-				if (state.ghostTexts.length > 0) {
-					const lineText = model.textModel.getLineContent(state.ghostTexts[0].lineNumber);
+				for (const ghostText of state.ghostTexts) {
+					const lineText = model.textModel.getLineContent(ghostText.lineNumber);
 					this._audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 						if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-							this.provideScreenReaderUpdate(state.ghostTexts[0].renderForScreenReader(lineText));
+							this.provideScreenReaderUpdate(ghostText.renderForScreenReader(lineText));
 						}
 					});
 				}

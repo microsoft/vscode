@@ -226,7 +226,7 @@ export class InlineCompletionsModel extends Disposable {
 			const edits: SingleTextEdit[] = [];
 			const editorSelections: Selection[] = [];
 			if (inlineCompletion) {
-				const completion = inlineCompletion?.toInlineCompletion(undefined);
+				const completion = inlineCompletion.toInlineCompletion(undefined);
 				const _edits = this._getEdits(this.editor, completion.toSingleTextEdit());
 				edits.push(..._edits.edits);
 				editorSelections.push(..._edits.editorSelections);
@@ -407,10 +407,10 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const state = this.state.get();
-		if (!state || state.ghostTexts.length === 0 || state.ghostTexts.some(gh => gh.isEmpty()) || !state.inlineCompletion) {
+		if (!state || state.ghostTexts.length === 0 || state.ghostTexts[0].isEmpty() || !state.inlineCompletion) {
 			return;
 		}
-		const ghostTexts = state.ghostTexts;
+		const ghostText = state.ghostTexts[0];
 		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
