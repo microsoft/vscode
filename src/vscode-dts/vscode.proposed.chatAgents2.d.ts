@@ -17,7 +17,7 @@ declare module 'vscode' {
 		/**
 		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
 		 */
-		response: ChatAgentContentProgress[];
+		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFilesPart | ChatResponseAnchorPart)[];
 
 		/**
 		 * The result that was received from the chat agent.
@@ -277,24 +277,15 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	export interface ChatAgentResponseItemMetadata {
-		title: string;
-		// annotations: any[]; // future OffsetbasedAnnotation and Annotation
-	}
-
 	export interface ChatAgentResponseStream {
 
-		// RENDERED
+		text(value: string): ChatAgentResponseStream;
 
-		text(value: string, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+		markdown(value: string | MarkdownString): ChatAgentResponseStream;
 
-		markdown(value: string | MarkdownString, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
+		files(value: ChatAgentFileTreeData): ChatAgentResponseStream;
 
-		files(value: ChatAgentFileTreeData, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
-
-		anchor(value: Uri | Location, meta?: ChatAgentResponseItemMetadata): ChatAgentResponseStream;
-
-		// META
+		anchor(value: Uri | Location, title?: string): ChatAgentResponseStream;
 
 		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
 		progress(value: string): ChatAgentResponseStream;
@@ -308,6 +299,47 @@ declare module 'vscode' {
 		 */
 		report(value: ChatAgentProgress): void;
 	}
+
+	// TODO@API
+	// support ChatResponseCommandPart
+	// support ChatResponseTextEditPart
+	// support ChatResponseCodeReferencePart
+
+	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
+	// and metadata like XYZItem
+	export class ChatResponseTextPart {
+		value: string;
+		constructor(value: string);
+	}
+
+	export class ChatResponseMarkdownPart {
+		value: string | MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
+	export class ChatResponseFilesPart {
+		value: ChatAgentFileTreeData;
+		constructor(value: ChatAgentFileTreeData);
+	}
+
+	export class ChatResponseAnchorPart {
+		value: Uri | Location | SymbolInformation;
+		title?: string;
+		constructor(value: Uri | Location | SymbolInformation, title?: string);
+	}
+
+	export class ChatResponseProgressPart {
+		value: string;
+		constructor(value: string);
+	}
+
+	export class ChatResponseReferencePart {
+		value: Uri | Location;
+		constructor(value: Uri | Location);
+	}
+
+	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFilesPart | ChatResponseAnchorPart
+		| ChatResponseProgressPart | ChatResponseReferencePart;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
