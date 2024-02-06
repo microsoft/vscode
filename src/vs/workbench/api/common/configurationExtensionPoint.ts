@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
-import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -13,11 +12,12 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions, validatePropert
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject, isUndefined } from 'vs/base/common/types';
-import { ExtensionIdentifierMap, IRelaxedExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -395,11 +395,11 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 	readonly type = 'table';
 
-	shouldRender(manifest: Readonly<IRelaxedExtensionManifest>): boolean {
+	shouldRender(manifest: IExtensionManifest): boolean {
 		return !!manifest.contributes?.configuration;
 	}
 
-	render(manifest: Readonly<IRelaxedExtensionManifest>): IRenderedData<ITableData> {
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
 		const configuration = manifest.contributes?.configuration;
 		let properties: any = {};
 		if (Array.isArray(configuration)) {
@@ -416,7 +416,7 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 			.map(key => {
 				return [
 					{ data: key, type: 'code' },
-					properties[key].markdownDescription ? { data: properties[key].markdownDescription, type: 'markdown' } : properties[key].description ?? '',
+					properties[key].markdownDescription ? new MarkdownString(properties[key].markdownDescription, false) : properties[key].description ?? '',
 					{ data: `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : JSON.stringify(properties[key].default)}`, type: 'code' }
 				];
 			});
@@ -426,7 +426,6 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 				headers,
 				rows
 			},
-			onDidChange: Event.None,
 			dispose: () => { }
 		};
 	}

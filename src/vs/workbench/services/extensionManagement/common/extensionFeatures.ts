@@ -32,7 +32,7 @@ export interface IExtensionFeatureMarkdownRenderer extends IExtensionFeatureRend
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString>;
 }
 
-export type IRowData = string | { readonly data: string | string[]; readonly type: 'code' | 'keybinding' | 'markdown' };
+export type IRowData = string | IMarkdownString | { readonly data: string | string[]; readonly type: 'code' | 'keybinding' | 'color' };
 
 export interface ITableData {
 	headers: string[];

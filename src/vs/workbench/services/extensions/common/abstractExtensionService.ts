@@ -5,7 +5,7 @@
 
 import { Barrier } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -1363,50 +1363,51 @@ class ActivationFeatureMarkdowneRenderer extends Disposable implements IExtensio
 		if (this._extensionService.extensions.some(e => ExtensionIdentifier.equals(e.identifier, extensionId))) {
 			return !!manifest.main || !!manifest.browser;
 		}
-		return false;
+		return !!manifest.activationEvents;
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
 		const disposables = new DisposableStore();
-		if (!manifest.main && !manifest.browser) {
-			return {
-				onDidChange: Event.None,
-				data: new MarkdownString().appendText('This extension does not have a main or browser entry point'),
-				dispose: () => disposables.dispose()
-			};
-		}
-
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		const extension = this._extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extensionId));
-		if (!extension) {
-			return {
-				onDidChange: Event.None,
-				data: new MarkdownString().appendText('This extension is not running'),
-				dispose: () => disposables.dispose()
-			};
-		}
-
+		const emitter = disposables.add(new Emitter<IMarkdownString>());
+		this._extensionService.onDidChangeExtensionsStatus(e => {
+			if (e.some(extension => ExtensionIdentifier.equals(extension, extensionId))) {
+				emitter.fire(this.getActivationData(manifest));
+			}
+		});
 		return {
-			onDidChange: Event.None,
-			data: this.getActivationData(extensionId),
+			onDidChange: emitter.event,
+			data: this.getActivationData(manifest),
 			dispose: () => disposables.dispose()
 		};
 	}
 
-	private getActivationData(extensionId: ExtensionIdentifier): IMarkdownString {
+	private getActivationData(manifest: IExtensionManifest): IMarkdownString {
+		const data = new MarkdownString();
+		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
 		const status = this._extensionService.getExtensionsStatus()[extensionId.value];
-		if (status.activationTimes) {
-			const data = new MarkdownString();
-			if (status.activationTimes.activationReason.startup) {
-				data.appendText('Activated on startup in `')
-					.appendText(`${status.activationTimes.activateCallTime}ms`)
-					.appendText('`');
+		if (this._extensionService.extensions.some(extension => ExtensionIdentifier.equals(extension.identifier, extensionId))) {
+			if (status.activationTimes) {
+				if (status.activationTimes.activationReason.startup) {
+					data.appendText('Activated on startup in `')
+						.appendText(`${status.activationTimes.activateCallTime}ms`)
+						.appendText('`');
+				} else {
+					data.appendMarkdown('Activated in `' + status.activationTimes.activateCallTime + 'ms` by `' + status.activationTimes.activationReason.activationEvent + '` event.');
+				}
 			} else {
-				data.appendMarkdown('Activated in `' + status.activationTimes.activateCallTime + 'ms` by `' + status.activationTimes.activationReason.activationEvent + '` event.');
+				data.appendMarkdown('Not yet activated');
 			}
-			return data;
+		} else {
+			const activationEvents = manifest.activationEvents || [];
+			if (activationEvents.length) {
+				data.appendMarkdown(`### ${nls.localize('activation events', "Activation Events")}\n\n`);
+				for (const activationEvent of activationEvents) {
+					data.appendMarkdown(`- \`${activationEvent}\`\n`);
+				}
+			}
 		}
-		return new MarkdownString().appendText('Not yet activated');
+		return data;
 	}
 }
 

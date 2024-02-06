@@ -32,6 +32,8 @@ import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { OS } from 'vs/base/common/platform';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { Color } from 'vs/base/common/color';
 
 interface ILayoutParticipant {
 	layout(height?: number, width?: number): void;
@@ -318,9 +320,9 @@ class ExtensionFeatureView extends Disposable {
 		const featureContentElement = append(bodyContent, $('.feature-content'));
 		const renderer = this.instantiationService.createInstance<IExtensionFeatureRenderer>(this.feature.renderer);
 		if (renderer.type === 'table') {
-			this.renderTable(featureContentElement, <IExtensionFeatureTableRenderer>renderer);
+			this.renderTableData(featureContentElement, <IExtensionFeatureTableRenderer>renderer);
 		} else if (renderer.type === 'markdown') {
-			this.renderMarkdown(featureContentElement, <IExtensionFeatureMarkdownRenderer>renderer);
+			this.renderMarkdownData(featureContentElement, <IExtensionFeatureMarkdownRenderer>renderer);
 		}
 	}
 
@@ -328,7 +330,7 @@ class ExtensionFeatureView extends Disposable {
 		button.label = this.extensionFeaturesManagementService.isEnabled(this.extensionId, this.feature.id) ? localize('disable', "Disable Access") : localize('enable', "Enable Access");
 	}
 
-	private renderTable(container: HTMLElement, renderer: IExtensionFeatureTableRenderer): void {
+	private renderTableData(container: HTMLElement, renderer: IExtensionFeatureTableRenderer): void {
 		const tableData = this._register(renderer.render(this.manifest));
 		append(container,
 			$('table', undefined,
@@ -342,12 +344,13 @@ class ExtensionFeatureView extends Disposable {
 								if (typeof rowData === 'string') {
 									return $('td', undefined, rowData);
 								}
+								if (isMarkdownString(rowData)) {
+									const element = $('td', undefined);
+									this.renderMarkdown(rowData, element);
+									return element;
+								}
 								const data = Array.isArray(rowData.data) ? rowData.data : [rowData.data];
-								if (rowData.type === 'markdown') {
-									const { element, dispose } = renderMarkdown({ value: data[0] }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this._store } });
-									this._register(toDisposable(dispose));
-									return $('td', undefined, element);
-								} else if (rowData.type === 'code') {
+								if (rowData.type === 'code') {
 									return $('td', undefined, ...data.map(c => $('code', undefined, c)));
 								} else if (rowData.type === 'keybinding') {
 									return $('td', undefined, ...data.map(keybinding => {
@@ -356,6 +359,18 @@ class ExtensionFeatureView extends Disposable {
 										kbl.set(this.keybindingService.resolveUserBinding(keybinding)[0]);
 										return element;
 									}));
+								} else if (rowData.type === 'color') {
+									return $('td', undefined, ...data.map(colorReference => {
+										const result: Node[] = [];
+										if (colorReference && colorReference[0] === '#') {
+											const color = Color.fromHex(colorReference);
+											if (color) {
+												result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
+											}
+										}
+										result.push($('code', undefined, colorReference));
+										return result;
+									}).flat());
 								} else {
 									return $('td', undefined, rowData.data[0]);
 								}
@@ -364,9 +379,23 @@ class ExtensionFeatureView extends Disposable {
 					})));
 	}
 
-	private renderMarkdown(container: HTMLElement, renderer: IExtensionFeatureMarkdownRenderer): void {
+	private renderMarkdownData(container: HTMLElement, renderer: IExtensionFeatureMarkdownRenderer): void {
 		const markdownData = this._register(renderer.render(this.manifest));
-		const { element, dispose } = renderMarkdown({ value: markdownData.data.value }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this._store } });
+		this.renderMarkdown(markdownData.data, container);
+	}
+
+	private renderMarkdown(markdown: IMarkdownString, container: HTMLElement): void {
+		const { element, dispose } = renderMarkdown(
+			{
+				value: markdown.value,
+				isTrusted: markdown.isTrusted,
+			},
+			{
+				actionHandler: {
+					callback: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+					disposables: this._store
+				},
+			});
 		this._register(toDisposable(dispose));
 		append(container, element);
 	}
