@@ -30,8 +30,6 @@ declare module 'vscode' {
 		 * All of the chat messages so far in the current chat session.
 		 */
 		history: ChatAgentHistoryEntry[];
-
-		// sessionState?: any;
 	}
 
 	/**
@@ -291,17 +289,12 @@ declare module 'vscode' {
 		 * @deprecated use above methods instread
 		 */
 		report(value: ChatAgentProgress): void;
-
-		// updateSessionState(state: any): void;
 	}
 
 	// TODO@API
 	// support ChatResponseCommandPart
 	// support ChatResponseTextEditPart
 	// support ChatResponseCodeReferencePart
-
-	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
-	// and metadata like XYZItem
 
 	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
 	// and metadata like XYZItem
