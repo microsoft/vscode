@@ -29,6 +29,8 @@ import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } 
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IBaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { mainWindow } from 'vs/base/browser/window';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 suite('NotebookViewModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,7 +63,7 @@ suite('NotebookViewModel', () => {
 	test('ctor', function () {
 		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService);
 		const model = new NotebookEditorTestModel(notebook);
-		const options = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false);
+		const options = new NotebookOptions(mainWindow, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService), false);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewContext = new ViewContext(options, eventDispatcher, () => ({} as IBaseCellEditorOptions));
 		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService, notebookExecutionStateService);

@@ -11,7 +11,8 @@
     "workspaceTrust",
     "multiDocumentHighlightProvider",
     "mappedEditsProvider",
-    "codeActionAI"
+    "codeActionAI",
+    "codeActionRanges"
   ],
   "capabilities": {
     "virtualWorkspaces": {

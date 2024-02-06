@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
@@ -73,50 +73,44 @@ class ChatAgentResponseStream {
 			};
 
 			this._apiObject = {
-				markdown(value, meta) {
-					throwIfDone(this.markdown);
-					_report({
-						kind: 'markdownContent',
-						content: typeConvert.MarkdownString.from(value)
-					});
-					return this;
-				},
-				text(value, meta) {
+				text(value) {
 					throwIfDone(this.text);
-					this.markdown(new MarkdownString().appendText(value), meta);
+					this.markdown(new MarkdownString().appendText(value));
 					return this;
 				},
-				files(value, meta) {
+				markdown(value) {
+					throwIfDone(this.markdown);
+					const part = new extHostTypes.ChatResponseMarkdownPart(value);
+					const dto = typeConvert.ChatResponseMarkdownPart.to(part);
+					_report(dto);
+					return this;
+				},
+				files(value) {
 					throwIfDone(this.files);
-					_report({
-						kind: 'treeData',
-						treeData: value
-					});
+					const part = new extHostTypes.ChatResponseFilesPart(value);
+					const dto = typeConvert.ChatResponseFilesPart.to(part);
+					_report(dto);
 					return this;
 				},
-				anchor(value, meta) {
+				anchor(value, title?: string) {
 					throwIfDone(this.anchor);
-					_report({
-						kind: 'inlineReference',
-						name: meta?.title,
-						inlineReference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
-					});
+					const part = new extHostTypes.ChatResponseAnchorPart(value, title);
+					const dto = typeConvert.ChatResponseAnchorPart.to(part);
+					_report(dto);
 					return this;
 				},
 				progress(value) {
 					throwIfDone(this.progress);
-					_report({
-						kind: 'progressMessage',
-						content: new MarkdownString(value)
-					});
+					const part = new extHostTypes.ChatResponseProgressPart(value);
+					const dto = typeConvert.ChatResponseProgressPart.to(part);
+					_report(dto);
 					return this;
 				},
 				reference(value) {
 					throwIfDone(this.reference);
-					_report({
-						kind: 'reference',
-						reference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
-					});
+					const part = new extHostTypes.ChatResponseReferencePart(value);
+					const dto = typeConvert.ChatResponseReferencePart.to(part);
+					_report(dto);
 					return this;
 				},
 				report(progress) {
@@ -179,9 +173,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
 
-		const commandExecution = new DeferredPromise<void>();
-		token.onCancellationRequested(() => commandExecution.complete());
-		this._extHostChatProvider.allowListExtensionWhile(agent.extension.identifier, commandExecution.p);
+		this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: true }]);
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService);
 		try {
@@ -217,7 +209,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		} finally {
 			stream.close();
-			commandExecution.complete();
+			this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: false }]);
 		}
 	}
 

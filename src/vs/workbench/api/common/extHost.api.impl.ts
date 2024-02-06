@@ -1639,7 +1639,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ThreadFocus: extHostTypes.ThreadFocus,
 			RelatedInformationType: extHostTypes.RelatedInformationType,
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
-			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus
+			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
+			ChatResponseTextPart: extHostTypes.ChatResponseTextPart,
+			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
+			ChatResponseFilesPart: extHostTypes.ChatResponseFilesPart,
+			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
+			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
+			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 		};
 	};
 }

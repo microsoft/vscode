@@ -11,9 +11,9 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 
 type ProviderData = {
 	readonly extension: ExtensionIdentifier;
@@ -94,12 +94,19 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	private readonly _proxy: MainThreadChatProviderShape;
 	private readonly _providers = new Map<number, ProviderData>();
+	private readonly _onDidChangeAccess = new Emitter<ExtensionIdentifierSet>();
+	private readonly _onDidChangeProviders = new Emitter<{ added: string[]; removed: string[] }>();
 
 	constructor(
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatProvider);
+	}
+
+	dispose(): void {
+		this._onDidChangeAccess.dispose();
+		this._onDidChangeProviders.dispose();
 	}
 
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata): IDisposable {
@@ -132,19 +139,51 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	//#region --- making request
 
+
+	private readonly _accessAllowlist = new ExtensionIdentifierMap<boolean>();
+	private readonly _providerIds = new Set<string>();
+
 	private readonly _pendingRequest = new Map<number, { res: ChatRequest }>();
 
-	private readonly _chatAccessAllowList = new ExtensionIdentifierMap<Promise<unknown>>();
 
-	allowListExtensionWhile(extension: ExtensionIdentifier, promise: Promise<unknown>): void {
-		this._chatAccessAllowList.set(extension, promise);
-		promise.finally(() => this._chatAccessAllowList.delete(extension));
+	$updateProviderList(data: { added?: string[] | undefined; removed?: string[] | undefined }): void {
+		const added: string[] = [];
+		const removed: string[] = [];
+		if (data.added) {
+			for (const id of data.added) {
+				this._providerIds.add(id);
+				added.push(id);
+			}
+		}
+		if (data.removed) {
+			for (const id of data.removed) {
+				this._providerIds.delete(id);
+				removed.push(id);
+			}
+		}
+		this._onDidChangeProviders.fire({ added, removed });
+	}
+
+	getProviderIds(): string[] {
+		return Array.from(this._providerIds);
+	}
+
+	$updateAllowlist(data: { extension: ExtensionIdentifier; allowed: boolean }[]): void {
+		const updated = new ExtensionIdentifierSet();
+		for (const { extension, allowed } of data) {
+			const oldValue = this._accessAllowlist.get(extension);
+			if (oldValue !== allowed) {
+				this._accessAllowlist.set(extension, allowed);
+				updated.add(extension);
+			}
+		}
+		this._onDidChangeAccess.fire(updated);
 	}
 
 	async requestChatResponseProvider(from: ExtensionIdentifier, identifier: string): Promise<vscode.ChatAccess> {
 		// check if a UI command is running/active
 
-		if (!this._chatAccessAllowList.has(from)) {
+		if (!this._accessAllowlist.get(from)) {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
@@ -160,11 +199,14 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				return metadata.model;
 			},
 			get isRevoked() {
-				return !that._chatAccessAllowList.has(from);
+				return !that._accessAllowlist.get(from);
+			},
+			get onDidChangeAccess() {
+				return Event.signal(Event.filter(that._onDidChangeAccess.event, set => set.has(from)));
 			},
 			makeRequest(messages, options, token) {
 
-				if (!that._chatAccessAllowList.has(from)) {
+				if (!that._accessAllowlist.get(from)) {
 					throw new Error('Access to chat has been revoked');
 				}
 

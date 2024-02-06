@@ -1180,6 +1180,8 @@ export interface MainThreadChatProviderShape extends IDisposable {
 }
 
 export interface ExtHostChatProviderShape {
+	$updateProviderList(data: { added?: string[]; removed?: string[] }): void;
+	$updateAllowlist(data: { extension: ExtensionIdentifier; allowed: boolean }[]): void;
 	$provideChatResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 }
