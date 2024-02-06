@@ -49,7 +49,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 
 		const { result, checkboxChecked } = await this.dialogService.prompt<ConnectionChoice>({
 			type: Severity.Warning,
-			message: localize('unsupportedGlibcWarning', "You are about to connect to an OS that is unsupported by {0}", this.productService.nameLong),
+			message: localize('unsupportedGlibcWarning', "You are about to connect to an OS version that is unsupported by {0}.", this.productService.nameLong),
 			buttons: [
 				{
 					label: localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
@@ -64,7 +64,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 				run: () => ConnectionChoice.Cancel
 			},
 			checkbox: {
-				label: localize('remember', "Do not ask me again"),
+				label: localize('remember', "Do not show again"),
 			}
 		});
 
@@ -98,7 +98,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 					];
 					this.bannerService.show({
 						id: 'unsupportedGlibcWarning.banner',
-						message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS that is unsupported by {0}.", this.productService.nameLong),
+						message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
 						actions,
 						icon: Codicon.warning,
 						disableCloseAction: true
