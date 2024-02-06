@@ -73,7 +73,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		this.setActiveNotebook();
 
-		this.menu = menuService.createMenu(MenuId.WorkspaceVariablesContext, contextKeyService);
+		this.menu = menuService.createMenu(MenuId.NotebookVariablesContext, contextKeyService);
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
 	}
