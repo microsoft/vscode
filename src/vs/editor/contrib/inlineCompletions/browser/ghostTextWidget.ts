@@ -175,7 +175,8 @@ export class GhostTextWidget extends Disposable {
 					minReservedLineCount: uiState.additionalReservedLineCount,
 					targetTextModel: uiState.targetTextModel,
 				} : undefined;
-			})
+			}),
+			GHOST_TEXT_DESCRIPTION + '-additional-lines'
 		)
 	);
 
@@ -202,7 +203,8 @@ export class AdditionalLinesWidget extends Disposable {
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly languageIdCodec: ILanguageIdCodec,
-		private readonly lines: IObservable<{ targetTextModel: ITextModel; lineNumber: number; additionalLines: LineData[]; minReservedLineCount: number } | undefined>
+		private readonly lines: IObservable<{ targetTextModel: ITextModel; lineNumber: number; additionalLines: LineData[]; minReservedLineCount: number } | undefined>,
+		private readonly cls: string
 	) {
 		super();
 
@@ -250,7 +252,7 @@ export class AdditionalLinesWidget extends Disposable {
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
 				const domNode = document.createElement('div');
-				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions(), this.languageIdCodec);
+				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions(), this.languageIdCodec, this.cls);
 
 				this._viewZoneId = changeAccessor.addZone({
 					afterLineNumber: lineNumber,
@@ -268,7 +270,7 @@ export interface LineData {
 	decorations: LineDecoration[];
 }
 
-export function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions, languageIdCodec: ILanguageIdCodec): void {
+export function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions, languageIdCodec: ILanguageIdCodec, cls: string): void {
 	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
 	// To avoid visual confusion, we don't want to render visible whitespace
@@ -285,6 +287,7 @@ export function renderLines(domNode: HTMLElement, tabSize: number, lines: LineDa
 		const lineData = lines[i];
 		const line = lineData.content;
 		sb.appendString('<div class="view-line');
+		sb.appendString(' ' + cls);
 		sb.appendString('" style="top:');
 		sb.appendString(String(i * lineHeight));
 		sb.appendString('px;width:1000000px;">');

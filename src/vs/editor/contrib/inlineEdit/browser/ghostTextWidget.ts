@@ -202,7 +202,8 @@ export class GhostTextWidget extends Disposable {
 					minReservedLineCount: uiState.additionalReservedLineCount,
 					targetTextModel: uiState.targetTextModel,
 				} : undefined;
-			})
+			}),
+			INLINE_EDIT_DESCRIPTION + '-additional-lines'
 		)
 	);
 

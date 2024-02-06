@@ -4085,6 +4085,8 @@ export interface IInlineEditOptions {
 	 * Font family for inline suggestions.
 	 */
 	fontFamily?: string | 'default';
+
+	backgroundColoring?: boolean;
 }
 
 /**
@@ -4097,7 +4099,8 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 		const defaults: InternalInlineEditOptions = {
 			enabled: true,
 			showToolbar: 'onHover',
-			fontFamily: 'default'
+			fontFamily: 'default',
+			backgroundColoring: false
 		};
 
 		super(
@@ -4124,6 +4127,11 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 					default: defaults.fontFamily,
 					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
 				},
+				'editor.experimentalInlineEdit.backgroundColoring': {
+					type: 'boolean',
+					default: defaults.backgroundColoring,
+					description: nls.localize('inlineEdit.backgroundColoring', "Controls whether to color the background of inline edits.")
+				},
 			}
 		);
 	}
@@ -4132,11 +4140,12 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IInlineSuggestOptions;
+		const input = _input as IInlineEditOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			backgroundColoring: boolean(input.backgroundColoring, this.defaultValue.backgroundColoring)
 		};
 	}
 }
