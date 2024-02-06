@@ -326,8 +326,7 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 			buttonSeparator: undefined,
 			supportIcons: true
 		});
-		const x = URI.from({ scheme: 'ai', path: `chat-code-block-${Date.now()}.txt` });
-		this.textModel = this._register(this.modelService.createModel('', null, x, true));
+		this.textModel = this._register(this.modelService.createModel('', null, undefined, true));
 		this.editor.setModel(this.textModel);
 
 		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
