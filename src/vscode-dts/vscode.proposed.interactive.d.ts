@@ -121,7 +121,7 @@ declare module 'vscode' {
 		inputPlaceholder?: string;
 	}
 
-	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		prepareSession(token: CancellationToken): ProviderResult<S>;

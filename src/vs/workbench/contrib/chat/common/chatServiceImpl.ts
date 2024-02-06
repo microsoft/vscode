@@ -235,8 +235,8 @@ export class ChatService extends Disposable implements IChatService {
 				newFile: !!action.action.newFile
 			});
 		} else if (action.action.kind === 'command') {
-			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
-			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
+			const command = CommandsRegistry.getCommand(action.action.command.commandId);
+			const commandId = command ? action.action.command.commandId : 'INVALID';
 			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
 				providerId: action.providerId,
 				commandId
