@@ -73,50 +73,44 @@ class ChatAgentResponseStream {
 			};
 
 			this._apiObject = {
-				markdown(value, meta) {
-					throwIfDone(this.markdown);
-					_report({
-						kind: 'markdownContent',
-						content: typeConvert.MarkdownString.from(value)
-					});
-					return this;
-				},
-				text(value, meta) {
+				text(value) {
 					throwIfDone(this.text);
-					this.markdown(new MarkdownString().appendText(value), meta);
+					this.markdown(new MarkdownString().appendText(value));
 					return this;
 				},
-				files(value, meta) {
+				markdown(value) {
+					throwIfDone(this.markdown);
+					const part = new extHostTypes.ChatResponseMarkdownPart(value);
+					const dto = typeConvert.ChatResponseMarkdownPart.to(part);
+					_report(dto);
+					return this;
+				},
+				files(value) {
 					throwIfDone(this.files);
-					_report({
-						kind: 'treeData',
-						treeData: value
-					});
+					const part = new extHostTypes.ChatResponseFilesPart(value);
+					const dto = typeConvert.ChatResponseFilesPart.to(part);
+					_report(dto);
 					return this;
 				},
-				anchor(value, meta) {
+				anchor(value, title?: string) {
 					throwIfDone(this.anchor);
-					_report({
-						kind: 'inlineReference',
-						name: meta?.title,
-						inlineReference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
-					});
+					const part = new extHostTypes.ChatResponseAnchorPart(value, title);
+					const dto = typeConvert.ChatResponseAnchorPart.to(part);
+					_report(dto);
 					return this;
 				},
 				progress(value) {
 					throwIfDone(this.progress);
-					_report({
-						kind: 'progressMessage',
-						content: new MarkdownString(value)
-					});
+					const part = new extHostTypes.ChatResponseProgressPart(value);
+					const dto = typeConvert.ChatResponseProgressPart.to(part);
+					_report(dto);
 					return this;
 				},
 				reference(value) {
 					throwIfDone(this.reference);
-					_report({
-						kind: 'reference',
-						reference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
-					});
+					const part = new extHostTypes.ChatResponseReferencePart(value);
+					const dto = typeConvert.ChatResponseReferencePart.to(part);
+					_report(dto);
 					return this;
 				},
 				report(progress) {

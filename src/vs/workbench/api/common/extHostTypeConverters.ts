@@ -36,7 +36,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/edit
 import { IViewBadge } from 'vs/workbench/common/views';
 import { IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatFollowup, IChatReplyFollowup, IChatResponseCommandFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatReplyFollowup, IChatResponseCommandFollowup, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -2327,6 +2327,102 @@ export namespace InteractiveEditorResponseFeedbackKind {
 			case InlineChatResponseFeedbackKind.Bug:
 				return types.InteractiveEditorResponseFeedbackKind.Bug;
 		}
+	}
+}
+
+export namespace ChatResponseTextPart {
+	export function to(part: vscode.ChatResponseTextPart): Dto<IChatMarkdownContent> {
+		return {
+			kind: 'markdownContent',
+			content: MarkdownString.from(new types.MarkdownString().appendText(part.value))
+		};
+	}
+	export function from(part: Dto<IChatMarkdownContent>): vscode.ChatResponseTextPart {
+		return new types.ChatResponseTextPart(part.content.value);
+	}
+}
+
+export namespace ChatResponseMarkdownPart {
+	export function to(part: vscode.ChatResponseMarkdownPart): Dto<IChatMarkdownContent> {
+		return {
+			kind: 'markdownContent',
+			content: MarkdownString.from(part.value)
+		};
+	}
+	export function from(part: Dto<IChatMarkdownContent>): vscode.ChatResponseMarkdownPart {
+		return new types.ChatResponseMarkdownPart(MarkdownString.to(part.content));
+	}
+}
+
+export namespace ChatResponseFilesPart {
+	export function to(part: vscode.ChatResponseFilesPart): IChatTreeData {
+		return {
+			kind: 'treeData',
+			treeData: part.value
+		};
+	}
+	export function from(part: Dto<IChatTreeData>): vscode.ChatResponseFilesPart {
+		const value = revive<IChatTreeData>(part.treeData);
+		return new types.ChatResponseFilesPart(value.treeData);
+	}
+}
+
+export namespace ChatResponseAnchorPart {
+	export function to(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
+		return {
+			kind: 'inlineReference',
+			name: part.title,
+			inlineReference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+		};
+	}
+
+	export function from(part: Dto<IChatContentInlineReference>): vscode.ChatResponseAnchorPart {
+		const value = revive<IChatContentInlineReference>(part);
+		return new types.ChatResponseAnchorPart(
+			URI.isUri(value.inlineReference) ? value.inlineReference : Location.to(value.inlineReference),
+			part.name
+		);
+	}
+}
+
+export namespace ChatResponseProgressPart {
+	export function to(part: vscode.ChatResponseProgressPart): Dto<IChatProgressMessage> {
+		return {
+			kind: 'progressMessage',
+			content: MarkdownString.from(part.value)
+		};
+	}
+	export function from(part: Dto<IChatProgressMessage>): vscode.ChatResponseProgressPart {
+		return new types.ChatResponseProgressPart(part.content.value);
+	}
+}
+
+export namespace ChatResponseReferencePart {
+	export function to(part: vscode.ChatResponseReferencePart): Dto<IChatContentReference> {
+		return {
+			kind: 'reference',
+			reference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+		};
+	}
+	export function from(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
+		const value = revive<IChatContentReference>(part);
+		return new types.ChatResponseReferencePart(
+			URI.isUri(value.reference) ? value.reference : Location.to(value.reference)
+		);
+	}
+}
+
+export namespace ChatResponsePart {
+
+	export function to(part: extHostProtocol.IChatProgressDto): vscode.ChatResponsePart {
+		switch (part.kind) {
+			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
+			case 'inlineReference': return ChatResponseAnchorPart.from(part);
+			case 'reference': return ChatResponseReferencePart.from(part);
+			case 'progressMessage': return ChatResponseProgressPart.from(part);
+			case 'treeData': return ChatResponseFilesPart.from(part);
+		}
+		return new types.ChatResponseTextPart('');
 	}
 }
 
