@@ -167,7 +167,6 @@ export class InlineEditController extends Disposable {
 			return;
 		}
 		if (!this.validateInlineEdit(editor, edit)) {
-			//TODO: enable it when extension is fixed
 			return;
 		}
 		return edit;
