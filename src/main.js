@@ -233,26 +233,23 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
-			if (argvValue) {
-				// Color profile
+			if (argvValue === true || argvValue === 'true') {
+				if (argvKey === 'disable-hardware-acceleration') {
+					app.disableHardwareAcceleration(); // needs to be called explicitly
+				} else {
+					app.commandLine.appendSwitch(argvKey);
+				}
+			} else if (argvValue) {
 				if (argvKey === 'force-color-profile') {
+					// Color profile
 					app.commandLine.appendSwitch(argvKey, argvValue);
-				// Password store
 				} else if (argvKey === 'password-store') {
+					// Password store
 					let migratedArgvValue = argvValue;
 					if (argvValue === 'gnome' || argvValue === 'gnome-keyring') {
 						migratedArgvValue = 'gnome-libsecret';
 					}
 					app.commandLine.appendSwitch(argvKey, migratedArgvValue);
-				}
-			}
-
-			// Others
-			else if (argvValue === true || argvValue === 'true') {
-				if (argvKey === 'disable-hardware-acceleration') {
-					app.disableHardwareAcceleration(); // needs to be called explicitly
-				} else {
-					app.commandLine.appendSwitch(argvKey);
 				}
 			}
 		}
