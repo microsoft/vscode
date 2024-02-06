@@ -74,7 +74,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 
 		const allowed = result === ConnectionChoice.Allow;
 		if (allowed && checkboxChecked) {
-			this.storageService.store(REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY, allowed, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(`${REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY}.${this._environmentService.remoteAuthority}`, allowed, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 
 		return allowed;
@@ -85,7 +85,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 			const environment = await this._remoteAgentService.getRawEnvironment();
 
 			if (environment && environment.isUnsupportedGlibc) {
-				let allowed = this.storageService.getBoolean(REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY, StorageScope.PROFILE);
+				let allowed = this.storageService.getBoolean(`${REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY}.${this._environmentService.remoteAuthority}`, StorageScope.PROFILE);
 				if (allowed === undefined) {
 					allowed = await this._confirmConnection();
 				}
