@@ -52,10 +52,16 @@ export class GhostTextWidget extends Disposable {
 		if (!ghostText) {
 			return undefined;
 		}
-		let removeRange = this.model.range?.read(reader);
-		if (removeRange && removeRange.startLineNumber === removeRange.endLineNumber && removeRange.startColumn === removeRange.endColumn) {
-			removeRange = undefined;
+
+
+		let range = this.model.range?.read(reader);
+		//if range is empty, we want to remove it
+		if (range && range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
+			range = undefined;
 		}
+		//check if both range and text are single line - in this case we want to do inline replacement
+		//rather than replacing whole lines
+		const isSingleLine = (range ? range.startLineNumber === range.endLineNumber : true) && ghostText.parts.length === 1 && ghostText.parts[0].lines.length === 1;
 
 		const inlineTexts: { column: number; text: string; preview: boolean }[] = [];
 		const additionalLines: LineData[] = [];
@@ -85,7 +91,7 @@ export class GhostTextWidget extends Disposable {
 		for (const part of ghostText.parts) {
 			let lines = part.lines;
 			//If remove range is set, we want to push all new liens to virtual area
-			if (removeRange) {
+			if (range && !isSingleLine) {
 				addToAdditionalLines(lines, INLINE_EDIT_DESCRIPTION);
 				lines = [];
 			}
@@ -115,15 +121,18 @@ export class GhostTextWidget extends Disposable {
 
 		const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
 
+		const lineNumber =
+			(isSingleLine || !range) ? ghostText.lineNumber : range.endLineNumber - 1;
 
 		return {
 			inlineTexts,
 			additionalLines,
 			hiddenRange,
-			lineNumber: ghostText.lineNumber,
+			lineNumber,
 			additionalReservedLineCount: this.model.minReservedLineCount.read(reader),
 			targetTextModel: textModel,
-			removeRange,
+			range,
+			isSingleLine,
 		};
 	});
 
@@ -142,15 +151,20 @@ export class GhostTextWidget extends Disposable {
 			});
 		}
 
-		if (uiState.removeRange) {
-			const liens = uiState.removeRange.endLineNumber - uiState.removeRange.startLineNumber;
+		if (uiState.range) {
 			const ranges = [];
-			for (let i = 0; i <= liens; i++) {
-				const line = uiState.removeRange.startLineNumber + i;
-				const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
-				const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
-				const range = new Range(line, firstNonWhitespace, line, lastNonWhitespace);
-				ranges.push(range);
+			if (uiState.isSingleLine) {
+				ranges.push(uiState.range);
+			}
+			else {
+				const liens = uiState.range.endLineNumber - uiState.range.startLineNumber;
+				for (let i = 0; i <= liens; i++) {
+					const line = uiState.range.startLineNumber + i;
+					const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
+					const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
+					const range = new Range(line, firstNonWhitespace, line, lastNonWhitespace);
+					ranges.push(range);
+				}
 			}
 			for (const range of ranges) {
 				decorations.push({
