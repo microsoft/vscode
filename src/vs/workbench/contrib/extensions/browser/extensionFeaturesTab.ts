@@ -87,7 +87,12 @@ export class ExtensionFeaturesTab extends Themable {
 
 		const featureViewContainer = $('.feature-view-container');
 		this.showFeatureView(features[0], featureViewContainer);
-		this._register(list.onDidChangeSelection(e => this.showFeatureView(e.elements[0], featureViewContainer)));
+		this._register(list.onDidChangeSelection(e => {
+			const feature = e.elements[0];
+			if (feature) {
+				this.showFeatureView(feature, featureViewContainer);
+			}
+		}));
 
 		splitView.addView({
 			onDidChange: Event.None,
@@ -142,6 +147,9 @@ export class ExtensionFeaturesTab extends Themable {
 	}
 
 	private showFeatureView(feature: IExtensionFeatureDescriptor, container: HTMLElement): void {
+		if (this.featureView.value?.feature.id === feature.id) {
+			return;
+		}
 		clearNode(container);
 		this.featureView.value = this.instantiationService.createInstance(ExtensionFeatureView, this.extensionId, this.manifest, feature);
 		container.appendChild(this.featureView.value.domNode);
@@ -240,7 +248,7 @@ class ExtensionFeatureView extends Disposable {
 	constructor(
 		private readonly extensionId: ExtensionIdentifier,
 		private readonly manifest: IExtensionManifest,
-		private readonly feature: IExtensionFeatureDescriptor,
+		readonly feature: IExtensionFeatureDescriptor,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
@@ -327,26 +335,26 @@ class ExtensionFeatureView extends Disposable {
 				...tableData.data.rows
 					.map(row => {
 						return $('tr', undefined,
-							...row.map(data => {
-								if (typeof data === 'string') {
-									return $('td', undefined, data);
-								} else if (data.type === 'markdown') {
-									const { element, dispose } = renderMarkdown({ value: data.data[0] }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this._store } });
+							...row.map(rowData => {
+								if (typeof rowData === 'string') {
+									return $('td', undefined, rowData);
+								}
+								const data = Array.isArray(rowData.data) ? rowData.data : [rowData.data];
+								if (rowData.type === 'markdown') {
+									const { element, dispose } = renderMarkdown({ value: data[0] }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this._store } });
 									this._register(toDisposable(dispose));
 									return $('td', undefined, element);
-								} else if (data.type === 'code') {
-									const codes = Array.isArray(data.data) ? data.data : [data.data];
-									return $('td', undefined, ...codes.map(c => $('code', undefined, c)));
-								} else if (data.type === 'keybinding') {
-									const keybindings = Array.isArray(data.data) ? data.data : [data.data];
-									return $('td', undefined, ...keybindings.map(keybinding => {
+								} else if (rowData.type === 'code') {
+									return $('td', undefined, ...data.map(c => $('code', undefined, c)));
+								} else if (rowData.type === 'keybinding') {
+									return $('td', undefined, ...data.map(keybinding => {
 										const element = $('');
 										const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
 										kbl.set(this.keybindingService.resolveUserBinding(keybinding)[0]);
 										return element;
 									}));
 								} else {
-									return $('td', undefined, data.data[0]);
+									return $('td', undefined, rowData.data[0]);
 								}
 							})
 						);

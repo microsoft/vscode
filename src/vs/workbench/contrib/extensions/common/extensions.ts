@@ -133,8 +133,8 @@ export interface IExtensionsWorkbenchService {
 
 export const enum ExtensionEditorTab {
 	Readme = 'readme',
+	Features = 'features',
 	Contributions = 'contributions',
-	Contributions2 = 'contributions2',
 	Changelog = 'changelog',
 	Dependencies = 'dependencies',
 	ExtensionPack = 'extensionPack',
