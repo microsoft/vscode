@@ -5,7 +5,6 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
