@@ -5,6 +5,8 @@
 
 declare module 'vscode' {
 
+	// TODO@API rename to LanguageModelAccess
+
 	export interface ChatResponseStream {
 
 		/**
@@ -55,6 +57,7 @@ declare module 'vscode' {
 		cancel(): void;
 	}
 
+
 	/**
 	 * Represents access to using a chat provider (LLM). Access is granted and temporary, usually only valid
 	 * for the duration of an user interaction or specific time frame.
@@ -67,7 +70,10 @@ declare module 'vscode' {
 		 */
 		readonly isRevoked: boolean;
 
-		// @API do we need an event for revocation
+		/**
+		 * An event that is fired when the access to chat has been revoked or re-granted.
+		 */
+		readonly onDidChangeAccess: Event<void>;
 
 		/**
 		 * The name of the model that is used for this chat access. It is expected that the model name can
@@ -91,6 +97,9 @@ declare module 'vscode' {
 		 * @param options
 		 */
 		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): ChatRequest;
+
+		// TODO@API disposable?
+		// dispose(): void;
 	}
 
 	export namespace chat {
@@ -105,7 +114,7 @@ declare module 'vscode' {
 		export function requestChatAccess(id: string): Thenable<ChatAccess>;
 
 		//@API add those
-		// export const chatAccesses: string[];
+		// export const chatAccesses: readonly string[];
 		// export const onDidChangeChatAccesses: Event<void>;
 	}
 }

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { Event } from 'vs/base/common/event';
 import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
@@ -20,7 +20,6 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { URI } from 'vs/base/common/uri';
 
 export interface IInlineChatSlashCommand {
@@ -98,6 +97,23 @@ export const enum InlineChatResponseFeedbackKind {
 	Bug = 4
 }
 
+export interface IInlineChatReplyFollowup {
+	kind: 'reply';
+	message: string;
+	title?: string;
+	tooltip?: string;
+}
+
+export interface IInlineChatCommandFollowup {
+	kind: 'command';
+	commandId: string;
+	args?: any[];
+	title: string; // supports codicon strings
+	when?: string;
+}
+
+export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandFollowup;
+
 export interface IInlineChatSessionProvider {
 
 	debugName: string;
@@ -108,7 +124,7 @@ export interface IInlineChatSessionProvider {
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
 
-	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatFollowup[]>;
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }

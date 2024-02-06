@@ -22,6 +22,9 @@ export interface IWorkbenchContribution {
 }
 
 export namespace Extensions {
+	/**
+	 * @deprecated use `registerWorkbenchContribution2` instead.
+	 */
 	export const Workbench = 'workbench.contributions.kind';
 }
 
