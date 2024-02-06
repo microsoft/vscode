@@ -167,19 +167,19 @@ const configuration: IConfigurationNode = {
 		[AccessibilityAlertSettingId.Error]: {
 			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.lineHasError#`'),
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Warning]: {
 			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.lineHasWarning#`'),
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.FoldedArea]: {
 			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.lineHasFoldedArea#`'),
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.TerminalQuickFix]: {
@@ -233,7 +233,7 @@ const configuration: IConfigurationNode = {
 		[AccessibilityAlertSettingId.LineHasBreakpoint]: {
 			'markdownDescription': localize('alert.lineHasBreakpoint', "Alerts when on a line with a breakpoint. Also see {0}.", '`#audioCues.lineHasBreakpoint#`'),
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.NotebookCellCompleted]: {
