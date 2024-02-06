@@ -8,7 +8,7 @@ import { $, append, clearNode } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { ExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { IExtensionFeatureDescriptor, Extensions, IExtensionFeaturesRegistry, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeatureTableRenderer, IExtensionFeatureMarkdownRenderer } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IExtensionFeatureDescriptor, Extensions, IExtensionFeaturesRegistry, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeatureTableRenderer, IExtensionFeatureMarkdownRenderer, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
@@ -332,12 +332,22 @@ class ExtensionFeatureView extends Disposable {
 
 	private renderTableData(container: HTMLElement, renderer: IExtensionFeatureTableRenderer): void {
 		const tableData = this._register(renderer.render(this.manifest));
+		if (tableData.onDidChange) {
+			this._register(tableData.onDidChange(data => {
+				clearNode(container);
+				this.renderTable(data, container);
+			}));
+		}
+		this.renderTable(tableData.data, container);
+	}
+
+	private renderTable(tableData: ITableData, container: HTMLElement): void {
 		append(container,
 			$('table', undefined,
 				$('tr', undefined,
-					...tableData.data.headers.map(header => $('th', undefined, header))
+					...tableData.headers.map(header => $('th', undefined, header))
 				),
-				...tableData.data.rows
+				...tableData.rows
 					.map(row => {
 						return $('tr', undefined,
 							...row.map(rowData => {
@@ -381,6 +391,12 @@ class ExtensionFeatureView extends Disposable {
 
 	private renderMarkdownData(container: HTMLElement, renderer: IExtensionFeatureMarkdownRenderer): void {
 		const markdownData = this._register(renderer.render(this.manifest));
+		if (markdownData.onDidChange) {
+			this._register(markdownData.onDidChange(data => {
+				clearNode(container);
+				this.renderMarkdown(data, container);
+			}));
+		}
 		this.renderMarkdown(markdownData.data, container);
 	}
 
