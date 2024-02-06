@@ -104,8 +104,6 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 						disableCloseAction: true
 					});
 				} else {
-					const connection = this._remoteAgentService.getConnection();
-					connection?.dispose();
 					this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
 					return;
 				}
