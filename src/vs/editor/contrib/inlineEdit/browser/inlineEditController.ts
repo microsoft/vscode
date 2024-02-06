@@ -118,6 +118,26 @@ export class InlineEditController extends Disposable {
 		this._register(new InlineEditHintsWidget(this.editor, this._currentEdit, this.instantiationService));
 	}
 
+	private validateInlineEdit(editor: ICodeEditor, edit: IInlineEdit): boolean {
+		if (edit.text.length === 0) {
+			return false;
+		}
+		//Multiline inline replacing edit must replace whole lines
+		if (edit.text.includes('\n') && edit.range.startLineNumber !== edit.range.endLineNumber && edit.range.startColumn !== edit.range.endColumn) {
+			const firstColumn = edit.range.startColumn;
+			if (firstColumn !== 1) {
+				return false;
+			}
+			const lastLine = edit.range.endLineNumber;
+			const lastColumn = edit.range.endColumn;
+			const lineLength = editor.getModel()?.getLineLength(lastLine) ?? 0;
+			if (lastColumn !== lineLength + 1) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	private async fetchInlineEdit(editor: ICodeEditor, auto: boolean): Promise<IInlineEdit | undefined> {
 		if (this._currentRequestCts) {
 			this._currentRequestCts.dispose(true);
@@ -149,6 +169,9 @@ export class InlineEditController extends Disposable {
 		if (token.isCancellationRequested || model.isDisposed() || model.getVersionId() !== modelVersion) {
 			return;
 		}
+		if (!this.validateInlineEdit(editor, edit)) {
+			//TODO: enable it when extension is fixed
+		}
 		return edit;
 	}
 
@@ -160,7 +183,6 @@ export class InlineEditController extends Disposable {
 		if (!edit) {
 			return;
 		}
-		console.log('got inline edit\n\n', JSON.stringify(edit, undefined, 2));
 		const line = edit.range.endLineNumber;
 		const column = edit.range.endColumn;
 		const ghostText = new GhostText(line, [new GhostTextPart(column, edit.text.split('\n'), false)]);
