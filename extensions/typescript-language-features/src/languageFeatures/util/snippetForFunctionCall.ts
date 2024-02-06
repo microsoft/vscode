@@ -83,7 +83,7 @@ function getParameterListParts(
 					if (nameIsFollowedByOptionalIndicator) {
 						optionalParams.push(part);
 					} else {
-						optionalParams.forEach(param => parts.push(param));
+						parts.push(...optionalParams);
 						optionalParams = [];
 					}
 
