@@ -13,7 +13,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -94,6 +94,8 @@ export class StartupPageRunnerContribution implements IWorkbenchContribution {
 	}
 
 	private async run() {
+
+		await this.lifecycleService.when(LifecyclePhase.Restored);
 
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 		if (
