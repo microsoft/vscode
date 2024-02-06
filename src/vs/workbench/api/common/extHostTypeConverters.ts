@@ -2533,7 +2533,10 @@ export namespace ChatResponseProgress {
 			case 'treeData':
 				return { treeData: revive(progress.treeData) };
 			case 'command':
-				return { command: commandsConverter.fromInternal(progress.command)! }; // ??
+				// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
+				return {
+					command: commandsConverter.fromInternal(progress.command) ?? { command: progress.command.id, title: progress.command.title },
+				};
 			default:
 				// Unknown type, eg something in history that was removed? Ignore
 				return undefined;
