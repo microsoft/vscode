@@ -37,25 +37,12 @@ const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
-export class StartupPageContribution implements IWorkbenchContribution {
+export class StartupPageEditorResolverContribution implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.startupPage';
+	static readonly ID = 'workbench.contrib.startupPageEditorResolver';
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IProductService private readonly productService: IProductService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
 		editorResolverService.registerEditor(
@@ -81,7 +68,28 @@ export class StartupPageContribution implements IWorkbenchContribution {
 				}
 			}
 		);
+	}
+}
 
+export class StartupPageRunnerContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.startupPageRunner';
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IProductService private readonly productService: IProductService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService
+	) {
 		this.run().then(undefined, onUnexpectedError);
 	}
 

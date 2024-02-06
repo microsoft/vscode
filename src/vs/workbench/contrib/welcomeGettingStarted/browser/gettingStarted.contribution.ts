@@ -17,7 +17,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
-import { Extensions as WorkbenchExtensions, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
+import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -27,9 +27,9 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { StartupPageEditorResolverContribution, StartupPageRunnerContribution } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { StartupPageContribution } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
@@ -266,6 +266,9 @@ registerAction2(class extends Action2 {
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
 class WorkspacePlatformContribution {
+
+	static readonly ID = 'workbench.contrib.workspacePlatform';
+
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
@@ -297,8 +300,6 @@ class WorkspacePlatformContribution {
 		});
 	}
 }
-
-registerWorkbenchContribution2(WorkbenchExtensions.Workbench, WorkspacePlatformContribution, WorkbenchPhase.AfterRestored);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -335,4 +336,6 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-registerWorkbenchContribution2(StartupPageContribution.ID, StartupPageContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(WorkspacePlatformContribution.ID, WorkspacePlatformContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(StartupPageEditorResolverContribution.ID, StartupPageEditorResolverContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(StartupPageRunnerContribution.ID, StartupPageRunnerContribution, { editorTypeId: GettingStartedPage.ID, });
