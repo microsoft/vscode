@@ -73,7 +73,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 		}
 
 		const allowed = result === ConnectionChoice.Allow;
-		if (checkboxChecked) {
+		if (allowed && checkboxChecked) {
 			this.storageService.store(REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY, allowed, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 
