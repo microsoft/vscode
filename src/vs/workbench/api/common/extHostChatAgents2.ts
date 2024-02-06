@@ -8,21 +8,139 @@ import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatFollowup, IChatReplyFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatReplyFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
+
+class ChatAgentResponseStream {
+
+	private _stopWatch = StopWatch.create(false);
+	private _isClosed: boolean = false;
+	private _firstProgress: number | undefined;
+	private _apiObject: vscode.ChatAgentExtendedResponseStream | undefined;
+
+	constructor(
+		private readonly _extension: IExtensionDescription,
+		private readonly _request: IChatAgentRequest,
+		private readonly _proxy: MainThreadChatAgentsShape2,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	close() {
+		this._isClosed = true;
+	}
+
+	get timings() {
+		return {
+			firstProgress: this._firstProgress,
+			totalElapsed: this._stopWatch.elapsed()
+		};
+	}
+
+	get apiObject() {
+
+		if (!this._apiObject) {
+
+			const that = this;
+			this._stopWatch.reset();
+
+			function throwIfDone(source: Function | undefined) {
+				if (that._isClosed) {
+					const err = new Error('Response stream has been closed');
+					Error.captureStackTrace(err, source);
+					throw err;
+				}
+			}
+
+			const _report = (progress: Dto<IChatProgress>) => {
+				// Measure the time to the first progress update with real markdown content
+				if (typeof this._firstProgress === 'undefined' && 'content' in progress) {
+					this._firstProgress = this._stopWatch.elapsed();
+				}
+				this._proxy.$handleProgressChunk(this._request.requestId, progress);
+			};
+
+			this._apiObject = {
+				markdown(value, meta) {
+					throwIfDone(this.markdown);
+					_report({
+						kind: 'markdownContent',
+						content: typeConvert.MarkdownString.from(value)
+					});
+					return this;
+				},
+				text(value, meta) {
+					throwIfDone(this.text);
+					this.markdown(new MarkdownString().appendText(value), meta);
+					return this;
+				},
+				files(value, meta) {
+					throwIfDone(this.files);
+					_report({
+						kind: 'treeData',
+						treeData: value
+					});
+					return this;
+				},
+				anchor(value, meta) {
+					throwIfDone(this.anchor);
+					_report({
+						kind: 'inlineReference',
+						name: meta?.title,
+						inlineReference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
+					});
+					return this;
+				},
+				progress(value) {
+					throwIfDone(this.progress);
+					_report({
+						kind: 'progressMessage',
+						content: new MarkdownString(value)
+					});
+					return this;
+				},
+				reference(value) {
+					throwIfDone(this.reference);
+					_report({
+						kind: 'reference',
+						reference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
+					});
+					return this;
+				},
+				report(progress) {
+					throwIfDone(this.report);
+					if ('placeholder' in progress && 'resolvedContent' in progress) {
+						// Ignore for now, this is the deleted Task type
+						return;
+					}
+
+					const value = typeConvert.ChatResponseProgress.from(that._extension, progress);
+					if (!value) {
+						that._logService.error('Unknown progress type: ' + JSON.stringify(progress));
+						return;
+					}
+
+					_report(value);
+					return this;
+				}
+			};
+		}
+
+		return this._apiObject;
+	}
+}
 
 export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
@@ -61,44 +179,17 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
 
-		let done = false;
-		function throwIfDone() {
-			if (done) {
-				throw new Error('Only valid while executing the command');
-			}
-		}
-
 		const commandExecution = new DeferredPromise<void>();
 		token.onCancellationRequested(() => commandExecution.complete());
 		this._extHostChatProvider.allowListExtensionWhile(agent.extension.identifier, commandExecution.p);
 
-		const stopWatch = StopWatch.create(false);
-		let firstProgress: number | undefined;
+		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService);
 		try {
 			const convertedHistory = await this.prepareHistory(agent, request, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
 				{ history: convertedHistory },
-				new Progress<vscode.ChatAgentExtendedProgress>(progress => {
-					throwIfDone();
-
-					// Measure the time to the first progress update with real markdown content
-					if (typeof firstProgress === 'undefined' && 'content' in progress) {
-						firstProgress = stopWatch.elapsed();
-					}
-
-					const convertedProgress = typeConvert.ChatResponseProgress.from(agent.extension, progress);
-					if (!convertedProgress) {
-						this._logService.error('Unknown progress type: ' + JSON.stringify(progress));
-						return;
-					}
-
-					if ('placeholder' in progress && 'resolvedContent' in progress) {
-						// Ignore for now, this is the deleted Task type
-					} else {
-						this._proxy.$handleProgressChunk(request.requestId, convertedProgress);
-					}
-				}),
+				stream.apiObject,
 				token
 			);
 
@@ -112,8 +203,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					}
 					sessionResults.set(request.requestId, result);
 
-					const timings = { firstProgress: firstProgress, totalElapsed: stopWatch.elapsed() };
-					return { errorDetails: result.errorDetails, timings };
+					return { errorDetails: result.errorDetails, timings: stream.timings };
 				} else {
 					this._previousResultMap.delete(request.sessionId);
 				}
@@ -126,7 +216,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			return { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", toErrorMessage(e)), responseIsIncomplete: true } };
 
 		} finally {
-			done = true;
+			stream.close();
 			commandExecution.complete();
 		}
 	}
@@ -514,7 +604,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		} satisfies vscode.ChatAgent2<TResult>;
 	}
 
-	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.ChatAgentExtendedProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
-		return this._callback(request, context, progress, token);
+	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, response: vscode.ChatAgentExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
+		return this._callback(request, context, response, token);
 	}
 }

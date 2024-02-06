@@ -3859,11 +3859,11 @@ export class CommandCenter {
 		const changes = await repository.diffBetween(commitParentId, commit.hash);
 
 		const title = `${item.shortRef} - ${commit.message}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), item.ref, { scheme: 'git-commit' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), commit.hash, { scheme: 'git-commit' });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of changes) {
-			resources.push(toMultiFileDiffEditorUris(change, item.previousRef, item.ref));
+			resources.push(toMultiFileDiffEditorUris(change, commitParentId, commit.hash));
 		}
 
 		return {
