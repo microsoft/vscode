@@ -29,6 +29,7 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
@@ -63,7 +64,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		@ILanguageService private languageService: ILanguageService,
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -283,7 +285,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
 			await this._actionRunDelegate?.();
 
 			await action.run({
@@ -306,7 +308,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions.setActions(editorMenu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(container, async (action: IAction) => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
 			this._actionRunDelegate?.();
 
 			action.run({

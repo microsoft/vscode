@@ -49,6 +49,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -114,7 +115,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IAccessibilityService private accessibilityService: IAccessibilityService
+		@IAccessibilityService private accessibilityService: IAccessibilityService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -610,7 +612,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions?.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, (action: IAction): void => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
@@ -636,7 +638,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions?.setActions(menu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(container, (action: IAction): void => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
