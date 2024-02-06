@@ -17,7 +17,7 @@ declare module 'vscode' {
 		/**
 		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
 		 */
-		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFilesPart | ChatResponseAnchorPart)[];
+		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFilesPart | ChatResponseAnchorPart | ChatResponseCommandButtonPart)[];
 
 		/**
 		 * The result that was received from the chat agent.
@@ -329,8 +329,13 @@ declare module 'vscode' {
 		constructor(value: Uri | Location);
 	}
 
+	export class ChatResponseCommandButtonPart {
+		value: Command;
+		constructor(value: Command);
+	}
+
 	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFilesPart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart;
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead

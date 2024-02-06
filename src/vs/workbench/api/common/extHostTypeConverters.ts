@@ -36,7 +36,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/edit
 import { IViewBadge } from 'vs/workbench/common/views';
 import { IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IInlineChatCommandFollowup, IInlineChatFollowup, IInlineChatReplyFollowup, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -50,6 +50,7 @@ import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 
 export namespace Command {
 
@@ -2398,6 +2399,21 @@ export namespace ChatResponseProgressPart {
 	}
 	export function from(part: Dto<IChatProgressMessage>): vscode.ChatResponseProgressPart {
 		return new types.ChatResponseProgressPart(part.content.value);
+	}
+}
+
+export namespace ChatResponseCommandButtonPart {
+	export function to(part: vscode.ChatResponseCommandButtonPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): Dto<IChatCommandButton> {
+		// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
+		const command = commandsConverter.toInternal(part.value, commandDisposables) ?? { command: part.value.command, title: part.value.title };
+		return {
+			kind: 'command',
+			command
+		};
+	}
+	export function from(part: Dto<IChatCommandButton>, commandsConverter: CommandsConverter): vscode.ChatResponseCommandButtonPart {
+		// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
+		return new types.ChatResponseCommandButtonPart(commandsConverter.fromInternal(part.command) ?? { command: part.command.id, title: part.command.title });
 	}
 }
 

@@ -9,7 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -39,6 +39,7 @@ class ChatAgentResponseStream {
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _logService: ILogService,
 		private readonly _commandsConverter: CommandsConverter,
+		private readonly _sessionDisposables: DisposableStore
 	) { }
 
 	close() {
@@ -102,12 +103,11 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				button(command) {
+				button(value) {
 					throwIfDone(this.anchor);
-					_report({
-						kind: 'command',
-						command: that._commandsConverter.toInternal(command, new DisposableStore()) // ??
-					});
+					const part = new extHostTypes.ChatResponseCommandButtonPart(value);
+					const dto = typeConvert.ChatResponseCommandButtonPart.to(part, that._commandsConverter, that._sessionDisposables);
+					_report(dto);
 					return this;
 				},
 				progress(value) {
@@ -156,6 +156,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	private readonly _previousResultMap: Map<string, vscode.ChatAgentResult2> = new Map();
 	private readonly _resultsBySessionAndRequestId: Map<string, Map<string, vscode.ChatAgentResult2>> = new Map();
+	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = new DisposableMap();
 
 	constructor(
 		mainContext: IMainContext,
@@ -187,7 +188,14 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: true }]);
 
-		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter);
+		// Init session disposables
+		let sessionDisposables = this._sessionDisposables.get(request.sessionId);
+		if (!sessionDisposables) {
+			sessionDisposables = new DisposableStore();
+			this._sessionDisposables.set(request.sessionId, sessionDisposables);
+		}
+
+		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter, sessionDisposables);
 		try {
 			const convertedHistory = await this.prepareHistory(agent, request, context);
 			const task = agent.invoke(
@@ -241,6 +249,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	$releaseSession(sessionId: string): void {
 		this._previousResultMap.delete(sessionId);
 		this._resultsBySessionAndRequestId.delete(sessionId);
+		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
 
 	async $provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]> {

@@ -425,6 +425,20 @@
 	align-items: start;
 }
 
+.interactive-session-followups .monaco-button {
+	text-align: left;
+	width: initial;
+}
+
+.interactive-session-followups .monaco-button .codicon {
+	margin-left: 0;
+	margin-top: 1px;
+}
+
+.interactive-item-container .interactive-response-followups .monaco-button {
+	padding: 4px 8px;
+}
+
 .interactive-session .interactive-input-part .interactive-input-followups {
 	margin: 0px 20px;
 }

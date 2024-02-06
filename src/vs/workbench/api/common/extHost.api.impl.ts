@@ -1646,6 +1646,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
+			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 		};
 	};
 }
