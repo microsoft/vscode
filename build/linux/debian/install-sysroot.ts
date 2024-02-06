@@ -80,7 +80,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 	try {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-		const version = '20231122-245579';
+		const version = '20240129-253798';
 		try {
 			const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
 				headers: ghApiHeaders,
@@ -139,18 +139,19 @@ export async function getVSCodeSysroot(arch: DebianArchString): Promise<string> 
 	let triple: string;
 	switch (arch) {
 		case 'amd64':
-			expectedName = `x86_64-linux-gnu.tar.gz`;
+			expectedName = `x86_64-linux-gnu-glibc-2.17.tar.gz`;
 			triple = 'x86_64-linux-gnu';
 			break;
 		case 'arm64':
-			expectedName = `aarch64-linux-gnu.tar.gz`;
+			expectedName = `aarch64-linux-gnu-glibc-2.17.tar.gz`;
 			triple = 'aarch64-linux-gnu';
 			break;
 		case 'armhf':
-			expectedName = `arm-rpi-linux-gnueabihf.tar.gz`;
+			expectedName = `arm-rpi-linux-gnueabihf-glibc-2.17.tar.gz`;
 			triple = 'arm-rpi-linux-gnueabihf';
 			break;
 	}
+	console.log(`Fetching ${expectedName} for ${triple}`);
 	const checksumSha256 = getVSCodeSysrootChecksum(expectedName);
 	if (!checksumSha256) {
 		throw new Error(`Could not find checksum for ${expectedName}`);
