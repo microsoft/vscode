@@ -4212,8 +4212,8 @@ export class ChatResponseTextPart {
 }
 
 export class ChatResponseMarkdownPart {
-	value: string | MarkdownString;
-	constructor(value: string | MarkdownString) {
+	value: string | vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
 		this.value = value;
 	}
 }
@@ -4227,8 +4227,10 @@ export class ChatResponseFilesPart {
 
 export class ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
-	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation) {
+	title?: string;
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
 		this.value = value;
+		this.title = title;
 	}
 }
 
