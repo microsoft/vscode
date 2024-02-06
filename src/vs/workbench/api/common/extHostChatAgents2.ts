@@ -73,7 +73,7 @@ class ChatAgentResponseStream {
 			};
 
 			this._apiObject = {
-				markdown(value, meta) {
+				markdown(value) {
 					throwIfDone(this.markdown);
 					_report({
 						kind: 'markdownContent',
@@ -81,12 +81,12 @@ class ChatAgentResponseStream {
 					});
 					return this;
 				},
-				text(value, meta) {
+				text(value) {
 					throwIfDone(this.text);
-					this.markdown(new MarkdownString().appendText(value), meta);
+					this.markdown(new MarkdownString().appendText(value));
 					return this;
 				},
-				files(value, meta) {
+				files(value) {
 					throwIfDone(this.files);
 					_report({
 						kind: 'treeData',
@@ -94,11 +94,11 @@ class ChatAgentResponseStream {
 					});
 					return this;
 				},
-				anchor(value, meta) {
+				anchor(value, title?: string) {
 					throwIfDone(this.anchor);
 					_report({
 						kind: 'inlineReference',
-						name: meta?.title,
+						name: title,
 						inlineReference: !URI.isUri(value) ? typeConvert.Location.from(<vscode.Location>value) : value
 					});
 					return this;
