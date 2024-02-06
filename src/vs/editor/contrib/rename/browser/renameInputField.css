@@ -16,6 +16,7 @@
 .monaco-editor .rename-box .rename-input {
 	padding: 3px;
 	border-radius: 2px;
+	width: calc(100% - 8px); /* 4px padding on each side */
 }
 
 .monaco-editor .rename-box .rename-label {
@@ -23,15 +24,15 @@
 	opacity: .8;
 }
 
-.monaco-editor .rename-box .new-name-candidates-container {
-	margin-top: 4px;
+.rename-box .new-name-candidates-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	margin-top: 5px;
 }
 
-.monaco-editor .rename-box .new-name-candidate {
-	/* FIXME@ulugbekna: adapt colors to be nice */
-	background-color: rgb(2, 96, 190);
-	color: white;
-
+.rename-box .new-name-candidates-container > .monaco-text-button {
+	width: auto;
 	margin: 2px;
 	padding: 2px;
 }

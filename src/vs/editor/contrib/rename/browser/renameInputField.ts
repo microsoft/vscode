@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -16,6 +18,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -79,10 +82,11 @@ export class RenameInputField implements IContentWidget {
 			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 			this._domNode.appendChild(this._input);
 
-			// TODO@ulugbekna: add keyboard support for cycling through the candidates
+			// TODO@ulugbekna: support accept/escape corresponding to the keybindings
 			this._newNameCandidates = new NewSymbolNameCandidates();
+			this._newNameCandidates.onAccept(() => this.acceptInput(false)); // FIXME@ulugbekna: need to handle preview
+			this._newNameCandidates.onEscape(() => this._input!.focus());
 			this._domNode.appendChild(this._newNameCandidates!.domNode);
-			this._disposables.add(this._newNameCandidates);
 
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
@@ -144,6 +148,10 @@ export class RenameInputField implements IContentWidget {
 	beforeRender(): IDimension | null {
 		const [accept, preview] = this._acceptKeybindings;
 		this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+		// TODO@ulugbekna: elements larger than maxWidth shouldn't overflow
+		const maxWidth = Math.ceil(this._editor.getLayoutInfo().contentWidth / 4);
+		this._domNode!.style.maxWidth = `${maxWidth}px`;
+		this._domNode!.style.minWidth = `250px`; // to prevent from widening when candidates come in
 		return null;
 	}
 
@@ -179,7 +187,9 @@ export class RenameInputField implements IContentWidget {
 		const disposeOnDone = new DisposableStore();
 
 		newNameCandidates.then(candidates => {
-			this._newNameCandidates!.setCandidates(candidates);
+			if (!token.isCancellationRequested) { // TODO@ulugbekna: make sure this's the correct token to check
+				this._newNameCandidates!.setCandidates(candidates);
+			}
 		});
 
 		return new Promise<RenameInputFieldResult | boolean>(resolve => {
@@ -247,44 +257,49 @@ export class RenameInputField implements IContentWidget {
 	}
 }
 
-class NewSymbolNameCandidates implements IDisposable {
+export class NewSymbolNameCandidates {
 
-	public readonly domNode: HTMLDivElement;
+	public readonly domNode: HTMLElement;
 
-	private _candidates: HTMLSpanElement[] = [];
-	private _disposables = new DisposableStore();
+	private _onAcceptEmitter = new Emitter<string>();
+	public readonly onAccept = this._onAcceptEmitter.event;
+	private _onEscapeEmitter = new Emitter<void>();
+	public readonly onEscape = this._onEscapeEmitter.event;
 
+	private _candidates: Button[] = [];
+
+	private _candidateDisposables: DisposableStore | undefined;
+
+	// TODO@ulugbekna: pressing escape when focus is on a candidate should return the focus to the input field
 	constructor() {
 		this.domNode = document.createElement('div');
-		this.domNode.className = 'new-name-candidates-container';
+		this.domNode.className = 'rename-box new-name-candidates-container';
 		this.domNode.tabIndex = -1; // Make the div unfocusable
 	}
 
 	get selectedCandidate(): string | undefined {
-		const activeDocument = dom.getActiveDocument();
-		const activeElement = activeDocument.activeElement;
-		const index = this._candidates.indexOf(activeElement as HTMLSpanElement);
-		return index !== -1 ? this._candidates[index].innerText : undefined;
+		const selected = this._candidates.find(c => c.hasFocus());
+		return selected === undefined ? undefined : (
+			assertType(typeof selected.label === 'string', 'string'),
+			selected.label
+		);
 	}
 
 	setCandidates(candidates: string[]): void {
+		this._candidateDisposables = new DisposableStore();
 		for (let i = 0; i < candidates.length; i++) {
 			const candidate = candidates[i];
-			const candidateElt = document.createElement('span');
-			candidateElt.className = 'new-name-candidate';
-			candidateElt.innerText = candidate;
-			candidateElt.tabIndex = 0;
-			this.domNode.appendChild(candidateElt);
+			const candidateElt = new Button(this.domNode, defaultButtonStyles);
+			this._candidateDisposables.add(candidateElt.onDidClick(() => this._onAcceptEmitter.fire(candidate)));
+			this._candidateDisposables.add(candidateElt.onDidEscape(() => this._onEscapeEmitter.fire()));
+			candidateElt.label = candidate;
 			this._candidates.push(candidateElt);
 		}
 	}
 
 	clearCandidates(): void {
-		this.domNode.innerText = ''; // TODO@ulugbekna: make sure this is the right way to clean up children
+		this._candidateDisposables?.dispose();
+		this.domNode.innerText = '';
 		this._candidates = [];
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
 	}
 }
