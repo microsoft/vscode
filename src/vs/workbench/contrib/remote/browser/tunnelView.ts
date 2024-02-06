@@ -1171,7 +1171,7 @@ const alreadyForwarded: string = nls.localize('remote.tunnelView.alreadyForwarde
 export namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
-	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.forward', "Forward a Port"), original: 'Forward a Port' };
+	export const LABEL: ILocalizedString = nls.localize2('remote.tunnel.forward', "Forward a Port");
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
@@ -1266,7 +1266,7 @@ function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplor
 namespace ClosePortAction {
 	export const INLINE_ID = 'remote.tunnel.closeInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.closeCommandPalette';
-	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.close', "Stop Forwarding Port"), original: 'Stop Forwarding Port' };
+	export const LABEL: ILocalizedString = nls.localize2('remote.tunnel.close', "Stop Forwarding Port");
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {

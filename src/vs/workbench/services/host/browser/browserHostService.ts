@@ -15,7 +15,7 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -206,8 +206,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	@memoize
-	get onDidChangeFullScreen(): Event<number> {
-		const emitter = this._register(new Emitter<number>());
+	get onDidChangeFullScreen(): Event<{ windowId: number; fullscreen: boolean }> {
+		const emitter = this._register(new Emitter<{ windowId: number; fullscreen: boolean }>());
 
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
 			const windowId = getWindowId(window);
@@ -215,11 +215,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 			// Fullscreen (Browser)
 			for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
-				disposables.add(addDisposableListener(window.document, event, () => emitter.fire(windowId)));
+				disposables.add(addDisposableListener(window.document, event, () => emitter.fire({ windowId, fullscreen: !!detectFullscreen(window) })));
 			}
 
 			// Fullscreen (Native)
-			disposables.add(addDisposableThrottledListener(viewport, EventType.RESIZE, () => emitter.fire(windowId), undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
+			disposables.add(addDisposableThrottledListener(viewport, EventType.RESIZE, () => emitter.fire({ windowId, fullscreen: !!detectFullscreen(window) }), undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 		}, { window: mainWindow, disposables: this._store }));
 
 		return emitter.event;

@@ -589,7 +589,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const wasEnabled = this.userDataSyncEnablementService.isResourceEnabled(item.id);
 			const isEnabled = !!selectedItems.filter(selected => selected.id === item.id)[0];
 			if (wasEnabled !== isEnabled) {
-				this.userDataSyncEnablementService.setResourceEnablement(item.id!, isEnabled);
+				this.userDataSyncEnablementService.setResourceEnablement(item.id, isEnabled);
 			}
 		}
 	}
@@ -835,7 +835,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getShowConflictsTitle(): ILocalizedString {
-		return { value: localize('resolveConflicts_global', "Show Conflicts ({0})", this.getConflictsCount()), original: `Show Conflicts (${this.getConflictsCount()})` };
+		return localize2('resolveConflicts_global', "Show Conflicts ({0})", this.getConflictsCount());
 	}
 
 	private conflictsActionDisposable = this._register(new MutableDisposable());

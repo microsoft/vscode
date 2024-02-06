@@ -26,7 +26,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSlashCommand;
+		command?: ChatAgentSubCommand;
 	}
 
 	export interface ChatAgentVulnerability {
@@ -42,6 +42,8 @@ declare module 'vscode' {
 	export type ChatAgentExtendedProgress = ChatAgentProgress
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
+
+	export type ChatAgentExtendedResponseStream = ChatAgentResponseStream & Progress<ChatAgentExtendedProgress>;
 
 	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		/**
@@ -64,7 +66,7 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentExtendedProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 		/**
@@ -111,7 +113,7 @@ declare module 'vscode' {
 	export interface ChatAgentCommandAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
-		command: any; // ChatAgentCommandButton;
+		command: ChatAgentCommandFollowup;
 	}
 
 	export interface ChatAgentSessionFollowupAction {

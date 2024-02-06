@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 export enum NotebookProfileType {
 	default = 'default',
@@ -92,6 +90,9 @@ function isSetProfileArgs(args: unknown): args is ISetProfileArgs {
 }
 
 export class NotebookProfileContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.notebookProfile';
+
 	constructor(@IConfigurationService configService: IConfigurationService, @IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService) {
 		super();
 
@@ -124,6 +125,4 @@ export class NotebookProfileContribution extends Disposable {
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(NotebookProfileContribution, LifecyclePhase.Ready);
-
+registerWorkbenchContribution2(NotebookProfileContribution.ID, NotebookProfileContribution, WorkbenchPhase.BlockRestore);

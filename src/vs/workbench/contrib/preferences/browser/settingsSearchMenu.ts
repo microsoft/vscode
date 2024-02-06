@@ -57,7 +57,6 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			tooltip,
 			class: undefined,
 			enabled: true,
-			checked: false,
 			run: () => { this.doSearchWidgetAction(queryToAppend, triggerSuggest); }
 		};
 	}

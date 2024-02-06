@@ -23,7 +23,7 @@ import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/bro
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { getEditorTopPadding, NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -246,7 +246,7 @@ export abstract class BaseCellViewModel extends Disposable {
 					viewState: {
 						scrollLeft: 0,
 						firstPosition: { lineNumber: 1, column: 1 },
-						firstPositionDeltaTop: getEditorTopPadding()
+						firstPositionDeltaTop: this._viewContext.notebookOptions.getLayoutConfiguration().editorTopPadding
 					}
 				});
 			}
@@ -560,7 +560,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
-		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel!.getLineCount(), this.textModel!.getLineLength(this.textModel!.getLineCount()));
+		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel.getLineCount(), this.textModel.getLineLength(this.textModel.getLineCount()));
 		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
 		if (selectionTop === lastViewLineTop) {

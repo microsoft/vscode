@@ -5,16 +5,21 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
+export interface IVoiceChatExecuteActionContext {
+	readonly disableTimeout?: boolean;
+}
+
 export interface IChatExecuteActionContext {
 	widget?: IChatWidget;
 	inputValue?: string;
+	voice?: IVoiceChatExecuteActionContext;
 }
 
 export class SubmitAction extends Action2 {
@@ -23,10 +28,7 @@ export class SubmitAction extends Action2 {
 	constructor() {
 		super({
 			id: SubmitAction.ID,
-			title: {
-				value: localize('interactive.submit.label', "Submit"),
-				original: 'Submit'
-			},
+			title: localize2('interactive.submit.label', "Submit"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
@@ -54,10 +56,7 @@ export function registerChatExecuteActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.cancel',
-				title: {
-					value: localize('interactive.cancel.label', "Cancel"),
-					original: 'Cancel'
-				},
+				title: localize2('interactive.cancel.label', "Cancel"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.debugStop,

@@ -584,17 +584,18 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 			return;
 		}
 
+		if (this.userDataProfileService.currentProfile.icon && this.userDataProfileService.currentProfile.icon !== DEFAULT_ICON.id) {
+			return;
+		}
+
 		if ((this.action as CompositeBarAction).activity) {
 			return;
 		}
 
-		if (!this.userDataProfileService.currentProfile.icon || this.userDataProfileService.currentProfile.icon === DEFAULT_ICON.id) {
-			this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
-			this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
-			this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
-		}
-
 		show(this.profileBadge);
+		this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
+		this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 
 	protected override updateActivity(): void {

@@ -19,6 +19,7 @@ import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class StaticLanguageSelector implements ILanguageSelection {
 	readonly onDidChange: Event<string> = Event.None;
@@ -64,11 +65,13 @@ suite('SmartSelect', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
 		const uri = URI.file('test.js');
 		const model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(languageId), uri);
 		const [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace, selectSubwords: true }, CancellationToken.None);
-		const actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
+		const actualStr = actual.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		const desiredStr = ranges.reverse().map(r => String(r));
 
 		assert.deepStrictEqual(actualStr, desiredStr, `\nA: ${actualStr} VS \nE: ${desiredStr}`);
@@ -220,8 +223,8 @@ suite('SmartSelect', () => {
 
 		modelService.destroyModel(model.uri);
 
-		assert.strictEqual(expected.length, ranges!.length);
-		for (const range of ranges!) {
+		assert.strictEqual(expected.length, ranges.length);
+		for (const range of ranges) {
 			const exp = expected.shift() || null;
 			assert.ok(Range.equalsRange(range.range, exp), `A=${range.range} <> E=${exp}`);
 		}

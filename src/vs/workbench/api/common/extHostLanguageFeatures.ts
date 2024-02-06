@@ -474,6 +474,9 @@ class CodeActionAdapter {
 					}
 				}
 
+				// Ensures that this is either a Range[] or an empty array so we don't get Array<Range | undefined>
+				const range = candidate.ranges ?? [];
+
 				// new school: convert code action
 				actions.push({
 					cacheId: [cacheId, i],
@@ -484,6 +487,7 @@ class CodeActionAdapter {
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
+					ranges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? coalesce(range.map(typeConvert.Range.from)) : undefined,
 					disabled: candidate.disabled?.reason
 				});
 			}
@@ -1067,7 +1071,7 @@ class CompletionsAdapter {
 
 		const dto1 = this._convertCompletionItem(item, id);
 
-		const resolvedItem = await this._provider.resolveCompletionItem!(item, token);
+		const resolvedItem = await this._provider.resolveCompletionItem(item, token);
 
 		if (!resolvedItem) {
 			return undefined;
@@ -1422,7 +1426,7 @@ class InlayHintsAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const hint = await this._provider.resolveInlayHint!(item, token);
+		const hint = await this._provider.resolveInlayHint(item, token);
 		if (!hint) {
 			return undefined;
 		}
@@ -1556,7 +1560,7 @@ class LinkProviderAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const link = await this._provider.resolveDocumentLink!(item, token);
+		const link = await this._provider.resolveDocumentLink(item, token);
 		if (!link || !LinkProviderAdapter._validateLink(link)) {
 			return undefined;
 		}

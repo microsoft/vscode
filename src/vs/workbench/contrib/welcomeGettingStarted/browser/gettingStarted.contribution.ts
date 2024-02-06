@@ -10,7 +10,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/ed
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
@@ -63,6 +63,15 @@ registerAction2(class extends Action2 {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
 			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
 
+			// We're trying to open the welcome page from the Help menu
+			if (!selectedCategory && !selectedStep) {
+				editorService.openEditor({
+					resource: GettingStartedInput.RESOURCE,
+					options: <GettingStartedEditorOptions>{ preserveFocus: toSide ?? false }
+				}, toSide ? SIDE_GROUP : undefined);
+				return;
+			}
+
 			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
@@ -104,13 +113,16 @@ registerAction2(class extends Action2 {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options: <GettingStartedEditorOptions>{ selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false }
-				}).then((editor) => {
+				}, toSide ? SIDE_GROUP : undefined).then((editor) => {
 					(editor as GettingStartedPage)?.makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 				});
 
 			}
 		} else {
-			editorService.openEditor({ resource: GettingStartedInput.RESOURCE });
+			editorService.openEditor({
+				resource: GettingStartedInput.RESOURCE,
+				options: <GettingStartedEditorOptions>{ preserveFocus: toSide ?? false }
+			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}
 });
@@ -305,13 +317,14 @@ configurationRegistry.registerConfiguration({
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,
 			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal'],
 			'enumDescriptions': [
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
 			],
 			'default': 'welcomePage',
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
@@ -327,4 +340,4 @@ configurationRegistry.registerConfiguration({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Starting);
+	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, OutputChannel, window, workspace, l10n, env } from 'vscode';
-import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription } from '../jsonClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
+import { Disposable, ExtensionContext, OutputChannel, window, workspace, l10n, env } from 'vscode';
+import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription, AsyncDisposable } from '../jsonClient';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -15,7 +15,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { JSONSchemaCache } from './schemaCache';
 
 let telemetry: TelemetryReporter | undefined;
-let client: BaseLanguageClient | undefined;
+let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
@@ -44,17 +44,24 @@ export async function activate(context: ExtensionContext) {
 	const log = getLog(outputChannel);
 	context.subscriptions.push(log);
 
+	const timer = {
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
+			const handle = setTimeout(callback, ms, ...args);
+			return { dispose: () => clearTimeout(handle) };
+		}
+	};
+
 	// pass the location of the localization bundle to the server
 	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
 	const schemaRequests = await getSchemaRequestService(context, log);
 
-	client = await startClient(context, newLanguageClient, { schemaRequests, telemetry });
+	client = await startClient(context, newLanguageClient, { schemaRequests, telemetry, timer });
 }
 
 export async function deactivate(): Promise<any> {
 	if (client) {
-		await client.stop();
+		await client.dispose();
 		client = undefined;
 	}
 	telemetry?.dispose();

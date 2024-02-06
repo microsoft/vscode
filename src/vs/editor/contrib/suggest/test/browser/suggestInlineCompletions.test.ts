@@ -76,7 +76,7 @@ suite('Suggest Inline Completions', function () {
 
 	test('Aggressive inline completions when typing within line #146948', async function () {
 
-		const completions: SuggestInlineCompletions = insta.createInstance(SuggestInlineCompletions);
+		const completions: SuggestInlineCompletions = disposables.add(insta.createInstance(SuggestInlineCompletions));
 
 		{
 			// (1,3), end of word -> suggestions
@@ -92,7 +92,7 @@ suite('Suggest Inline Completions', function () {
 	});
 
 	test('Snippets show in inline suggestions even though they are turned off #175190', async function () {
-		const completions: SuggestInlineCompletions = insta.createInstance(SuggestInlineCompletions);
+		const completions: SuggestInlineCompletions = disposables.add(insta.createInstance(SuggestInlineCompletions));
 
 		{
 			// unfiltered

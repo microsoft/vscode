@@ -264,7 +264,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.scopedContextKeyService.bufferChangeEvents(() => {
 				const activeEditor = this.activeEditor;
 
-				this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
+				this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 
 				applyAvailableEditorIds(groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
 

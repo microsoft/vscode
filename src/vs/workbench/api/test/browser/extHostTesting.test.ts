@@ -610,7 +610,7 @@ suite('ExtHost Testing', () => {
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy, new NullLogService());
 
-			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), nullExtensionDescription, new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
 			await single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -803,7 +803,7 @@ suite('ExtHost Testing', () => {
 					contextValue: undefined,
 					expected: undefined,
 					actual: undefined,
-					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
+					location: convert.location.from({ uri: test2.uri!, range: test2.range }),
 				}]
 			]);
 

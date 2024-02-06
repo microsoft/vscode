@@ -13,7 +13,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -30,8 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
-import { localize } from 'vs/nls';
-import { mainWindow } from 'vs/base/browser/window';
+import { localize2 } from 'vs/nls';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -116,7 +115,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		this.updateTitleArea();
 		const id = this.getActiveComposite()?.getId();
 		if (id) {
-			this.onTitleAreaUpdate(id!);
+			this.onTitleAreaUpdate(id);
 		}
 		this.updateActivityBarVisiblity();
 		this.rememberActivityBarVisiblePosition();
@@ -183,19 +182,19 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
 				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
-				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
-				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				activeBorderBottomColor: theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BORDER),
+				activeForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND),
 				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
-				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
+				dragAndDropBorder: theme.getColor(ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER)
 			}),
 			compact: true
 		};
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
 	private shouldShowActivityBar(): boolean {
@@ -257,10 +256,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			constructor() {
 				super({
 					id: ToggleActivityBarVisibilityActionId,
-					title: {
-						value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-						original: 'Toggle Activity Bar Visibility'
-					},
+					title: localize2('toggleActivityBar', "Toggle Activity Bar Visibility"),
 				});
 			}
 			run(): Promise<void> {
