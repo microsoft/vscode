@@ -26,6 +26,8 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { getWorkbenchWindowTitleContributionContextKeys, getWorkbenchWindowTitleContributions } from 'vs/workbench/common/windowTitle';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -66,6 +68,7 @@ export class WindowTitle extends Disposable {
 		private readonly targetWindow: Window,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -92,6 +95,11 @@ export class WindowTitle extends Disposable {
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
 		this._register(this.viewsService.onDidChangeFocusedView(() => {
 			if (this.titleIncludesFocusedView) {
+				this.titleUpdater.schedule();
+			}
+		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(getWorkbenchWindowTitleContributionContextKeys())) {
 				this.titleUpdater.schedule();
 			}
 		}));
@@ -303,6 +311,12 @@ export class WindowTitle extends Disposable {
 		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 		const focusedView: string = this.viewsService.getFocusedViewName();
 
+		// Variables (contributed)
+		const contributedVariables: { [key: string]: string } = {};
+		for (const [key, value] of getWorkbenchWindowTitleContributions()) {
+			contributedVariables[key] = this.contextKeyService.getContextKeyValue(value.contextKey) ?? '';
+		}
+
 		return template(titleTemplate, {
 			activeEditorShort,
 			activeEditorLong,
@@ -320,6 +334,7 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
+			...contributedVariables,
 			separator: { label: separator }
 		});
 	}
