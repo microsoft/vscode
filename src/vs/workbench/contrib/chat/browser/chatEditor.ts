@@ -93,12 +93,12 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		this.updateModel(editorModel.model);
+		this.updateModel(editorModel.model, options.viewState);
 	}
 
-	private updateModel(model: IChatModel): void {
-		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
-		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
+	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
+		this._memento = new Memento('interactive-session-editor-' + model.providerId, this.storageService);
+		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
 		this.widget.setModel(model, { ...this._viewState });
 	}
 
