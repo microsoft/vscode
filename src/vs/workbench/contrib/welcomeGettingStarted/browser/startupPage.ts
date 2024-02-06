@@ -39,6 +39,8 @@ const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
 export class StartupPageContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.startupPage';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
