@@ -408,7 +408,10 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		if (!followups) {
 			return [];
 		}
-		return followups.map(f => typeConvert.ChatFollowup.from(f));
+		return followups
+			// Filter out "command followups" from older providers
+			.filter(f => !(f && 'commandId' in f))
+			.map(f => typeConvert.ChatFollowup.from(f));
 	}
 
 	async provideWelcomeMessage(token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
