@@ -117,5 +117,5 @@ fi
 if [ "$found_required_glibc" = "0" ] || [ "$found_required_glibcxx" = "0" ]; then
 	echo "Error: Missing required dependencies. Please refer to our FAQ https://aka.ms/vscode-remote/faq/old-linux for additional information."
 	# Custom exit code based on https://tldp.org/LDP/abs/html/exitcodes.html
-	exit 99
+	#exit 99
 fi
