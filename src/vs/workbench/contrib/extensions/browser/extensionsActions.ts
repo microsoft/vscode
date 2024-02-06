@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -2443,12 +2443,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 		const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
 		for (const feature of features) {
 			const status = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id)?.current?.status;
+			const manageAccessLink = `[${localize('manage access', 'Manage Access')}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features, false, feature.id]))}`)})`;
 			if (status?.severity === Severity.Error) {
-				this.updateStatus({ icon: errorIcon, message: new MarkdownString().appendText(status.message) }, true);
+				this.updateStatus({ icon: errorIcon, message: new MarkdownString().appendText(status.message).appendMarkdown(` ${manageAccessLink}`) }, true);
 				return;
 			}
 			if (status?.severity === Severity.Warning) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString().appendText(status.message) }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString().appendText(status.message).appendMarkdown(` ${manageAccessLink}`) }, true);
 				return;
 			}
 		}

@@ -140,7 +140,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	//#region --- making request
 
 
-	private readonly _accessAllowlist = new ExtensionIdentifierMap<boolean>();
+	private readonly _accesslist = new ExtensionIdentifierMap<boolean>();
 	private readonly _providerIds = new Set<string>();
 
 	private readonly _pendingRequest = new Map<number, { res: ChatRequest }>();
@@ -168,12 +168,12 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		return Array.from(this._providerIds);
 	}
 
-	$updateAllowlist(data: { extension: ExtensionIdentifier; allowed: boolean }[]): void {
+	$updateAccesslist(data: { extension: ExtensionIdentifier; enabled: boolean }[]): void {
 		const updated = new ExtensionIdentifierSet();
-		for (const { extension, allowed } of data) {
-			const oldValue = this._accessAllowlist.get(extension);
+		for (const { extension, enabled: allowed } of data) {
+			const oldValue = this._accesslist.get(extension);
 			if (oldValue !== allowed) {
-				this._accessAllowlist.set(extension, allowed);
+				this._accesslist.set(extension, allowed);
 				updated.add(extension);
 			}
 		}
@@ -181,18 +181,17 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	}
 
 	async requestChatResponseProvider(from: ExtensionIdentifier, identifier: string): Promise<vscode.ChatAccess> {
-		// check if a UI command is running/active
-
-		if (!this._accessAllowlist.get(from)) {
+		// check if the extension is in the access list and allowed to make chat requests
+		if (this._accesslist.get(from) === false) {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
 		const metadata = await this._proxy.$prepareChatAccess(from, identifier);
-		if (metadata === false) {
-			throw new Error('Extension is NOT allowed to make chat requests');
-		}
 
 		if (!metadata) {
+			if (!this._accesslist.get(from)) {
+				throw new Error('Extension is NOT allowed to make chat requests');
+			}
 			throw new Error(`ChatAccess '${identifier}' NOT found`);
 		}
 
@@ -203,14 +202,14 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				return metadata.model;
 			},
 			get isRevoked() {
-				return !that._accessAllowlist.get(from);
+				return !that._accesslist.get(from);
 			},
 			get onDidChangeAccess() {
 				return Event.signal(Event.filter(that._onDidChangeAccess.event, set => set.has(from)));
 			},
 			makeRequest(messages, options, token) {
 
-				if (!that._accessAllowlist.get(from)) {
+				if (!that._accesslist.get(from)) {
 					throw new Error('Access to chat has been revoked');
 				}
 

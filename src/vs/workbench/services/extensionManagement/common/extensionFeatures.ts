@@ -78,6 +78,7 @@ export interface IExtensionFeaturesManagementService {
 	readonly onDidChangeEnablement: Event<{ readonly extension: ExtensionIdentifier; readonly featureId: string; readonly enabled: boolean }>;
 	isEnabled(extension: ExtensionIdentifier, featureId: string): boolean;
 	setEnablement(extension: ExtensionIdentifier, featureId: string, enabled: boolean): void;
+	getEnablementData(featureId: string): { readonly extension: ExtensionIdentifier; readonly enabled: boolean }[];
 
 	getAccess(extension: ExtensionIdentifier, featureId: string): Promise<boolean>;
 

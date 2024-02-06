@@ -44,7 +44,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { isBoolean, isString, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { isWeb, language } from 'vs/base/common/platform';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
@@ -1087,10 +1086,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension) {
 			throw new Error(`Extension not found. ${extension}`);
 		}
-		const editor = await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
-		if (options?.tab && editor instanceof ExtensionEditor) {
-			await editor.openTab(options.tab);
-		}
+		await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined {

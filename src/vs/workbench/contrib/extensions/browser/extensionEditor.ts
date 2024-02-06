@@ -605,6 +605,9 @@ export class ExtensionEditor extends EditorPane {
 			}, this, this.transientDisposables);
 		}
 
+		if ((<IExtensionEditorOptions>this.options).tab) {
+			template.navbar.switch((<IExtensionEditorOptions>this.options).tab!);
+		}
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
@@ -990,7 +993,7 @@ export class ExtensionEditor extends EditorPane {
 			return null;
 		}
 
-		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest));
+		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest, (<IExtensionEditorOptions>this.options).feature));
 		const layout = () => extensionFeaturesTab.layout(template.content.clientHeight, template.content.clientWidth);
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));

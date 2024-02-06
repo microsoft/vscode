@@ -330,7 +330,6 @@ class ChatFeatureMarkdowneRenderer extends Disposable implements IExtensionFeatu
 		const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, CHAT_FEATURE_ID);
 		if (accessData && accessData.totalCount) {
 			if (accessData.current) {
-				// markdown.appendMarkdown(nls.localize('requests count', "Number of Requests: `{0}` (Session) | `{1}` (Total)", accessData.current.count, accessData.totalCount));
 				markdown.appendMarkdown(nls.localize('requests count session', "Requests (Session) : `{0}`", accessData.current.count));
 				markdown.appendText('\n');
 			}
@@ -343,7 +342,7 @@ class ChatFeatureMarkdowneRenderer extends Disposable implements IExtensionFeatu
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: CHAT_FEATURE_ID,
 	label: nls.localize('chat', "Chat"),
-	description: nls.localize('chatFeatureDescription', "Allows the extension to make requests to the AI chat model and display the results in a chat-like interface."),
+	description: nls.localize('chatFeatureDescription', "Allows the extension to make requests to the Large Language Model (LLM)."),
 	enablement: {
 		canToggle: true,
 		requireUserConsent: true,

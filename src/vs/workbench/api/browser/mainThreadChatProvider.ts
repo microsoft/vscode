@@ -26,13 +26,19 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatProviderService private readonly _chatProviderService: IChatProviderService,
-		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 
 		this._proxy.$updateProviderList({ added: _chatProviderService.getProviders() });
+		this._proxy.$updateAccesslist(_extensionFeaturesManagementService.getEnablementData(CHAT_FEATURE_ID));
 		this._store.add(_chatProviderService.onDidChangeProviders(this._proxy.$updateProviderList, this._proxy));
+		this._store.add(_extensionFeaturesManagementService.onDidChangeEnablement(e => {
+			if (e.featureId === CHAT_FEATURE_ID) {
+				this._proxy.$updateAccesslist(_extensionFeaturesManagementService.getEnablementData(CHAT_FEATURE_ID));
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -64,14 +70,10 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string): Promise<IChatResponseProviderMetadata | false | undefined> {
-		const access = await this.extensionFeaturesManagementService.getAccess(extension, CHAT_FEATURE_ID);
+	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string): Promise<IChatResponseProviderMetadata | undefined> {
+		const access = await this._extensionFeaturesManagementService.getAccess(extension, CHAT_FEATURE_ID);
 		if (!access) {
-			return false;
-		}
-		const accessData = this.extensionFeaturesManagementService.getAccessData(extension, CHAT_FEATURE_ID);
-		if ((accessData?.totalCount ?? 0) > 10) {
-			this.extensionFeaturesManagementService.setStatus(extension, CHAT_FEATURE_ID, { severity: Severity.Warning, message: 'You have reached the maximum number of chat requests' });
+			return undefined;
 		}
 		return this._chatProviderService.lookupChatResponseProvider(providerId);
 	}

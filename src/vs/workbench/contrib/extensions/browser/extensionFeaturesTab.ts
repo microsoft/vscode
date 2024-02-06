@@ -43,11 +43,13 @@ export class ExtensionFeaturesTab extends Themable {
 
 	private readonly featureView = this._register(new MutableDisposable<ExtensionFeatureView>());
 	private featureViewDimension?: { height?: number; width?: number };
+
 	private readonly layoutParticipants: ILayoutParticipant[] = [];
 	private readonly extensionId: ExtensionIdentifier;
 
 	constructor(
 		private readonly manifest: IExtensionManifest,
+		private readonly feature: string | undefined,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -83,16 +85,17 @@ export class ExtensionFeaturesTab extends Themable {
 		const featuresListContainer = $('.features-list-container');
 		const list = this.createFeaturesList(featuresListContainer);
 		list.splice(0, list.length, features);
-		list.setSelection([0]);
 
 		const featureViewContainer = $('.feature-view-container');
-		this.showFeatureView(features[0], featureViewContainer);
 		this._register(list.onDidChangeSelection(e => {
 			const feature = e.elements[0];
 			if (feature) {
 				this.showFeatureView(feature, featureViewContainer);
 			}
 		}));
+
+		const index = this.feature ? features.findIndex(f => f.id === this.feature) : 0;
+		list.setSelection([index === -1 ? 0 : index]);
 
 		splitView.addView({
 			onDidChange: Event.None,

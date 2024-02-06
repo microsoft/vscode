@@ -65,6 +65,20 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		}
 	}
 
+	getEnablementData(featureId: string): { readonly extension: ExtensionIdentifier; readonly enabled: boolean }[] {
+		const result: { readonly extension: ExtensionIdentifier; readonly enabled: boolean }[] = [];
+		const feature = this.registry.getExtensionFeature(featureId);
+		if (feature) {
+			for (const [extension, featureStateMap] of this.state) {
+				const featureState = featureStateMap.get(featureId);
+				if (featureState?.disabled !== undefined) {
+					result.push({ extension: new ExtensionIdentifier(extension), enabled: !featureState.disabled });
+				}
+			}
+		}
+		return result;
+	}
+
 	async getAccess(extension: ExtensionIdentifier, featureId: string): Promise<boolean> {
 		const feature = this.registry.getExtensionFeature(featureId);
 		if (!feature) {
@@ -75,21 +89,21 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 			return false;
 		}
 
-		// if (featureState.disabled === undefined) {
-		const extensionDescription = this.extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extension));
-		const confirmationResult = await this.dialogService.confirm({
-			title: localize('accessExtensionFeature', "Access '{0}' Feature", feature.label),
-			message: localize('accessExtensionFeatureMessage', "'{0}' extension would like to access the '{1}' feature.", extensionDescription?.displayName ?? extension.value, feature.label),
-			detail: feature.description,
-			custom: true,
-			primaryButton: localize('allow', "Allow"),
-			cancelButton: localize('disallow', "Don't Allow"),
-		});
-		this.setEnablement(extension, featureId, confirmationResult.confirmed);
-		if (!confirmationResult.confirmed) {
-			return false;
+		if (featureState.disabled === undefined) {
+			const extensionDescription = this.extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extension));
+			const confirmationResult = await this.dialogService.confirm({
+				title: localize('accessExtensionFeature', "Access '{0}' Feature", feature.label),
+				message: localize('accessExtensionFeatureMessage', "'{0}' extension would like to access the '{1}' feature.", extensionDescription?.displayName ?? extension.value, feature.label),
+				detail: feature.description,
+				custom: true,
+				primaryButton: localize('allow', "Allow"),
+				cancelButton: localize('disallow', "Don't Allow"),
+			});
+			this.setEnablement(extension, featureId, confirmationResult.confirmed);
+			if (!confirmationResult.confirmed) {
+				return false;
+			}
 		}
-		// }
 
 		featureState.accessData.current = {
 			count: featureState.accessData.current?.count ? featureState.accessData.current?.count + 1 : 1,
