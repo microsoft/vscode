@@ -196,7 +196,7 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly state = derivedOpts<{
 		suggestItem: SuggestItemInfo | undefined;
 		inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
-		ghostTexts: GhostTextOrReplacement[];
+		ghostTexts: readonly GhostTextOrReplacement[];
 		edits: SingleTextEdit[];
 		editorSelections: Selection[];
 	} | undefined>({

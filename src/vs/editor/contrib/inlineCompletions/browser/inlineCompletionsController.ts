@@ -5,8 +5,8 @@
 
 import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -30,6 +30,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Selection } from 'vs/editor/common/core/selection';
+import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
+import { ISettableObservable } from 'vs/base/common/observableInternal/base';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -56,11 +58,20 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
-	private _ghostTextWidget = this._register(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
-		ghostTexts: this.model.map((v, reader) => /** ghostText */ v?.ghostTexts.read(reader)),
-		minReservedLineCount: constObservable(0),
-		targetTextModel: this.model.map(v => v?.textModel),
-	}));
+	private readonly _ghostTexts = derived(this, (reader) => {
+		const model = this.model.read(reader);
+		return model?.ghostTexts.read(reader) ?? [];
+	});
+
+	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
+
+	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) => {
+		return store.add(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
+			ghostText: ghostText,
+			minReservedLineCount: constObservable(0),
+			targetTextModel: this.model.map(v => v?.textModel),
+		}));
+	}).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _debounceValue = this._debounceService.for(
 		this._languageFeaturesService.inlineCompletionsProvider,
@@ -276,7 +287,7 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		return this._ghostTextWidget.ownsViewZone(viewZoneId);
+		return this._ghostTextWidgets.get().some(widget => widget.ownsViewZone(viewZoneId));
 	}
 
 	public hide() {
@@ -284,4 +295,28 @@ export class InlineCompletionsController extends Disposable {
 			this.model.get()?.stop(tx);
 		});
 	}
+}
+
+function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {
+	const result = observableValue<IObservable<T>[]>('result', []);
+	const innerObservables: ISettableObservable<T>[] = [];
+
+	store.add(autorun(reader => {
+		const itemsValue = items.read(reader);
+
+		transaction(tx => {
+			if (itemsValue.length !== innerObservables.length) {
+				innerObservables.length = itemsValue.length;
+				for (let i = 0; i < innerObservables.length; i++) {
+					if (!innerObservables[i]) {
+						innerObservables[i] = observableValue<T>('item', itemsValue[i]);
+					}
+				}
+				result.set([...innerObservables], tx);
+			}
+			innerObservables.forEach((o, i) => o.set(itemsValue[i], tx));
+		});
+	}));
+
+	return result;
 }

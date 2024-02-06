@@ -135,7 +135,7 @@ export class GhostTextReplacement {
 
 export type GhostTextOrReplacement = GhostText | GhostTextReplacement;
 
-export function ghostTextsOrReplacementsEqual(a: GhostTextOrReplacement[] | undefined, b: GhostTextOrReplacement[] | undefined): boolean {
+export function ghostTextsOrReplacementsEqual(a: readonly GhostTextOrReplacement[] | undefined, b: readonly GhostTextOrReplacement[] | undefined): boolean {
 	if (!a || !b) {
 		return false;
 	}
