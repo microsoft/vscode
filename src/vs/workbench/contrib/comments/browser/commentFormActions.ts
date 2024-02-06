@@ -10,6 +10,7 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 
 export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
@@ -37,7 +38,10 @@ export class CommentFormActions implements IDisposable {
 
 			this._actions = actions;
 			for (const action of actions) {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id, this.contextKeyService)?.getLabel() ?? undefined;
+				let keybinding = this.keybindingService.lookupKeybinding(action.id, this.contextKeyService)?.getLabel();
+				if (!keybinding && isPrimary) {
+					keybinding = this.keybindingService.lookupKeybinding(CommentCommandId.Submit, this.contextKeyService)?.getLabel();
+				}
 				const title = keybinding ? `${action.label} (${keybinding})` : action.label;
 				const button = new Button(this.container, { secondary: !isPrimary, title, ...defaultButtonStyles });
 
