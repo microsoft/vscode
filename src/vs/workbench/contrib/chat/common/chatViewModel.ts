@@ -118,6 +118,7 @@ export interface IChatResponseViewModel {
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	readonly isStale: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
@@ -343,6 +344,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get requestId() {
 		return this._model.requestId;
+	}
+
+	get isStale() {
+		return this._model.isStale;
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;

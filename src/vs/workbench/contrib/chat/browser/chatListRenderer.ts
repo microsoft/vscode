@@ -438,7 +438,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
-						: data.kind === 'command' ? this.renderCommandButton(data)
+						: data.kind === 'command' ? this.renderCommandButton(element, data)
 							: undefined;
 			if (result) {
 				templateData.value.appendChild(result.element);
@@ -603,7 +603,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							result = null;
 						}
 					} else if (isCommandButtonRenderData(partToRender)) {
-						result = this.renderCommandButton(partToRender);
+						result = this.renderCommandButton(element, partToRender);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -803,11 +803,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return result;
 	}
 
-	private renderCommandButton(commandButton: IChatCommandButton): IMarkdownRenderResult {
+	private renderCommandButton(element: ChatTreeItem, commandButton: IChatCommandButton): IMarkdownRenderResult {
 		const container = $('.chat-command-button');
 		const disposables = new DisposableStore();
 		const button = disposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: true, title: commandButton.command.tooltip }));
 		button.label = commandButton.command.title;
+		button.enabled = !isResponseVM(element) || !element.isStale;
 
 		// TODO still need telemetry for command buttons
 		disposables.add(button.onDidClick(() => this.commandService.executeCommand(commandButton.command.id, ...(commandButton.command.arguments ?? []))));

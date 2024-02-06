@@ -615,6 +615,7 @@
 
 .interactive-item-container .chat-command-button {
 	display: flex;
+	margin-bottom: 16px;
 }
 
 .interactive-item-container .chat-command-button .monaco-button {

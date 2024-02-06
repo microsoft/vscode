@@ -69,6 +69,8 @@ export interface IChatResponseModel {
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
+	readonly isStale: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly errorDetails?: IChatResponseErrorDetails;
@@ -258,6 +260,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._progressMessages;
 	}
 
+	private _isStale: boolean = false;
+	public get isStale(): boolean {
+		return this._isStale;
+	}
+
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>,
 		public readonly session: ChatModel,
@@ -271,6 +278,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
 		super();
+
+		// If we are creating a response with some existing content, consider it stale
+		this._isStale = Array.isArray(_response) && (_response.length !== 0 || isMarkdownString(_response) && _response.value.length !== 0);
+
 		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
