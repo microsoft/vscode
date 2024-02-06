@@ -2517,7 +2517,7 @@ export namespace ChatResponseProgress {
 		}
 	}
 
-	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto): vscode.ChatAgentContentProgress | undefined {
+	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto, commandsConverter: Command.ICommandsConverter): vscode.ChatAgentContentProgress | undefined {
 		switch (progress.kind) {
 			case 'markdownContent':
 				// For simplicity, don't sent back the 'extended' types, so downgrade markdown to just some text
@@ -2532,6 +2532,8 @@ export namespace ChatResponseProgress {
 				};
 			case 'treeData':
 				return { treeData: revive(progress.treeData) };
+			case 'command':
+				return { command: commandsConverter.fromInternal(progress.command)! }; // ??
 			default:
 				// Unknown type, eg something in history that was removed? Ignore
 				return undefined;

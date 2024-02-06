@@ -30,6 +30,8 @@ declare module 'vscode' {
 		 * All of the chat messages so far in the current chat session.
 		 */
 		history: ChatAgentHistoryEntry[];
+
+		// sessionState?: any;
 	}
 
 	/**
@@ -276,6 +278,8 @@ declare module 'vscode' {
 
 		anchor(value: Uri | Location, title?: string): ChatAgentResponseStream;
 
+		button(command: Command): ChatAgentResponseStream;
+
 		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
 		progress(value: string): ChatAgentResponseStream;
 
@@ -287,12 +291,17 @@ declare module 'vscode' {
 		 * @deprecated use above methods instread
 		 */
 		report(value: ChatAgentProgress): void;
+
+		// updateSessionState(state: any): void;
 	}
 
 	// TODO@API
 	// support ChatResponseCommandPart
 	// support ChatResponseTextEditPart
 	// support ChatResponseCodeReferencePart
+
+	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
+	// and metadata like XYZItem
 
 	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
 	// and metadata like XYZItem
@@ -337,7 +346,7 @@ declare module 'vscode' {
 		| ChatAgentContent
 		| ChatAgentFileTree
 		| ChatAgentInlineContentReference
-		/* | ChatAgentCommandButton */;
+		| ChatAgentCommandButton;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
@@ -387,9 +396,9 @@ declare module 'vscode' {
 	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
-	// export interface ChatAgentCommandButton {
-	// 	command: Command;
-	// }
+	export interface ChatAgentCommandButton {
+		command: Command;
+	}
 
 	/**
 	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.

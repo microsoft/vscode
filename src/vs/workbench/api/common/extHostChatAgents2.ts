@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -16,6 +17,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
+import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -35,7 +37,8 @@ class ChatAgentResponseStream {
 		private readonly _extension: IExtensionDescription,
 		private readonly _request: IChatAgentRequest,
 		private readonly _proxy: MainThreadChatAgentsShape2,
-		@ILogService private readonly _logService: ILogService,
+		private readonly _logService: ILogService,
+		private readonly _commandsConverter: CommandsConverter,
 	) { }
 
 	close() {
@@ -99,6 +102,14 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				button(command) {
+					throwIfDone(this.anchor);
+					_report({
+						kind: 'command',
+						command: that._commandsConverter.toInternal(command, new DisposableStore()) // ??
+					});
+					return this;
+				},
 				progress(value) {
 					throwIfDone(this.progress);
 					const part = new extHostTypes.ChatResponseProgressPart(value);
@@ -150,6 +161,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		mainContext: IMainContext,
 		private readonly _extHostChatProvider: ExtHostChatProvider,
 		private readonly _logService: ILogService,
+		private readonly commands: ExtHostCommands,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
@@ -175,7 +187,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: true }]);
 
-		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService);
+		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter);
 		try {
 			const convertedHistory = await this.prepareHistory(agent, request, context);
 			const task = agent.invoke(
@@ -220,7 +232,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					|| h.result;
 				return {
 					request: typeConvert.ChatAgentRequest.to(h.request),
-					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.toProgressContent(r))),
+					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.toProgressContent(r, this.commands.converter))),
 					result
 				} satisfies vscode.ChatAgentHistoryEntry;
 			})));
@@ -289,7 +301,14 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			// handled by $acceptFeedback
 			return;
 		}
-		agent.acceptAction(Object.freeze({ action: action.action, result }));
+
+		if (action.action.kind === 'command') {
+			const action2: vscode.ChatAgentCommandAction = { kind: 'command', commandButton: typeConvert.ChatResponseProgress.toProgressContent(action.action.commandButton, this.commands.converter) as vscode.ChatAgentCommandButton };
+			agent.acceptAction(Object.freeze({ action: action2, result }));
+			return;
+		} else {
+			agent.acceptAction(Object.freeze({ action: action.action, result }));
+		}
 	}
 
 	async $invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]> {
