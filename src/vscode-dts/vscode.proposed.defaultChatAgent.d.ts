@@ -9,7 +9,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentWelcomeMessageProvider {
 		provideWelcomeMessage(token: CancellationToken): ProviderResult<ChatAgentWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
+		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentReplyFollowup[]>;
 	}
 
 	export interface ChatAgent2<TResult extends ChatAgentResult2> {
