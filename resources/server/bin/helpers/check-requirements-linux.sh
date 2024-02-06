@@ -77,7 +77,7 @@ while [ -n "$libstdcpp_path" ]; do
 	# which is then compared based on the fact that release versioning and symbol versioning
 	# are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
 	# (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
-    libstdcpp_path_line="$(echo "$libstdcpp_path" | head -n1)"
+    libstdcpp_path_line=$(echo "$libstdcpp_path" | head -n1)
     libstdcpp_real_path=$(readlink -f "$libstdcpp_path_line")
     libstdcpp_version=$(echo "$libstdcpp_real_path" | awk -F'\\.so\\.' '{print $NF}')
     if [ "$(printf '%s\n' "6.0.25" "$libstdcpp_version" | sort -V | head -n1)" = "6.0.25" ]; then
