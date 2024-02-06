@@ -114,7 +114,7 @@ declare module 'vscode' {
 		export function requestChatAccess(id: string): Thenable<ChatAccess>;
 
 		//@API add those
-		// export const chatAccesses: string[];
+		// export const chatAccesses: readonly string[];
 		// export const onDidChangeChatAccesses: Event<void>;
 	}
 }

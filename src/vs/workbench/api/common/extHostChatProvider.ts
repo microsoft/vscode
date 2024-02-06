@@ -95,6 +95,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	private readonly _proxy: MainThreadChatProviderShape;
 	private readonly _providers = new Map<number, ProviderData>();
 	private readonly _onDidChangeAccess = new Emitter<ExtensionIdentifierSet>();
+	private readonly _onDidChangeProviders = new Emitter<{ added: string[]; removed: string[] }>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -105,6 +106,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	dispose(): void {
 		this._onDidChangeAccess.dispose();
+		this._onDidChangeProviders.dispose();
 	}
 
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata): IDisposable {
@@ -137,9 +139,34 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	//#region --- making request
 
-	private readonly _pendingRequest = new Map<number, { res: ChatRequest }>();
 
 	private readonly _accessAllowlist = new ExtensionIdentifierMap<boolean>();
+	private readonly _providerIds = new Set<string>();
+
+	private readonly _pendingRequest = new Map<number, { res: ChatRequest }>();
+
+
+	$updateProviderList(data: { added?: string[] | undefined; removed?: string[] | undefined }): void {
+		const added: string[] = [];
+		const removed: string[] = [];
+		if (data.added) {
+			for (const id of data.added) {
+				this._providerIds.add(id);
+				added.push(id);
+			}
+		}
+		if (data.removed) {
+			for (const id of data.removed) {
+				this._providerIds.delete(id);
+				removed.push(id);
+			}
+		}
+		this._onDidChangeProviders.fire({ added, removed });
+	}
+
+	getProviderIds(): string[] {
+		return Array.from(this._providerIds);
+	}
 
 	$updateAllowlist(data: { extension: ExtensionIdentifier; allowed: boolean }[]): void {
 		const updated = new ExtensionIdentifierSet();
