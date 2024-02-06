@@ -103,6 +103,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
 	},
 	{
+		key: 'notebook/variables/context',
+		id: MenuId.WorkspaceVariablesContext,
+		description: localize('menus.workspaceVariablesContext', "The workspace variables view context menu")
+	},
+	{
 		key: 'menuBar/home',
 		id: MenuId.MenubarHomeMenu,
 		description: localize('menus.home', "The home indicator context menu (web only)"),

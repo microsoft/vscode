@@ -90,6 +90,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 				childNodes.push({
 					kind: 'variable',
+					type: 'placeHolder',
 					notebook: parent.notebook,
 					id: parent.id + `${start}`,
 					extHostId: parent.extHostId,
