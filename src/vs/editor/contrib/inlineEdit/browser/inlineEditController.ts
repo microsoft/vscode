@@ -119,9 +119,6 @@ export class InlineEditController extends Disposable {
 	}
 
 	private validateInlineEdit(editor: ICodeEditor, edit: IInlineEdit): boolean {
-		if (edit.text.length === 0) {
-			return false;
-		}
 		//Multiline inline replacing edit must replace whole lines
 		if (edit.text.includes('\n') && edit.range.startLineNumber !== edit.range.endLineNumber && edit.range.startColumn !== edit.range.endColumn) {
 			const firstColumn = edit.range.startColumn;
@@ -171,6 +168,7 @@ export class InlineEditController extends Disposable {
 		}
 		if (!this.validateInlineEdit(editor, edit)) {
 			//TODO: enable it when extension is fixed
+			return;
 		}
 		return edit;
 	}
