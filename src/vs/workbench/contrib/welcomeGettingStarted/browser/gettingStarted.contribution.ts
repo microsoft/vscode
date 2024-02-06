@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { GettingStartedEditorOptions, GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
+import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
 import { Extensions as WorkbenchExtensions, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
@@ -61,13 +61,16 @@ registerAction2(class extends Action2 {
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
 			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
+			const editor = instantiationService.createInstance(GettingStartedInput,
+				{
+					selectedCategory: selectedCategory,
+					selectedStep: selectedStep,
+					preserveFocus: toSide ?? false
+				});
 
 			// We're trying to open the welcome page from the Help menu
 			if (!selectedCategory && !selectedStep) {
-				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options: <GettingStartedEditorOptions>{ preserveFocus: toSide ?? false }
-				}, toSide ? SIDE_GROUP : undefined);
+				editorService.openEditor(editor, toSide ? SIDE_GROUP : undefined);
 				return;
 			}
 
@@ -105,23 +108,18 @@ registerAction2(class extends Action2 {
 				const activeGroup = editorGroupsService.activeGroup;
 				activeGroup.replaceEditors([{
 					editor: activeEditor,
-					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep })
+					replacement: editor
 				}]);
 			} else {
 				// else open respecting toSide
-				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options: <GettingStartedEditorOptions>{ selectedCategory: selectedCategory, selectedStep: selectedStep, preserveFocus: toSide ?? false }
-				}, toSide ? SIDE_GROUP : undefined).then((editor) => {
+				editorService.openEditor(editor, toSide ? SIDE_GROUP : undefined).then((editor) => {
 					(editor as GettingStartedPage)?.makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 				});
 
 			}
 		} else {
-			editorService.openEditor({
-				resource: GettingStartedInput.RESOURCE,
-				options: <GettingStartedEditorOptions>{ preserveFocus: toSide ?? false }
-			}, toSide ? SIDE_GROUP : undefined);
+			const editor = instantiationService.createInstance(GettingStartedInput, { preserveFocus: toSide ?? false });
+			editorService.openEditor(editor, toSide ? SIDE_GROUP : undefined);
 		}
 	}
 });
