@@ -116,26 +116,10 @@ export class InlineEditController extends Disposable {
 }`);
 		}));
 
-		const backgroundAdded = this._register(createStyleSheet2());
 		const backgroundRemoved = this._register(createStyleSheet2());
 		this._register(autorun(reader => {
 			const backgroundColoring = this._backgroundColoring.read(reader);
-			backgroundAdded.dispose();
 			backgroundRemoved.dispose();
-
-			backgroundAdded.setStyle(backgroundColoring ? `
-.monaco-editor .inline-edit-decoration,
-.monaco-editor .inline-edit-decoration-preview,
-.inline-edit-additional-lines,
-.monaco-editor .inline-edit {
-	background-color: var(--vscode-diffEditor-insertedLineBackground);
-}` : `
-.monaco-editor .inline-edit-decoration,
-.monaco-editor .inline-edit-decoration-preview,
-.inline-edit-additional-lines,
-.monaco-editor .inline-edit {
-	background-color: var(--vscode-editorGhostText-background);
-}`);
 			backgroundRemoved.setStyle(backgroundColoring ? `
 .monaco-editor .inline-edit-remove {
 	background-color: var(--vscode-diffEditor-removedLineBackground);
