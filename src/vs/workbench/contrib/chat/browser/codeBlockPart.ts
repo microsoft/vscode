@@ -358,6 +358,7 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		this._uri = URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() });
 		this.textModel = textModelService.createModelReference(this._uri).then(ref => {
 			this.editor.setModel(ref.object.textEditorModel);
+			this._register(ref);
 			return ref.object.textEditorModel;
 		});
 
