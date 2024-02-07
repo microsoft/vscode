@@ -11,6 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import Severity from 'vs/base/common/severity';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export namespace Extensions {
 	export const ExtensionFeaturesRegistry = 'workbench.registry.extensionFeatures';
@@ -48,9 +49,11 @@ export interface IExtensionFeatureDescriptor {
 	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
-	readonly enablement: {
+	readonly access: {
 		readonly canToggle?: boolean;
 		readonly requireUserConsent?: boolean;
+		readonly default?: boolean;
+		readonly extensionsList?: IStringDictionary<boolean>;
 	};
 	readonly renderer: SyncDescriptor<IExtensionFeatureRenderer>;
 }
@@ -80,7 +83,7 @@ export interface IExtensionFeaturesManagementService {
 	setEnablement(extension: ExtensionIdentifier, featureId: string, enabled: boolean): void;
 	getEnablementData(featureId: string): { readonly extension: ExtensionIdentifier; readonly enabled: boolean }[];
 
-	getAccess(extension: ExtensionIdentifier, featureId: string): Promise<boolean>;
+	getAccess(extension: ExtensionIdentifier, featureId: string, justification?: string): Promise<boolean>;
 
 	readonly onDidChangeAccessData: Event<{ readonly extension: ExtensionIdentifier; readonly featureId: string; readonly accessData: IExtensionFeatureAccessData }>;
 	getAccessData(extension: ExtensionIdentifier, featureId: string): IExtensionFeatureAccessData | undefined;

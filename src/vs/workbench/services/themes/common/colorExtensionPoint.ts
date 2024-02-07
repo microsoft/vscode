@@ -199,7 +199,7 @@ class ColorDataRenderer extends Disposable implements IExtensionFeatureTableRend
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'colors',
 	label: nls.localize('colors', "Colors"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(ColorDataRenderer),

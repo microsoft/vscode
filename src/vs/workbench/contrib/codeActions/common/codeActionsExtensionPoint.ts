@@ -119,7 +119,7 @@ class CodeActionsTableRenderer extends Disposable implements IExtensionFeatureTa
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'codeActions',
 	label: nls.localize('codeactions', "Code Actions"),
-	enablement: {
+	access: {
 		canToggle: false,
 	},
 	renderer: new SyncDescriptor(CodeActionsTableRenderer),

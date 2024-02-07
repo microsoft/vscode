@@ -272,7 +272,7 @@ class ExtensionFeatureView extends Disposable {
 		const title = append(header, $('.feature-title'));
 		title.textContent = this.feature.label;
 
-		if (this.feature.enablement.canToggle) {
+		if (this.feature.access.canToggle) {
 			const actionsContainer = append(header, $('.feature-actions'));
 			const button = new Button(actionsContainer, defaultButtonStyles);
 			this.updateButtonLabel(button);

@@ -70,7 +70,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	}
 
 	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
-		const access = await this._extensionFeaturesManagementService.getAccess(extension, CHAT_FEATURE_ID);
+		const access = await this._extensionFeaturesManagementService.getAccess(extension, CHAT_FEATURE_ID, justification);
 		if (!access) {
 			return undefined;
 		}

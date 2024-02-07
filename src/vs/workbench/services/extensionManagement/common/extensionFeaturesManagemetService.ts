@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Mutable } from 'vs/base/common/types';
+import { Mutable, isBoolean } from 'vs/base/common/types';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { localize } from 'vs/nls';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -55,7 +55,15 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		if (!feature) {
 			return false;
 		}
-		return !(this.getExtensionFeatureState(extension, featureId)?.disabled ?? false);
+		const isDisabled = this.getExtensionFeatureState(extension, featureId)?.disabled;
+		if (isBoolean(isDisabled)) {
+			return !isDisabled;
+		}
+		const defaultExtensionAccess = feature.access.extensionsList?.[extension.value];
+		if (isBoolean(defaultExtensionAccess)) {
+			return defaultExtensionAccess;
+		}
+		return !!feature.access.default;
 	}
 
 	setEnablement(extension: ExtensionIdentifier, featureId: string, enabled: boolean): void {
@@ -85,7 +93,7 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		return result;
 	}
 
-	async getAccess(extension: ExtensionIdentifier, featureId: string): Promise<boolean> {
+	async getAccess(extension: ExtensionIdentifier, featureId: string, justification?: string): Promise<boolean> {
 		const feature = this.registry.getExtensionFeature(featureId);
 		if (!feature) {
 			return false;
@@ -100,7 +108,7 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 			const confirmationResult = await this.dialogService.confirm({
 				title: localize('accessExtensionFeature', "Access '{0}' Feature", feature.label),
 				message: localize('accessExtensionFeatureMessage', "'{0}' extension would like to access the '{1}' feature.", extensionDescription?.displayName ?? extension.value, feature.label),
-				detail: feature.description,
+				detail: justification ?? feature.description,
 				custom: true,
 				primaryButton: localize('allow', "Allow"),
 				cancelButton: localize('disallow', "Don't Allow"),

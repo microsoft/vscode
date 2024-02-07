@@ -306,7 +306,7 @@ class DebuggersDataRenderer extends Disposable implements IExtensionFeatureTable
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'debuggers',
 	label: nls.localize('debuggers', "Debuggers"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(DebuggersDataRenderer),
