@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatProgressMessage, IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatProgressMessage, IChatFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, IChatCommandButton } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
@@ -60,7 +60,7 @@ export interface IChatRequestViewModel {
 	readonly dataId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly message: IParsedChatRequest | IChatReplyFollowup;
+	readonly message: IParsedChatRequest | IChatFollowup;
 	readonly messageText: string;
 	currentRenderedHeight: number | undefined;
 }
@@ -88,7 +88,7 @@ export interface IChatProgressMessageRenderData {
 	isLast: boolean;
 }
 
-export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData;
+export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton;
 export interface IChatResponseRenderData {
 	renderedParts: IChatRenderData[];
 }
@@ -118,9 +118,9 @@ export interface IChatResponseViewModel {
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	readonly isStale: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
-	readonly replyFollowups?: IChatReplyFollowup[];
-	readonly commandFollowups?: IChatResponseCommandFollowup[];
+	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
@@ -331,11 +331,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get replyFollowups() {
-		return this._model.followups?.filter((f): f is IChatReplyFollowup => f.kind === 'reply');
-	}
-
-	get commandFollowups() {
-		return this._model.followups?.filter((f): f is IChatResponseCommandFollowup => f.kind === 'command');
+		return this._model.followups?.filter((f): f is IChatFollowup => f.kind === 'reply');
 	}
 
 	get errorDetails() {
@@ -348,6 +344,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get requestId() {
 		return this._model.requestId;
+	}
+
+	get isStale() {
+		return this._model.isStale;
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
@@ -436,6 +436,6 @@ export interface IChatWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IChatWelcomeMessageContent[];
-	readonly sampleQuestions: IChatReplyFollowup[];
+	readonly sampleQuestions: IChatFollowup[];
 	currentRenderedHeight?: number;
 }
