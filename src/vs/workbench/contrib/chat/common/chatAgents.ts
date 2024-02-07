@@ -77,6 +77,8 @@ export interface IChatAgentMetadata {
 	themeIcon?: ThemeIcon;
 	sampleRequest?: string;
 	supportIssueReporting?: boolean;
+	shouldRepopulate?: boolean;
+	followupPlaceholder?: string;
 }
 
 export interface IChatAgentRequest {

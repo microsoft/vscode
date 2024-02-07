@@ -146,7 +146,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>());
+	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand; sessionId: string }>());
 	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
 
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; providerId: string; reason: 'initializationFailed' | 'cleared' }>());
@@ -512,8 +512,8 @@ export class ChatService extends Disposable implements IChatService {
 			});
 
 			try {
-				if (agentPart && agentSlashCommandPart?.command) {
-					this._onDidSubmitAgent.fire({ agent: agentPart.agent, slashCommand: agentSlashCommandPart.command, sessionId: model.sessionId });
+				if (agentPart) {
+					this._onDidSubmitAgent.fire({ agent: agentPart.agent, slashCommand: agentSlashCommandPart?.command, sessionId: model.sessionId });
 				}
 
 				let rawResponse: IChatResponse | null | undefined;
