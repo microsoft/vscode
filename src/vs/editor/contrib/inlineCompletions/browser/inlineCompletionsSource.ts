@@ -21,7 +21,6 @@ import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/sing
 
 export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
-	// These two following values not correctly updated
 	public readonly inlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined);
 	public readonly suggestWidgetInlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined);
 
@@ -40,22 +39,16 @@ export class InlineCompletionsSource extends Disposable {
 	}
 
 	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined): Promise<boolean> {
-		// console.log('inside of fetch');
 		const request = new UpdateRequest(position, context, this.textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions : this.inlineCompletions;
-
-		// console.log('target : ', JSON.stringify(target));
-		// console.log('this._updateOperation.value?.request : ', JSON.stringify(this._updateOperation.value?.request));
-		// console.log('request : ', JSON.stringify(request));
-		// console.log('target.get()?.request : ', JSON.stringify(target.get()?.request));
 
 		if (this._updateOperation.value?.request.satisfies(request)) {
 			return this._updateOperation.value.promise;
 		} else if (target.get()?.request.satisfies(request)) {
 			return Promise.resolve(true);
 		}
-		// console.log('no early return');
+
 		const updateOngoing = !!this._updateOperation.value;
 		this._updateOperation.clear();
 
@@ -69,7 +62,6 @@ export class InlineCompletionsSource extends Disposable {
 			}
 
 			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
-				// console.log('early false return')
 				return false;
 			}
 
@@ -84,7 +76,6 @@ export class InlineCompletionsSource extends Disposable {
 			);
 
 			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
-				// console.log('second early false return')
 				return false;
 			}
 
@@ -102,8 +93,6 @@ export class InlineCompletionsSource extends Disposable {
 			this._updateOperation.clear();
 			transaction(tx => {
 				/** @description Update completions with provider result */
-				// console.log('before setting target')
-				// console.log('completions : ', JSON.stringify(completions));
 				target.set(completions, tx);
 			});
 

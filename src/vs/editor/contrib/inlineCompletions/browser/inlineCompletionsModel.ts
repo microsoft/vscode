@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
 import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -241,7 +240,7 @@ export class InlineCompletionsModel extends Disposable {
 				const primaryEdit = inlineCompletion.toSingleTextEdit(reader);
 				edits = this._getSecondaryEdits(this.textModel, positions, primaryEdit);
 				for (const [index, edit] of edits.entries()) {
-					const ghostText = edit.computeGhostText(model, mode, positions[index], editPreviewLength);
+					const ghostText = edit.computeGhostText(model, mode, positions[index + 1], editPreviewLength);
 					// Show an invisible ghost text to reserve space
 					ghostTexts.push(ghostText ?? new GhostText(edit.range.endLineNumber, []));
 				}
@@ -459,6 +458,7 @@ export class InlineCompletionsModel extends Disposable {
 				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
 				const positions = this._positions.get();
 				const edits = this._getSecondaryEdits(this.textModel, positions, singleTextEdit);
+				edits.unshift(singleTextEdit);
 				const selections = this._getSelectionsFromEdits(edits);
 				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
