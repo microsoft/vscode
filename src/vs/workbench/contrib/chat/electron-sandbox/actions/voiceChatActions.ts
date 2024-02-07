@@ -48,7 +48,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
@@ -506,6 +505,8 @@ export class StartVoiceChatAction extends Action2 {
 	}
 }
 
+const InstallingSpeechProvider = new RawContextKey<boolean>('installingSpeechProvider', false, true);
+
 export class InstallVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.installVoiceChat';
@@ -519,6 +520,7 @@ export class InstallVoiceChatAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.mic,
+			precondition: InstallingSpeechProvider.negate(),
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: HasSpeechProvider.negate(),
@@ -534,8 +536,7 @@ export class InstallVoiceChatAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		const extensionService = accessor.get(IExtensionService);
+		const contextKeyService = accessor.get(IContextKeyService);
 		const dialogService = accessor.get(IDialogService);
 		const extensionManagementService = accessor.get(IExtensionsWorkbenchService);
 
@@ -546,7 +547,7 @@ export class InstallVoiceChatAction extends Action2 {
 
 		if (extension.state === ExtensionState.Installed) {
 			await dialogService.info(
-				localize('enableExtensionMessage', "Microphone support requires an extension. Pleas enable it."),
+				localize('enableExtensionMessage', "Microphone support requires an extension. Please enable it."),
 				localize('enableExtensionDetail', "Extension '{0}' is currently disabled.", InstallVoiceChatAction.SPEECH_EXTENSION_ID),
 			);
 
@@ -563,10 +564,12 @@ export class InstallVoiceChatAction extends Action2 {
 			return;
 		}
 
-		const extensionRunning = Event.toPromise(Event.filter(extensionService.onDidChangeExtensionsStatus, e => e.some(e => e.value === InstallVoiceChatAction.SPEECH_EXTENSION_ID)));
-		await extensionManagementService.install(extension, undefined, ProgressLocation.Notification);
-		await extensionRunning;
-		commandService.executeCommand(StartVoiceChatAction.ID);
+		try {
+			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
+			await extensionManagementService.install(extension, undefined, ProgressLocation.Notification);
+		} finally {
+			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
+		}
 	}
 }
 
