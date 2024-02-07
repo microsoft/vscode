@@ -725,15 +725,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		return this.ui.keyMods;
 	}
 
-	get valueSelection() {
-		const selection = this.ui.inputBox.getSelection();
-		if (!selection) {
-			return undefined;
-		}
-		return [selection.start, selection.end];
-	}
-
-	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
+	set valueSelection(valueSelection: Readonly<[number, number]>) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
@@ -1162,15 +1154,7 @@ export class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
-	get valueSelection() {
-		const selection = this.ui.inputBox.getSelection();
-		if (!selection) {
-			return undefined;
-		}
-		return [selection.start, selection.end];
-	}
-
-	set valueSelection(valueSelection: Readonly<[number, number]> | undefined) {
+	set valueSelection(valueSelection: Readonly<[number, number]>) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
 		this.update();
