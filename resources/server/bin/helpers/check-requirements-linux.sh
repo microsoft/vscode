@@ -65,10 +65,10 @@ else
 fi
 
 if [ -n "$libstdcpp_path" ]; then
-        # Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
-        # which is then compared based on the fact that release versioning and symbol versioning
-        # are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
-        # (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
+# Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
+# which is then compared based on the fact that release versioning and symbol versioning
+# are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
+# (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
     libstdcpp_real_path=$(readlink -f "$libstdcpp_path")
     libstdcpp_version=$(strings "$libstdcpp_real_path" | grep -o 'GLIBCXX_[0-9]*\.[0-9]*\.[0-9]*' | sort -V | tail -1)
     libstdcpp_version_number=$(echo "$libstdcpp_version" | sed 's/GLIBCXX_//')
