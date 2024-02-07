@@ -828,13 +828,13 @@
 }
 
 .extension-editor .subcontent.feature-contributions .extension-feature-content {
-	padding: 0px 24px;
+	padding-left: 24px;
 	height: 100%;
 	box-sizing: border-box;
 }
 
 .extension-editor .subcontent.feature-contributions .extension-feature-content .feature-header {
-	padding-bottom: 10px;
+	margin: 0 10px 10px 0;
 	display: flex;
 	line-height: 20px;
 	align-items: center;
@@ -857,8 +857,6 @@
 
 .extension-editor .subcontent.feature-contributions .feature-view-container .extension-feature-content .feature-body {
 	height: calc(100% - 50px);
-	box-sizing: border-box;
-	overflow-y: scroll;
 }
 
 .extension-editor .subcontent.feature-contributions .feature-view-container .extension-feature-content .monaco-scrollable-element {
@@ -879,4 +877,8 @@
 .extension-editor .subcontent.feature-contributions .extension-feature-content .feature-body .feature-body-content pre {
 	white-space: pre-wrap;
 	word-wrap: break-word;
+}
+
+.extension-editor .subcontent.feature-contributions .extension-feature-content .feature-body .feature-body-content .feature-content.markdown .codicon {
+	vertical-align: bottom;
 }

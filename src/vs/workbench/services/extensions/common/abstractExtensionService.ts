@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -1397,6 +1399,18 @@ class ActivationFeatureMarkdowneRenderer extends Disposable implements IExtensio
 				}
 			} else {
 				data.appendMarkdown('Not yet activated');
+			}
+			if (status.runtimeErrors.length) {
+				data.appendMarkdown(`\n ### ${nls.localize('uncaught errors', "Uncaught Errors ({0})", status.runtimeErrors.length)}\n`);
+				for (const error of status.runtimeErrors) {
+					data.appendMarkdown(`$(${Codicon.error.id})&nbsp;${getErrorMessage(error)}\n\n`);
+				}
+			}
+			if (status.messages.length) {
+				data.appendMarkdown(`\n ### ${nls.localize('messaages', "Messages ({0})", status.messages.length)}\n`);
+				for (const message of status.messages) {
+					data.appendMarkdown(`$(${(message.type === Severity.Error ? Codicon.error : message.type === Severity.Warning ? Codicon.warning : Codicon.info).id})&nbsp;${message.message}\n\n`);
+				}
 			}
 		} else {
 			const activationEvents = manifest.activationEvents || [];

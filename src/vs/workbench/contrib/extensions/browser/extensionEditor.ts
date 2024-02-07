@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, reset, setParentFlowTo } from 'vs/base/browser/dom';
+import { $, Dimension, addDisposableListener, append, setParentFlowTo } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { CheckboxActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
@@ -11,14 +11,13 @@ import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas, matchesScheme } from 'vs/base/common/network';
 import { language } from 'vs/base/common/platform';
 import * as semver from 'vs/base/common/semver/semver';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -36,7 +35,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -72,7 +71,6 @@ import {
 	WebInstallAction,
 	TogglePreReleaseExtensionAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { errorIcon, infoIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
@@ -582,18 +580,6 @@ export class ExtensionEditor extends EditorPane {
 			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
-		const addRuntimeStatusSection = () => template.navbar.push(ExtensionEditorTab.RuntimeStatus, localize('runtimeStatus', "Runtime Status"), localize('runtimeStatus description', "Extension runtime status"));
-		if (this.extensionsWorkbenchService.getExtensionStatus(extension)) {
-			addRuntimeStatusSection();
-		} else {
-			const disposable = this.extensionService.onDidChangeExtensionsStatus(e => {
-				if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
-					addRuntimeStatusSection();
-					disposable.dispose();
-				}
-			}, this, this.transientDisposables);
-		}
-
 		if ((<IExtensionEditorOptions>this.options).tab) {
 			template.navbar.switch((<IExtensionEditorOptions>this.options).tab!);
 		}
@@ -657,7 +643,6 @@ export class ExtensionEditor extends EditorPane {
 			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
 			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
-			case ExtensionEditorTab.RuntimeStatus: return this.openRuntimeStatus(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -1035,67 +1020,6 @@ export class ExtensionEditor extends EditorPane {
 			return null;
 		}
 		return this.renderExtensionPack(manifest, template.content, token);
-	}
-
-	private async openRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const content = $('div', { class: 'subcontent', tabindex: '0' });
-
-		const scrollableContent = new DomScrollableElement(content, {});
-		const layout = () => scrollableContent.scanDomNode();
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-
-		const updateContent = () => {
-			scrollableContent.scanDomNode();
-			reset(content, this.renderRuntimeStatus(extension, layout));
-		};
-
-		updateContent();
-		this.extensionService.onDidChangeExtensionsStatus(e => {
-			if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
-				updateContent();
-			}
-		}, this, this.contentDisposables);
-
-		this.contentDisposables.add(scrollableContent);
-		append(template.content, scrollableContent.getDomNode());
-		return content;
-	}
-
-	private renderRuntimeStatus(extension: IExtension, onDetailsToggle: Function): HTMLElement {
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(extension);
-		const element = $('.runtime-status');
-
-		if (extensionStatus?.runtimeErrors.length) {
-			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', { tabindex: '0' }, localize('uncaught errors', "Uncaught Errors ({0})", extensionStatus.runtimeErrors.length)),
-				$('div', undefined,
-					...extensionStatus.runtimeErrors.map(error => $('div.message-entry', undefined,
-						$(`span${ThemeIcon.asCSSSelector(errorIcon)}`, undefined),
-						$('span', undefined, getErrorMessage(error)),
-					))
-				),
-			));
-		}
-
-		if (extensionStatus?.messages.length) {
-			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', { tabindex: '0' }, localize('messages', "Messages ({0})", extensionStatus?.messages.length)),
-				$('div', undefined,
-					...extensionStatus.messages.sort((a, b) => b.type - a.type)
-						.map(message => $('div.message-entry', undefined,
-							$(`span${ThemeIcon.asCSSSelector(message.type === Severity.Error ? errorIcon : message.type === Severity.Warning ? warningIcon : infoIcon)}`, undefined),
-							$('span', undefined, message.message)
-						))
-				),
-			));
-		}
-
-		if (element.children.length === 0) {
-			append(element, $('div.no-status-message')).textContent = localize('noStatus', "No status available.");
-		}
-
-		return element;
 	}
 
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {

@@ -202,10 +202,11 @@ class ExtensionFeatureItemRenderer implements IListRenderer<IExtensionFeatureDes
 		container.classList.add('extension-feature-list-item');
 		const label = append(container, $('.extension-feature-label'));
 		const disabledElement = append(container, $('.extension-feature-disabled-label'));
-		disabledElement.textContent = localize('disabled', "Disabled");
+		disabledElement.textContent = localize('revoked', "No Access");
 		const statusElement = append(container, $('.extension-feature-status'));
 		return { label, disabledElement, statusElement, disposables: new DisposableStore() };
 	}
+
 	renderElement(element: IExtensionFeatureDescriptor, index: number, templateData: IExtensionFeatureItemTemplateData) {
 		templateData.disposables.clear();
 		templateData.label.textContent = element.label;
@@ -285,10 +286,10 @@ class ExtensionFeatureView extends Disposable {
 				const confirmationResult = await this.dialogService.confirm({
 					title: localize('accessExtensionFeature', "Enable '{0}' Feature", this.feature.label),
 					message: enabled
-						? localize('disableAccessExtensionFeatureMessage', "Would you like to disable '{0}' extension to access '{1}' feature?", this.manifest.displayName ?? this.extensionId.value, this.feature.label)
-						: localize('enableAccessExtensionFeatureMessage', "Would you like to enable '{0}' extension to access '{1}' feature?", this.manifest.displayName ?? this.extensionId.value, this.feature.label),
+						? localize('disableAccessExtensionFeatureMessage', "Would you like to revoke '{0}' extension to access '{1}' feature?", this.manifest.displayName ?? this.extensionId.value, this.feature.label)
+						: localize('enableAccessExtensionFeatureMessage', "Would you like to allow '{0}' extension to access '{1}' feature?", this.manifest.displayName ?? this.extensionId.value, this.feature.label),
 					custom: true,
-					primaryButton: localize('yes', "Yes"),
+					primaryButton: enabled ? localize('revoke', "Revoke Access") : localize('grant', "Allow Access"),
 					cancelButton: localize('cancel', "Cancel"),
 				});
 				if (confirmationResult.confirmed) {
@@ -327,7 +328,7 @@ class ExtensionFeatureView extends Disposable {
 	}
 
 	private updateButtonLabel(button: Button): void {
-		button.label = this.extensionFeaturesManagementService.isEnabled(this.extensionId, this.feature.id) ? localize('disable', "Disable Access") : localize('enable', "Enable Access");
+		button.label = this.extensionFeaturesManagementService.isEnabled(this.extensionId, this.feature.id) ? localize('revoke', "Revoke Access") : localize('enable', "Allow Access");
 	}
 
 	private renderTableData(container: HTMLElement, renderer: IExtensionFeatureTableRenderer): void {
@@ -390,6 +391,7 @@ class ExtensionFeatureView extends Disposable {
 	}
 
 	private renderMarkdownData(container: HTMLElement, renderer: IExtensionFeatureMarkdownRenderer): void {
+		container.classList.add('markdown');
 		const markdownData = this._register(renderer.render(this.manifest));
 		if (markdownData.onDidChange) {
 			this._register(markdownData.onDidChange(data => {
@@ -405,6 +407,7 @@ class ExtensionFeatureView extends Disposable {
 			{
 				value: markdown.value,
 				isTrusted: markdown.isTrusted,
+				supportThemeIcons: true
 			},
 			{
 				actionHandler: {

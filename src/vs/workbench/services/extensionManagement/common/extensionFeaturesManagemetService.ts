@@ -16,11 +16,16 @@ import { Mutable } from 'vs/base/common/types';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { localize } from 'vs/nls';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IStorageChangeEvent } from 'vs/base/parts/storage/common/storage';
+import { distinct } from 'vs/base/common/arrays';
+import { equals } from 'vs/base/common/objects';
 
 interface IExtensionFeatureState {
 	disabled?: boolean;
 	accessData: Mutable<IExtensionFeatureAccessData>;
 }
+
+const FEATURES_STATE_KEY = 'extension.features.state';
 
 class ExtensionFeaturesManagementService extends Disposable implements IExtensionFeaturesManagementService {
 	declare readonly _serviceBrand: undefined;
@@ -32,7 +37,7 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 	readonly onDidChangeAccessData = this._onDidChangeAccessData.event;
 
 	private readonly registry: IExtensionFeaturesRegistry;
-	private readonly state = new Map<string, Map<string, IExtensionFeatureState>>();
+	private extensionFeaturesState = new Map<string, Map<string, IExtensionFeatureState>>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -41,7 +46,8 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 	) {
 		super();
 		this.registry = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry);
-		this.state = this.loadState();
+		this.extensionFeaturesState = this.loadState();
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, FEATURES_STATE_KEY, this._store)(e => this.onDidStorageChange(e)));
 	}
 
 	isEnabled(extension: ExtensionIdentifier, featureId: string): boolean {
@@ -69,8 +75,8 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		const result: { readonly extension: ExtensionIdentifier; readonly enabled: boolean }[] = [];
 		const feature = this.registry.getExtensionFeature(featureId);
 		if (feature) {
-			for (const [extension, featureStateMap] of this.state) {
-				const featureState = featureStateMap.get(featureId);
+			for (const [extension, featuresStateMap] of this.extensionFeaturesState) {
+				const featureState = featuresStateMap.get(featureId);
 				if (featureState?.disabled !== undefined) {
 					result.push({ extension: new ExtensionIdentifier(extension), enabled: !featureState.disabled });
 				}
@@ -139,14 +145,14 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 	}
 
 	private getExtensionFeatureState(extension: ExtensionIdentifier, featureId: string): IExtensionFeatureState | undefined {
-		return this.state.get(extension.value)?.get(featureId);
+		return this.extensionFeaturesState.get(extension.value)?.get(featureId);
 	}
 
 	private getAndSetIfNotExistsExtensionFeatureState(extension: ExtensionIdentifier, featureId: string): Mutable<IExtensionFeatureState> {
-		let extensionState = this.state.get(extension.value);
+		let extensionState = this.extensionFeaturesState.get(extension.value);
 		if (!extensionState) {
 			extensionState = new Map<string, IExtensionFeatureState>();
-			this.state.set(extension.value, extensionState);
+			this.extensionFeaturesState.set(extension.value, extensionState);
 		}
 		let featureState = extensionState.get(featureId);
 		if (!featureState) {
@@ -156,9 +162,33 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		return featureState;
 	}
 
+	private onDidStorageChange(e: IStorageChangeEvent): void {
+		if (e.external) {
+			const oldState = this.extensionFeaturesState;
+			this.extensionFeaturesState = this.loadState();
+			for (const extensionId of distinct([...oldState.keys(), ...this.extensionFeaturesState.keys()])) {
+				const extension = new ExtensionIdentifier(extensionId);
+				const oldExtensionFeaturesState = oldState.get(extensionId);
+				const newExtensionFeaturesState = this.extensionFeaturesState.get(extensionId);
+				for (const featureId of distinct([...oldExtensionFeaturesState?.keys() ?? [], ...newExtensionFeaturesState?.keys() ?? []])) {
+					const isEnabled = this.isEnabled(extension, featureId);
+					const wasEnabled = !oldExtensionFeaturesState?.get(featureId)?.disabled;
+					if (isEnabled !== wasEnabled) {
+						this._onDidChangeEnablement.fire({ extension, featureId, enabled: isEnabled });
+					}
+					const newAccessData = this.getAccessData(extension, featureId);
+					const oldAccessData = oldExtensionFeaturesState?.get(featureId)?.accessData;
+					if (!equals(newAccessData, oldAccessData)) {
+						this._onDidChangeAccessData.fire({ extension, featureId, accessData: newAccessData ?? { totalCount: 0 } });
+					}
+				}
+			}
+		}
+	}
+
 	private loadState(): Map<string, Map<string, IExtensionFeatureState>> {
 		let data: IStringDictionary<IStringDictionary<{ disabled?: boolean; accessCount: number }>> = {};
-		const raw = this.storageService.get('extension.feature.state', StorageScope.PROFILE, '{}');
+		const raw = this.storageService.get(FEATURES_STATE_KEY, StorageScope.PROFILE, '{}');
 		try {
 			data = JSON.parse(raw);
 		} catch (e) {
@@ -184,7 +214,7 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 
 	private saveState(): void {
 		const data: IStringDictionary<IStringDictionary<{ disabled?: boolean; accessCount: number }>> = {};
-		this.state.forEach((extensionState, extensionId) => {
+		this.extensionFeaturesState.forEach((extensionState, extensionId) => {
 			const extensionFeatures: IStringDictionary<{ disabled?: boolean; accessCount: number }> = {};
 			extensionState.forEach((featureState, featureId) => {
 				extensionFeatures[featureId] = {
@@ -194,7 +224,7 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 			});
 			data[extensionId] = extensionFeatures;
 		});
-		this.storageService.store('extension.feature.state', JSON.stringify(data), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(FEATURES_STATE_KEY, JSON.stringify(data), StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
 
