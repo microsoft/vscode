@@ -19,6 +19,7 @@
     "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
+    "findFiles2",
     "findTextInFiles",
     "fsChunks",
     "interactive",
