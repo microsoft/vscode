@@ -1087,6 +1087,19 @@
 					}
 				]
 			}
+		},
+		{
+			"files": [
+				"src/vs/workbench/contrib/notebook/browser/view/renderers/*.ts"
+			],
+			"rules": {
+				"local/code-no-runtime-import": [
+					"error",
+					{
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": ["**/*"]
+					}
+				]
+			}
 		}
 	]
 }
