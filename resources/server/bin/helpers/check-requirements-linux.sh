@@ -65,13 +65,14 @@ else
 fi
 
 if [ -n "$libstdcpp_path" ]; then
-	# Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
-	# which is then compared based on the fact that release versioning and symbol versioning
-	# are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
-	# (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
+        # Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
+        # which is then compared based on the fact that release versioning and symbol versioning
+        # are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
+        # (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
     libstdcpp_real_path=$(readlink -f "$libstdcpp_path")
-    libstdcpp_version=$(echo "$libstdcpp_real_path" | awk -F'\\.so\\.' '{print $NF}')
-    if [ "$(printf '%s\n' "6.0.25" "$libstdcpp_version" | sort -V | head -n1)" = "6.0.25" ]; then
+    libstdcpp_version=$(strings "$libstdcpp_real_path" | grep -o 'GLIBCXX_[0-9]*\.[0-9]*\.[0-9]*' | sort -V | tail -1)
+    libstdcpp_version_number=$(echo "$libstdcpp_version" | sed 's/GLIBCXX_//')
+    if [ "$(printf '%s\n' "3.4.25" "$libstdcpp_version_number" | sort -V | head -n1)" = "3.4.25" ]; then
         found_required_glibcxx=1
     else
         echo "Warning: Missing GLIBCXX >= 3.4.25! from $libstdcpp_real_path"
