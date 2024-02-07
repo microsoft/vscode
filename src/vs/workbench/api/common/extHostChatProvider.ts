@@ -185,10 +185,10 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	$updateAccesslist(data: { extension: ExtensionIdentifier; enabled: boolean }[]): void {
 		const updated = new ExtensionIdentifierSet();
-		for (const { extension, enabled: allowed } of data) {
+		for (const { extension, enabled } of data) {
 			const oldValue = this._accesslist.get(extension);
-			if (oldValue !== allowed) {
-				this._accesslist.set(extension, allowed);
+			if (oldValue !== enabled) {
+				this._accesslist.set(extension, enabled);
 				updated.add(extension);
 			}
 		}
