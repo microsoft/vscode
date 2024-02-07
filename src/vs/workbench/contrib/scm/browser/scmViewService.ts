@@ -17,6 +17,7 @@ import { basename } from 'vs/base/common/resources';
 import { binarySearch } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -167,7 +168,8 @@ export class SCMViewService implements ISCMViewService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ITitleService titleService: ITitleService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
@@ -183,6 +185,11 @@ export class SCMViewService implements ISCMViewService {
 
 		this._activeRepositoryNameContextKey = RepositoryContextKeys.ActiveRepositoryName.bindTo(contextKeyService);
 		this._activeRepositoryBranchNameContextKey = RepositoryContextKeys.ActiveRepositoryBranchName.bindTo(contextKeyService);
+
+		titleService.registerVariables([
+			{ name: 'activeRepositoryName', contextKey: RepositoryContextKeys.ActiveRepositoryName.key },
+			{ name: 'activeRepositoryBranchName', contextKey: RepositoryContextKeys.ActiveRepositoryBranchName.key, }
+		]);
 
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);

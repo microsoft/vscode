@@ -33,7 +33,6 @@ import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/con
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 import { getActiveElement } from 'vs/base/browser/dom';
-import { Extensions, IWorkbenchWindowTitleContributionsRegistry } from 'vs/workbench/common/windowTitle';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -454,17 +453,3 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);
-
-Registry.as<IWorkbenchWindowTitleContributionsRegistry>(Extensions.WindowTitle)
-	.registerWorkbenchWindowTitleContribution({
-		contextKey: 'scmActiveRepositoryName',
-		variable: 'activeRepositoryName',
-		description: localize('activeRepositoryNameDescription', "the name of the active repository (e.g. vscode).")
-	});
-
-Registry.as<IWorkbenchWindowTitleContributionsRegistry>(Extensions.WindowTitle)
-	.registerWorkbenchWindowTitleContribution({
-		contextKey: 'scmActiveRepositoryBranchName',
-		variable: 'activeRepositoryBranchName',
-		description: localize('activeRepositoryBranchNameDescription', "the name of the active branch in the active repository (e.g. main).")
-	});

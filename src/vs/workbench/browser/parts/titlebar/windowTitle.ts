@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { dirname, basename } from 'vs/base/common/resources';
-import { ITitleProperties } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { ITitleProperties, ITitleVariable } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -27,7 +27,6 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { getWorkbenchWindowTitleContributionContextKeys, getWorkbenchWindowTitleContributions } from 'vs/workbench/common/windowTitle';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -41,6 +40,8 @@ export class WindowTitle extends Disposable {
 	private static readonly TITLE_DIRTY = '\u25cf ';
 
 	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false, prefix: undefined };
+	private readonly variables = new Map<string /* context key */, string /* name */>();
+
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
@@ -99,7 +100,7 @@ export class WindowTitle extends Disposable {
 			}
 		}));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(getWorkbenchWindowTitleContributionContextKeys())) {
+			if (e.affectsSome(this.variables)) {
 				this.titleUpdater.schedule();
 			}
 		}));
@@ -231,6 +232,22 @@ export class WindowTitle extends Disposable {
 		}
 	}
 
+	registerVariables(variables: ITitleVariable[]): void {
+		let changed = false;
+
+		for (const { name, contextKey } of variables) {
+			if (!this.variables.has(contextKey)) {
+				this.variables.set(contextKey, name);
+
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			this.titleUpdater.schedule();
+		}
+	}
+
 	/**
 	 * Possible template values:
 	 *
@@ -313,8 +330,8 @@ export class WindowTitle extends Disposable {
 
 		// Variables (contributed)
 		const contributedVariables: { [key: string]: string } = {};
-		for (const [key, value] of getWorkbenchWindowTitleContributions()) {
-			contributedVariables[key] = this.contextKeyService.getContextKeyValue(value.contextKey) ?? '';
+		for (const [contextKey, name] of this.variables) {
+			contributedVariables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
 		}
 
 		return template(titleTemplate, {
