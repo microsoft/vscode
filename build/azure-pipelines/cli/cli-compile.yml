@@ -42,6 +42,7 @@ steps:
       - script: |
           set -e
           if [ -n "$SYSROOT_ARCH" ]; then
+            export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
             export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
             node -e '(async () => { const { getVSCodeSysroot } = require("../build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
             if [ "$SYSROOT_ARCH" == "arm64" ]; then
