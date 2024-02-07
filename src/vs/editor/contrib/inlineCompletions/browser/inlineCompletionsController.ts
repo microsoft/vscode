@@ -29,7 +29,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Selection } from 'vs/editor/common/core/selection';
 import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import { ISettableObservable } from 'vs/base/common/observableInternal/base';
 
@@ -42,7 +41,7 @@ export class InlineCompletionsController extends Disposable {
 
 	public readonly model = disposableObservableValue<InlineCompletionsModel | undefined>('inlineCompletionModel', undefined);
 	private readonly _textModelVersionId = observableValue<number, VersionIdChangeReason>(this, -1);
-	private readonly _selections = observableValue<Selection[]>(this, [new Selection(1, 1, 1, 1)]);
+	private readonly _positions = observableValue<Position[]>(this, [new Position(1, 1)]);
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
 		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
@@ -114,7 +113,7 @@ export class InlineCompletionsController extends Disposable {
 						textModel,
 						this._suggestWidgetAdaptor.selectedItem,
 						this._textModelVersionId,
-						this._selections,
+						this._positions,
 						this._debounceValue,
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
@@ -200,7 +199,7 @@ export class InlineCompletionsController extends Disposable {
 			/** @description InlineCompletionsController.forceRenderingAbove */
 			const state = this.model.read(reader)?.state.read(reader);
 			if (state?.suggestItem) {
-				if (state.primaryGhostText && state.primaryGhostText.lineCount >= 2) {
+				if (state.primaryGhostText.lineCount >= 2) {
 					this._suggestWidgetAdaptor.forceRenderingAbove();
 				}
 			} else {
@@ -230,13 +229,12 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			if (state.inlineCompletion.semanticId !== lastInlineCompletionId && state.primaryGhostText) {
+			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
 				lastInlineCompletionId = state.inlineCompletion.semanticId;
-				const primaryGhostText = state.primaryGhostText;
-				const lineText = model.textModel.getLineContent(primaryGhostText.lineNumber);
+				const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
 				this._audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						this.provideScreenReaderUpdate(primaryGhostText.renderForScreenReader(lineText));
+						this.provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
 					}
 				});
 			}
@@ -273,7 +271,7 @@ export class InlineCompletionsController extends Disposable {
 	private updateObservables(tx: ITransaction, changeReason: VersionIdChangeReason): void {
 		const newModel = this.editor.getModel();
 		this._textModelVersionId.set(newModel?.getVersionId() ?? -1, tx, changeReason);
-		this._selections.set(this.editor.getSelections() ?? [new Selection(1, 1, 1, 1)], tx);
+		this._positions.set(this.editor.getSelections()?.map(selection => selection.getPosition()) ?? [new Position(1, 1)], tx);
 	}
 
 	public shouldShowHoverAt(range: Range) {
@@ -285,8 +283,7 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		const ghostTextWidgets = this._ghostTextWidgets.get();
-		return ghostTextWidgets.length > 0 ? ghostTextWidgets[0].ownsViewZone(viewZoneId) : false;
+		return this._ghostTextWidgets.get()[0]?.ownsViewZone(viewZoneId) ?? false;
 	}
 
 	public hide() {
