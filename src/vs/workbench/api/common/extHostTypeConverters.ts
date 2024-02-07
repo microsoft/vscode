@@ -2390,7 +2390,7 @@ export namespace ChatResponseFilesPart {
 
 		const baseUri = treeData.uri;
 		const items = treeData.children ? convert(treeData.children) : [];
-		return new types.ChatResponseFilesPart(items, baseUri);
+		return new types.ChatResponseFileTreePart(items, baseUri);
 	}
 }
 
@@ -2450,7 +2450,7 @@ export namespace ChatResponsePart {
 			return ChatResponseReferencePart.to(part);
 		} else if (part instanceof types.ChatResponseProgressPart) {
 			return ChatResponseProgressPart.to(part);
-		} else if (part instanceof types.ChatResponseFilesPart) {
+		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.to(part);
 		}
 		return {
