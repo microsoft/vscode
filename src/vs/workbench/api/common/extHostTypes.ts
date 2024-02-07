@@ -4219,9 +4219,11 @@ export class ChatResponseMarkdownPart {
 }
 
 export class ChatResponseFilesPart {
-	value: vscode.ChatAgentFileTreeData;
-	constructor(value: vscode.ChatAgentFileTreeData) {
+	value: vscode.ChatResponseFileTree[];
+	baseUri: vscode.Uri;
+	constructor(value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri) {
 		this.value = value;
+		this.baseUri = baseUri;
 	}
 }
 
