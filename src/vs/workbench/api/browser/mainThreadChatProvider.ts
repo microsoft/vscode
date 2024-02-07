@@ -27,8 +27,8 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 
-		this._proxy.$updateProviderList({ added: _chatProviderService.getProviders() });
-		this._store.add(_chatProviderService.onDidChangeProviders(this._proxy.$updateProviderList, this._proxy));
+		this._proxy.$updateLanguageModels({ added: _chatProviderService.getProviders() });
+		this._store.add(_chatProviderService.onDidChangeProviders(this._proxy.$updateLanguageModels, this._proxy));
 	}
 
 	dispose(): void {
@@ -43,7 +43,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 				const requestId = (Math.random() * 1e6) | 0;
 				this._pendingProgress.set(requestId, progress);
 				try {
-					await this._proxy.$provideChatResponse(handle, requestId, messages, options, token);
+					await this._proxy.$provideLanguageModelResponse(handle, requestId, messages, options, token);
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}
@@ -60,7 +60,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $prepareChatAccess(providerId: string): Promise<IChatResponseProviderMetadata | undefined> {
+	async $prepareChatAccess(providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
 		return this._chatProviderService.lookupChatResponseProvider(providerId);
 	}
 
