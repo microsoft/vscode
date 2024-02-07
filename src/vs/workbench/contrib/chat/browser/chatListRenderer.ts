@@ -92,6 +92,8 @@ const forceVerboseLayoutTracing = false;
 
 export interface IChatRendererDelegate {
 	getListLength(): number;
+
+	readonly onDidScroll?: Event<void>;
 }
 
 export interface IChatListItemRendererOptions {
@@ -146,7 +148,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		super();
 		this.renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
-		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions, overflowWidgetsDomNode));
+		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions, delegate, overflowWidgetsDomNode));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
 
@@ -1059,15 +1061,16 @@ class EditorPool extends Disposable {
 
 	constructor(
 		private readonly options: ChatEditorOptions,
+		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this._simpleEditorPool = this._register(new ResourcePool(() => {
-			return this.instantiationService.createInstance(SimpleCodeBlockPart, this.options, MenuId.ChatCodeBlock);
+			return this.instantiationService.createInstance(SimpleCodeBlockPart, this.options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode);
 		}));
 		this._localFileEditorPool = this._register(new ResourcePool(() => {
-			return this.instantiationService.createInstance(LocalFileCodeBlockPart, this.options, MenuId.ChatCodeBlock, overflowWidgetsDomNode);
+			return this.instantiationService.createInstance(LocalFileCodeBlockPart, this.options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode);
 		}));
 	}
 
@@ -1076,14 +1079,15 @@ class EditorPool extends Disposable {
 	}
 
 	private getFromPool(pool: ResourcePool<ICodeBlockPart>): IDisposableReference<ICodeBlockPart> {
-		const object = pool.get();
+		const codeBlock = pool.get();
 		let stale = false;
 		return {
-			object,
+			object: codeBlock,
 			isStale: () => stale,
 			dispose: () => {
+				codeBlock.reset();
 				stale = true;
-				pool.release(object);
+				pool.release(codeBlock);
 			}
 		};
 	}
