@@ -50,7 +50,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { MENU_CELL_CHAT_INPUT } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -476,12 +475,6 @@ export class StartVoiceChatAction extends Action2 {
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
-			},
-			{
-				id: MENU_CELL_CHAT_INPUT,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
-				group: 'main',
-				order: -1
 			}]
 		});
 	}
@@ -535,11 +528,6 @@ export class InstallVoiceChatAction extends Action2 {
 				order: -1
 			}, {
 				id: MENU_INLINE_CHAT_INPUT,
-				when: HasSpeechProvider.negate(),
-				group: 'main',
-				order: -1
-			}, {
-				id: MENU_CELL_CHAT_INPUT,
 				when: HasSpeechProvider.negate(),
 				group: 'main',
 				order: -1
@@ -715,20 +703,12 @@ export class StopListeningInInlineChatAction extends Action2 {
 			},
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 			icon: spinningLoading,
-			menu: [
-				{
-					id: MENU_INLINE_CHAT_INPUT,
-					when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
-					group: 'main',
-					order: -1
-				},
-				{
-					id: MENU_CELL_CHAT_INPUT,
-					when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
-					group: 'main',
-					order: -1
-				}
-			]
+			menu: [{
+				id: MENU_INLINE_CHAT_INPUT,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
+				group: 'main',
+				order: -1
+			}]
 		});
 	}
 
