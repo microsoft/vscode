@@ -147,6 +147,31 @@ export class NotebookCellsLayout implements IRangeMap {
 		}
 	}
 
+	/**
+	 * find position of whitespace
+	 * @param id: id of the whitespace
+	 * @returns: position in the list view
+	 */
+	getWhitespacePosition(id: string): number {
+		const whitespace = this._whitespace.find(ws => ws.id === id);
+		if (!whitespace) {
+			throw new Error('Whitespace not found');
+		}
+
+		const afterPosition = whitespace.afterPosition;
+		if (afterPosition === 0) {
+			return this.paddingTop;
+		}
+
+		const whitespaceBeforeFirstItem = this._whitespace.length > 0 && this._whitespace[0].afterPosition === 0 ? this._whitespace[0].size : 0;
+
+		// previous item index
+		const index = afterPosition - 1;
+		const previousItemPosition = this._prefixSumComputer.getPrefixSum(index);
+		const previousItemSize = this._items[index].size;
+		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop;
+	}
+
 	indexAt(position: number): number {
 		if (position < 0) {
 			return -1;
@@ -237,5 +262,9 @@ export class NotebookCellListView<T> extends ListView<T> {
 	removeWhitespace(id: string): void {
 		this.notebookRangeMap.removeWhitespace(id);
 		this.eventuallyUpdateScrollDimensions();
+	}
+
+	getWhitespacePosition(id: string): number {
+		return this.notebookRangeMap.getWhitespacePosition(id);
 	}
 }

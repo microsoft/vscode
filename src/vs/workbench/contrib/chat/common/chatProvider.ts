@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -44,6 +45,10 @@ export interface IChatProviderService {
 
 	readonly _serviceBrand: undefined;
 
+	onDidChangeProviders: Event<{ added?: string[]; removed?: string[] }>;
+
+	getProviders(): string[];
+
 	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined;
 
 	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable;
@@ -56,6 +61,18 @@ export class ChatProviderService implements IChatProviderService {
 
 	private readonly _providers: Map<string, IChatResponseProvider> = new Map();
 
+	private readonly _onDidChangeProviders = new Emitter<{ added?: string[]; removed?: string[] }>();
+	readonly onDidChangeProviders: Event<{ added?: string[]; removed?: string[] }> = this._onDidChangeProviders.event;
+
+	dispose() {
+		this._onDidChangeProviders.dispose();
+		this._providers.clear();
+	}
+
+	getProviders(): string[] {
+		return Array.from(this._providers.keys());
+	}
+
 	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined {
 		return this._providers.get(identifier)?.metadata;
 	}
@@ -65,7 +82,12 @@ export class ChatProviderService implements IChatProviderService {
 			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
 		}
 		this._providers.set(identifier, provider);
-		return toDisposable(() => this._providers.delete(identifier));
+		this._onDidChangeProviders.fire({ added: [identifier] });
+		return toDisposable(() => {
+			if (this._providers.delete(identifier)) {
+				this._onDidChangeProviders.fire({ removed: [identifier] });
+			}
+		});
 	}
 
 	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {

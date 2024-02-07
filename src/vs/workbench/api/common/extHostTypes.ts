@@ -4203,6 +4203,54 @@ export enum ChatAgentResultFeedbackKind {
 	Helpful = 1,
 }
 
+
+export class ChatResponseTextPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseMarkdownPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+export class ChatResponseFilesPart {
+	value: vscode.ChatResponseFileTree[];
+	baseUri: vscode.Uri;
+	constructor(value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri) {
+		this.value = value;
+		this.baseUri = baseUri;
+	}
+}
+
+export class ChatResponseAnchorPart {
+	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	title?: string;
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
+export class ChatResponseProgressPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseReferencePart {
+	value: vscode.Uri | vscode.Location;
+	constructor(value: vscode.Uri | vscode.Location) {
+		this.value = value;
+	}
+}
+
+
 //#endregion
 
 //#region ai

@@ -14,7 +14,7 @@ import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/c
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISCMHistoryProviderMenus, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProviderMenus, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 
 function actionEquals(a: IAction, b: IAction): boolean {
@@ -258,36 +258,24 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 	private readonly historyItemMenus = new Map<SCMHistoryItemTreeElement, IMenu>();
 	private readonly disposables = new DisposableStore();
 
-	private _incomingHistoryItemGroupMenu: IMenu;
-	get incomingHistoryItemGroupMenu(): IMenu { return this._incomingHistoryItemGroupMenu; }
-
-	private _incomingHistoryItemGroupContextMenu: IMenu;
-	get incomingHistoryItemGroupContextMenu(): IMenu { return this._incomingHistoryItemGroupContextMenu; }
-
-	private _outgoingHistoryItemGroupMenu: IMenu;
-	get outgoingHistoryItemGroupMenu(): IMenu { return this._outgoingHistoryItemGroupMenu; }
-
-	private _outgoingHistoryItemGroupContextMenu: IMenu;
-	get outgoingHistoryItemGroupContextMenu(): IMenu { return this._outgoingHistoryItemGroupContextMenu; }
-
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService) {
-		this._incomingHistoryItemGroupMenu = this.menuService.createMenu(MenuId.SCMIncomingChanges, this.contextKeyService);
-		this.disposables.add(this._incomingHistoryItemGroupMenu);
-
-		this._incomingHistoryItemGroupContextMenu = this.menuService.createMenu(MenuId.SCMIncomingChangesContext, this.contextKeyService);
-		this.disposables.add(this._incomingHistoryItemGroupContextMenu);
-
-		this._outgoingHistoryItemGroupMenu = this.menuService.createMenu(MenuId.SCMOutgoingChanges, this.contextKeyService);
-		this.disposables.add(this._outgoingHistoryItemGroupMenu);
-
-		this._outgoingHistoryItemGroupContextMenu = this.menuService.createMenu(MenuId.SCMOutgoingChangesContext, this.contextKeyService);
-		this.disposables.add(this._outgoingHistoryItemGroupContextMenu);
-	}
+		@IMenuService private readonly menuService: IMenuService) { }
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
 		return this.getOrCreateHistoryItemMenu(historyItem);
+	}
+
+	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
+		return historyItemGroup.direction === 'incoming' ?
+			this.menuService.createMenu(MenuId.SCMIncomingChanges, this.contextKeyService) :
+			this.getOutgoingHistoryItemGroupMenu(MenuId.SCMOutgoingChanges, historyItemGroup);
+	}
+
+	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
+		return historyItemGroup.direction === 'incoming' ?
+			this.menuService.createMenu(MenuId.SCMIncomingChangesContext, this.contextKeyService) :
+			this.getOutgoingHistoryItemGroupMenu(MenuId.SCMOutgoingChangesContext, historyItemGroup);
 	}
 
 	private getOrCreateHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
@@ -314,6 +302,14 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		}
 
 		return result;
+	}
+
+	private getOutgoingHistoryItemGroupMenu(menuId: MenuId, historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['scmHistoryItemGroupHasUpstream', !!historyItemGroup.repository.provider.historyProvider?.currentHistoryItemGroup?.base],
+		]);
+
+		return this.menuService.createMenu(menuId, contextKeyService);
 	}
 
 	dispose(): void {

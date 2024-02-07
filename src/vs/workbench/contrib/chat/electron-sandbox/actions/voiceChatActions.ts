@@ -6,7 +6,7 @@
 import 'vs/css!./media/voiceChatActions';
 import { Event } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -47,6 +47,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -499,6 +503,70 @@ export class StartVoiceChatAction extends Action2 {
 			// fallback to Quick Voice Chat command
 			commandService.executeCommand(QuickVoiceChatAction.ID, context);
 		}
+	}
+}
+
+export class InstallVoiceChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.installVoiceChat';
+
+	private static readonly SPEECH_EXTENSION_ID = 'ms-vscode.vscode-speech';
+
+	constructor() {
+		super({
+			id: InstallVoiceChatAction.ID,
+			title: localize2('workbench.action.chat.startVoiceChat.label', "Use Microphone"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.mic,
+			menu: [{
+				id: MenuId.ChatExecute,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation',
+				order: -1
+			}, {
+				id: MENU_INLINE_CHAT_INPUT,
+				when: HasSpeechProvider.negate(),
+				group: 'main',
+				order: -1
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const extensionService = accessor.get(IExtensionService);
+		const dialogService = accessor.get(IDialogService);
+		const extensionManagementService = accessor.get(IExtensionsWorkbenchService);
+
+		const extension = firstOrDefault((await extensionManagementService.getExtensions([{ id: InstallVoiceChatAction.SPEECH_EXTENSION_ID }], CancellationToken.None)));
+		if (!extension) {
+			return;
+		}
+
+		if (extension.state === ExtensionState.Installed) {
+			await dialogService.info(
+				localize('enableExtensionMessage', "Microphone support requires an extension. Pleas enable it."),
+				localize('enableExtensionDetail', "Extension '{0}' is currently disabled.", InstallVoiceChatAction.SPEECH_EXTENSION_ID),
+			);
+
+			return extensionManagementService.open(extension);
+		}
+
+		const { confirmed } = await dialogService.confirm({
+			message: localize('confirmInstallMessage', "Microphone support requires an extension. Would you like to install it now?"),
+			detail: localize('confirmInstallDetail', "This will install the '{0}' extension.", InstallVoiceChatAction.SPEECH_EXTENSION_ID),
+			primaryButton: localize({ key: 'installButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Install")
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		const extensionRunning = Event.toPromise(Event.filter(extensionService.onDidChangeExtensionsStatus, e => e.some(e => e.value === InstallVoiceChatAction.SPEECH_EXTENSION_ID)));
+		await extensionManagementService.install(extension, undefined, ProgressLocation.Notification);
+		await extensionRunning;
+		commandService.executeCommand(StartVoiceChatAction.ID);
 	}
 }
 

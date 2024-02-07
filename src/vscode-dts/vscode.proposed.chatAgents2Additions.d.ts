@@ -43,6 +43,13 @@ declare module 'vscode' {
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
 
+	export type ChatAgentExtendedResponseStream = ChatAgentResponseStream & {
+		/**
+		 * @deprecated
+		 */
+		report(value: ChatAgentExtendedProgress): void;
+	};
+
 	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		/**
 		 * Provide a set of variables that can only be used with this agent.
@@ -64,7 +71,7 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentExtendedProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 		/**

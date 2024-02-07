@@ -1254,7 +1254,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void {
-		this.viewZones.changeViewZones(callback);
+		if (this.viewZones.changeViewZones(callback)) {
+			this.viewZones.layout();
+		}
 	}
 
 	// override

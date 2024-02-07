@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Emitter } from 'vs/base/common/event';
 import * as nls from 'vs/nls';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -13,7 +14,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { registerChatCodeBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
@@ -30,7 +31,7 @@ import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget'
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CHAT_FEATURE_ID, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -58,6 +59,9 @@ import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/c
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IExtensionFeatureMarkdownRenderer, Extensions as ExtensionFeaturesExtensions, IRenderedData, IExtensionFeaturesRegistry, IExtensionFeaturesManagementService } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { ExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -283,8 +287,71 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 	}
 }
 
+class ChatFeatureMarkdowneRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+
+	readonly type = 'markdown';
+
+	constructor(
+		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+	) {
+		super();
+	}
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
+		if (!this.extensionFeaturesManagementService.isEnabled(extensionId, CHAT_FEATURE_ID)) {
+			return true;
+		}
+		const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, CHAT_FEATURE_ID);
+		if (accessData?.totalCount) {
+			return true;
+		}
+		return false;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
+		const disposables = new DisposableStore();
+		const emitter = disposables.add(new Emitter<IMarkdownString>());
+		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
+		disposables.add(this.extensionFeaturesManagementService.onDidChangeAccessData(e => {
+			if (ExtensionIdentifier.equals(e.extension, extensionId) && e.featureId === CHAT_FEATURE_ID) {
+				emitter.fire(this.getMarkdownData(extensionId));
+			}
+		}));
+		return {
+			data: this.getMarkdownData(extensionId),
+			onDidChange: emitter.event,
+			dispose: () => { disposables.dispose(); }
+		};
+	}
+
+	private getMarkdownData(extensionId: ExtensionIdentifier): IMarkdownString {
+		const markdown = new MarkdownString();
+		const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, CHAT_FEATURE_ID);
+		if (accessData && accessData.totalCount) {
+			if (accessData.current) {
+				markdown.appendMarkdown(nls.localize('requests count session', "Requests (Session) : `{0}`", accessData.current.count));
+				markdown.appendText('\n');
+			}
+			markdown.appendMarkdown(nls.localize('requests count total', "Requests (Overall): `{0}`", accessData.totalCount));
+		}
+		return markdown;
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: CHAT_FEATURE_ID,
+	label: nls.localize('chat', "Chat"),
+	description: nls.localize('chatFeatureDescription', "Allows the extension to make requests to the Large Language Model (LLM)."),
+	enablement: {
+		canToggle: true,
+		requireUserConsent: true,
+	},
+	renderer: new SyncDescriptor(ChatFeatureMarkdowneRenderer),
+});
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);

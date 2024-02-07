@@ -182,6 +182,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private async resolveHistoryItemGroupBase(historyItemId: string): Promise<UpstreamRef | undefined> {
 		try {
+			// Upstream
+			const branch = await this.repository.getBranch(historyItemId);
+			if (branch.upstream) {
+				return branch.upstream;
+			}
+
+			// Base (config -> reflog -> default)
 			const remoteBranch = await this.repository.getBranchBase(historyItemId);
 			if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
 				return undefined;

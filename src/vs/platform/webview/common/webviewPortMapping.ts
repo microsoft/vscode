@@ -29,7 +29,7 @@ export class WebviewPortMappingManager implements IDisposable {
 
 	public async getRedirect(resolveAuthority: IAddress | null | undefined, url: string): Promise<string | undefined> {
 		const uri = URI.parse(url);
-		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri);
+		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri, { checkQuery: false });
 		if (!requestLocalHostInfo) {
 			return undefined;
 		}
