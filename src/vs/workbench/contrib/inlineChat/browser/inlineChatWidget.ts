@@ -371,7 +371,8 @@ export class InlineChatWidget {
 
 		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
-			toolbarOptions: { primaryGroup: 'main' }
+			toolbarOptions: { primaryGroup: 'main' },
+			hiddenItemStrategy: HiddenItemStrategy.Ignore // keep it lean when hiding items and avoid a "..." overflow menu
 		}));
 
 		this._progressBar = new ProgressBar(this._elements.progress);
