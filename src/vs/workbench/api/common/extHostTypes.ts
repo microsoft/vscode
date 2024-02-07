@@ -4212,9 +4212,9 @@ export class ChatResponseTextPart {
 }
 
 export class ChatResponseMarkdownPart {
-	value: string | vscode.MarkdownString;
+	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
-		this.value = value;
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
 	}
 }
 

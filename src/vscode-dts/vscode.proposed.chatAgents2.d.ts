@@ -67,6 +67,7 @@ declare module 'vscode' {
 
 		// TODO@API
 		// add CATCH-all signature [name:string]: string|boolean|number instead of `T extends...`
+		// readonly metadata: { readonly [key: string]: any };
 	}
 
 	/**
@@ -313,7 +314,7 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseMarkdownPart {
-		value: string | MarkdownString;
+		value: MarkdownString;
 		constructor(value: string | MarkdownString);
 	}
 
