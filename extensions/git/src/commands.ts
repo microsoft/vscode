@@ -2494,17 +2494,20 @@ export class CommandCenter {
 				c(undefined);
 			})));
 			disposables.push(quickPick.onDidChangeValue(value => {
-				if (value === '') {
-					quickPick.items = [...commands, ...picks];
-					return;
+				switch (true) {
+					case value === '':
+						quickPick.items = [...commands, ...picks];
+						break;
+					case commands.length === 0:
+						quickPick.items = picks;
+						break;
+					case picks.length === 0:
+						quickPick.items = commands;
+						break;
+					default:
+						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+						break;
 				}
-
-				if (picks.length === 0) {
-					quickPick.items = commands;
-					return;
-				}
-
-				quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
 			}));
 		});
 
