@@ -5,9 +5,7 @@
 
 declare module 'vscode' {
 
-	// TODO@API rename to LanguageModelAccess
-
-	export interface ChatResponseStream {
+	export interface LanguageModelResponseStream {
 
 		/**
 		 * The response stream.
@@ -21,12 +19,14 @@ declare module 'vscode' {
 		readonly option: number;
 	}
 
-	export interface ChatRequest {
+	// TODO@API NAME: LanguageModelResponse (depends on having cancel or not)
+	export interface LanguageModelRequest {
 
 		/**
 		 * The overall result of the request which represents failure or success
 		 * but _not_ the actual response or responses
 		 */
+		// TODO@API define this type!
 		result: Thenable<any>;
 
 		/**
@@ -36,19 +36,20 @@ declare module 'vscode' {
 		 * Usually there is only one response option and this stream is more convienient to use
 		 * than the {@link onDidStartResponseStream `onDidStartResponseStream`} event.
 		 */
+		// TODO@API NAME: responseStream
 		response: AsyncIterable<string>;
 
 		/**
 		 * An event that fires whenever a new response option is available. The response
 		 * itself is a stream of the actual response.
 		 *
-		 * *Note* that the first time this event fires, the {@link ChatResponseStream.response response stream}
+		 * *Note* that the first time this event fires, the {@link LanguageModelResponseStream.response response stream}
 		 * is the same as the {@link response `default response stream`}.
 		 *
 		 * *Note* that unless requested there is only one response option, so this event will only fire
 		 * once.
 		 */
-		onDidStartResponseStream: Event<ChatResponseStream>;
+		onDidStartResponseStream: Event<LanguageModelResponseStream>;
 
 		/**
 		 * Cancel this request.
@@ -57,64 +58,84 @@ declare module 'vscode' {
 		cancel(): void;
 	}
 
-
 	/**
-	 * Represents access to using a chat provider (LLM). Access is granted and temporary, usually only valid
-	 * for the duration of an user interaction or specific time frame.
+	 * Represents access to using a language model. Access can be revoked at any time and extension
+	 * must check if the access is {@link LanguageModelAccess.isRevoked still valid} before using it.
 	 */
-	export interface ChatAccess {
+	export interface LanguageModelAccess {
 
 		/**
-		 * Whether the access to chat has been revoked. This happens when the condition that allowed for
-		 * chat access doesn't hold anymore, e.g a user interaction has ended.
+		 * Whether the access to the language model has been revoked.
 		 */
 		readonly isRevoked: boolean;
 
 		/**
-		 * An event that is fired when the access to chat has been revoked or re-granted.
+		 * An event that is fired when the access the language model has has been revoked or re-granted.
 		 */
 		readonly onDidChangeAccess: Event<void>;
 
 		/**
-		 * The name of the model that is used for this chat access. It is expected that the model name can
-		 * be used to lookup properties like token limits and ChatML support
+		 * The name of the model.
+		 *
+		 * It is expected that the model name can be used to lookup properties like token limits or what
+		 * `options` are available.
 		 */
 		readonly model: string;
 
 		/**
-		 * Make a chat request.
-		 *
-		 * The actual response will be reported back via the `progress` callback. The promise returned by this function
-		 * returns a overall result which represents failure or success of the request.
-		 *
-		 * Chat can be asked for multiple response options. In that case the `progress` callback will be called multiple
-		 * time with different `ChatResponseStream` objects. Each object represents a different response option and the actual
-		 * response will be reported back via their `stream` property.
+		 * Make a request to the language model.
 		 *
 		 * *Note:* This will throw an error if access has been revoked.
 		 *
 		 * @param messages
 		 * @param options
 		 */
-		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): ChatRequest;
-
-		// TODO@API disposable?
-		// dispose(): void;
+		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelRequest;
 	}
 
+	export interface LanguageModelAccessOptions {
+		/**
+		 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
+		 */
+		justification?: string;
+	}
+
+	/**
+	 * An event describing the change in the set of available language models.
+	 */
+	export interface LanguageModelChangeEvent {
+		/**
+		 * Added language models.
+		 */
+		readonly added: readonly string[];
+		/**
+		 * Removed language models.
+		 */
+		readonly removed: readonly string[];
+	}
+
+	//@API DEFINE the namespace for this: env, lm, ai?
 	export namespace chat {
 
 		/**
-		 * Request access to chat.
+		 * Request access to a language model.
 		 *
-		 * *Note* that this function will throw an error unless an user interaction is currently active.
+		 * *Note* that this function will throw an error when the user didn't grant access
 		 *
-		 * @param id The id of the chat provider, e.g `copilot`
+		 * @param id The id of the language model, e.g `copilot`
+		 * @returns A thenable that resolves to a language model access object, rejects is access wasn't granted
 		 */
-		export function requestChatAccess(id: string): Thenable<ChatAccess>;
+		export function requestLanguageModelAccess(id: string, options?: LanguageModelAccessOptions): Thenable<LanguageModelAccess>;
 
-		//@API add those
-		// export const chatAccesses: readonly string[];
-		// export const onDidChangeChatAccesses: Event<void>;
+		/**
+		 * The identifiers of all language models that are currently available.
+		 */
+		export const languageModels: readonly string[];
+
+		/**
+		 * An event that is fired when the set of available language models changes.
+		 */
+		//@API is this really needed?
+		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
 	}
 }
