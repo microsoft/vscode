@@ -29,6 +29,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	position: relative;
 }
 
 .interactive-item-container .header.hidden {
@@ -157,6 +158,12 @@
 .interactive-item-container .header .monaco-toolbar .action-label {
 	border: 1px solid transparent;
 	padding: 2px;
+}
+
+.interactive-item-container .header .monaco-toolbar {
+	position: absolute;
+	right: 0px;
+	background-color: var(--vscode-chat-list-background);
 }
 
 .interactive-item-container .header .monaco-toolbar .checked.action-label,

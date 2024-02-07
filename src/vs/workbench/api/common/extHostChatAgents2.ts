@@ -84,9 +84,9 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				files(value) {
-					throwIfDone(this.files);
-					const part = new extHostTypes.ChatResponseFilesPart(value);
+				filetree(value, baseUri) {
+					throwIfDone(this.filetree);
+					const part = new extHostTypes.ChatResponseFilesPart(value, baseUri);
 					const dto = typeConvert.ChatResponseFilesPart.to(part);
 					_report(dto);
 					return this;
@@ -109,6 +109,12 @@ class ChatAgentResponseStream {
 					throwIfDone(this.reference);
 					const part = new extHostTypes.ChatResponseReferencePart(value);
 					const dto = typeConvert.ChatResponseReferencePart.to(part);
+					_report(dto);
+					return this;
+				},
+				push(part) {
+					throwIfDone(this.push);
+					const dto = typeConvert.ChatResponsePart.to(part);
 					_report(dto);
 					return this;
 				},
@@ -215,7 +221,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					|| h.result;
 				return {
 					request: typeConvert.ChatAgentRequest.to(h.request),
-					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.toProgressContent(r))),
+					response: coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r))),
 					result
 				} satisfies vscode.ChatAgentHistoryEntry;
 			})));

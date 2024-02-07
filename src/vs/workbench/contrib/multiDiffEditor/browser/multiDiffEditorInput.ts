@@ -33,7 +33,6 @@ import { ObservableLazyStatefulPromise } from 'vs/workbench/contrib/multiDiffEdi
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-/* hot-reload:patch-prototype-methods */
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
 		if (!input.multiDiffSource && !input.resources) {

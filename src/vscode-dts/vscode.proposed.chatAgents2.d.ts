@@ -17,7 +17,7 @@ declare module 'vscode' {
 		/**
 		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
 		 */
-		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFilesPart | ChatResponseAnchorPart)[];
+		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
 
 		/**
 		 * The result that was received from the chat agent.
@@ -67,6 +67,7 @@ declare module 'vscode' {
 
 		// TODO@API
 		// add CATCH-all signature [name:string]: string|boolean|number instead of `T extends...`
+		// readonly metadata: { readonly [key: string]: any };
 	}
 
 	/**
@@ -279,20 +280,77 @@ declare module 'vscode' {
 
 	export interface ChatAgentResponseStream {
 
+		/**
+		 * Push a text part to this stream. Short-hand for
+		 * `push(new ChatResponseTextPart(value))`.
+		 *
+		 * @see {@link ChatAgentResponseStream.push}
+		 * @param value A plain text value.
+		 * @returns This stream.
+		 */
 		text(value: string): ChatAgentResponseStream;
 
+		/**
+		 * Push a markdown part to this stream. Short-hand for
+		 * `push(new ChatResponseMarkdownPart(value))`.
+		 *
+		 * @see {@link ChatAgentResponseStream.push}
+		 * @param value A markdown string or a string that should be interpreted as markdown.
+		 * @returns This stream.
+		 */
 		markdown(value: string | MarkdownString): ChatAgentResponseStream;
 
-		files(value: ChatAgentFileTreeData): ChatAgentResponseStream;
-
+		/**
+		 * Push an anchor part to this stream. Short-hand for
+		 * `push(new ChatResponseAnchorPart(value, title))`.
+		 *
+		 * @param value A uri or location
+		 * @param title An optional title that is rendered with value
+		 * @returns This stream.
+		 */
 		anchor(value: Uri | Location, title?: string): ChatAgentResponseStream;
 
+		/**
+		 * Push a filetree part to this stream. Short-hand for
+		 * `push(new ChatResponseFileTreePart(value))`.
+		 *
+		 * @param value File tree data.
+		 * @param baseUri The base uri to which this file tree is relative to.
+		 * @returns This stream.
+		 */
+		filetree(value: ChatResponseFileTree[], baseUri: Uri): ChatAgentResponseStream;
+
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		 *
+		 * @param value
+		 * @returns This stream.
+		 */
+		// TODO@API is this always inline or not
+		// TODO@API is this markdown or string?
 		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
 		progress(value: string): ChatAgentResponseStream;
 
+		/**
+		 * Push a reference to this stream. Short-hand for
+		 * `push(new ChatResponseReferencePart(value))`.
+		 *
+		 * *Note* that the reference is not rendered inline with the response.
+		 *
+		 * @param value A uri or location
+		 * @returns This stream.
+		 */
 		// TODO@API support non-file uris, like http://example.com
 		// TODO@API support mapped edits
 		reference(value: Uri | Location): ChatAgentResponseStream;
+
+		/**
+		 * Pushes a part to this stream.
+		 *
+		 * @param part A response part, rendered or metadata
+		 */
+		push(part: ChatResponsePart): ChatAgentResponseStream;
 
 		/**
 		 * @deprecated use above methods instread
@@ -313,13 +371,19 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseMarkdownPart {
-		value: string | MarkdownString;
+		value: MarkdownString;
 		constructor(value: string | MarkdownString);
 	}
 
-	export class ChatResponseFilesPart {
-		value: ChatAgentFileTreeData;
-		constructor(value: ChatAgentFileTreeData);
+	export interface ChatResponseFileTree {
+		name: string;
+		children?: ChatResponseFileTree[];
+	}
+
+	export class ChatResponseFileTreePart {
+		value: ChatResponseFileTree[];
+		baseUri: Uri;
+		constructor(value: ChatResponseFileTree[], baseUri: Uri);
 	}
 
 	export class ChatResponseAnchorPart {
@@ -338,7 +402,7 @@ declare module 'vscode' {
 		constructor(value: Uri | Location);
 	}
 
-	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFilesPart | ChatResponseAnchorPart
+	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
 		| ChatResponseProgressPart | ChatResponseReferencePart;
 
 	/**

@@ -1387,11 +1387,19 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const chat: typeof vscode.chat = {
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
-				return extHostChatProvider.registerProvider(extension.identifier, id, provider, metadata);
+				return extHostChatProvider.registerLanguageModel(extension.identifier, id, provider, metadata);
 			},
-			requestChatAccess(id: string) {
+			requestLanguageModelAccess(id, options) {
 				checkProposedApiEnabled(extension, 'chatRequestAccess');
-				return extHostChatProvider.requestChatResponseProvider(extension.identifier, id);
+				return extHostChatProvider.requestLanguageModelAccess(extension.identifier, id, options);
+			},
+			get languageModels() {
+				checkProposedApiEnabled(extension, 'chatRequestAccess');
+				return extHostChatProvider.getLanguageModelIds();
+			},
+			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatRequestAccess');
+				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			registerVariable(name: string, description: string, resolver: vscode.ChatVariableResolver) {
 				checkProposedApiEnabled(extension, 'chatAgents2');
@@ -1642,7 +1650,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
 			ChatResponseTextPart: extHostTypes.ChatResponseTextPart,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
-			ChatResponseFilesPart: extHostTypes.ChatResponseFilesPart,
+			ChatResponseFileTreePart: extHostTypes.ChatResponseFilesPart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
