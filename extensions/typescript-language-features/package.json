@@ -12,7 +12,8 @@
     "multiDocumentHighlightProvider",
     "mappedEditsProvider",
     "codeActionAI",
-    "codeActionRanges"
+    "codeActionRanges",
+    "documentPaste"
   ],
   "capabilities": {
     "virtualWorkspaces": {
