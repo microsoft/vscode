@@ -1391,7 +1391,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			requestChatAccess(id: string) {
 				checkProposedApiEnabled(extension, 'chatRequestAccess');
-				return extHostChatProvider.requestChatResponseProvider(extension.identifier, id);
+				return authentication.getSession(id + '-access', [], { createIfNone: true })
+					.then(() => extHostChatProvider.requestChatResponseProvider(extension.identifier, id));
 			},
 			registerVariable(name: string, description: string, resolver: vscode.ChatVariableResolver) {
 				checkProposedApiEnabled(extension, 'chatAgents2');
