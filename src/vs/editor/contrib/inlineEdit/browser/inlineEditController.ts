@@ -79,17 +79,7 @@ export class InlineEditController extends Disposable {
 			if (!this._enabled.get()) {
 				return;
 			}
-			if (!this._currentEdit) {
-				this._isCursorAtInlineEditContext.set(false);
-				return;
-			}
-			const gt = this._currentEdit.get()?.edit;
-			if (!gt) {
-				this._isCursorAtInlineEditContext.set(false);
-				return;
-			}
-			const pos = e.position;
-			this._isCursorAtInlineEditContext.set(Range.containsPosition(gt.range, pos));
+			this.checkCursorPosition(e.position);
 		}));
 
 		//Perform stuff when the current edit has changed
@@ -103,6 +93,10 @@ export class InlineEditController extends Disposable {
 			}
 			this._isVisibleContext.set(true);
 			this._isCursorAtInlineEditContext.set(false);
+			const pos = editor.getPosition();
+			if (pos) {
+				this.checkCursorPosition(pos);
+			}
 		}));
 
 		const styleElement = this._register(createStyleSheet2());
@@ -132,6 +126,19 @@ export class InlineEditController extends Disposable {
 
 
 		this._register(new InlineEditHintsWidget(this.editor, this._currentEdit, this.instantiationService));
+	}
+
+	private checkCursorPosition(position: Position) {
+		if (!this._currentEdit) {
+			this._isCursorAtInlineEditContext.set(false);
+			return;
+		}
+		const gt = this._currentEdit.get()?.edit;
+		if (!gt) {
+			this._isCursorAtInlineEditContext.set(false);
+			return;
+		}
+		this._isCursorAtInlineEditContext.set(Range.containsPosition(gt.range, position));
 	}
 
 	private validateInlineEdit(editor: ICodeEditor, edit: IInlineEdit): boolean {
