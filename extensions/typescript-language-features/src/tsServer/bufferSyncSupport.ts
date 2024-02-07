@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { officeScript, vscodeNotebookCell } from '../configuration/fileSchemes';
+import * as fileSchemes from '../configuration/fileSchemes';
 import * as languageModeIds from '../configuration/languageIds';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
@@ -227,7 +227,7 @@ class SyncedBuffer {
 			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
 		}
 
-		return resource.scheme === officeScript ? '/' : undefined;
+		return resource.scheme === fileSchemes.officeScript || resource.scheme === fileSchemes.chatCodeBlock ? '/' : undefined;
 	}
 
 	public get resource(): vscode.Uri {
@@ -395,7 +395,7 @@ class TabResourceTracker extends Disposable {
 	}
 
 	public has(resource: vscode.Uri): boolean {
-		if (resource.scheme === vscodeNotebookCell) {
+		if (resource.scheme === fileSchemes.vscodeNotebookCell) {
 			const notebook = vscode.workspace.notebookDocuments.find(doc =>
 				doc.getCells().some(cell => cell.document.uri.toString() === resource.toString()));
 
