@@ -233,11 +233,20 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	private createTextModelListener(commentEditor: ICodeEditor, commentForm: HTMLElement) {
 		this._commentThreadDisposables.push(commentEditor.onDidFocusEditorWidget(() => {
-			this._commentThread.input = {
-				uri: commentEditor.getModel()!.uri,
-				value: commentEditor.getValue()
-			};
-			this.commentService.setActiveCommentThread(this._commentThread);
+			// Add a setTimeout so that the blur event doesn't fire before the focus event
+			// https://github.com/microsoft/vscode/blob/f6d945edbdc1b2e8a176624fdf612bb61468944f/src/vs/base/browser/dom.ts#L1322-L1328
+			setTimeout(() => {
+				this._commentThread.input = {
+					uri: commentEditor.getModel()!.uri,
+					value: commentEditor.getValue()
+				};
+				this.commentService.setActiveEditingCommentThread(this._commentThread);
+				this.commentService.setActiveCommentAndThread(this.owner, { thread: this._commentThread });
+			}, 0);
+		}));
+
+		this._commentThreadDisposables.push(commentEditor.onDidBlurEditorWidget(() => {
+			this.commentService.setActiveCommentAndThread(this.owner, undefined);
 		}));
 
 		this._commentThreadDisposables.push(commentEditor.getModel()!.onDidChangeContent(() => {
@@ -247,7 +256,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 				newInput.value = modelContent;
 				this._commentThread.input = newInput;
 			}
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeInput(input => {
