@@ -49,7 +49,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 
 		const { result, checkboxChecked } = await this.dialogService.prompt<ConnectionChoice>({
 			type: Severity.Warning,
-			message: localize('unsupportedGlibcWarning', "You are about to connect to an OS that is unsupported by {0}", this.productService.nameLong),
+			message: localize('unsupportedGlibcWarning', "You are about to connect to an OS version that is unsupported by {0}.", this.productService.nameLong),
 			buttons: [
 				{
 					label: localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
@@ -64,7 +64,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 				run: () => ConnectionChoice.Cancel
 			},
 			checkbox: {
-				label: localize('remember', "Do not ask me again"),
+				label: localize('remember', "Do not show again"),
 			}
 		});
 
@@ -73,8 +73,8 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 		}
 
 		const allowed = result === ConnectionChoice.Allow;
-		if (checkboxChecked) {
-			this.storageService.store(REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY, allowed, StorageScope.PROFILE, StorageTarget.MACHINE);
+		if (allowed && checkboxChecked) {
+			this.storageService.store(`${REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY}.${this._environmentService.remoteAuthority}`, allowed, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 
 		return allowed;
@@ -85,7 +85,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 			const environment = await this._remoteAgentService.getRawEnvironment();
 
 			if (environment && environment.isUnsupportedGlibc) {
-				let allowed = this.storageService.getBoolean(REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY, StorageScope.PROFILE);
+				let allowed = this.storageService.getBoolean(`${REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY}.${this._environmentService.remoteAuthority}`, StorageScope.PROFILE);
 				if (allowed === undefined) {
 					allowed = await this._confirmConnection();
 				}
@@ -98,7 +98,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 					];
 					this.bannerService.show({
 						id: 'unsupportedGlibcWarning.banner',
-						message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS that is unsupported by {0}.", this.productService.nameLong),
+						message: localize('unsupportedGlibcWarning.banner', "You are connected to an OS version that is unsupported by {0}.", this.productService.nameLong),
 						actions,
 						icon: Codicon.warning,
 						disableCloseAction: true
