@@ -87,6 +87,28 @@ suite('MainThreadWorkspace', () => {
 		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true, disregardExcludeSettings: true }, new CancellationTokenSource().token);
 	});
 
+	test('do not disregard anything if disregardExcludeSettings is true', () => {
+		configService.setUserConfiguration('search', {
+			'exclude': { 'searchExclude': true }
+		});
+		configService.setUserConfiguration('files', {
+			'exclude': { 'filesExclude': true }
+		});
+
+		instantiationService.stub(ISearchService, {
+			fileSearch(query: IFileQuery) {
+				assert.strictEqual(query.folderQueries.length, 1);
+				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, undefined);
+
+				return Promise.resolve({ results: [], messages: [] });
+			}
+		});
+
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardExcludeSettings: true, disregardSearchExcludeSettings: false }, new CancellationTokenSource().token);
+	});
+
 	test('exclude string', () => {
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {

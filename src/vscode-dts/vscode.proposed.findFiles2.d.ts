@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+
 	export interface FindFiles2Options {
 		// note: this is just FindTextInFilesOptions without select properties (include, previewOptions, beforeContext, afterContext)
 
@@ -15,9 +16,14 @@ declare module 'vscode' {
 		exclude?: GlobPattern;
 
 		/**
-		 * Whether to use the values for files.exclude. Defaults to false.
+		 * Whether to use the values for files.exclude. Defaults to true.
 		 */
 		useDefaultExcludes?: boolean;
+
+		/**
+		 * Whether to use the values for search.exclude. Defaults to true. Will not be followed if `useDefaultExcludes` is set to `false`.
+		 */
+		useDefaultSearchExcludes?: boolean;
 
 		/**
 		 * The maximum number of results to search for
