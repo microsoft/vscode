@@ -713,7 +713,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 					alert = alert ? 'auto' : 'off';
 				}
 			}
-			configurationKeyValuePairs.push([`${item.signalSettingsKey}`, alert ? { alert, audioCue } as any : { audioCue }]);
+			configurationKeyValuePairs.push([`${item.signalSettingsKey}`, { value: alert ? { alert, audioCue } : { audioCue } }]);
 			return configurationKeyValuePairs;
 		}
 	})));
