@@ -5,9 +5,10 @@
   "publisher": "vscode",
   "license": "MIT",
   "enabledApiProposals": [
-	"activeComment",
+    "activeComment",
     "authSession",
     "chatAgents2",
+    "chatRequestAccess",
     "defaultChatAgent",
     "contribViewsRemote",
     "contribStatusBarItems",

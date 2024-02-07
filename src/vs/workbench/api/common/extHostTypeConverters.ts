@@ -50,6 +50,7 @@ import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { basename } from 'vs/base/common/resources';
 
 export namespace Command {
 
@@ -2355,15 +2356,41 @@ export namespace ChatResponseMarkdownPart {
 }
 
 export namespace ChatResponseFilesPart {
-	export function to(part: vscode.ChatResponseFilesPart): IChatTreeData {
+	export function to(part: vscode.ChatResponseFileTreePart): IChatTreeData {
+		const { value, baseUri } = part;
+		function convert(items: vscode.ChatResponseFileTree[], baseUri: URI): extHostProtocol.IChatResponseProgressFileTreeData[] {
+			return items.map(item => {
+				const myUri = URI.joinPath(baseUri, item.name);
+				return {
+					label: item.name,
+					uri: myUri,
+					children: item.children && convert(item.children, myUri)
+				};
+			});
+		}
 		return {
 			kind: 'treeData',
-			treeData: part.value
+			treeData: {
+				label: basename(baseUri),
+				uri: baseUri,
+				children: convert(value, baseUri)
+			}
 		};
 	}
-	export function from(part: Dto<IChatTreeData>): vscode.ChatResponseFilesPart {
-		const value = revive<IChatTreeData>(part.treeData);
-		return new types.ChatResponseFilesPart(value.treeData);
+	export function from(part: Dto<IChatTreeData>): vscode.ChatResponseFileTreePart {
+		const { treeData } = revive<IChatTreeData>(part.treeData);
+		function convert(items: extHostProtocol.IChatResponseProgressFileTreeData[]): vscode.ChatResponseFileTree[] {
+			return items.map(item => {
+				return {
+					name: item.label,
+					children: item.children && convert(item.children)
+				};
+			});
+		}
+
+		const baseUri = treeData.uri;
+		const items = treeData.children ? convert(treeData.children) : [];
+		return new types.ChatResponseFilesPart(items, baseUri);
 	}
 }
 
@@ -2414,7 +2441,26 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function to(part: extHostProtocol.IChatProgressDto): vscode.ChatResponsePart {
+	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+		if (part instanceof types.ChatResponseMarkdownPart) {
+			return ChatResponseMarkdownPart.to(part);
+		} else if (part instanceof types.ChatResponseAnchorPart) {
+			return ChatResponseAnchorPart.to(part);
+		} else if (part instanceof types.ChatResponseReferencePart) {
+			return ChatResponseReferencePart.to(part);
+		} else if (part instanceof types.ChatResponseProgressPart) {
+			return ChatResponseProgressPart.to(part);
+		} else if (part instanceof types.ChatResponseFilesPart) {
+			return ChatResponseFilesPart.to(part);
+		}
+		return {
+			kind: 'content',
+			content: ''
+		};
+
+	}
+
+	export function from(part: extHostProtocol.IChatProgressDto): vscode.ChatResponsePart {
 		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
 			case 'inlineReference': return ChatResponseAnchorPart.from(part);

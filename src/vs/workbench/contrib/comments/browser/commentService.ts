@@ -272,6 +272,7 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidChangeActiveEditingCommentThread.fire(commentThread);
 	}
 
+	private _lastActiveCommentController: ICommentController | undefined;
 	async setActiveCommentAndThread(owner: string, commentInfo: { thread: CommentThread<IRange>; comment?: Comment } | undefined) {
 		const commentController = this._commentControls.get(owner);
 
@@ -279,13 +280,14 @@ export class CommentService extends Disposable implements ICommentService {
 			return;
 		}
 
+		if (commentController !== this._lastActiveCommentController) {
+			await this._lastActiveCommentController?.setActiveCommentAndThread(undefined);
+		}
+		this._lastActiveCommentController = commentController;
 		return commentController.setActiveCommentAndThread(commentInfo);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
-		if (commentInfos.length) {
-			this._workspaceHasCommenting.set(true);
-		}
 		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 

@@ -43,7 +43,12 @@ declare module 'vscode' {
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
 
-	export type ChatAgentExtendedResponseStream = ChatAgentResponseStream & Progress<ChatAgentExtendedProgress>;
+	export type ChatAgentExtendedResponseStream = ChatAgentResponseStream & {
+		/**
+		 * @deprecated
+		 */
+		report(value: ChatAgentExtendedProgress): void;
+	};
 
 	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		/**
