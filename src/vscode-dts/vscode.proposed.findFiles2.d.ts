@@ -38,12 +38,14 @@ declare module 'vscode' {
 
 		/**
 		 * Whether global files that exclude files, like .gitignore, should be respected.
+		 * Must set `useIgnoreFiles` to `true` to use this.
 		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 		 */
 		useGlobalIgnoreFiles?: boolean;
 
 		/**
 		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+		 * Must set `useIgnoreFiles` to `true` to use this.
 		 * See the vscode setting `"search.useParentIgnoreFiles"`.
 		 */
 		useParentIgnoreFiles?: boolean;
