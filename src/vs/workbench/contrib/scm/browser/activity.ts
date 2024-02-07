@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,7 +19,6 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { Schemas } from 'vs/base/common/network';
 import { Iterable } from 'vs/base/common/iterator';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
-import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -29,14 +28,20 @@ function getCount(repository: ISCMRepository): number {
 	}
 }
 
+const ContextKeys = {
+	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
+	ActiveRepositoryBranchName: new RawContextKey<string>('scmActiveRepositoryBranchName', ''),
+};
+
 export class SCMStatusController implements IWorkbenchContribution {
+
+	private activeRepositoryNameContextKey: IContextKey<string>;
+	private activeRepositoryBranchNameContextKey: IContextKey<string>;
 
 	private statusBarDisposable: IDisposable = Disposable.None;
 	private focusDisposables = new DisposableStore();
 	private focusedRepository: ISCMRepository | undefined = undefined;
 	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
-	private _activeRepositoryNameContextKey: IContextKey<string>;
-	private _activeRepositoryBranchNameContextKey: IContextKey<string>;
 	private readonly disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
 
@@ -61,12 +66,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 			this.onDidAddRepository(repository);
 		}
 
-		this._activeRepositoryNameContextKey = RepositoryContextKeys.ActiveRepositoryName.bindTo(contextKeyService);
-		this._activeRepositoryBranchNameContextKey = RepositoryContextKeys.ActiveRepositoryBranchName.bindTo(contextKeyService);
+		this.activeRepositoryNameContextKey = ContextKeys.ActiveRepositoryName.bindTo(contextKeyService);
+		this.activeRepositoryBranchNameContextKey = ContextKeys.ActiveRepositoryBranchName.bindTo(contextKeyService);
 
 		titleService.registerVariables([
-			{ name: 'activeRepositoryName', contextKey: RepositoryContextKeys.ActiveRepositoryName.key },
-			{ name: 'activeRepositoryBranchName', contextKey: RepositoryContextKeys.ActiveRepositoryBranchName.key, }
+			{ name: 'activeRepositoryName', contextKey: ContextKeys.ActiveRepositoryName.key },
+			{ name: 'activeRepositoryBranchName', contextKey: ContextKeys.ActiveRepositoryBranchName.key, }
 		]);
 
 		this.scmViewService.onDidFocusRepository(this.focusRepository, this, this.disposables);
@@ -162,8 +167,8 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private updateContextKeys(repository: ISCMRepository | undefined): void {
-		this._activeRepositoryNameContextKey.set(repository?.provider.name ?? '');
-		this._activeRepositoryBranchNameContextKey.set(repository?.provider.historyProvider?.currentHistoryItemGroup?.label ?? '');
+		this.activeRepositoryNameContextKey.set(repository?.provider.name ?? '');
+		this.activeRepositoryBranchNameContextKey.set(repository?.provider.historyProvider?.currentHistoryItemGroup?.label ?? '');
 	}
 
 	private renderStatusBar(repository: ISCMRepository | undefined): void {
