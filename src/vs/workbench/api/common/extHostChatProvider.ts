@@ -99,7 +99,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	private readonly _languageModels = new Map<number, LanguageModelData>();
 	private readonly _languageModelIds = new Set<string>(); // these are ALL models, not just the one in this EH
-	private readonly _accessAllowlist = new ExtensionIdentifierMap<boolean>();
+	private readonly _accesslist = new ExtensionIdentifierMap<boolean>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelRequest }>();
 
 
@@ -183,12 +183,12 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		return Array.from(this._languageModelIds);
 	}
 
-	$updateAllowlist(data: { extension: ExtensionIdentifier; allowed: boolean }[]): void {
+	$updateAccesslist(data: { extension: ExtensionIdentifier; enabled: boolean }[]): void {
 		const updated = new ExtensionIdentifierSet();
-		for (const { extension, allowed } of data) {
-			const oldValue = this._accessAllowlist.get(extension);
+		for (const { extension, enabled: allowed } of data) {
+			const oldValue = this._accesslist.get(extension);
 			if (oldValue !== allowed) {
-				this._accessAllowlist.set(extension, allowed);
+				this._accesslist.set(extension, allowed);
 				updated.add(extension);
 			}
 		}
@@ -196,12 +196,17 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	}
 
 	async requestLanguageModelAccess(from: ExtensionIdentifier, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
-		if (!this._accessAllowlist.get(from)) {
+		// check if the extension is in the access list and allowed to make chat requests
+		if (this._accesslist.get(from) === false) {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
-		const metadata = await this._proxy.$prepareChatAccess(languageModelId, options?.justification);
+		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options?.justification);
+
 		if (!metadata) {
+			if (!this._accesslist.get(from)) {
+				throw new Error('Extension is NOT allowed to make chat requests');
+			}
 			throw new Error(`Language model '${languageModelId}' NOT found`);
 		}
 
@@ -212,7 +217,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				return metadata.model;
 			},
 			get isRevoked() {
-				return !that._accessAllowlist.get(from) || !that._languageModelIds.has(languageModelId);
+				return !that._accesslist.get(from) || !that._languageModelIds.has(languageModelId);
 			},
 			get onDidChangeAccess() {
 				const onDidChangeAccess = Event.filter(that._onDidChangeAccess.event, set => set.has(from));
@@ -220,7 +225,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				return Event.signal(Event.any(onDidChangeAccess, onDidRemoveLM));
 			},
 			makeRequest(messages, options, token) {
-				if (!that._accessAllowlist.get(from)) {
+				if (!that._accesslist.get(from)) {
 					throw new Error('Access to chat has been revoked');
 				}
 				if (!that._languageModelIds.has(languageModelId)) {

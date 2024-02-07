@@ -10,6 +10,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatProviderShape, ExtHostContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatResponseProviderMetadata, IChatResponseFragment, IChatProviderService, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { CHAT_FEATURE_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { IExtensionFeaturesManagementService } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChatProvider)
@@ -23,12 +25,19 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatProviderService private readonly _chatProviderService: IChatProviderService,
+		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 
 		this._proxy.$updateLanguageModels({ added: _chatProviderService.getProviders() });
+		this._proxy.$updateAccesslist(_extensionFeaturesManagementService.getEnablementData(CHAT_FEATURE_ID));
 		this._store.add(_chatProviderService.onDidChangeProviders(this._proxy.$updateLanguageModels, this._proxy));
+		this._store.add(_extensionFeaturesManagementService.onDidChangeEnablement(e => {
+			if (e.featureId === CHAT_FEATURE_ID) {
+				this._proxy.$updateAccesslist(_extensionFeaturesManagementService.getEnablementData(CHAT_FEATURE_ID));
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -60,7 +69,11 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $prepareChatAccess(providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
+	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
+		const access = await this._extensionFeaturesManagementService.getAccess(extension, CHAT_FEATURE_ID);
+		if (!access) {
+			return undefined;
+		}
 		return this._chatProviderService.lookupChatResponseProvider(providerId);
 	}
 

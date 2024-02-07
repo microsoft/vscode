@@ -15,7 +15,6 @@ import { localize } from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -154,7 +153,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	constructor(
 		mainContext: IMainContext,
-		private readonly _extHostChatProvider: ExtHostChatProvider,
 		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -178,8 +176,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
-
-		this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: true }]);
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService);
 		try {
@@ -215,7 +211,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		} finally {
 			stream.close();
-			this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: false }]);
 		}
 	}
 
