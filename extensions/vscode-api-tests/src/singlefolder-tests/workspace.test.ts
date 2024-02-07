@@ -611,7 +611,7 @@ suite('vscode API - workspace', () => {
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
 		});
 
-		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: true, useDefaultSearchExcludes: true }).then((res) => {
+		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: false, useDefaultSearchExcludes: false }).then((res) => {
 			// search.exclude and files.exclude folders are both searched
 			assert.strictEqual(res.length, 2);
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
