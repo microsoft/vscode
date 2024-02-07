@@ -700,30 +700,20 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		}
 	}]);
 
-
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations(AudioCue.allAudioCues.map(item => ({
 		key: item.settingsKey,
-		migrateFn: (value: 'on' | 'off' | 'auto', accessor) => {
+		migrateFn: (audioCue, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			configurationKeyValuePairs.push([`${item.signalSettingsKey}.audioCue`, { value }]);
-			return configurationKeyValuePairs;
-		}
-	})));
-
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AudioCue.allAudioCues.filter(c => c.alertSettingsKey).map(item => ({
-		key: item.alertSettingsKey!,
-		migrateFn: (value, accessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (typeof value !== 'string') {
-				if (value === true) {
-					value = 'auto';
-				} else {
-					value = 'off';
+			const alertSettingsKey = item.alertSettingsKey;
+			let alert: string | undefined;
+			if (alertSettingsKey) {
+				alert = accessor(alertSettingsKey) ?? undefined;
+				if (typeof alert !== 'string') {
+					alert = alert ? 'auto' : 'off';
 				}
 			}
-			configurationKeyValuePairs.push([`${item.signalSettingsKey}.alert`, { value }]);
+			configurationKeyValuePairs.push([`${item.signalSettingsKey}`, alert ? { alert, audioCue } as any : { audioCue }]);
 			return configurationKeyValuePairs;
 		}
 	})));
