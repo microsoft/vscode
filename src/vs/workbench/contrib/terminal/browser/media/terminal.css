@@ -568,9 +568,10 @@
 
 .monaco-workbench .terminal-chat-widget-wrapper {
 	z-index: 33 !important;
-	height: 33px;
+	height: 33px !important;
 	position: absolute;
-	bottom: 30px;
+	bottom: 0px;
 	left: 10px;
 	width: 100px;
+	border:#ffffff;
 }

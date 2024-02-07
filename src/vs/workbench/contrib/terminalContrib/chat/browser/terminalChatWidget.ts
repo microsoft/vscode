@@ -15,7 +15,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 export class TerminalChatWidget extends Widget {
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _domNode: HTMLElement;
-	private readonly _innerDomNode: HTMLElement;
+	// private readonly _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
 	private _width: number = 0;
 	private _chatWidgetFocused: IContextKey<boolean>;
@@ -32,15 +32,15 @@ export class TerminalChatWidget extends Widget {
 	) {
 		super();
 
-		this._innerDomNode = document.createElement('div');
-		this._innerDomNode.classList.add('terminal-chat-widget');
-		this._innerDomNode.textContent = 'Chat Widget';
+		// this._innerDomNode = document.createElement('div');
+		// this._innerDomNode.classList.add('terminal-chat-widget');
+		// this._innerDomNode.textContent = 'Chat Widget';
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('terminal-chat-widget-wrapper');
-		this._domNode.appendChild(this._innerDomNode);
+		// this._domNode.appendChild(this._innerDomNode);
 
-		this.onkeyup(this._innerDomNode, e => {
+		this.onkeyup(this._domNode, e => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 				e.preventDefault();
@@ -49,21 +49,21 @@ export class TerminalChatWidget extends Widget {
 		});
 		this._chatWidgetFocused = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
 		this._chatWidgetVisible = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
-		this._focusTracker = this._register(dom.trackFocus(this._innerDomNode));
+		this._focusTracker = this._register(dom.trackFocus(this._domNode));
 		this._register(this._focusTracker.onDidFocus(this._onFocusTrackerFocus.bind(this)));
 		this._register(this._focusTracker.onDidBlur(this._onFocusTrackerBlur.bind(this)));
 	}
 
 	public hide(animated = true): void {
 		if (this._isVisible) {
-			this._innerDomNode.classList.toggle('suppress-transition', !animated);
-			this._innerDomNode.classList.remove('visible-transition');
-			this._innerDomNode.setAttribute('aria-hidden', 'true');
+			this._domNode.classList.toggle('suppress-transition', !animated);
+			this._domNode.classList.remove('visible-transition');
+			this._domNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this._chatWidgetVisible.reset();
-				this._innerDomNode.classList.remove('visible', 'suppress-transition');
+				this._domNode.classList.remove('visible', 'suppress-transition');
 			}, animated ? 200 : 0);
 		}
 	}
@@ -93,14 +93,14 @@ export class TerminalChatWidget extends Widget {
 		this.layout();
 		this._chatWidgetVisible.set(true);
 		setTimeout(() => {
-			this._innerDomNode.classList.toggle('suppress-transition', !animated);
-			this._innerDomNode.classList.add('visible', 'visible-transition');
-			this._innerDomNode.setAttribute('aria-hidden', 'false');
+			this._domNode.classList.toggle('suppress-transition', !animated);
+			this._domNode.classList.add('visible', 'visible-transition');
+			this._domNode.setAttribute('aria-hidden', 'false');
 			this._domNode.style.zIndex = '33 !important';
 			this._domNode.textContent = 'Chat Widget';
 			if (!animated) {
 				setTimeout(() => {
-					this._innerDomNode.classList.remove('suppress-transition');
+					this._domNode.classList.remove('suppress-transition');
 				}, 0);
 			}
 		}, 0);
