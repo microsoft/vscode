@@ -63,12 +63,6 @@ export class InlineCompletionsModel extends Disposable {
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			/** @description change cursor position */
-			const selections = this._selections.read(reader);
-			const position = selections.length > 0 ? selections[0].getPosition() : new Position(1, 1);
-			this._cursorPosition.set(position, undefined);
-		}));
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletions));
 
 		let lastItem: InlineCompletionWithUpdatedRange | undefined = undefined;
@@ -85,6 +79,12 @@ export class InlineCompletionsModel extends Disposable {
 				}
 			}
 		}));
+		this._register(autorun(reader => {
+			/** @description change cursor position */
+			const selections = this._selections.read(reader);
+			const position = selections.length > 0 ? selections[0].getPosition() : new Position(1, 1);
+			this._cursorPosition.set(position, undefined);
+		}));
 	}
 
 	private readonly _preserveCurrentCompletionReasons = new Set([
@@ -96,8 +96,7 @@ export class InlineCompletionsModel extends Disposable {
 		owner: this,
 		createEmptyChangeSummary: () => ({
 			preserveCurrentCompletion: false,
-			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
-			cursorPosition: new Position(1, 1),
+			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic
 		}),
 		handleChange: (ctx, changeSummary) => {
 			/** @description fetch inline completions */
@@ -106,11 +105,9 @@ export class InlineCompletionsModel extends Disposable {
 			} else if (ctx.didChange(this._forceUpdateSignal)) {
 				changeSummary.inlineCompletionTriggerKind = ctx.change;
 			}
-			changeSummary.cursorPosition = this._cursorPosition.get();
 			return true;
 		},
 	}, (reader, changeSummary) => {
-		this._cursorPosition.read(reader);
 		this._forceUpdateSignal.read(reader);
 		const shouldUpdate = (this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
 		if (!shouldUpdate) {
@@ -137,7 +134,7 @@ export class InlineCompletionsModel extends Disposable {
 			});
 		}
 
-		const cursorPosition = changeSummary.cursorPosition;
+		const cursorPosition = this._cursorPosition.read(reader);
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
