@@ -119,17 +119,18 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
 async function getVSCodeSysroot(arch) {
     let expectedName;
     let triple;
+    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28';
     switch (arch) {
         case 'amd64':
-            expectedName = `x86_64-linux-gnu-glibc-2.17.tar.gz`;
+            expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
             triple = 'x86_64-linux-gnu';
             break;
         case 'arm64':
-            expectedName = `aarch64-linux-gnu-glibc-2.17.tar.gz`;
+            expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
             triple = 'aarch64-linux-gnu';
             break;
         case 'armhf':
-            expectedName = `arm-rpi-linux-gnueabihf-glibc-2.17.tar.gz`;
+            expectedName = `arm-rpi-linux-gnueabihf${prefix}.tar.gz`;
             triple = 'arm-rpi-linux-gnueabihf';
             break;
     }
