@@ -299,14 +299,8 @@ class ChatFeatureMarkdowneRenderer extends Disposable implements IExtensionFeatu
 
 	shouldRender(manifest: IExtensionManifest): boolean {
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		if (!this.extensionFeaturesManagementService.isEnabled(extensionId, CHAT_FEATURE_ID)) {
-			return true;
-		}
 		const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, CHAT_FEATURE_ID);
-		if (accessData?.totalCount) {
-			return true;
-		}
-		return false;
+		return !!accessData;
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {

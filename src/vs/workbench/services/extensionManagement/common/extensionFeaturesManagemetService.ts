@@ -63,7 +63,7 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		if (isBoolean(defaultExtensionAccess)) {
 			return defaultExtensionAccess;
 		}
-		return !!feature.access.default;
+		return !feature.access.requireUserConsent;
 	}
 
 	setEnablement(extension: ExtensionIdentifier, featureId: string, enabled: boolean): void {
