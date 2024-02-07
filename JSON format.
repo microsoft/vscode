@@ -1,0 +1,204 @@
+{
+	"root": true,
+	"parser": "@typescript-eslint/parser",
+	"parserOptions": {
+		"ecmaVersion": 6,
+		"sourceType": "module"
+	},
+	"plugins": [
+		"@typescript-eslint",
+		"jsdoc",
+		"header",
+		"local"
+	],
+	"rules": {
+		"constructor-super": "warn",
+		"curly": "warn",
+		"eqeqeq": "warn",
+		"prefer-const": [
+			"warn",
+			{
+				"destructuring": "all"
+			}
+		],
+		"no-buffer-constructor": "warn",
+		"no-caller": "warn",
+		"no-case-declarations": "warn",
+		"no-debugger": "warn",
+		"no-duplicate-case": "warn",
+		"no-duplicate-imports": "warn",
+		"no-eval": "warn",
+		"no-async-promise-executor": "warn",
+		"no-extra-semi": "warn",
+		"no-new-wrappers": "warn",
+		"no-redeclare": "off",
+		"no-sparse-arrays": "warn",
+		"no-throw-literal": "warn",
+		"no-unsafe-finally": "warn",
+		"no-unused-labels": "warn",
+		"no-restricted-globals": [
+			"warn",
+			"name",
+			"length",
+			"event",
+			"closed",
+			"external",
+			"status",
+			"origin",
+			"orientation",
+			"context"
+		],
+		"no-var": "warn",
+		"jsdoc/no-types": "warn",
+		"semi": "off",
+		"@typescript-eslint/semi": "warn",
+		"@typescript-eslint/member-delimiter-style": "warn",
+		"@typescript-eslint/naming-convention": [
+			"warn",
+			{
+				"selector": "class",
+				"format": [
+					"PascalCase"
+				]
+			}
+		],
+		"local/code-no-unused-expressions": [
+			"warn",
+			{
+				"allowTernary": true
+			}
+		],
+		"local/code-translation-remind": "warn",
+		"local/code-no-native-private": "warn",
+		"local/code-no-nls-in-standalone-editor": "warn",
+		"local/code-no-standalone-editor": "warn",
+		"local/code-no-unexternalized-strings": "warn",
+		"local/code-must-use-super-dispose": "warn",
+		"local/code-declare-service-brand": "warn",
+		"local/code-layering": [
+			"warn",
+			{
+				"common": [],
+				"node": [
+					"common"
+				],
+				"browser": [
+					"common"
+				],
+				"electron-sandbox": [
+					"common",
+					"browser"
+				],
+				"electron-main": [
+					"common",
+					"node"
+				]
+			}
+		],
+		"header/header": [
+			2,
+			"block",
+			[
+				"---------------------------------------------------------------------------------------------",
+				" *  Copyright (c) Microsoft Corporation. All rights reserved.",
+				" *  Licensed under the MIT License. See License.txt in the project root for license information.",
+				" *--------------------------------------------------------------------------------------------"
+			]
+		]
+	},
+	"overrides": [
+		{
+			"files": [
+				"*.js"
+			],
+			"rules": {
+				"jsdoc/no-types": "off"
+			}
+		},
+		{
+			"files": [
+				"**/*.test.ts"
+			],
+			"rules": {
+				"local/code-must-use-super-dispose": "off",
+				"local/code-no-test-only": "error",
+				"local/code-no-test-async-suite": "warn",
+				"local/code-no-unexternalized-strings": "off",
+				"local/code-must-use-result": [
+					"warn",
+					[
+						{
+							"message": "Expression must be awaited",
+							"functions": [
+								"assertSnapshot",
+								"assertHeap"
+							]
+						}
+					]
+				]
+			}
+		},
+		{
+			"files": [
+				"src/vs/**/*.test.ts"
+			],
+			"rules": {
+				"local/code-ensure-no-disposables-leak-in-test": [
+					"warn",
+					{
+						"exclude": [
+							"src/vs/base/test/browser/browser.test.ts",
+							"src/vs/base/test/browser/ui/scrollbar/scrollableElement.test.ts",
+							"src/vs/base/test/browser/ui/scrollbar/scrollbarState.test.ts",
+							"src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts",
+							"src/vs/editor/test/common/services/languageService.test.ts",
+							"src/vs/editor/test/node/classification/typescript.test.ts",
+							"src/vs/editor/test/node/diffing/defaultLinesDiffComputer.test.ts",
+							"src/vs/editor/test/node/diffing/fixtures.test.ts",
+							"src/vs/platform/configuration/test/common/configuration.test.ts",
+							"src/vs/platform/extensions/test/common/extensionValidator.test.ts",
+							"src/vs/platform/opener/test/common/opener.test.ts",
+							"src/vs/platform/registry/test/common/platform.test.ts",
+							"src/vs/platform/remote/test/common/remoteHosts.test.ts",
+							"src/vs/platform/telemetry/test/browser/1dsAppender.test.ts",
+							"src/vs/platform/workspace/test/common/workspace.test.ts",
+							"src/vs/platform/workspaces/test/electron-main/workspaces.test.ts",
+							"src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts",
+							"src/vs/workbench/api/test/common/extHostExtensionActivator.test.ts",
+							"src/vs/workbench/api/test/node/extHostTunnelService.test.ts",
+							"src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts",
+							"src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts",
+							"src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts",
+							"src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts",
+							"src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts",
+							"src/vs/workbench/contrib/tasks/test/common/taskConfiguration.test.ts",
+							"src/vs/workbench/services/commands/test/common/commandService.test.ts",
+							"src/vs/workbench/services/extensions/test/common/extensionDescriptionRegistry.test.ts",
+							"src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts",
+							"src/vs/workbench/test/browser/quickAccess.test.ts"
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
+				"**/vscode.d.ts",
+				"**/vscode.proposed.*.d.ts"
+			],
+			"rules": {
+				"local/vscode-dts-create-func": "warn",
+				"local/vscode-dts-literal-or-types": "warn",
+				"local/vscode-dts-string-type-literals": "warn",
+				"local/vscode-dts-interface-naming": "warn",
+				"local/vscode-dts-cancellation": "warn",
+				"local/vscode-dts-use-thenable": "warn",
+				"local/vscode-dts-region-comments": "warn",
+				"local/vscode-dts-vscode-in-comments": "warn",
+				"local/vscode-dts-provider-naming": [
+					"warn",
+					{
+						"allowed": [
+							"FileSystemProvider",
