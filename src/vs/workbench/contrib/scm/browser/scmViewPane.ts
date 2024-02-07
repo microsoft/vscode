@@ -831,11 +831,11 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 		const historyProviderMenu = repositoryMenus.historyProviderMenu;
 
 		if (historyProviderMenu) {
-			const menuId = historyItemGroup.direction === 'incoming' ? MenuId.SCMIncomingChanges : MenuId.SCMOutgoingChanges;
-			const menu = historyItemGroup.direction === 'incoming' ? historyProviderMenu.incomingHistoryItemGroupMenu : historyProviderMenu.outgoingHistoryItemGroupMenu;
+			const menu = historyProviderMenu.getHistoryItemGroupMenu(historyItemGroup);
+			const resetMenuId = historyItemGroup.direction === 'incoming' ? MenuId.SCMIncomingChanges : MenuId.SCMOutgoingChanges;
 
 			templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
-				templateData.toolBar.setActions(primary, secondary, [menuId]);
+				templateData.toolBar.setActions(primary, secondary, [resetMenuId]);
 			}));
 
 			templateData.toolBar.context = historyItemGroup;
@@ -3037,9 +3037,7 @@ export class SCMViewPane extends ViewPane {
 			}
 		} else if (isSCMHistoryItemGroupTreeElement(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
-			const menu = element.direction === 'incoming' ?
-				menus.historyProviderMenu?.incomingHistoryItemGroupContextMenu :
-				menus.historyProviderMenu?.outgoingHistoryItemGroupContextMenu;
+			const menu = menus.historyProviderMenu?.getHistoryItemGroupContextMenu(element);
 
 			if (menu) {
 				actionRunner = new HistoryItemGroupActionRunner();
