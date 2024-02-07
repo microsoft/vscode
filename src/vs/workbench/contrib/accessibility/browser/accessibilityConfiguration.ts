@@ -282,7 +282,8 @@ const configuration: IConfigurationNode = {
 				},
 				'alert': {
 					'description': localize('accessibility.signals.lineHasBreakpoint.alert', "Indicates when the active line has a breakpoint."),
-					...alertFeatureBase
+					...alertFeatureBase,
+					default: 'off'
 				},
 			},
 		},
@@ -306,7 +307,8 @@ const configuration: IConfigurationNode = {
 				},
 				'alert': {
 					'description': localize('accessibility.signals.lineHasError.alert', "Indicates when the active line has an error."),
-					...alertFeatureBase
+					...alertFeatureBase,
+					default: 'off'
 				},
 			},
 		},
@@ -316,7 +318,8 @@ const configuration: IConfigurationNode = {
 			'properties': {
 				'audioCue': {
 					'description': localize('accessibility.signals.lineHasFoldedArea.audioCue', "Plays an audio cue when the active line has a folded area that can be unfolded."),
-					...audioCueFeatureBase
+					...audioCueFeatureBase,
+					default: 'off'
 				},
 				'alert': {
 					'description': localize('accessibility.signals.lineHasFoldedArea.alert', "Indicates when the active line has a folded area that can be unfolded."),
@@ -334,7 +337,8 @@ const configuration: IConfigurationNode = {
 				},
 				'alert': {
 					'description': localize('accessibility.signals.lineHasWarning.alert', "Indicates when the active line has a warning."),
-					...alertFeatureBase
+					...alertFeatureBase,
+					default: 'off'
 				},
 			},
 		},
