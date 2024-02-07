@@ -31,7 +31,7 @@ export class ShowAudioCueHelp extends Action2 {
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const userGestureCues = [AudioCue.save, AudioCue.format];
 		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.map((cue, idx) => ({
-			label: userGestureCues.includes(cue) ? `${cue.name} (${configurationService.getValue(cue.accessibilityStatusIndicatorSettingsKey + '.audioCue')})` : cue.name,
+			label: userGestureCues.includes(cue) ? `${cue.name} (${configurationService.getValue(cue.signalSettingsKey + '.audioCue')})` : cue.name,
 			audioCue: cue,
 			buttons: userGestureCues.includes(cue) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
@@ -47,22 +47,22 @@ export class ShowAudioCueHelp extends Action2 {
 			const disabledCues = AudioCue.allAudioCues.filter(cue => !enabledCues.includes(cue));
 			for (const cue of enabledCues) {
 				if (!userGestureCues.includes(cue)) {
-					let { audioCue, alert } = configurationService.getValue<{ audioCue: string; alert?: string }>(cue.accessibilityStatusIndicatorSettingsKey);
+					let { audioCue, alert } = configurationService.getValue<{ audioCue: string; alert?: string }>(cue.signalSettingsKey);
 					audioCue = accessibilityService.isScreenReaderOptimized() ? 'auto' : 'on';
 					if (alert) {
-						configurationService.updateValue(cue.accessibilityStatusIndicatorSettingsKey, { audioCue, alert });
+						configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
 					} else {
-						configurationService.updateValue(cue.accessibilityStatusIndicatorSettingsKey, { audioCue });
+						configurationService.updateValue(cue.signalSettingsKey, { audioCue });
 					}
 				}
 			}
 			for (const cue of disabledCues) {
-				const alert = cue.alertMessage ? configurationService.getValue(cue.accessibilityStatusIndicatorSettingsKey + '.alert') : undefined;
+				const alert = cue.alertMessage ? configurationService.getValue(cue.signalSettingsKey + '.alert') : undefined;
 				const audioCue = userGestureCues.includes(cue) ? 'never' : 'off';
 				if (alert) {
-					configurationService.updateValue(cue.accessibilityStatusIndicatorSettingsKey, { audioCue, alert });
+					configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
 				} else {
-					configurationService.updateValue(cue.accessibilityStatusIndicatorSettingsKey, { audioCue });
+					configurationService.updateValue(cue.signalSettingsKey, { audioCue });
 				}
 			}
 			qp.hide();
@@ -94,7 +94,7 @@ export class ShowAccessibilityAlertHelp extends Action2 {
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const userGestureAlerts = [AudioCue.save, AudioCue.format];
 		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.filter(c => c.alertSettingsKey).map((cue, idx) => ({
-			label: userGestureAlerts.includes(cue) ? `${cue.name} (${configurationService.getValue(cue.accessibilityStatusIndicatorSettingsKey + '.alert')})` : cue.name,
+			label: userGestureAlerts.includes(cue) ? `${cue.name} (${configurationService.getValue(cue.signalSettingsKey + '.alert')})` : cue.name,
 			audioCue: cue,
 			buttons: userGestureAlerts.includes(cue) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
@@ -110,17 +110,17 @@ export class ShowAccessibilityAlertHelp extends Action2 {
 			const disabledAlerts = AudioCue.allAudioCues.filter(cue => !enabledAlerts.includes(cue));
 			for (const cue of enabledAlerts) {
 				if (!userGestureAlerts.includes(cue)) {
-					let { audioCue, alert } = configurationService.getValue<{ audioCue: string; alert?: string }>(cue.accessibilityStatusIndicatorSettingsKey);
+					let { audioCue, alert } = configurationService.getValue<{ audioCue: string; alert?: string }>(cue.signalSettingsKey);
 					alert = cue.alertMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
 					if (alert) {
-						configurationService.updateValue(cue.accessibilityStatusIndicatorSettingsKey, { audioCue, alert });
+						configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
 					}
 				}
 			}
 			for (const cue of disabledAlerts) {
 				const alert = userGestureAlerts.includes(cue) ? 'never' : 'off';
-				const audioCue = configurationService.getValue(cue.accessibilityStatusIndicatorSettingsKey + '.audioCue');
-				configurationService.updateValue(cue.accessibilityStatusIndicatorSettingsKey, { audioCue, alert });
+				const audioCue = configurationService.getValue(cue.signalSettingsKey + '.audioCue');
+				configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
 			}
 			qp.hide();
 		});

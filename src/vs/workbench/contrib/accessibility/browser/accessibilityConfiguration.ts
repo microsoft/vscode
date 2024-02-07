@@ -266,312 +266,312 @@ const configuration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'accessibility.statusIndicators.debouncePositionChanges': {
-			'description': localize('accessibility.statusIndicators.debouncePositionChanges', "Whether or not position changes should be debounced"),
+		'accessibility.signals.debouncePositionChanges': {
+			'description': localize('accessibility.signals.debouncePositionChanges', "Whether or not position changes should be debounced"),
 			'type': 'boolean',
 			'default': false,
 			tags: ['accessibility']
 		},
-		'accessibility.statusIndicators.lineHasBreakpoint': {
+		'accessibility.signals.lineHasBreakpoint': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.lineHasBreakpoint', "Plays a signal when the active line has a breakpoint."),
+			'description': localize('accessibility.signals.lineHasBreakpoint', "Plays a signal when the active line has a breakpoint."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.lineHasBreakpoint.audioCue', "Plays an audio cue when the active line has a breakpoint."),
+					'description': localize('accessibility.signals.lineHasBreakpoint.audioCue', "Plays an audio cue when the active line has a breakpoint."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.lineHasBreakpoint.alert', "Indicates when the active line has a breakpoint."),
+					'description': localize('accessibility.signals.lineHasBreakpoint.alert', "Indicates when the active line has a breakpoint."),
 					...alertFeatureBase
 				},
 			},
 		},
-		'accessibility.statusIndicators.lineHasInlineSuggestion': {
+		'accessibility.signals.lineHasInlineSuggestion': {
 			...defaultNoAlert,
-			'description': localize('accessibility.statusIndicators.lineHasInlineSuggestion', "Indicates when the active line has an inline suggestion."),
+			'description': localize('accessibility.signals.lineHasInlineSuggestion', "Indicates when the active line has an inline suggestion."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.lineHasInlineSuggestion.audioCue', "Plays an audio cue when the active line has an inline suggestion."),
+					'description': localize('accessibility.signals.lineHasInlineSuggestion.audioCue', "Plays an audio cue when the active line has an inline suggestion."),
 					...audioCueFeatureBase
 				}
 			}
 		},
-		'accessibility.statusIndicators.lineHasError': {
+		'accessibility.signals.lineHasError': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.lineHasError', "Indicates when the active line has an error."),
+			'description': localize('accessibility.signals.lineHasError', "Indicates when the active line has an error."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.lineHasError.audioCue', "Plays an audio cue when the active line has an error."),
+					'description': localize('accessibility.signals.lineHasError.audioCue', "Plays an audio cue when the active line has an error."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.lineHasError.alert', "Indicates when the active line has an error."),
+					'description': localize('accessibility.signals.lineHasError.alert', "Indicates when the active line has an error."),
 					...alertFeatureBase
 				},
 			},
 		},
-		'accessibility.statusIndicators.lineHasFoldedArea': {
+		'accessibility.signals.lineHasFoldedArea': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.lineHasFoldedArea', "Indicates when the active line has a folded area that can be unfolded."),
+			'description': localize('accessibility.signals.lineHasFoldedArea', "Indicates when the active line has a folded area that can be unfolded."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.lineHasFoldedArea.audioCue', "Plays an audio cue when the active line has a folded area that can be unfolded."),
+					'description': localize('accessibility.signals.lineHasFoldedArea.audioCue', "Plays an audio cue when the active line has a folded area that can be unfolded."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.lineHasFoldedArea.alert', "Indicates when the active line has a folded area that can be unfolded."),
+					'description': localize('accessibility.signals.lineHasFoldedArea.alert', "Indicates when the active line has a folded area that can be unfolded."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.lineHasWarning': {
+		'accessibility.signals.lineHasWarning': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.lineHasWarning', "Plays a signal when the active line has a warning."),
+			'description': localize('accessibility.signals.lineHasWarning', "Plays a signal when the active line has a warning."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.lineHasWarning.audioCue', "Plays an audio cue when the active line has a warning."),
+					'description': localize('accessibility.signals.lineHasWarning.audioCue', "Plays an audio cue when the active line has a warning."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.lineHasWarning.alert', "Indicates when the active line has a warning."),
+					'description': localize('accessibility.signals.lineHasWarning.alert', "Indicates when the active line has a warning."),
 					...alertFeatureBase
 				},
 			},
 		},
-		'accessibility.statusIndicators.onDebugBreak': {
+		'accessibility.signals.onDebugBreak': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.onDebugBreak', "Plays a signal when the debugger stopped on a breakpoint."),
+			'description': localize('accessibility.signals.onDebugBreak', "Plays a signal when the debugger stopped on a breakpoint."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.onDebugBreak.audioCue', "Plays an audio cue when the debugger stopped on a breakpoint."),
+					'description': localize('accessibility.signals.onDebugBreak.audioCue', "Plays an audio cue when the debugger stopped on a breakpoint."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.onDebugBreak.alert', "Indicates when the debugger stopped on a breakpoint."),
+					'description': localize('accessibility.signals.onDebugBreak.alert', "Indicates when the debugger stopped on a breakpoint."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.noInlayHints': {
+		'accessibility.signals.noInlayHints': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.noInlayHints', "Plays a signal when trying to read a line with inlay hints that has no inlay hints."),
+			'description': localize('accessibility.signals.noInlayHints', "Plays a signal when trying to read a line with inlay hints that has no inlay hints."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.noInlayHints.audioCue', "Plays an audio cue when trying to read a line with inlay hints that has no inlay hints."),
+					'description': localize('accessibility.signals.noInlayHints.audioCue', "Plays an audio cue when trying to read a line with inlay hints that has no inlay hints."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.noInlayHints.alert', "Indicates when trying to read a line with inlay hints that has no inlay hints."),
+					'description': localize('accessibility.signals.noInlayHints.alert', "Indicates when trying to read a line with inlay hints that has no inlay hints."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.taskCompleted': {
+		'accessibility.signals.taskCompleted': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.taskCompleted', "Plays a signal when a task is completed."),
+			'description': localize('accessibility.signals.taskCompleted', "Plays a signal when a task is completed."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.taskCompleted.audioCue', "Plays an audio cue when a task is completed."),
+					'description': localize('accessibility.signals.taskCompleted.audioCue', "Plays an audio cue when a task is completed."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.taskCompleted.alert', "Indicates when a task is completed."),
+					'description': localize('accessibility.signals.taskCompleted.alert', "Indicates when a task is completed."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.taskFailed': {
+		'accessibility.signals.taskFailed': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.taskFailed', "Plays a signal when a task fails (non-zero exit code)."),
+			'description': localize('accessibility.signals.taskFailed', "Plays a signal when a task fails (non-zero exit code)."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.taskFailed.audioCue', "Plays an audio cue when a task fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.taskFailed.audioCue', "Plays an audio cue when a task fails (non-zero exit code)."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.taskFailed.alert', "Indicates when a task fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.taskFailed.alert', "Indicates when a task fails (non-zero exit code)."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.terminalCommandFailed': {
+		'accessibility.signals.terminalCommandFailed': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code)."),
+			'description': localize('accessibility.signals.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code)."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.terminalCommandFailed.audioCue', "Plays an audio cue when a terminal command fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.terminalCommandFailed.audioCue', "Plays an audio cue when a terminal command fails (non-zero exit code)."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.terminalCommandFailed.alert', "Indicates when a terminal command fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.terminalCommandFailed.alert', "Indicates when a terminal command fails (non-zero exit code)."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.terminalQuickFix': {
+		'accessibility.signals.terminalQuickFix': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.terminalQuickFix', "Plays a signal when terminal Quick Fixes are available."),
+			'description': localize('accessibility.signals.terminalQuickFix', "Plays a signal when terminal Quick Fixes are available."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.terminalQuickFix.audioCue', "Plays an audio cue when terminal Quick Fixes are available."),
+					'description': localize('accessibility.signals.terminalQuickFix.audioCue', "Plays an audio cue when terminal Quick Fixes are available."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.terminalQuickFix.alert', "Indicates when terminal Quick Fixes are available."),
+					'description': localize('accessibility.signals.terminalQuickFix.alert', "Indicates when terminal Quick Fixes are available."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.terminalBell': {
+		'accessibility.signals.terminalBell': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.terminalBell', "Plays a signal when the terminal bell is ringing."),
+			'description': localize('accessibility.signals.terminalBell', "Plays a signal when the terminal bell is ringing."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.terminalBell.audioCue', "Plays an audio cue when the terminal bell is ringing."),
+					'description': localize('accessibility.signals.terminalBell.audioCue', "Plays an audio cue when the terminal bell is ringing."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.terminalBell.alert', "Indicates when the terminal bell is ringing."),
+					'description': localize('accessibility.signals.terminalBell.alert', "Indicates when the terminal bell is ringing."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.diffLineInserted': {
+		'accessibility.signals.diffLineInserted': {
 			...defaultNoAlert,
-			'description': localize('accessibility.statusIndicators.diffLineInserted', "Indicates when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
+			'description': localize('accessibility.signals.diffLineInserted', "Indicates when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
+					'description': localize('accessibility.signals.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 					...audioCueFeatureBase
 				}
 			}
 		},
-		'accessibility.statusIndicators.diffLineModified': {
+		'accessibility.signals.diffLineModified': {
 			...defaultNoAlert,
-			'description': localize('accessibility.statusIndicators.diffLineModified', "Indicates when the focus moves to an modified line in Accessible Diff Viewer mode or to the next/previous change."),
+			'description': localize('accessibility.signals.diffLineModified', "Indicates when the focus moves to an modified line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
+					'description': localize('accessibility.signals.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
 					...audioCueFeatureBase
 				}
 			}
 		},
-		'accessibility.statusIndicators.diffLineDeleted': {
+		'accessibility.signals.diffLineDeleted': {
 			...defaultNoAlert,
-			'description': localize('accessibility.statusIndicators.diffLineDeleted', "Indicates when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
+			'description': localize('accessibility.signals.diffLineDeleted', "Indicates when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
+					'description': localize('accessibility.signals.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
 					...audioCueFeatureBase
 				}
 			}
 		},
-		'accessibility.statusIndicators.notebookCellCompleted': {
+		'accessibility.signals.notebookCellCompleted': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.notebookCellCompleted', "Plays a signal when a notebook cell execution is successfully completed."),
+			'description': localize('accessibility.signals.notebookCellCompleted', "Plays a signal when a notebook cell execution is successfully completed."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.notebookCellCompleted.audioCue', "Plays an audio cue when a notebook cell execution is successfully completed."),
+					'description': localize('accessibility.signals.notebookCellCompleted.audioCue', "Plays an audio cue when a notebook cell execution is successfully completed."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.notebookCellCompleted.alert', "Indicates when a notebook cell execution is successfully completed."),
+					'description': localize('accessibility.signals.notebookCellCompleted.alert', "Indicates when a notebook cell execution is successfully completed."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.notebookCellFailed': {
+		'accessibility.signals.notebookCellFailed': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.notebookCellFailed', "Plays a signal when a notebook cell execution fails."),
+			'description': localize('accessibility.signals.notebookCellFailed', "Plays a signal when a notebook cell execution fails."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.notebookCellFailed.audioCue', "Plays an audio cue when a notebook cell execution fails."),
+					'description': localize('accessibility.signals.notebookCellFailed.audioCue', "Plays an audio cue when a notebook cell execution fails."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.notebookCellFailed.alert', "Indicates when a notebook cell execution fails."),
+					'description': localize('accessibility.signals.notebookCellFailed.alert', "Indicates when a notebook cell execution fails."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.chatRequestSent': {
+		'accessibility.signals.chatRequestSent': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.chatRequestSent', "Plays a signal when a chat request is made."),
+			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal when a chat request is made."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.chatRequestSent.audioCue', "Plays an audio cue when a chat request is made."),
+					'description': localize('accessibility.signals.chatRequestSent.audioCue', "Plays an audio cue when a chat request is made."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.chatRequestSent.alert', "Indicates when a chat request is made."),
+					'description': localize('accessibility.signals.chatRequestSent.alert', "Indicates when a chat request is made."),
 					...alertFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.chatResponsePending': {
+		'accessibility.signals.chatResponsePending': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.chatResponsePending', "Plays a signal on loop while the response is pending."),
+			'description': localize('accessibility.signals.chatResponsePending', "Plays a signal on loop while the response is pending."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.chatResponsePending.audioCue', "Plays an audio cue on loop while the response is pending."),
+					'description': localize('accessibility.signals.chatResponsePending.audioCue', "Plays an audio cue on loop while the response is pending."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.chatResponsePending.alert', "Alerts on loop while the response is pending."),
+					'description': localize('accessibility.signals.chatResponsePending.alert', "Alerts on loop while the response is pending."),
 					...alertFeatureBase
 				},
 			},
 		},
-		'accessibility.statusIndicators.chatResponseReceived': {
+		'accessibility.signals.chatResponseReceived': {
 			...defaultNoAlert,
-			'description': localize('accessibility.statusIndicators.chatResponseReceived', "Indicates when the response has been received."),
+			'description': localize('accessibility.signals.chatResponseReceived', "Indicates when the response has been received."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
+					'description': localize('accessibility.signals.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
 					...audioCueFeatureBase
 				},
 			}
 		},
-		'accessibility.statusIndicators.clear': {
+		'accessibility.signals.clear': {
 			...signalFeatureBase,
-			'description': localize('accessibility.statusIndicators.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
+			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.clear.audioCue', "Plays an audio cue when a feature is cleared."),
+					'description': localize('accessibility.signals.clear.audioCue', "Plays an audio cue when a feature is cleared."),
 					...audioCueFeatureBase
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.clear.alert', "Indicates when a feature is cleared."),
+					'description': localize('accessibility.signals.clear.alert', "Indicates when a feature is cleared."),
 					...alertFeatureBase
 				},
 			},
 		},
-		'accessibility.statusIndicators.save': {
+		'accessibility.signals.save': {
 			'type': 'object',
 			'tags': ['accessibility'],
 			additionalProperties: true,
-			'markdownDescription': localize('accessibility.statusIndicators.save', "Plays a signal when a file is saved."),
+			'markdownDescription': localize('accessibility.signals.save', "Plays a signal when a file is saved."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.save.audioCue', "Plays an audio cue when a file is saved."),
+					'description': localize('accessibility.signals.save.audioCue', "Plays an audio cue when a file is saved."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.statusIndicators.save.audioCue.userGesture', "Plays the audio cue when a user explicitly saves a file."),
-						localize('accessibility.statusIndicators.save.audioCue.always', "Plays the audio cue whenever a file is saved, including auto save."),
-						localize('accessibility.statusIndicators.save.audioCue.never', "Never plays the audio cue.")
+						localize('accessibility.signals.save.audioCue.userGesture', "Plays the audio cue when a user explicitly saves a file."),
+						localize('accessibility.signals.save.audioCue.always', "Plays the audio cue whenever a file is saved, including auto save."),
+						localize('accessibility.signals.save.audioCue.never', "Never plays the audio cue.")
 					],
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.save.alert', "Indicates when a file is saved."),
+					'description': localize('accessibility.signals.save.alert', "Indicates when a file is saved."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.statusIndicators.save.alert.userGesture', "Plays the alert when a user explicitly saves a file."),
-						localize('accessibility.statusIndicators.save.alert.always', "Plays the alert whenever a file is saved, including auto save."),
-						localize('accessibility.statusIndicators.save.alert.never', "Never plays the audio cue.")
+						localize('accessibility.signals.save.alert.userGesture', "Plays the alert when a user explicitly saves a file."),
+						localize('accessibility.signals.save.alert.always', "Plays the alert whenever a file is saved, including auto save."),
+						localize('accessibility.signals.save.alert.never', "Never plays the audio cue.")
 					],
 				},
 			},
@@ -580,32 +580,32 @@ const configuration: IConfigurationNode = {
 				'alert': 'never'
 			}
 		},
-		'accessibility.statusIndicators.format': {
+		'accessibility.signals.format': {
 			'type': 'object',
 			'tags': ['accessibility'],
 			additionalProperties: true,
-			'markdownDescription': localize('accessibility.statusIndicators.format', "Plays a signal when a file or notebook is formatted."),
+			'markdownDescription': localize('accessibility.signals.format', "Plays a signal when a file or notebook is formatted."),
 			'properties': {
 				'audioCue': {
-					'description': localize('accessibility.statusIndicators.format.audioCue', "Plays an audio cue when a file or notebook is formatted."),
+					'description': localize('accessibility.signals.format.audioCue', "Plays an audio cue when a file or notebook is formatted."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.statusIndicators.format.userGesture', "Plays the audio cue when a user explicitly formats a file."),
-						localize('accessibility.statusIndicators.format.always', "Plays the audio cue whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
-						localize('accessibility.statusIndicators.format.never', "Never plays the audio cue.")
+						localize('accessibility.signals.format.userGesture', "Plays the audio cue when a user explicitly formats a file."),
+						localize('accessibility.signals.format.always', "Plays the audio cue whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
+						localize('accessibility.signals.format.never', "Never plays the audio cue.")
 					],
 				},
 				'alert': {
-					'description': localize('accessibility.statusIndicators.format.alert', "Indicates when a file or notebook is formatted."),
+					'description': localize('accessibility.signals.format.alert', "Indicates when a file or notebook is formatted."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.statusIndicators.format.alert.userGesture', "Plays the alertwhen a user explicitly formats a file."),
-						localize('accessibility.statusIndicators.format.alert.always', "Plays the alert whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
-						localize('accessibility.statusIndicators.format.alert.never', "Never plays the alert.")
+						localize('accessibility.signals.format.alert.userGesture', "Plays the alertwhen a user explicitly formats a file."),
+						localize('accessibility.signals.format.alert.always', "Plays the alert whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
+						localize('accessibility.signals.format.alert.never', "Never plays the alert.")
 					],
 				},
 			}
