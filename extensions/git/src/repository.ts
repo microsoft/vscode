@@ -1484,11 +1484,6 @@ export class Repository implements Disposable {
 
 	async getBranchBase(ref: string): Promise<Branch | undefined> {
 		const branch = await this.getBranch(ref);
-		const branchUpstream = await this.getUpstreamBranch(branch);
-
-		if (branchUpstream) {
-			return branchUpstream;
-		}
 
 		// Git config
 		const mergeBaseConfigKey = `branch.${branch.name}.vscode-merge-base`;
