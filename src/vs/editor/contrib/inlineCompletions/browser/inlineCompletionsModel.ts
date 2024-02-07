@@ -214,17 +214,16 @@ export class InlineCompletionsModel extends Disposable {
 		owner: this,
 		equalityComparer: (a, b) => {
 			if (!a || !b) { return a === b; }
-			const equal = ghostTextsOrReplacementsEqual(a.ghostTexts, b.ghostTexts)
+			return ghostTextsOrReplacementsEqual(a.ghostTexts, b.ghostTexts)
 				&& equals(a.newEdits, b.newEdits, SingleTextEdit.equals)
 				&& Selection.selectionsArrEqual(a.newSelections, b.newSelections)
 				&& a.inlineCompletion === b.inlineCompletion
 				&& a.suggestItem === b.suggestItem;
-			return equal;
 		}
 	}, (reader) => {
 		const model = this.textModel;
 
-		this._selections.read(reader);
+		const selections = this._selections.read(reader);
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
 			const suggestCompletion = suggestItem.toSingleTextEdit().removeCommonPrefix(model);
@@ -237,7 +236,6 @@ export class InlineCompletionsModel extends Disposable {
 			const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
 
 			const mode = this._suggestPreviewMode.read(reader);
-			const selections = this._selections.read(reader);
 			const newEdits: SingleTextEdit[] = [];
 			const newSelections: Selection[] = [];
 			if (inlineCompletion) {
@@ -259,7 +257,6 @@ export class InlineCompletionsModel extends Disposable {
 			const inlineCompletion = this.selectedInlineCompletion.read(reader);
 			if (!inlineCompletion) { return undefined; }
 
-			const selections = this._selections.read(reader);
 			const completion = inlineCompletion.toInlineCompletion(undefined);
 			const _edits = this._getEdits(this.textModel, selections, completion.toSingleTextEdit());
 			const newEdits = _edits.edits;
