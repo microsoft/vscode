@@ -239,7 +239,7 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				}
 				const model = InlineCompletionsController.get(editor)?.model.get();
 				const state = model?.state.get();
-				if (!model || !state) {
+				if (!model || !state || !state.primaryGhostText) {
 					return false;
 				}
 				const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);

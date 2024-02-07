@@ -200,7 +200,7 @@ export class InlineCompletionsController extends Disposable {
 			/** @description InlineCompletionsController.forceRenderingAbove */
 			const state = this.model.read(reader)?.state.read(reader);
 			if (state?.suggestItem) {
-				if (state.primaryGhostText.lineCount >= 2) {
+				if (state.primaryGhostText && state.primaryGhostText.lineCount >= 2) {
 					this._suggestWidgetAdaptor.forceRenderingAbove();
 				}
 			} else {
@@ -230,12 +230,13 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
+			if (state.inlineCompletion.semanticId !== lastInlineCompletionId && state.primaryGhostText) {
 				lastInlineCompletionId = state.inlineCompletion.semanticId;
-				const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
+				const primaryGhostText = state.primaryGhostText;
+				const lineText = model.textModel.getLineContent(primaryGhostText.lineNumber);
 				this._audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						this.provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
+						this.provideScreenReaderUpdate(primaryGhostText.renderForScreenReader(lineText));
 					}
 				});
 			}
