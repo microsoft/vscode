@@ -2461,9 +2461,10 @@ export class CommandCenter {
 		const createBranchFrom = new CreateBranchFromItem();
 		const checkoutDetached = new CheckoutDetachedItem();
 		const picks: QuickPickItem[] = [];
+		const commands: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
-			picks.push(createBranch, createBranchFrom, checkoutDetached);
+			commands.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
 		const disposables: Disposable[] = [];
@@ -2477,11 +2478,10 @@ export class CommandCenter {
 		quickPick.show();
 
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = picks;
+		quickPick.items = [...commands, ...picks];
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
-			let filtering = false;
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
 			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
 			disposables.push((quickPick.onDidTriggerItemButton((e) => {
@@ -2493,22 +2493,18 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
-			disposables.push(quickPick.onDidChangeValue((v) => {
-				if (filtering !== !!v) {
-					filtering = !filtering;
-					const commands = picks.filter(p => p.alwaysShow);
-					if (commands.length > 0) {
-						// Add this to separate appended commands from preceding reference kinds
-						commands.unshift({ label: '', kind: QuickPickItemKind.Separator });
-					}
-					const choices = picks.filter(p => !p.alwaysShow);
-					if (filtering) {
-						quickPick.items = [...choices, ...commands];
-					}
-					else {
-						quickPick.items = [...commands, ...choices];
-					}
+			disposables.push(quickPick.onDidChangeValue(value => {
+				if (value === '') {
+					quickPick.items = [...commands, ...picks];
+					return;
 				}
+
+				if (picks.length === 0) {
+					quickPick.items = commands;
+					return;
+				}
+
+				quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
 			}));
 		});
 
