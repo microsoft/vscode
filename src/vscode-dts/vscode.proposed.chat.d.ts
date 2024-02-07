@@ -10,7 +10,6 @@ declare module 'vscode' {
 		System = 0,
 		User = 1,
 		Assistant = 2,
-		Function = 3,
 	}
 
 	// ChatML

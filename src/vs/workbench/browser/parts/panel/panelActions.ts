@@ -30,12 +30,12 @@ const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOf
 export class TogglePanelAction extends Action2 {
 
 	static readonly ID = 'workbench.action.togglePanel';
-	static readonly LABEL = localize('togglePanelVisibility', "Toggle Panel Visibility");
+	static readonly LABEL = localize2('togglePanelVisibility', "Toggle Panel Visibility");
 
 	constructor() {
 		super({
 			id: TogglePanelAction.ID,
-			title: { value: TogglePanelAction.LABEL, original: 'Toggle Panel Visibility' },
+			title: TogglePanelAction.LABEL,
 			toggled: {
 				condition: PanelVisibleContext,
 				title: localize('toggle panel', "Panel"),
@@ -318,7 +318,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closePanel',
-			title: localize2('closePanel', 'Close Panel'),
+			title: localize2('closePanel', 'Hide Panel'),
 			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
@@ -340,7 +340,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeAuxiliaryBar',
-			title: localize2('closeSecondarySideBar', 'Close Secondary Side Bar'),
+			title: localize2('closeSecondarySideBar', 'Hide Secondary Side Bar'),
 			category: Categories.View,
 			icon: closeIcon,
 			menu: [{

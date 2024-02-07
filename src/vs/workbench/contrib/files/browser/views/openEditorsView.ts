@@ -824,8 +824,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: toggleEditorGroupLayoutId,
 		title: {
-			original: 'Flip Layout',
-			value: nls.localize('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
+			...nls.localize2('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
 			mnemonicTitle: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
 		}
 	},
@@ -836,7 +835,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.files.saveAll',
-			title: { value: SAVE_ALL_LABEL, original: 'Save All' },
+			title: SAVE_ALL_LABEL,
 			f1: true,
 			icon: Codicon.saveAll,
 			menu: {

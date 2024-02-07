@@ -3975,15 +3975,15 @@ export class FileCoverage implements vscode.FileCoverage {
 		for (const detail of details) {
 			if ('branches' in detail) {
 				statements.total += 1;
-				statements.covered += detail.executionCount > 0 ? 1 : 0;
+				statements.covered += detail.executed ? 1 : 0;
 
 				for (const branch of detail.branches) {
 					branches.total += 1;
-					branches.covered += branch.executionCount > 0 ? 1 : 0;
+					branches.covered += branch.executed ? 1 : 0;
 				}
 			} else {
 				fn.total += 1;
-				fn.covered += detail.executionCount > 0 ? 1 : 0;
+				fn.covered += detail.executed ? 1 : 0;
 			}
 		}
 
@@ -4014,25 +4014,37 @@ export class FileCoverage implements vscode.FileCoverage {
 }
 
 export class StatementCoverage implements vscode.StatementCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 		public branches: vscode.BranchCoverage[] = [],
 	) { }
 }
 
 export class BranchCoverage implements vscode.BranchCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 		public label?: string,
 	) { }
 }
 
 export class FunctionCoverage implements vscode.FunctionCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
 		public readonly name: string,
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 	) { }
 }
@@ -4171,7 +4183,6 @@ export enum ChatMessageRole {
 	System = 0,
 	User = 1,
 	Assistant = 2,
-	Function = 3,
 }
 
 export class ChatMessage implements vscode.ChatMessage {
@@ -4190,6 +4201,54 @@ export enum ChatAgentResultFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 }
+
+
+export class ChatResponseTextPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseMarkdownPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+export class ChatResponseFileTreePart {
+	value: vscode.ChatResponseFileTree[];
+	baseUri: vscode.Uri;
+	constructor(value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri) {
+		this.value = value;
+		this.baseUri = baseUri;
+	}
+}
+
+export class ChatResponseAnchorPart {
+	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	title?: string;
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
+export class ChatResponseProgressPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseReferencePart {
+	value: vscode.Uri | vscode.Location;
+	constructor(value: vscode.Uri | vscode.Location) {
+		this.value = value;
+	}
+}
+
 
 //#endregion
 

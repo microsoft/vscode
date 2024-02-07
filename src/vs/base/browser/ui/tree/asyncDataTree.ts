@@ -827,6 +827,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			if (treeNode.collapsed) {
 				node.hasChildren = !!this.dataSource.hasChildren(node.element);
 				node.stale = true;
+				this.setChildren(node, [], recursive, viewStateContext);
 				return;
 			}
 		}

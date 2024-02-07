@@ -34,7 +34,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
 
-export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
+export const LOCALIZED_START_INLINE_CHAT_STRING = localize2('run', 'Start Inline Chat');
 export const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
 
 // some gymnastics to enable hold for speech without moving the StartSessionAction into the electron-layer
@@ -52,7 +52,7 @@ export class StartSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.start',
-			title: { value: LOCALIZED_START_INLINE_CHAT_STRING, original: 'Start Inline Chat' },
+			title: LOCALIZED_START_INLINE_CHAT_STRING,
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),

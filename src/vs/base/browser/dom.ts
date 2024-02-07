@@ -960,7 +960,7 @@ class WrappedStyleElement {
 
 	public dispose(): void {
 		if (this._styleSheet) {
-			clearNode(this._styleSheet);
+			this._styleSheet.remove();
 			this._styleSheet = undefined;
 		}
 	}

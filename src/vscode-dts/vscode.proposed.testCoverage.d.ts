@@ -129,10 +129,11 @@ declare module 'vscode' {
 	 */
 	export class StatementCoverage {
 		/**
-		 * The number of times this statement was executed. If zero, the
-		 * statement will be marked as un-covered.
+		 * The number of times this statement was executed, or a boolean indicating
+		 * whether it was executed if the exact count is unknown. If zero or false,
+		 * the statement will be marked as un-covered.
 		 */
-		executionCount: number;
+		executed: number | boolean;
 
 		/**
 		 * Statement location.
@@ -147,12 +148,13 @@ declare module 'vscode' {
 
 		/**
 		 * @param location The statement position.
-		 * @param executionCount The number of times this statement was
-		 * executed. If zero, the statement will be marked as un-covered.
+		 * @param executed The number of times this statement was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the statement will be marked as un-covered.
 		 * @param branches Coverage from branches of this line.  If it's not a
 		 * conditional, this should be omitted.
 		 */
-		constructor(executionCount: number, location: Position | Range, branches?: BranchCoverage[]);
+		constructor(executed: number | boolean, location: Position | Range, branches?: BranchCoverage[]);
 	}
 
 	/**
@@ -160,10 +162,11 @@ declare module 'vscode' {
 	 */
 	export class BranchCoverage {
 		/**
-		 * The number of times this branch was executed. If zero, the
-		 * branch will be marked as un-covered.
+		 * The number of times this branch was executed, or a boolean indicating
+		 * whether it was executed if the exact count is unknown. If zero or false,
+		 * the branch will be marked as un-covered.
 		 */
-		executionCount: number;
+		executed: number | boolean;
 
 		/**
 		 * Branch location.
@@ -177,10 +180,12 @@ declare module 'vscode' {
 		label?: string;
 
 		/**
-		 * @param executionCount The number of times this branch was executed.
+		 * @param executed The number of times this branch was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the branch will be marked as un-covered.
 		 * @param location The branch position.
 		 */
-		constructor(executionCount: number, location?: Position | Range, label?: string);
+		constructor(executed: number | boolean, location?: Position | Range, label?: string);
 	}
 
 	/**
@@ -193,10 +198,11 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * The number of times this function was executed. If zero, the
-		 * function will be marked as un-covered.
+		 * The number of times this function was executed, or a boolean indicating
+		 * whether it was executed if the exact count is unknown. If zero or false,
+		 * the function will be marked as un-covered.
 		 */
-		executionCount: number;
+		executed: number | boolean;
 
 		/**
 		 * Function location.
@@ -204,10 +210,12 @@ declare module 'vscode' {
 		location: Position | Range;
 
 		/**
-		 * @param executionCount The number of times this function was executed.
+		 * @param executed The number of times this function was executed, or a
+		 * boolean indicating  whether it was executed if the exact count is
+		 * unknown. If zero or false, the function will be marked as un-covered.
 		 * @param location The function position.
 		 */
-		constructor(name: string, executionCount: number, location: Position | Range);
+		constructor(name: string, executed: number | boolean, location: Position | Range);
 	}
 
 	export type DetailedCoverage = StatementCoverage | FunctionCoverage;

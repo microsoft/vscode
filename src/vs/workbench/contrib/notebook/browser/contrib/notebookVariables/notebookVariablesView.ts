@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -28,6 +33,8 @@ import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebook
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+export type contextMenuArg = { source?: string; type?: string; value?: string };
+
 export class NotebookVariablesView extends ViewPane {
 
 	static readonly ID = 'notebookVariablesView';
@@ -35,6 +42,7 @@ export class NotebookVariablesView extends ViewPane {
 
 	private tree: WorkbenchAsyncDataTree<INotebookScope, INotebookVariableElement> | undefined;
 	private activeNotebook: NotebookTextModel | undefined;
+	private readonly menu: IMenu;
 	private readonly dataSource: NotebookVariableDataSource;
 
 	private updateScheduler: RunOnceScheduler;
@@ -55,6 +63,7 @@ export class NotebookVariablesView extends ViewPane {
 		@ICommandService protected commandService: ICommandService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IMenuService menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -64,6 +73,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		this.setActiveNotebook();
 
+		this.menu = menuService.createMenu(MenuId.NotebookVariablesContext, contextKeyService);
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
 	}
@@ -87,6 +97,28 @@ export class NotebookVariablesView extends ViewPane {
 		if (this.activeNotebook) {
 			this.tree.setInput({ kind: 'root', notebook: this.activeNotebook });
 		}
+
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+	}
+
+	private onContextMenu(e: ITreeContextMenuEvent<INotebookVariableElement>): any {
+		const element = e.element;
+
+		const context = {
+			type: element?.type
+		};
+		const arg: contextMenuArg = {
+			source: element?.notebook.uri.toString(),
+			value: element?.value,
+			...context
+		};
+		const actions: IAction[] = [];
+		createAndFillInContextMenuActions(this.menu, { arg, shouldForwardArgs: true }, actions);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => actions,
+			getActionsContext: () => context,
+		});
 	}
 
 	protected override layoutBody(height: number, width: number): void {

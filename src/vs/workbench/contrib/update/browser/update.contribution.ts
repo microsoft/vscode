@@ -38,9 +38,8 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		super({
 			id: ShowCurrentReleaseNotesActionId,
 			title: {
-				value: localize('showReleaseNotes', "Show Release Notes"),
+				...localize2('showReleaseNotes', "Show Release Notes"),
 				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
-				original: 'Show Release Notes'
 			},
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
@@ -148,10 +147,7 @@ class DownloadAction extends Action2 {
 	constructor() {
 		super({
 			id: DownloadAction.ID,
-			title: {
-				value: localize('openDownloadPage', "Download {0}", product.nameLong),
-				original: `Download ${product.downloadUrl}`
-			},
+			title: localize2('openDownloadPage', "Download {0}", product.nameLong),
 			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
 			f1: true,
 			menu: [{

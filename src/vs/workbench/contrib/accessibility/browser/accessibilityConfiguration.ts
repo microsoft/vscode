@@ -198,7 +198,7 @@ const configuration: IConfigurationNode = {
 			markdownDeprecationMessage
 		},
 		[AccessibilityAlertSettingId.Breakpoint]: {
-			'markdownDescription': localize('alert.breakpoint', "Indicates when the active line has a breakpoint. Also see {0}.", '`#audioCues.onDebugBreak#`'),
+			'markdownDescription': localize('alert.breakpoint', "Indicates when the debugger breaks. Also see {0}.", '`#audioCues.onDebugBreak#`'),
 			...baseAlertProperty
 		},
 		[AccessibilityAlertSettingId.Error]: {

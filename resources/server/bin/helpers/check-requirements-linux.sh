@@ -56,7 +56,7 @@ elif [ -f /sbin/ldconfig ]; then
     libstdcpp_paths=$(/sbin/ldconfig -p | grep 'libstdc++.so.6')
 
     if [ "$(echo "$libstdcpp_paths" | wc -l)" -gt 1 ]; then
-        libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
+        libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}' | head -n1)
     else
         libstdcpp_path=$(echo "$libstdcpp_paths" | awk '{print $NF}')
     fi
@@ -90,7 +90,7 @@ if [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
         libc_paths=$(/sbin/ldconfig -p | grep 'libc.so.6')
 
         if [ "$(echo "$libc_paths" | wc -l)" -gt 1 ]; then
-            libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
+            libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}' | head -n1)
         else
             libc_path=$(echo "$libc_paths" | awk '{print $NF}')
         fi
@@ -126,5 +126,5 @@ fi
 if [ "$found_required_glibc" = "0" ] || [ "$found_required_glibcxx" = "0" ]; then
 	echo "Error: Missing required dependencies. Please refer to our FAQ https://aka.ms/vscode-remote/faq/old-linux for additional information."
 	# Custom exit code based on https://tldp.org/LDP/abs/html/exitcodes.html
-	exit 99
+	#exit 99
 fi

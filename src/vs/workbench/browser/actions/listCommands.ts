@@ -21,7 +21,7 @@ import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/u
 import { isActiveElement } from 'vs/base/browser/dom';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -913,9 +913,8 @@ registerAction2(class ToggleStickyScroll extends Action2 {
 		super({
 			id: 'tree.toggleStickyScroll',
 			title: {
-				value: localize('toggleTreeStickyScroll', "Toggle Tree Sticky Scroll"),
+				...localize2('toggleTreeStickyScroll', "Toggle Tree Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'mitoggleTreeStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Tree Sticky Scroll"),
-				original: 'Toggle Tree Sticky Scroll',
 			},
 			category: 'View',
 			f1: true

@@ -1175,12 +1175,14 @@ export interface MainThreadChatProviderShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 
-	$prepareChatAccess(providerId: string): Promise<IChatResponseProviderMetadata | undefined>;
+	$prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined>;
 	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
 }
 
 export interface ExtHostChatProviderShape {
-	$provideChatResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
+	$updateLanguageModels(data: { added?: string[]; removed?: string[] }): void;
+	$updateAccesslist(data: { extension: ExtensionIdentifier; enabled: boolean }[]): void;
+	$provideLanguageModelResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 }
 
@@ -1222,6 +1224,8 @@ export interface ExtHostChatAgentsShape2 {
 	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
+	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined>;
+	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$releaseSession(sessionId: string): void;
 }
 
@@ -1305,8 +1309,6 @@ export interface MainThreadChatShape extends IDisposable {
 
 export interface ExtHostChatShape {
 	$prepareChat(handle: number, token: CancellationToken): Promise<IChatDto | undefined>;
-	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
-	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$releaseSession(sessionId: number): void;
 }
 
@@ -2401,6 +2403,7 @@ export interface ExtHostCommentsShape {
 	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined>;
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: languages.Comment, reaction: languages.CommentReaction): Promise<void>;
+	$setActiveComment(controllerHandle: number, commentInfo: { commentThreadHandle: number; uniqueIdInThread?: number } | undefined): Promise<void>;
 }
 
 export interface INotebookSelectionChangeEvent {

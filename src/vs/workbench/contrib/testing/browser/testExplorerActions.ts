@@ -77,7 +77,7 @@ const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.provi
 
 const LABEL_RUN_TESTS = localize2('runSelectedTests', "Run Tests");
 const LABEL_DEBUG_TESTS = localize2('debugSelectedTests', "Debug Tests");
-const LABEL_COVERAGE_TESTS = { value: localize('coverageSelectedTests', 'Run Tests with Coverage'), original: 'Run Tests withCoverage' };
+const LABEL_COVERAGE_TESTS = localize2('coverageSelectedTests', "Run Tests with Coverage");
 
 export class HideTestAction extends Action2 {
 	constructor() {
@@ -480,7 +480,7 @@ class StartContinuousRunAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.StartContinousRun,
-			title: { value: localize('testing.startContinuous', "Start Continuous Run"), original: 'Enable Continuous Run' },
+			title: localize2('testing.startContinuous', "Start Continuous Run"),
 			category,
 			icon: icons.testingTurnContinuousRunOn,
 			menu: continuousMenus(false),

@@ -53,6 +53,7 @@ import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugCon
 import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
 import { DebugVisualizerService, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+import { COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariableCommands';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -196,6 +197,8 @@ registerDebugViewMenuItem(MenuId.DebugWatchContext, VIEW_MEMORY_ID, nls.localize
 registerDebugViewMenuItem(MenuId.DebugWatchContext, REMOVE_EXPRESSION_COMMAND_ID, nls.localize('removeWatchExpression', "Remove Expression"), 20, CONTEXT_WATCH_ITEM_TYPE.isEqualTo('expression'), undefined, 'inline', icons.watchExpressionRemove);
 registerDebugViewMenuItem(MenuId.DebugWatchContext, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, 20, undefined, undefined, 'z_commands');
 
+registerDebugViewMenuItem(MenuId.NotebookVariablesContext, COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL, 20);
+
 // Touch Bar
 if (isMacintosh) {
 
@@ -232,8 +235,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarDebugMenu,
 	title: {
-		value: 'Run',
-		original: 'Run',
+		...nls.localize2('runMenu', "Run"),
 		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
 	},
 	order: 6

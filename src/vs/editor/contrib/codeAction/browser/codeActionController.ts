@@ -112,7 +112,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					command.arguments[0] = { ...command.arguments[0], autoSend: false };
 				}
 			}
-			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			try {
+				this._lightBulbWidget.value?.hide();
+				await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			} finally {
+				actions.dispose();
+			}
 			return;
 		}
 		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
@@ -279,7 +284,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview, ApplyCodeActionReason.FromCodeActions);
+				try {
+					await this._applyCodeAction(action, /* retrigger */ true, !!preview, ApplyCodeActionReason.FromCodeActions);
+				} finally {
+					actions.dispose();
+				}
 				this._actionWidgetService.hide();
 				currentDecorations.clear();
 			},
@@ -299,7 +308,10 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					const diagnostics = action.action.diagnostics;
 					currentDecorations.clear();
 					if (ranges && ranges.length > 0) {
-						const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+						// Handles case for `fix all` where there are multiple diagnostics.
+						const decorations: IModelDeltaDecoration[] = (diagnostics && diagnostics?.length > 1)
+							? diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }))
+							: ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
 						currentDecorations.set(decorations);
 					} else if (diagnostics && diagnostics.length > 0) {
 						const decorations: IModelDeltaDecoration[] = diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));

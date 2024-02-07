@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -2597,49 +2597,75 @@ export class CommandCenter {
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
+		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
 
-		let rawBranchName = defaultName;
-
-		if (!rawBranchName) {
-			// Branch name
-			if (!initialValue) {
-				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
-				const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-
-				initialValue = `${branchPrefix}${branchName}`;
-			}
-
-			// Branch name selection
-			const initialValueSelection: [number, number] | undefined =
-				initialValue.startsWith(branchPrefix) ? [branchPrefix.length, initialValue.length] : undefined;
-
-			rawBranchName = await window.showInputBox({
-				placeHolder: l10n.t('Branch name'),
-				prompt: l10n.t('Please provide a new branch name'),
-				value: initialValue,
-				valueSelection: initialValueSelection,
-				ignoreFocusOut: true,
-				validateInput: (name: string) => {
-					const validateName = new RegExp(branchValidationRegex);
-					const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
-					if (validateName.test(sanitizedName)) {
-						// If the sanitized name that we will use is different than what is
-						// in the input box, show an info message to the user informing them
-						// the branch name that will be used.
-						return name === sanitizedName
-							? null
-							: {
-								message: l10n.t('The new branch will be "{0}"', sanitizedName),
-								severity: InputBoxValidationSeverity.Info
-							};
-					}
-
-					return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
-				}
-			});
+		if (defaultName) {
+			return sanitizeBranchName(defaultName, branchWhitespaceChar);
 		}
 
-		return sanitizeBranchName(rawBranchName || '', branchWhitespaceChar);
+		const getBranchName = async (): Promise<string> => {
+			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
+			return `${branchPrefix}${branchName}`;
+		};
+
+		const getValueSelection = (value: string): [number, number] | undefined => {
+			return value.startsWith(branchPrefix) ? [branchPrefix.length, value.length] : undefined;
+		};
+
+		const getValidationMessage = (name: string): string | InputBoxValidationMessage | undefined => {
+			const validateName = new RegExp(branchValidationRegex);
+			const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
+			if (validateName.test(sanitizedName)) {
+				// If the sanitized name that we will use is different than what is
+				// in the input box, show an info message to the user informing them
+				// the branch name that will be used.
+				return name === sanitizedName
+					? undefined
+					: {
+						message: l10n.t('The new branch will be "{0}"', sanitizedName),
+						severity: InputBoxValidationSeverity.Info
+					};
+			}
+
+			return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
+		};
+
+		const disposables: Disposable[] = [];
+		const inputBox = window.createInputBox();
+
+		inputBox.placeholder = l10n.t('Branch name');
+		inputBox.prompt = l10n.t('Please provide a new branch name');
+
+		inputBox.buttons = branchRandomNameEnabled ? [
+			{
+				iconPath: new ThemeIcon('refresh'),
+				tooltip: l10n.t('Regenerate Branch Name'),
+			}
+		] : [];
+
+		inputBox.value = initialValue ?? await getBranchName();
+		inputBox.valueSelection = getValueSelection(inputBox.value);
+		inputBox.validationMessage = getValidationMessage(inputBox.value);
+		inputBox.ignoreFocusOut = true;
+
+		inputBox.show();
+
+		const branchName = await new Promise<string | undefined>((resolve) => {
+			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+			disposables.push(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = getValidationMessage(value);
+			}));
+			disposables.push(inputBox.onDidTriggerButton(async () => {
+				inputBox.value = await getBranchName();
+				inputBox.valueSelection = getValueSelection(inputBox.value);
+			}));
+		});
+
+		dispose(disposables);
+		inputBox.dispose();
+
+		return sanitizeBranchName(branchName || '', branchWhitespaceChar);
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
@@ -3859,11 +3885,11 @@ export class CommandCenter {
 		const changes = await repository.diffBetween(commitParentId, commit.hash);
 
 		const title = `${item.shortRef} - ${commit.message}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), item.ref, { scheme: 'git-commit' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), commit.hash, { scheme: 'git-commit' });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of changes) {
-			resources.push(toMultiFileDiffEditorUris(change, item.previousRef, item.ref));
+			resources.push(toMultiFileDiffEditorUris(change, commitParentId, commit.hash));
 		}
 
 		return {
