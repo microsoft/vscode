@@ -53,7 +53,7 @@ import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugCon
 import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
 import { DebugVisualizerService, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { COPY_NOTEBOOK_VARIABLE_VALUE_ID as COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL as COPY_NOTEBOOK_VARIABLE_VALUE_LABEL } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariableCommands';
+import { COPY_NOTEBOOK_VARIABLE_VALUE_ID, COPY_NOTEBOOK_VARIABLE_VALUE_LABEL } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariableCommands';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 

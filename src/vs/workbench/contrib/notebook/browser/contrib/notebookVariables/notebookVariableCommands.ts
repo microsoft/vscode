@@ -15,7 +15,7 @@ export const COPY_NOTEBOOK_VARIABLE_VALUE_LABEL = localize('copyWorkspaceVariabl
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: COPY_NOTEBOOK_VARIABLE_VALUE_ID, // Use old and long id for backwards compatibility
+			id: COPY_NOTEBOOK_VARIABLE_VALUE_ID,
 			title: COPY_NOTEBOOK_VARIABLE_VALUE_LABEL,
 			f1: false,
 			precondition: ContextKeyExpr.has('value')
