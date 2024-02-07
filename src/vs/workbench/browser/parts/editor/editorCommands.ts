@@ -475,7 +475,7 @@ function registerDiffEditorCommands(): void {
 			return;
 		}
 
-		const untypedDiffInput = diffInput.toUntyped({ preserveViewState: activeGroup.id });
+		const untypedDiffInput = diffInput.toUntyped({ preserveViewState: activeGroup.id, preserveResource: true });
 		if (!untypedDiffInput) {
 			return;
 		}
@@ -484,7 +484,7 @@ function registerDiffEditorCommands(): void {
 		// sure to first open the modified side if it is not
 		// yet opened. This ensures that the swapping is not
 		// bringing up a confirmation dialog to save.
-		if (diffInput.modified.isModified() && !editorService.isOpened({ resource: diffInput.modified.resource, typeId: diffInput.modified.typeId, editorId: diffInput.modified.editorId })) {
+		if (diffInput.modified.isModified() && editorService.findEditors({ resource: diffInput.modified.resource, typeId: diffInput.modified.typeId, editorId: diffInput.modified.editorId }).length === 0) {
 			await editorService.openEditor({
 				...untypedDiffInput.modified,
 				options: {
