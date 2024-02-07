@@ -220,7 +220,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					|| h.result;
 				return {
 					request: typeConvert.ChatAgentRequest.to(h.request),
-					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.toProgressContent(r))),
+					response: coalesce(h.response.map(r => typeConvert.ChatResponsePart.to(r))),
 					result
 				} satisfies vscode.ChatAgentHistoryEntry;
 			})));
