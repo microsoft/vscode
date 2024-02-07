@@ -23,9 +23,10 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
@@ -133,7 +134,7 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
-	protected readonly editor: CodeEditorWidget;
+	public readonly editor: CodeEditorWidget;
 	protected readonly toolbar: MenuWorkbenchToolBar;
 	private readonly contextKeyService: IContextKeyService;
 
@@ -322,7 +323,10 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 
 	private currentCodeBlockData: ISimpleCodeBlockData | undefined;
 
-	private readonly textModel: ITextModel;
+	private readonly textModel: Promise<ITextModel>;
+
+	private readonly _uri: URI;
+
 	constructor(
 		options: ChatEditorOptions,
 		menuId: MenuId,
@@ -331,6 +335,7 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -350,9 +355,12 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 			buttonSeparator: undefined,
 			supportIcons: true
 		});
-		const modelUri = URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() });
-		this.textModel = this._register(this.modelService.createModel('', null, modelUri, false));
-		this.editor.setModel(this.textModel);
+		this._uri = URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() });
+		this.textModel = textModelService.createModelReference(this._uri).then(ref => {
+			this.editor.setModel(ref.object.textEditorModel);
+			this._register(ref);
+			return ref.object.textEditorModel;
+		});
 
 		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
 
@@ -367,7 +375,7 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 	}
 
 	get uri(): URI {
-		return this.textModel.uri;
+		return this._uri;
 	}
 
 	protected override createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget {
@@ -383,6 +391,7 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				HoverController.ID,
+				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		}));
 	}
@@ -401,8 +410,8 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		}
 	}
 
-	protected override updateEditor(data: ISimpleCodeBlockData): void {
-		this.editor.setModel(this.textModel);
+	protected override async updateEditor(data: ISimpleCodeBlockData): Promise<void> {
+		this.editor.setModel(await this.textModel);
 		const text = this.fixCodeText(data.text, data.languageId);
 		this.setText(text);
 
@@ -440,25 +449,26 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		return text;
 	}
 
-	private setText(newText: string): void {
-		const currentText = this.textModel.getValue(EndOfLinePreference.LF);
+	private async setText(newText: string): Promise<void> {
+		const model = await this.textModel;
+		const currentText = model.getValue(EndOfLinePreference.LF);
 		if (newText === currentText) {
 			return;
 		}
 
 		if (newText.startsWith(currentText)) {
 			const text = newText.slice(currentText.length);
-			const lastLine = this.textModel.getLineCount();
-			const lastCol = this.textModel.getLineMaxColumn(lastLine);
-			this.textModel.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
+			const lastLine = model.getLineCount();
+			const lastCol = model.getLineMaxColumn(lastLine);
+			model.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
 		} else {
 			// console.log(`Failed to optimize setText`);
-			this.textModel.setValue(newText);
+			model.setValue(newText);
 		}
 	}
 
-	private setLanguage(vscodeLanguageId: string | undefined): void {
-		this.textModel.setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
+	private async setLanguage(vscodeLanguageId: string | undefined): Promise<void> {
+		(await this.textModel).setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
 	}
 }
 
@@ -528,5 +538,25 @@ export class LocalFileCodeBlockPart extends BaseCodeBlockPart<ILocalFileCodeBloc
 			element: data.element,
 			languageId: model.getLanguageId()
 		} satisfies ICodeBlockActionContext;
+	}
+}
+
+
+export class ChatCodeBlockContentProvider extends Disposable implements ITextModelContentProvider {
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+	) {
+		super();
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatCodeBlock, this));
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		return this._modelService.createModel('', null, resource);
 	}
 }
