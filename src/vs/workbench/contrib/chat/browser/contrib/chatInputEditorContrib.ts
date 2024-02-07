@@ -29,7 +29,6 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workben
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -55,7 +54,6 @@ class InputEditorDecorations extends Disposable {
 		private readonly widget: IChatWidget,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IChatService private readonly chatService: IChatService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
@@ -72,10 +70,8 @@ class InputEditorDecorations extends Disposable {
 			this.previouslyUsedAgents.clear();
 			this.updateInputEditorDecorations();
 		}));
-		this._register(this.chatService.onDidSubmitAgent((e) => {
-			if (e.sessionId === this.widget.viewModel?.sessionId) {
-				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand?.name));
-			}
+		this._register(this.widget.onDidSubmitAgent((e) => {
+			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand?.name));
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 
@@ -242,14 +238,9 @@ class InputEditorSlashCommandMode extends Disposable {
 
 	constructor(
 		private readonly widget: IChatWidget,
-		@IChatService private readonly chatService: IChatService
 	) {
 		super();
-		this._register(this.chatService.onDidSubmitAgent(e => {
-			if (this.widget.viewModel?.sessionId !== e.sessionId) {
-				return;
-			}
-
+		this._register(this.widget.onDidSubmitAgent(e => {
 			this.repopulateAgentCommand(e.agent, e.slashCommand);
 		}));
 	}
@@ -262,7 +253,7 @@ class InputEditorSlashCommandMode extends Disposable {
 			}
 		} else {
 			if (agent.metadata.shouldRepopulate) {
-				value = `${chatAgentLeader}${agent.id} ${chatAgentLeader}${agent.id} `;
+				value = `${chatAgentLeader}${agent.id} `;
 			}
 		}
 

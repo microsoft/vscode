@@ -35,7 +35,7 @@ import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWel
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const $ = dom.$;
 
@@ -72,6 +72,9 @@ export interface IChatWidgetContrib extends IDisposable {
 
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
+
+	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
+	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
@@ -577,6 +580,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				const inputState = this.collectInputState();
 				this.inputPart.acceptInput(isUserQuery ? input : undefined, isUserQuery ? inputState : undefined);
+				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
