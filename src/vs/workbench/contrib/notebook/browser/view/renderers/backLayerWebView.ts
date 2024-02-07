@@ -52,7 +52,7 @@ import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/n
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
-import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -178,7 +178,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		@IPathService private readonly pathService: IPathService,
 		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWebviewUriService private readonly webviewUriService: IWebviewUriService,
 	) {
 		super(themeService);
 
@@ -304,6 +305,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
 		const currentHighlight = this.getColor(editorFindMatch);
 		const findMatchHighlight = this.getColor(editorFindMatchHighlight);
+		const webviewGenericCspSource = this.webviewUriService.cspSource;
 		return /* html */`
 		<html lang="en">
 			<head>
@@ -488,7 +490,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private asWebviewUri(uri: URI, fromExtension: URI | undefined) {
-		return asWebviewUri(uri, fromExtension?.scheme === Schemas.vscodeRemote ? { isRemote: true, authority: fromExtension.authority } : undefined);
+		return this.webviewUriService.asWebviewUri(uri, fromExtension?.scheme === Schemas.vscodeRemote ? { isRemote: true, authority: fromExtension.authority } : undefined);
 	}
 
 	postKernelMessage(message: any) {

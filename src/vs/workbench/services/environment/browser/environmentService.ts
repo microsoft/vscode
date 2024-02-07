@@ -37,6 +37,11 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	 * Gets whether a resolver extension is expected for the environment.
 	 */
 	readonly expectsResolverExtension: boolean;
+
+	/**
+	 * The base host that gets used to construct resource URLs in webviews
+	 */
+	readonly webviewResourceBaseHost?: string;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
@@ -233,6 +238,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 		return endpoint
 			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? 'ef65ac1ba57f57f2a3961bfe94aa20481caca4c6')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
+	}
+
+	@memoize
+	get webviewResourceBaseHost(): string {
+		return this.options.webviewResourceBaseHost || 'vscode-cdn.net';
 	}
 
 	@memoize

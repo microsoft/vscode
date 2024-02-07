@@ -50,7 +50,8 @@ suite('ExtHostTelemetry', function () {
 	const mockRemote = {
 		authority: 'test',
 		isRemote: false,
-		connectionData: null
+		connectionData: null,
+		resourceBaseHost: undefined,
 	};
 
 	const mockExtensionIdentifier: IExtensionDescription = {

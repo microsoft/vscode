@@ -18,6 +18,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
+import { BaseWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -387,5 +389,11 @@ export class ExtensionKeyedWebviewOriginStore {
 
 	public getOrigin(viewType: string, extId: ExtensionIdentifier): string {
 		return this._store.getOrigin(viewType, extId.value);
+	}
+}
+
+export class BrowserWebviewUriService extends BaseWebviewUriService {
+	constructor(@IBrowserWorkbenchEnvironmentService workbenchEnvironmentService: IBrowserWorkbenchEnvironmentService) {
+		super(workbenchEnvironmentService.webviewResourceBaseHost);
 	}
 }

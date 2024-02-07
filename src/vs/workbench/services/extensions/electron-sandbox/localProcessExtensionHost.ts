@@ -490,7 +490,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
-				isRemote: false
+				isRemote: false,
+				resourceBaseHost: this._environmentService.webviewResourceBaseHost,
 			},
 			consoleForward: {
 				includeStack: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),

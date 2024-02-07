@@ -6,57 +6,89 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface WebviewRemoteInfo {
 	readonly isRemote: boolean;
 	readonly authority: string | undefined;
 }
 
-/**
- * Root from which resources in webviews are loaded.
- *
- * This is hardcoded because we never expect to actually hit it. Instead these requests
- * should always go to a service worker.
- */
-export const webviewResourceBaseHost = 'vscode-cdn.net';
+export const IWebviewUriService = createDecorator<IWebviewUriService>('webviewUriService');
 
-export const webviewRootResourceAuthority = `vscode-resource.${webviewResourceBaseHost}`;
+export interface IWebviewUriService {
+	readonly _serviceBrand: undefined;
 
-export const webviewGenericCspSource = `'self' https://*.${webviewResourceBaseHost}`;
+	/**
+	 * Construct a uri that can load resources inside a webview
+	 *
+	 * We encode the resource component of the uri so that on the main thread
+	 * we know where to load the resource from (remote or truly local):
+	 *
+	 * ```txt
+	 * ${scheme}+${resource-authority}.vscode-resource.vscode-cdn.net/${path}
+	 * ```
+	 *
+	 * @param resource Uri of the resource to load.
+	 * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
+	 */
+	asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo): URI;
+	resourceAuthority: string;
+	cspSource: string;
+}
 
-/**
- * Construct a uri that can load resources inside a webview
- *
- * We encode the resource component of the uri so that on the main thread
- * we know where to load the resource from (remote or truly local):
- *
- * ```txt
- * ${scheme}+${resource-authority}.vscode-resource.vscode-cdn.net/${path}
- * ```
- *
- * @param resource Uri of the resource to load.
- * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
- */
-export function asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo): URI {
-	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
-		return resource;
+const DefaultResourceBaseHost: string = 'vscode-cdn.net';
+
+export class BaseWebviewUriService implements IWebviewUriService {
+	declare readonly _serviceBrand: undefined;
+
+	/**
+	 * Root from which resources in webviews are loaded.
+	 *
+	 * This is hardcoded in the general case because we never expect
+	 * to actually hit it. Instead these requests should always go to
+	 * a service worker.
+	 */
+	private readonly resourceBaseHost: string;
+
+	constructor(resourceBaseHost?: string) {
+		this.resourceBaseHost = resourceBaseHost || DefaultResourceBaseHost;
 	}
 
-	if (remoteInfo && remoteInfo.authority && remoteInfo.isRemote && resource.scheme === Schemas.file) {
-		resource = URI.from({
-			scheme: Schemas.vscodeRemote,
-			authority: remoteInfo.authority,
+	asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo): URI {
+		if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
+			return resource;
+		}
+
+		if (remoteInfo && remoteInfo.authority && remoteInfo.isRemote && resource.scheme === Schemas.file) {
+			resource = URI.from({
+				scheme: Schemas.vscodeRemote,
+				authority: remoteInfo.authority,
+				path: resource.path,
+			});
+		}
+
+		return URI.from({
+			scheme: Schemas.https,
+			authority: `${resource.scheme}+${encodeAuthority(resource.authority)}.${this.resourceAuthority}`,
 			path: resource.path,
+			fragment: resource.fragment,
+			query: resource.query,
 		});
 	}
 
-	return URI.from({
-		scheme: Schemas.https,
-		authority: `${resource.scheme}+${encodeAuthority(resource.authority)}.${webviewRootResourceAuthority}`,
-		path: resource.path,
-		fragment: resource.fragment,
-		query: resource.query,
-	});
+	get resourceAuthority(): string {
+		return `vscode-resource.${this.resourceBaseHost}`;
+	}
+
+	get cspSource(): string {
+		return `'self' https://*.${this.resourceBaseHost}`;
+	}
+}
+
+export class DefaultWebviewUriService extends BaseWebviewUriService {
+	constructor() {
+		super(DefaultResourceBaseHost);
+	}
 }
 
 function encodeAuthority(authority: string): string {

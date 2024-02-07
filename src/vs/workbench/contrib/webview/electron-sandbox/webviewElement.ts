@@ -24,6 +24,7 @@ import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -58,10 +59,11 @@ export class ElectronWebviewElement extends WebviewElement {
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IWebviewUriService webviewUriService: IWebviewUriService,
 	) {
 		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, notificationService, environmentService,
-			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
+			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService, webviewUriService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 

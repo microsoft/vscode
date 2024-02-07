@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { BrowserWebviewUriService, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewService } from './webviewService';
+import { IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 
 registerSingleton(IWebviewService, WebviewService, InstantiationType.Delayed);
+registerSingleton(IWebviewUriService, BrowserWebviewUriService, InstantiationType.Delayed);

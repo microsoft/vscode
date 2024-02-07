@@ -19,7 +19,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from 'vs/workbench/api/common/extHostTypes';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 import { INotebookKernelSourceAction, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -64,6 +64,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		private readonly _extHostNotebook: ExtHostNotebookController,
 		private _commands: ExtHostCommands,
 		@ILogService private readonly _logService: ILogService,
+		@IWebviewUriService private readonly _webviewUriService: IWebviewUriService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 
@@ -267,7 +268,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			asWebviewUri(uri: URI) {
 				checkProposedApiEnabled(extension, 'notebookMessaging');
-				return asWebviewUri(uri, that._initData.remote);
+				return that._webviewUriService.asWebviewUri(uri, that._initData.remote);
 			},
 		};
 

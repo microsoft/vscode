@@ -23,6 +23,7 @@ import { IURITransformerService, URITransformerService } from 'vs/workbench/api/
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { Mutable } from 'vs/base/common/types';
+import { BaseWebviewUriService, IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -158,6 +159,7 @@ export class ExtensionHostMain {
 		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);
+		services.set(IWebviewUriService, new BaseWebviewUriService(initData.remote.resourceBaseHost));
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 

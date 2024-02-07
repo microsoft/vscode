@@ -320,7 +320,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
-				isRemote: false
+				isRemote: false,
+				resourceBaseHost: this._environmentService.webviewResourceBaseHost,
 			},
 			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 		};

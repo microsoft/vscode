@@ -154,6 +154,13 @@ export interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
+	 * The base host from which resource URLs loaded in iframe content ("webview")
+	 * are created. The host in itself is never contacted directly as requests are
+	 * intercepted by a service worker however it has implication for CSP policies.
+	 */
+	readonly webviewResourceBaseHost?: string;
+
+	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;

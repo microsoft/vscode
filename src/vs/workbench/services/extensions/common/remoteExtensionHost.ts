@@ -40,6 +40,7 @@ export interface IRemoteExtensionHostInitData {
 
 export interface IRemoteExtensionHostDataProvider {
 	readonly remoteAuthority: string;
+	readonly resourceBaseHost?: string;
 	getInitData(): Promise<IRemoteExtensionHostInitData>;
 }
 
@@ -233,7 +234,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			remote: {
 				isRemote: true,
 				authority: this._initDataProvider.remoteAuthority,
-				connectionData: remoteInitData.connectionData
+				connectionData: remoteInitData.connectionData,
+				resourceBaseHost: this._initDataProvider.resourceBaseHost,
 			},
 			consoleForward: {
 				includeStack: false,

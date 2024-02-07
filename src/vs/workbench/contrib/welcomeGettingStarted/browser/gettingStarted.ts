@@ -70,6 +70,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { GettingStartedIndexList } from './gettingStartedList';
+import { IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -184,7 +185,8 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService) {
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IWebviewUriService private readonly webviewUriService: IWebviewUriService) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
 
@@ -199,7 +201,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlideDisposables = this._register(new DisposableStore());
 
-		this.detailsRenderer = new GettingStartedDetailsRenderer(this.fileService, this.notificationService, this.extensionService, this.languageService);
+		this.detailsRenderer = new GettingStartedDetailsRenderer(this.fileService, this.notificationService, this.extensionService, this.languageService, this.webviewUriService);
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);

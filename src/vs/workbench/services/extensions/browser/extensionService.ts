@@ -77,7 +77,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteAgentService,
 			remoteAuthorityResolverService,
 			extensionEnablementService,
-			logService
+			logService,
+			_browserEnvironmentService
 		);
 		super(
 			extensionsProposedApi,
@@ -224,6 +225,7 @@ class BrowserExtensionHostFactory implements IExtensionHostFactory {
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly _logService: ILogService,
+		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
 	) { }
 
 	createExtensionHost(runningLocations: ExtensionRunningLocationTracker, runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
@@ -242,7 +244,7 @@ class BrowserExtensionHostFactory implements IExtensionHostFactory {
 			case ExtensionHostKind.Remote: {
 				const remoteAgentConnection = this._remoteAgentService.getConnection();
 				if (remoteAgentConnection) {
-					return this._instantiationService.createInstance(RemoteExtensionHost, runningLocation, this._createRemoteExtensionHostDataProvider(runningLocations, remoteAgentConnection.remoteAuthority));
+					return this._instantiationService.createInstance(RemoteExtensionHost, runningLocation, this._createRemoteExtensionHostDataProvider(runningLocations, remoteAgentConnection.remoteAuthority, this._environmentService.webviewResourceBaseHost));
 				}
 				return null;
 			}
@@ -270,9 +272,10 @@ class BrowserExtensionHostFactory implements IExtensionHostFactory {
 		};
 	}
 
-	private _createRemoteExtensionHostDataProvider(runningLocations: ExtensionRunningLocationTracker, remoteAuthority: string): IRemoteExtensionHostDataProvider {
+	private _createRemoteExtensionHostDataProvider(runningLocations: ExtensionRunningLocationTracker, remoteAuthority: string, resourceBaseHost: string | undefined): IRemoteExtensionHostDataProvider {
 		return {
 			remoteAuthority: remoteAuthority,
+			resourceBaseHost,
 			getInitData: async (): Promise<IRemoteExtensionHostInitData> => {
 				const snapshot = await this._getExtensionRegistrySnapshotWhenReady();
 

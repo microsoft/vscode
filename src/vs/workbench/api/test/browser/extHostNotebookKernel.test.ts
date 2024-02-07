@@ -31,6 +31,7 @@ import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystem
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { DefaultWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 
 suite('NotebookKernel', function () {
 	let rpcProtocol: TestRPCProtocol;
@@ -152,7 +153,8 @@ suite('NotebookKernel', function () {
 			new class extends mock<IExtHostInitDataService>() { },
 			extHostNotebooks,
 			extHostCommands,
-			new NullLogService()
+			new NullLogService(),
+			new DefaultWebviewUriService(),
 		);
 	});
 

@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { language } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -28,6 +28,7 @@ export class GettingStartedDetailsRenderer {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IWebviewUriService private readonly webviewUriService: IWebviewUriService,
 	) { }
 
 	async renderMarkdown(path: URI, base: URI): Promise<string> {
@@ -211,7 +212,7 @@ export class GettingStartedDetailsRenderer {
 	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, true, true);
+			const markdownContents = await renderMarkdownDocument(this.transformUris(contents, base), this.extensionService, this.languageService, true, true);
 			this.mdCache.set(path, markdownContents);
 		}
 		return assertIsDefined(this.mdCache.get(path));
@@ -259,19 +260,21 @@ export class GettingStartedDetailsRenderer {
 			return '';
 		}
 	}
+
+	private transformUri(src: string, base: URI) {
+		const path = joinPath(base, src);
+		return this.webviewUriService.asWebviewUri(path).toString(true);
+	}
+
+	private transformUris(content: string, base: URI): string {
+		return content
+			.replace(/src="([^"]*)"/g, (_, src: string) => {
+				if (src.startsWith('https://')) { return `src="${src}"`; }
+				return `src="${this.transformUri(src, base)}"`;
+			})
+			.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
+				if (src.startsWith('https://')) { return `![${title}](${src})`; }
+				return `![${title}](${this.transformUri(src, base)})`;
+			});
+	}
 }
-
-const transformUri = (src: string, base: URI) => {
-	const path = joinPath(base, src);
-	return asWebviewUri(path).toString(true);
-};
-
-const transformUris = (content: string, base: URI): string => content
-	.replace(/src="([^"]*)"/g, (_, src: string) => {
-		if (src.startsWith('https://')) { return `src="${src}"`; }
-		return `src="${transformUri(src, base)}"`;
-	})
-	.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
-		if (src.startsWith('https://')) { return `![${title}](${src})`; }
-		return `![${title}](${transformUri(src, base)})`;
-	});

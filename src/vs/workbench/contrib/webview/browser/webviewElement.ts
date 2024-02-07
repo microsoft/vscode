@@ -35,7 +35,7 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/t
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
-import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/contrib/webview/common/webview';
+import { decodeAuthority, IWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { $window } from 'vs/base/browser/window';
 
@@ -154,6 +154,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IWebviewUriService private readonly _webviewUriService: IWebviewUriService,
 	) {
 		super();
 
@@ -459,7 +460,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
-			'vscode-resource-base-authority': webviewRootResourceAuthority,
+			'vscode-resource-base-authority': this._webviewUriService.resourceAuthority,
 			parentOrigin: $window.origin,
 		};
 
@@ -648,7 +649,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				allowForms: this._content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
 			},
 			state: this._content.state,
-			cspSource: webviewGenericCspSource,
+			cspSource: this._webviewUriService.cspSource,
 			confirmBeforeClose: this._confirmBeforeClose,
 		});
 	}

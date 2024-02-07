@@ -8,6 +8,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { DefaultWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { convertInternalMediaPathToFileURI } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -21,7 +22,7 @@ suite('Getting Started Markdown Renderer', () => {
 	test('renders theme picker markdown with images', async () => {
 		const fileService = new TestFileService();
 		const languageService = new LanguageService();
-		const renderer = new GettingStartedDetailsRenderer(fileService, new TestNotificationService(), new TestExtensionService(), languageService);
+		const renderer = new GettingStartedDetailsRenderer(fileService, new TestNotificationService(), new TestExtensionService(), languageService, new DefaultWebviewUriService());
 		const mdPath = convertInternalMediaPathToFileURI('theme_picker').with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker' }) });
 		const mdBase = FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/');
 		const rendered = await renderer.renderMarkdown(mdPath, mdBase);

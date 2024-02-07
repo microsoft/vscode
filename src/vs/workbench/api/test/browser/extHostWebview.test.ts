@@ -17,7 +17,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/contrib/webview/common/webview';
+import { BaseWebviewUriService, DefaultWebviewUriService, decodeAuthority } from 'vs/workbench/contrib/webview/common/webview';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import type * as vscode from 'vscode';
@@ -25,6 +25,8 @@ import type * as vscode from 'vscode';
 suite('ExtHostWebview', () => {
 	let disposables: DisposableStore;
 	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
+
+	const webviewResourceBaseHost = 'vscode-cdn.net';
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -39,11 +41,11 @@ suite('ExtHostWebview', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
+	function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined, resourceBaseHost?: string) {
 		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, {
 			authority: remoteAuthority,
 			isRemote: !!remoteAuthority,
-		}, undefined, new NullLogService(), NullApiDeprecationService));
+		}, undefined, new NullLogService(), NullApiDeprecationService, new BaseWebviewUriService(resourceBaseHost)));
 
 		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
 
@@ -59,7 +61,7 @@ suite('ExtHostWebview', () => {
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService));
+		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService, new DefaultWebviewUriService()));
 
 		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
 
@@ -192,6 +194,27 @@ suite('ExtHostWebview', () => {
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
 			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
+			'Check decoded authority'
+		);
+	});
+
+	test('asWebViewUri can use a different base host for resource URLs', () => {
+		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote', 'other-vscode-cdn.net');
+		const authority = 'localhost:8080';
+		const sourceUri = URI.from({
+			scheme: 'vscode-remote',
+			authority: authority,
+			path: '/Users/jeremie/y.png'
+		});
+		const webviewUri = webview.webview.asWebviewUri(sourceUri);
+		assert.strictEqual(
+			webviewUri.toString(),
+			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.other-vscode-cdn.net/Users/jeremie/y.png`,
+			'Check transform');
+
+		assert.strictEqual(
+			decodeAuthority(webviewUri.authority),
+			`vscode-remote+${authority}.vscode-resource.other-vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});

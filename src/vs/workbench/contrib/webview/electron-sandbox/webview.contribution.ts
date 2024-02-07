@@ -6,9 +6,11 @@
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewUriService, DefaultWebviewUriService } from 'vs/workbench/contrib/webview/common/webview';
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-sandbox/webviewCommands';
 import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-sandbox/webviewService';
 
 registerSingleton(IWebviewService, ElectronWebviewService, InstantiationType.Delayed);
+registerSingleton(IWebviewUriService, DefaultWebviewUriService, InstantiationType.Delayed);
 
 registerAction2(webviewCommands.OpenWebviewDeveloperToolsAction);
