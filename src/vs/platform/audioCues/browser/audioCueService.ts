@@ -54,28 +54,6 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-		this._migrateSettings();
-	}
-
-	private _migrateSettings(): void {
-		this.configurationService.updateValue('accessibility.signals.debouncePositionChanges', this.configurationService.getValue('audioCues.debouncePositionChanges'));
-		const config = AudioCue.allAudioCues;
-		for (const c of config) {
-			const alertConfig = c.alertSettingsKey ? this.configurationService.getValue<string>(c.alertSettingsKey) : undefined;
-			const audioCue = c.settingsKey ? this.configurationService.getValue<string>(c.settingsKey) : undefined;
-			const newSettingsKey = c.settingsKey.replace('audioCues.', 'accessibility.signals.');
-			if (alertConfig !== undefined && audioCue !== undefined) {
-				let alert;
-				if (typeof alertConfig === 'string') {
-					alert = alertConfig;
-				} else {
-					alert = alertConfig === false ? 'off' : 'auto';
-				}
-				this.configurationService.updateValue(newSettingsKey, { alert, audioCue });
-			} else if (!c.alertSettingsKey && audioCue !== undefined) {
-				this.configurationService.updateValue(newSettingsKey, { audioCue });
-			}
-		}
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {

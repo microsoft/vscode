@@ -7,8 +7,8 @@ import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { AccessibilityAlertSettingId } from 'vs/platform/audioCues/browser/audioCueService';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
+import { AccessibilityAlertSettingId, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -687,3 +687,43 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 		});
 	}
 }
+
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'audioCues.debouncePositionChanges',
+		migrateFn: (value, accessor) => {
+			return [
+				['accessibility.signals.debouncePositionChanges', { value }],
+				['audioCues.debouncePositionChangess', { value: undefined }]
+			];
+		}
+	}]);
+
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations(AudioCue.allAudioCues.map(item => ({
+		key: item.settingsKey,
+		migrateFn: (value: 'on' | 'off' | 'auto', accessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			configurationKeyValuePairs.push([`${item.signalSettingsKey}.audioCue`, { value }]);
+			return configurationKeyValuePairs;
+		}
+	})));
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations(AudioCue.allAudioCues.filter(c => c.alertSettingsKey).map(item => ({
+		key: item.alertSettingsKey!,
+		migrateFn: (value, accessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (typeof value !== 'string') {
+				if (value === true) {
+					value = 'auto';
+				} else {
+					value = 'off';
+				}
+			}
+			configurationKeyValuePairs.push([`${item.signalSettingsKey}.alert`, { value }]);
+			return configurationKeyValuePairs;
+		}
+	})));
