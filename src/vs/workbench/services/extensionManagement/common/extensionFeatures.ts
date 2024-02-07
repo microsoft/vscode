@@ -52,7 +52,6 @@ export interface IExtensionFeatureDescriptor {
 	readonly access: {
 		readonly canToggle?: boolean;
 		readonly requireUserConsent?: boolean;
-		readonly default?: boolean;
 		readonly extensionsList?: IStringDictionary<boolean>;
 	};
 	readonly renderer: SyncDescriptor<IExtensionFeatureRenderer>;
