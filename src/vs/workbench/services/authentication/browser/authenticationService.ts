@@ -214,7 +214,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'authentication',
 	label: nls.localize('authentication', "Authentication"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(AuthenticationDataRenderer),

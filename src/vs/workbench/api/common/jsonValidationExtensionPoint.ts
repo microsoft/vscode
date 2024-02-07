@@ -127,7 +127,7 @@ class JSONValidationDataRenderer extends Disposable implements IExtensionFeature
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'jsonValidation',
 	label: nls.localize('jsonValidation', "JSON Validation"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(JSONValidationDataRenderer),

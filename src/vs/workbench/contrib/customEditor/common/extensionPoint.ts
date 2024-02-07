@@ -148,7 +148,7 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'customEditors',
 	label: nls.localize('customEditors', "Custom Editors"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(CustomEditorsDataRenderer),

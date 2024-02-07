@@ -1090,7 +1090,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'commands',
 	label: localize('commands', "Commands"),
-	enablement: {
+	access: {
 		canToggle: false,
 	},
 	renderer: new SyncDescriptor(CommandsTableRenderer),

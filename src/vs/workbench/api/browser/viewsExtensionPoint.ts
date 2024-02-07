@@ -765,7 +765,7 @@ class ViewsDataRenderer extends Disposable implements IExtensionFeatureTableRend
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesRegistryExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'viewsContainers',
 	label: localize('viewsContainers', "View Containers"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(ViewContainersDataRenderer),
@@ -774,7 +774,7 @@ Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesRegistryExtensions.Exte
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesRegistryExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'views',
 	label: localize('views', "Views"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(ViewsDataRenderer),

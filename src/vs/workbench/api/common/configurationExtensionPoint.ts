@@ -434,7 +434,7 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'configuration',
 	label: nls.localize('settings', "Settings"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(SettingsTableRenderer),

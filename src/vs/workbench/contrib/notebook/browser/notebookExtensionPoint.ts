@@ -350,7 +350,7 @@ class NotebookRenderersDataRenderer extends Disposable implements IExtensionFeat
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'notebooks',
 	label: nls.localize('notebooks', "Notebooks"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(NotebooksDataRenderer),
@@ -359,7 +359,7 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'notebookRenderer',
 	label: nls.localize('notebookRenderer', "Notebook Renderers"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(NotebookRenderersDataRenderer),

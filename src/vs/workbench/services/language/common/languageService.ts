@@ -200,7 +200,7 @@ class LanguageTableRenderer extends Disposable implements IExtensionFeatureTable
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'languages',
 	label: localize('languages', "Programming Languages"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(LanguageTableRenderer),

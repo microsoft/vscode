@@ -343,7 +343,7 @@ Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFea
 	id: CHAT_FEATURE_ID,
 	label: nls.localize('chat', "Chat"),
 	description: nls.localize('chatFeatureDescription', "Allows the extension to make requests to the Large Language Model (LLM)."),
-	enablement: {
+	access: {
 		canToggle: true,
 		requireUserConsent: true,
 	},

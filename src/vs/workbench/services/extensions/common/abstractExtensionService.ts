@@ -1428,7 +1428,7 @@ class ActivationFeatureMarkdowneRenderer extends Disposable implements IExtensio
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'activation',
 	label: nls.localize('activation', "Activation"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(ActivationFeatureMarkdowneRenderer),

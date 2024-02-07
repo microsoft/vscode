@@ -147,7 +147,7 @@ class ThemeDataRenderer extends Disposable implements IExtensionFeatureMarkdownR
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'themes',
 	label: nls.localize('themes', "Themes"),
-	enablement: {
+	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(ThemeDataRenderer),
