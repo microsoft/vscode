@@ -15,8 +15,9 @@ declare module 'vscode' {
 
 		/**
 		 * The currently active comment thread or `undefined`. The active comment thread is the one
-		 * that currently has focus or, when none has focus, undefined.
+		 * in the CommentController that most recently had focus or, when a different CommentController's
+		 * thread has most recently had focus, undefined.
 		 */
-		readonly activeThread: CommentThread | undefined;
+		readonly activeCommentThread: CommentThread | undefined;
 	}
 }

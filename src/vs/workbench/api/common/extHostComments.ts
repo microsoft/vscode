@@ -601,7 +601,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		private _activeThread: vscode.CommentThread2 | undefined;
 
-		get activeThread(): vscode.CommentThread2 | undefined {
+		get activeCommentThread(): vscode.CommentThread2 | undefined {
 			checkProposedApiEnabled(this._extension, 'activeComment');
 			return this._activeThread;
 		}
@@ -628,7 +628,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				get reactionHandler(): ReactionHandler | undefined { return that.reactionHandler; },
 				set reactionHandler(handler: ReactionHandler | undefined) { that.reactionHandler = handler; },
 				// get activeComment(): vscode.Comment | undefined { return that.activeComment; },
-				get activeThread(): vscode.CommentThread2 | undefined { return that.activeThread; },
+				get activeCommentThread(): vscode.CommentThread2 | undefined { return that.activeCommentThread; },
 				createCommentThread(uri: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): vscode.CommentThread | vscode.CommentThread2 {
 					return that.createCommentThread(uri, range, comments).value;
 				},

@@ -174,9 +174,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.FOCUS_IN, () => {
 			this.commentService.setActiveCommentAndThread(this.owner, { thread: this.commentThread, comment: this.comment });
 		}, true));
-		this._register(dom.addDisposableListener(this._domNode, dom.EventType.FOCUS_OUT, () => {
-			this.commentService.setActiveCommentAndThread(this.owner, undefined);
-		}, true));
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
