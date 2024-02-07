@@ -14,7 +14,6 @@ import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { autorun } from 'vs/base/common/observable';
 import { MersenneTwister } from 'vs/editor/test/common/model/bracketPairColorizer/combineTextEditInfos.test';
-import { equals } from 'vs/base/common/arrays';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -74,7 +73,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 export class GhostTextContext extends Disposable {
 	public readonly prettyViewStates = new Array<string | undefined>();
-	private _currentPrettyViewState: string[] = [];
+	private _currentPrettyViewState: string | undefined;
 	public get currentPrettyViewState() {
 		return this._currentPrettyViewState;
 	}
@@ -84,19 +83,18 @@ export class GhostTextContext extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description update */
-			const ghostTexts = model.ghostTexts.read(reader);
-			const views: string[] = [];
-			if (ghostTexts) {
-				for (const ghostText of ghostTexts) {
-					views.push(ghostText.render(this.editor.getValue(), true));
-				}
+			const ghostText = model.primaryGhostText.read(reader);
+			let view: string | undefined;
+			if (ghostText) {
+				view = ghostText.render(this.editor.getValue(), true);
 			} else {
-				views.push(this.editor.getValue());
+				view = this.editor.getValue();
 			}
-			if (!equals(this._currentPrettyViewState, views)) {
-				this.prettyViewStates.push(...views);
+
+			if (this._currentPrettyViewState !== view) {
+				this.prettyViewStates.push(view);
 			}
-			this._currentPrettyViewState = views;
+			this._currentPrettyViewState = view;
 		}));
 	}
 

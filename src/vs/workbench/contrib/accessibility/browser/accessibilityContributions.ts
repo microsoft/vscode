@@ -242,32 +242,30 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				if (!model || !state) {
 					return false;
 				}
-				for (const ghostText of state.ghostTexts) {
-					const lineText = model.textModel.getLineContent(ghostText.lineNumber);
-					const renderedGhostText = ghostText.renderForScreenReader(lineText);
-					if (!renderedGhostText) {
-						return false;
-					}
-					this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
-					accessibleViewService.show({
-						id: AccessibleViewProviderId.InlineCompletions,
-						verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
-						provideContent() { return lineText + renderedGhostText; },
-						onClose() {
-							model.stop();
-							editor.focus();
-						},
-						next() {
-							model.next();
-							setTimeout(() => show(), 50);
-						},
-						previous() {
-							model.previous();
-							setTimeout(() => show(), 50);
-						},
-						options: this._options
-					});
+				const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
+				const ghostText = state.primaryGhostText.renderForScreenReader(lineText);
+				if (!ghostText) {
+					return false;
 				}
+				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
+				accessibleViewService.show({
+					id: AccessibleViewProviderId.InlineCompletions,
+					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
+					provideContent() { return lineText + ghostText; },
+					onClose() {
+						model.stop();
+						editor.focus();
+					},
+					next() {
+						model.next();
+						setTimeout(() => show(), 50);
+					},
+					previous() {
+						model.previous();
+						setTimeout(() => show(), 50);
+					},
+					options: this._options
+				});
 				return true;
 			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 			return show();

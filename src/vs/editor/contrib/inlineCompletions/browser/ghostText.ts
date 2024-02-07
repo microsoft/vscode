@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from 'vs/base/common/arrays';
 import { splitLines } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { ColumnRange, applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
@@ -136,18 +137,7 @@ export class GhostTextReplacement {
 export type GhostTextOrReplacement = GhostText | GhostTextReplacement;
 
 export function ghostTextsOrReplacementsEqual(a: readonly GhostTextOrReplacement[] | undefined, b: readonly GhostTextOrReplacement[] | undefined): boolean {
-	if (!a || !b) {
-		return false;
-	}
-	if (a.length !== b.length) {
-		return false;
-	}
-	for (let i = 0; i < a.length; i++) {
-		if (!ghostTextOrReplacementEquals(a[i], b[i])) {
-			return false;
-		}
-	}
-	return true;
+	return equals(a, b, ghostTextOrReplacementEquals);
 }
 
 export function ghostTextOrReplacementEquals(a: GhostTextOrReplacement | undefined, b: GhostTextOrReplacement | undefined): boolean {

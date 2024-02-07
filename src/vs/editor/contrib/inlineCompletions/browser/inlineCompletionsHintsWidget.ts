@@ -40,13 +40,12 @@ export class InlineCompletionsHintsWidget extends Disposable {
 	private sessionPosition: Position | undefined = undefined;
 
 	private readonly position = derived(this, reader => {
-		const ghostTexts = this.model.read(reader)?.ghostTexts.read(reader);
+		const ghostText = this.model.read(reader)?.primaryGhostText.read(reader);
 
-		if (!this.alwaysShowToolbar.read(reader) || !ghostTexts || ghostTexts.length === 0 || ghostTexts[0].parts.length === 0) {
+		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
 			this.sessionPosition = undefined;
 			return null;
 		}
-		const ghostText = ghostTexts[0];
 
 		const firstColumn = ghostText.parts[0].column;
 		if (this.sessionPosition && this.sessionPosition.lineNumber !== ghostText.lineNumber) {

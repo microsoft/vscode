@@ -33,10 +33,10 @@ export class InlineCompletionContextKeys extends Disposable {
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
 
-			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.ghostTexts !== undefined && state?.ghostTexts.every(ghostText => !ghostText.isEmpty());
+			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.primaryGhostText !== undefined && !state?.primaryGhostText.isEmpty();
 			this.inlineCompletionVisible.set(isInlineCompletionVisible);
 
-			if (state?.ghostTexts && state?.inlineCompletion) {
+			if (state?.primaryGhostText && state?.inlineCompletion) {
 				this.suppressSuggestions.set(state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions);
 			}
 		}));
@@ -48,9 +48,8 @@ export class InlineCompletionContextKeys extends Disposable {
 			let startsWithIndentation = false;
 			let startsWithIndentationLessThanTabSize = true;
 
-			const ghostTexts = model?.ghostTexts.read(reader);
-			if (!!model?.selectedSuggestItem && ghostTexts && ghostTexts.length > 0 && ghostTexts[0].parts.length > 0) {
-				const ghostText = ghostTexts[0];
+			const ghostText = model?.primaryGhostText.read(reader);
+			if (!!model?.selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
 				const { column, lines } = ghostText.parts[0];
 
 				const firstLine = lines[0];

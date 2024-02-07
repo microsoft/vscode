@@ -382,7 +382,7 @@ suite('Inline Completions', () => {
 
 				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 5) });
 				context.keyboardType('b');
-				assert.deepStrictEqual(context.currentPrettyViewState[0], 'foob[ar]');
+				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
@@ -391,7 +391,7 @@ suite('Inline Completions', () => {
 
 				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 6) });
 				context.keyboardType('a');
-				assert.deepStrictEqual(context.currentPrettyViewState[0], 'fooba[r]');
+				assert.deepStrictEqual(context.currentPrettyViewState, 'fooba[r]');
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 					{ position: '(1,6)', text: 'fooba', triggerKind: 0, }
@@ -419,7 +419,7 @@ suite('Inline Completions', () => {
 
 				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 5) });
 				context.keyboardType('b');
-				assert.deepStrictEqual(context.currentPrettyViewState[0], 'foob[ar]');
+				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
 				await timeout(100);
 				// This behavior might change!
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
