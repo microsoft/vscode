@@ -566,7 +566,7 @@
 	visibility: hidden;
 }
 
-.monaco-workbench .terminal-chat-widget-wrapper {
+.monaco-workbench .terminal-chat-widget {
 	z-index: 33 !important;
 	height: 33px !important;
 	position: absolute;
