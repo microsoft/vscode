@@ -25,6 +25,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 
 /**
  * Register information about a new language.
@@ -475,21 +476,33 @@ export function registerHoverProvider(languageSelector: LanguageSelector, provid
 	return languageFeaturesService.hoverProvider.register(languageSelector, {
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
 			const word = model.getWordAtPosition(position);
-
-			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): languages.Hover | undefined => {
-				if (!value) {
-					return undefined;
-				}
-				if (!value.range && word) {
-					value.range = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-				}
-				if (!value.range) {
-					value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-				}
-				return value;
-			});
+			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): languages.Hover | undefined =>
+				processHover(value, position, word)
+			);
+		},
+		provideExtendedHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
+			if (typeof provider['provideExtendedHover'] === 'function') {
+				const word = model.getWordAtPosition(position);
+				return Promise.resolve<languages.Hover | null | undefined>(provider.provideExtendedHover(model, position, token)).then((value): languages.Hover | undefined =>
+					processHover(value, position, word)
+				);
+			}
+			return Promise.resolve(undefined);
 		}
 	});
+}
+
+function processHover(value: languages.Hover | null | undefined, position: Position, word: IWordAtPosition | null) {
+	if (!value) {
+		return undefined;
+	}
+	if (!value.range && word) {
+		value.range = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+	}
+	if (!value.range) {
+		value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+	}
+	return value;
 }
 
 /**

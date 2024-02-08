@@ -266,6 +266,22 @@ class HoverAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		const value = await this._provider.provideHover(doc, pos, token);
+		return this._processHover(value, doc, pos);
+	}
+
+	async provideExtendedHover(resource: URI, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+
+		let value: any;
+		if (typeof this._provider['provideExtendedHover'] === 'function') {
+			value = await this._provider.provideExtendedHover(doc, pos, token);
+		}
+		return this._processHover(value, doc, pos);
+	}
+
+	private _processHover(value: any, doc: vscode.TextDocument, pos: vscode.Position) {
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}
@@ -2095,6 +2111,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
 		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined, token);
+	}
+
+	$provideExtendedHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.Hover | undefined> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideExtendedHover(URI.revive(resource), position, token), undefined, token);
 	}
 
 	// --- debug hover
