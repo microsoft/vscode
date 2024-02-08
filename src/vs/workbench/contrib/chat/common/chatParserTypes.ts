@@ -22,7 +22,12 @@ export interface IParsedChatRequestPart {
 	readonly range: IOffsetRange;
 	readonly editorRange: IRange;
 	readonly text: string;
+	/** How this part is represented in the prompt going to the agent */
 	readonly promptText: string;
+}
+
+export function getPromptText(request: ReadonlyArray<IParsedChatRequestPart>): string {
+	return request.map(r => r.promptText).join('');
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {

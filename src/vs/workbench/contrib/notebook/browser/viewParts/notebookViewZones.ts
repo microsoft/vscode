@@ -11,6 +11,8 @@ import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view
 import { ICoordinatesConverter } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 
+const invalidFunc = () => { throw new Error(`Invalid notebook view zone change accessor`); };
+
 interface IZoneWidget {
 	whitespaceId: string;
 	isInHiddenArea: boolean;
@@ -29,25 +31,39 @@ export class NotebookViewZones extends Disposable {
 		this.domNode.setPosition('absolute');
 		this.domNode.setAttribute('role', 'presentation');
 		this.domNode.setAttribute('aria-hidden', 'true');
+		this.domNode.setWidth('100%');
 		this._zones = {};
 
 		this.listView.containerDomNode.appendChild(this.domNode.domNode);
 	}
 
-	changeViewZones(callback: (changeAccessor: INotebookViewZoneChangeAccessor) => void): void {
+	changeViewZones(callback: (changeAccessor: INotebookViewZoneChangeAccessor) => void): boolean {
+		let zonesHaveChanged = false;
 		const changeAccessor: INotebookViewZoneChangeAccessor = {
 			addZone: (zone: INotebookViewZone): string => {
+				zonesHaveChanged = true;
 				return this._addZone(zone);
 			},
 			removeZone: (id: string): void => {
+				zonesHaveChanged = true;
+				// TODO: validate if zones have changed layout
 				this._removeZone(id);
 			},
 			layoutZone: (id: string): void => {
+				zonesHaveChanged = true;
+				// TODO: validate if zones have changed layout
 				this._layoutZone(id);
 			}
 		};
 
 		safeInvoke1Arg(callback, changeAccessor);
+
+		// Invalidate changeAccessor
+		changeAccessor.addZone = invalidFunc;
+		changeAccessor.removeZone = invalidFunc;
+		changeAccessor.layoutZone = invalidFunc;
+
+		return zonesHaveChanged;
 	}
 
 	onCellsChanged(e: INotebookViewCellsUpdateEvent): void {
@@ -138,13 +154,10 @@ export class NotebookViewZones extends Disposable {
 		if (isInHiddenArea) {
 			zoneWidget.domNode.setDisplay('none');
 		} else {
-			const afterPosition = zoneWidget.zone.afterModelPosition;
-			const index = afterPosition - 1;
-			const viewIndex = this.coordinator.convertModelIndexToViewIndex(index);
-			const top = this.listView.elementTop(viewIndex);
-			const height = this.listView.elementHeight(viewIndex);
-			zoneWidget.domNode.setTop(top + height);
+			const top = this.listView.getWhitespacePosition(zoneWidget.whitespaceId);
+			zoneWidget.domNode.setTop(top);
 			zoneWidget.domNode.setDisplay('block');
+			zoneWidget.domNode.setHeight(zoneWidget.zone.heightInPx);
 		}
 	}
 

@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,6 +18,7 @@ import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Schemas } from 'vs/base/common/network';
 import { Iterable } from 'vs/base/common/iterator';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -27,10 +28,18 @@ function getCount(repository: ISCMRepository): number {
 	}
 }
 
+const ContextKeys = {
+	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
+	ActiveRepositoryBranchName: new RawContextKey<string>('scmActiveRepositoryBranchName', ''),
+};
+
 export class SCMStatusController implements IWorkbenchContribution {
 
+	private activeRepositoryNameContextKey: IContextKey<string>;
+	private activeRepositoryBranchNameContextKey: IContextKey<string>;
+
 	private statusBarDisposable: IDisposable = Disposable.None;
-	private focusDisposable: IDisposable = Disposable.None;
+	private focusDisposables = new DisposableStore();
 	private focusedRepository: ISCMRepository | undefined = undefined;
 	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
 	private readonly disposables = new DisposableStore();
@@ -43,7 +52,9 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@IActivityService private readonly activityService: IActivityService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITitleService titleService: ITitleService
 	) {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
@@ -54,6 +65,14 @@ export class SCMStatusController implements IWorkbenchContribution {
 		for (const repository of this.scmService.repositories) {
 			this.onDidAddRepository(repository);
 		}
+
+		this.activeRepositoryNameContextKey = ContextKeys.ActiveRepositoryName.bindTo(contextKeyService);
+		this.activeRepositoryBranchNameContextKey = ContextKeys.ActiveRepositoryBranchName.bindTo(contextKeyService);
+
+		titleService.registerVariables([
+			{ name: 'activeRepositoryName', contextKey: ContextKeys.ActiveRepositoryName.key },
+			{ name: 'activeRepositoryBranchName', contextKey: ContextKeys.ActiveRepositoryBranchName.key, }
+		]);
 
 		this.scmViewService.onDidFocusRepository(this.focusRepository, this, this.disposables);
 		this.focusRepository(this.scmViewService.focusedRepository);
@@ -125,15 +144,31 @@ export class SCMStatusController implements IWorkbenchContribution {
 			return;
 		}
 
-		this.focusDisposable.dispose();
+		this.focusDisposables.clear();
 		this.focusedRepository = repository;
 
-		if (repository && repository.provider.onDidChangeStatusBarCommands) {
-			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.renderStatusBar(repository));
+		if (repository) {
+			if (repository.provider.onDidChangeStatusBarCommands) {
+				this.focusDisposables.add(repository.provider.onDidChangeStatusBarCommands(() => this.renderStatusBar(repository)));
+			}
+
+			this.focusDisposables.add(repository.provider.onDidChangeHistoryProvider(() => {
+				if (repository.provider.historyProvider) {
+					this.focusDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.updateContextKeys(repository)));
+				}
+
+				this.updateContextKeys(repository);
+			}));
 		}
 
+		this.updateContextKeys(repository);
 		this.renderStatusBar(repository);
 		this.renderActivityCount();
+	}
+
+	private updateContextKeys(repository: ISCMRepository | undefined): void {
+		this.activeRepositoryNameContextKey.set(repository?.provider.name ?? '');
+		this.activeRepositoryBranchNameContextKey.set(repository?.provider.historyProvider?.currentHistoryItemGroup?.label ?? '');
 	}
 
 	private renderStatusBar(repository: ISCMRepository | undefined): void {
@@ -204,7 +239,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		this.focusDisposable.dispose();
+		this.focusDisposables.dispose();
 		this.statusBarDisposable.dispose();
 		this.badgeDisposable.dispose();
 		this.disposables.dispose();

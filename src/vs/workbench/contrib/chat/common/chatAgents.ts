@@ -10,9 +10,10 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
+import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 //#region agent service, commands etc
@@ -33,6 +34,8 @@ export interface IChatAgent extends IChatAgentData {
 	provideFollowups?(sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	lastSlashCommands?: IChatAgentCommand[];
 	provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]>;
+	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
+	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
 }
 
 export interface IChatAgentCommand {

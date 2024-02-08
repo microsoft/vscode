@@ -629,6 +629,7 @@
         "command": "git.publish",
         "title": "%command.publish%",
         "category": "Git",
+        "icon": "$(cloud-upload)",
         "enablement": "!operationInProgress"
       },
       {
@@ -1887,14 +1888,24 @@
         {
           "command": "git.pushRef",
           "group": "navigation",
-          "when": "scmProvider == git"
+          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+        },
+        {
+          "command": "git.publish",
+          "group": "navigation",
+          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
         }
       ],
       "scm/outgoingChanges/context": [
         {
           "command": "git.pushRef",
           "group": "1_modification@1",
-          "when": "scmProvider == git"
+          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+        },
+        {
+          "command": "git.publish",
+          "group": "1_modification@1",
+          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
         }
       ],
       "scm/outgoingChanges/allChanges/context": [

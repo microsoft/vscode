@@ -42,7 +42,7 @@
     "commander": "^7.0.0",
     "debug": "^4.3.2",
     "electron-osx-sign": "^0.4.16",
-    "esbuild": "0.17.14",
+    "esbuild": "0.20.0",
     "extract-zip": "^2.0.1",
     "gulp-merge-json": "^2.1.1",
     "gulp-shell": "^0.8.0",

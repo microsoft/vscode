@@ -46,6 +46,7 @@
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-list-background",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-foreground",
@@ -747,7 +748,8 @@
 		"--vscode-widget-border",
 		"--vscode-widget-shadow",
 		"--vscode-window-activeBorder",
-		"--vscode-window-inactiveBorder"
+		"--vscode-window-inactiveBorder",
+		"--vscode-multiDiffEditor-headerBackground"
 	],
 	"others": [
 		"--background-dark",

@@ -596,7 +596,7 @@
 				} else {
 					return; // let the browser handle this
 				}
-			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e))) {
 				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
 				// (No effect in a regular browser tab.)
 				e.preventDefault();
@@ -699,6 +699,24 @@
 			const hasMeta = e.ctrlKey || e.metaKey;
 			// 78: keyCode of "N"
 			return hasMeta && e.keyCode === 78;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isHelp(e) {
+			// 112: keyCode of "F1"
+			return e.keyCode === 112;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isRefresh(e) {
+			// 116: keyCode of "F5"
+			return e.keyCode === 116;
 		}
 
 		let isHandlingScroll = false;

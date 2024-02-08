@@ -401,6 +401,71 @@ suite('NotebookRangeMap with whitesspaces', () => {
 			});
 	});
 
+	test('Multiple Whitespaces', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markup, [], {}]
+			],
+			async (editor, viewModel, disposables) => {
+				viewModel.restoreEditorViewState({
+					editingCells: [false, false, false, false, false],
+					cellLineNumberStates: {},
+					editorViewStates: [null, null, null, null, null],
+					cellTotalHeights: [50, 100, 50, 100, 50],
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
+				});
+
+				const cellList = createNotebookCellList(instantiationService, disposables);
+				disposables.add(cellList);
+				cellList.attachViewModel(viewModel);
+
+				// render height 210, it can render 3 full cells and 1 partial cell
+				cellList.layout(210, 100);
+				assert.strictEqual(cellList.scrollHeight, 350);
+
+				cellList.changeViewZones(accessor => {
+					const first = accessor.addZone({
+						afterModelPosition: 0,
+						heightInPx: 20,
+						domNode: document.createElement('div')
+					});
+					accessor.layoutZone(first);
+
+					const second = accessor.addZone({
+						afterModelPosition: 3,
+						heightInPx: 20,
+						domNode: document.createElement('div')
+					});
+					accessor.layoutZone(second);
+
+					assert.strictEqual(cellList.scrollHeight, 390);
+
+					assert.strictEqual(cellList.getElementTop(0), 20);
+					assert.strictEqual(cellList.getElementTop(1), 70);
+					assert.strictEqual(cellList.getElementTop(2), 170);
+					assert.strictEqual(cellList.getElementTop(3), 240);
+
+					accessor.removeZone(first);
+
+					assert.strictEqual(cellList.scrollHeight, 370);
+					assert.strictEqual(cellList.getElementTop(0), 0);
+					assert.strictEqual(cellList.getElementTop(1), 50);
+					assert.strictEqual(cellList.getElementTop(2), 150);
+					assert.strictEqual(cellList.getElementTop(3), 220);
+
+					accessor.removeZone(second);
+
+					assert.strictEqual(cellList.scrollHeight, 350);
+					assert.strictEqual(cellList.getElementTop(3), 200);
+				});
+			});
+	});
+
 	test('Whitespace with folding support', async function () {
 		await withTestNotebook(
 			[
@@ -427,6 +492,26 @@ suite('NotebookRangeMap with whitesspaces', () => {
 				// render height 210, it can render 3 full cells and 1 partial cell
 				cellList.layout(210, 100);
 				assert.strictEqual(cellList.scrollHeight, 350);
+
+				cellList.changeViewZones(accessor => {
+					const id = accessor.addZone({
+						afterModelPosition: 0,
+						heightInPx: 20,
+						domNode: document.createElement('div')
+					});
+
+					accessor.layoutZone(id);
+					assert.strictEqual(cellList.scrollHeight, 370);
+
+					assert.strictEqual(cellList.getElementTop(0), 20);
+					assert.strictEqual(cellList.getElementTop(1), 70);
+					assert.strictEqual(cellList.getElementTop(2), 170);
+					assert.strictEqual(cellList.getElementTop(3), 220);
+					assert.strictEqual(cellList.getElementTop(4), 320);
+
+					accessor.removeZone(id);
+					assert.strictEqual(cellList.scrollHeight, 350);
+				});
 
 				cellList.changeViewZones(accessor => {
 					const id = accessor.addZone({

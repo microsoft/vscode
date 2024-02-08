@@ -371,7 +371,8 @@ export class InlineChatWidget {
 
 		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
-			toolbarOptions: { primaryGroup: 'main' }
+			toolbarOptions: { primaryGroup: 'main' },
+			hiddenItemStrategy: HiddenItemStrategy.Ignore // keep it lean when hiding items and avoid a "..." overflow menu
 		}));
 
 		this._progressBar = new ProgressBar(this._elements.progress);
@@ -597,7 +598,7 @@ export class InlineChatWidget {
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
 			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
-			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate));
+			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate, undefined));
 			renderer.layout(this._elements.chatMessageContent.clientWidth - 4); // 2 for the padding used for the tab index border
 			this._chatMessageDisposables.add(this._onDidChangeLayout.event(() => {
 				renderer.layout(this._elements.chatMessageContent.clientWidth - 4);

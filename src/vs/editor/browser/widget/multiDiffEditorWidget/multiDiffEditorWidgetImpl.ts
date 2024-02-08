@@ -85,7 +85,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}
 	);
 
-	private readonly _spaceBetweenPx = 10;
+	private readonly _spaceBetweenPx = 0;
 
 	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader) + this._spaceBetweenPx, 0));
 	public readonly activeDiffItem = derived(this, reader => this._viewItems.read(reader).find(i => i.template.read(reader)?.isFocused.read(reader)));

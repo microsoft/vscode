@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -302,6 +302,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			menuOptions: {
 				shouldForwardArgs: true
 			},
+			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
 				if (action.id === SubmitAction.ID) {
 					return this.instantiationService.createInstance(SubmitButtonActionViewItem, { widget } satisfies IChatExecuteActionContext, action, options);
