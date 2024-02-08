@@ -397,7 +397,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			windowsPty: this.getWindowsPty()
 		});
 	}
-	///////////////clean architecture
+
 	private _sendProcessTitle(ptyProcess: IPty): void {
 		if (this._store.isDisposed) {
 			return;
