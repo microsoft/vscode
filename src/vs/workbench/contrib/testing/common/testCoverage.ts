@@ -98,7 +98,7 @@ export class TestCoverage {
 
 					ICoveredCount.sum(fileCoverage.statement, v.statement);
 					if (v.branch) { ICoveredCount.sum(fileCoverage.branch ??= ICoveredCount.empty(), v.branch); }
-					if (v.function) { ICoveredCount.sum(fileCoverage.function ??= ICoveredCount.empty(), v.function); }
+					if (v.declaration) { ICoveredCount.sum(fileCoverage.declaration ??= ICoveredCount.empty(), v.declaration); }
 				}
 			}
 
@@ -146,21 +146,21 @@ export abstract class AbstractFileCoverage {
 	public readonly uri: URI;
 	public readonly statement: ICoveredCount;
 	public readonly branch?: ICoveredCount;
-	public readonly function?: ICoveredCount;
+	public readonly declaration?: ICoveredCount;
 
 	/**
 	 * Gets the total coverage percent based on information provided.
 	 * This is based on the Clover total coverage formula
 	 */
 	public get tpc() {
-		return getTotalCoveragePercent(this.statement, this.branch, this.function);
+		return getTotalCoveragePercent(this.statement, this.branch, this.declaration);
 	}
 
 	constructor(coverage: IFileCoverage) {
 		this.uri = coverage.uri;
 		this.statement = coverage.statement;
 		this.branch = coverage.branch;
-		this.function = coverage.function;
+		this.declaration = coverage.declaration;
 	}
 }
 

@@ -903,6 +903,15 @@ class WindowsPtyHeuristics extends Disposable {
 			}
 		}
 
+		// Python Prompt
+		const pythonPrompt = lineText.match(/^(?<prompt>>>> )/g)?.groups?.prompt;
+		if (pythonPrompt) {
+			return {
+				prompt: pythonPrompt,
+				likelySingleLine: true
+			};
+		}
+
 		// Command Prompt
 		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
 		return cmdMatch?.groups?.prompt ? {

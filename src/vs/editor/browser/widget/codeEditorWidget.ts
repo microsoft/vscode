@@ -2095,7 +2095,7 @@ export class EditorModeContext extends Disposable {
 	private readonly _hasMultipleDocumentSelectionFormattingProvider: IContextKey<boolean>;
 	private readonly _hasSignatureHelpProvider: IContextKey<boolean>;
 	private readonly _hasInlayHintsProvider: IContextKey<boolean>;
-	private readonly _isInWalkThrough: IContextKey<boolean>;
+	private readonly _isInEmbeddedEditor: IContextKey<boolean>;
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -2123,7 +2123,7 @@ export class EditorModeContext extends Disposable {
 		this._hasDocumentSelectionFormattingProvider = EditorContextKeys.hasDocumentSelectionFormattingProvider.bindTo(_contextKeyService);
 		this._hasMultipleDocumentFormattingProvider = EditorContextKeys.hasMultipleDocumentFormattingProvider.bindTo(_contextKeyService);
 		this._hasMultipleDocumentSelectionFormattingProvider = EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider.bindTo(_contextKeyService);
-		this._isInWalkThrough = EditorContextKeys.isInWalkThroughSnippet.bindTo(_contextKeyService);
+		this._isInEmbeddedEditor = EditorContextKeys.isInEmbeddedEditor.bindTo(_contextKeyService);
 
 		const update = () => this._update();
 
@@ -2174,7 +2174,7 @@ export class EditorModeContext extends Disposable {
 			this._hasDocumentFormattingProvider.reset();
 			this._hasDocumentSelectionFormattingProvider.reset();
 			this._hasSignatureHelpProvider.reset();
-			this._isInWalkThrough.reset();
+			this._isInEmbeddedEditor.reset();
 		});
 	}
 
@@ -2204,7 +2204,7 @@ export class EditorModeContext extends Disposable {
 			this._hasDocumentSelectionFormattingProvider.set(this._languageFeaturesService.documentRangeFormattingEditProvider.has(model));
 			this._hasMultipleDocumentFormattingProvider.set(this._languageFeaturesService.documentFormattingEditProvider.all(model).length + this._languageFeaturesService.documentRangeFormattingEditProvider.all(model).length > 1);
 			this._hasMultipleDocumentSelectionFormattingProvider.set(this._languageFeaturesService.documentRangeFormattingEditProvider.all(model).length > 1);
-			this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
+			this._isInEmbeddedEditor.set(model.uri.scheme === Schemas.walkThroughSnippet || model.uri.scheme === Schemas.vscodeChatCodeBlock);
 		});
 	}
 }

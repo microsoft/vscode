@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 // --- other interested parties
@@ -106,4 +106,4 @@ export class ExtensionPoints implements IWorkbenchContribution {
 	}
 }
 
-registerWorkbenchContribution2(ExtensionPoints.ID, ExtensionPoints, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(ExtensionPoints.ID, ExtensionPoints, WorkbenchPhase.BlockStartup);

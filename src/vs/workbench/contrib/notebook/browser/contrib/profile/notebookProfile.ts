@@ -10,7 +10,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 export enum NotebookProfileType {
 	default = 'default',
@@ -125,4 +125,4 @@ export class NotebookProfileContribution extends Disposable {
 	}
 }
 
-registerWorkbenchContribution2(NotebookProfileContribution.ID, NotebookProfileContribution, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(NotebookProfileContribution.ID, NotebookProfileContribution, WorkbenchPhase.BlockRestore);

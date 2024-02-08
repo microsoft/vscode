@@ -11,7 +11,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IURLService } from 'vs/platform/url/common/url';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/browser/externalUriResolver';
 import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
@@ -66,12 +66,12 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 registerWorkbenchContribution2(
 	TrustedDomainsFileSystemProvider.ID,
 	TrustedDomainsFileSystemProvider,
-	WorkbenchContributionInstantiation.BlockRestore
+	WorkbenchPhase.BlockRestore // registration only
 );
 registerWorkbenchContribution2(
 	ExternalUriResolverContribution.ID,
 	ExternalUriResolverContribution,
-	WorkbenchContributionInstantiation.BlockRestore
+	WorkbenchPhase.BlockRestore // registration only
 );
 
 

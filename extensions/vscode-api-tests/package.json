@@ -5,8 +5,10 @@
   "publisher": "vscode",
   "license": "MIT",
   "enabledApiProposals": [
+    "activeComment",
     "authSession",
     "chatAgents2",
+    "chatRequestAccess",
     "defaultChatAgent",
     "contribViewsRemote",
     "contribStatusBarItems",
@@ -20,6 +22,7 @@
     "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
+    "findFiles2",
     "findTextInFiles",
     "fsChunks",
     "interactive",

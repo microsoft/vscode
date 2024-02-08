@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 export class ListContext implements IWorkbenchContribution {
 
@@ -20,4 +20,4 @@ export class ListContext implements IWorkbenchContribution {
 	}
 }
 
-registerWorkbenchContribution2(ListContext.ID, ListContext, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(ListContext.ID, ListContext, WorkbenchPhase.BlockStartup);

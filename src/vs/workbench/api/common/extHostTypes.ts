@@ -3970,7 +3970,7 @@ export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
 		const branches = new CoveredCount(0, 0);
-		const fn = new CoveredCount(0, 0);
+		const decl = new CoveredCount(0, 0);
 
 		for (const detail of details) {
 			if ('branches' in detail) {
@@ -3982,8 +3982,8 @@ export class FileCoverage implements vscode.FileCoverage {
 					branches.covered += branch.executed ? 1 : 0;
 				}
 			} else {
-				fn.total += 1;
-				fn.covered += detail.executed ? 1 : 0;
+				decl.total += 1;
+				decl.covered += detail.executed ? 1 : 0;
 			}
 		}
 
@@ -3991,7 +3991,7 @@ export class FileCoverage implements vscode.FileCoverage {
 			uri,
 			statements,
 			branches.total > 0 ? branches : undefined,
-			fn.total > 0 ? fn : undefined,
+			decl.total > 0 ? decl : undefined,
 		);
 
 		coverage.detailedCoverage = details;
@@ -4005,11 +4005,11 @@ export class FileCoverage implements vscode.FileCoverage {
 		public readonly uri: vscode.Uri,
 		public statementCoverage: vscode.CoveredCount,
 		public branchCoverage?: vscode.CoveredCount,
-		public functionCoverage?: vscode.CoveredCount,
+		public declarationCoverage?: vscode.CoveredCount,
 	) {
 		validateCC(statementCoverage);
 		validateCC(branchCoverage);
-		validateCC(functionCoverage);
+		validateCC(declarationCoverage);
 	}
 }
 
@@ -4037,7 +4037,7 @@ export class BranchCoverage implements vscode.BranchCoverage {
 	) { }
 }
 
-export class FunctionCoverage implements vscode.FunctionCoverage {
+export class DeclarationCoverage implements vscode.DeclarationCoverage {
 	// back compat until finalization:
 	get executionCount() { return +this.executed; }
 	set executionCount(n: number) { this.executed = n; }
@@ -4183,7 +4183,6 @@ export enum ChatMessageRole {
 	System = 0,
 	User = 1,
 	Assistant = 2,
-	Function = 3,
 }
 
 export class ChatMessage implements vscode.ChatMessage {
@@ -4202,6 +4201,54 @@ export enum ChatAgentResultFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 }
+
+
+export class ChatResponseTextPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseMarkdownPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+export class ChatResponseFileTreePart {
+	value: vscode.ChatResponseFileTree[];
+	baseUri: vscode.Uri;
+	constructor(value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri) {
+		this.value = value;
+		this.baseUri = baseUri;
+	}
+}
+
+export class ChatResponseAnchorPart {
+	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	title?: string;
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
+export class ChatResponseProgressPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseReferencePart {
+	value: vscode.Uri | vscode.Location;
+	constructor(value: vscode.Uri | vscode.Location) {
+		this.value = value;
+	}
+}
+
 
 //#endregion
 
