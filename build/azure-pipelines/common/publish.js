@@ -41,7 +41,7 @@ class Temp {
         }
     }
 }
-function isCreatePovisionedFilesErrorResponse(response) {
+function isCreateProvisionedFilesErrorResponse(response) {
     return response?.ErrorDetails !== undefined;
 }
 class ProvisionService {
@@ -66,7 +66,7 @@ class ProvisionService {
         });
         this.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
         const res = await (0, retry_1.retry)(() => this.request('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body }));
-        if (isCreatePovisionedFilesErrorResponse(res) && res.ErrorDetails.Code === 'FriendlyFileNameAlreadyProvisioned') {
+        if (isCreateProvisionedFilesErrorResponse(res) && res.ErrorDetails.Code === 'FriendlyFileNameAlreadyProvisioned') {
             this.log(`File already provisioned (most likley due to a re-run), skipping: ${fileName}`);
             return;
         }
