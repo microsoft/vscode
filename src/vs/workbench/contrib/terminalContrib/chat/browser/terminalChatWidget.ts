@@ -19,10 +19,19 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/model';
 import { URI } from 'vs/base/common/uri';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IVoiceChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IAction } from 'vs/base/common/actions';
+import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export class TerminalChatWidget extends Widget {
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _domNode: HTMLElement;
+	private _toolbar!: MenuWorkbenchToolBar;
 	private _isVisible: boolean = false;
 	private _width: number = 0;
 	private _chatWidgetFocused: IContextKey<boolean>;
@@ -109,7 +118,6 @@ export class TerminalChatWidget extends Widget {
 			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 			this._domNode.style.zIndex = '33 !important';
-			this._domNode.textContent = 'Chat Widget';
 			if (!animated) {
 				setTimeout(() => {
 					this._domNode.classList.remove('suppress-transition');
@@ -124,8 +132,27 @@ export class TerminalChatWidget extends Widget {
 				}
 				widget.setModel(model);
 			}
-			widget.getDomNode()?.classList.add('inline-chat');
-			this._domNode.appendChild(widget.getDomNode()!);
+			const widgetDomNode = widget.getDomNode();
+			if (!widgetDomNode) {
+				return;
+			}
+			this._domNode.appendChild(widgetDomNode);
+			this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, widgetDomNode, MenuId.TerminalChatExecute, {
+				menuOptions: {
+					shouldForwardArgs: true
+				},
+				hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
+				actionViewItemProvider: (action, options) => {
+					if (action.id === SubmitAction.ID) {
+						return this._instantiationService.createInstance(SubmitButtonActionViewItem, { widget }, action, options);
+					}
+
+					return undefined;
+				}
+			}));
+			this._toolbar.getElement().classList.add('interactive-execute-toolbar');
+			this._toolbar.context = { widget };
+			this._domNode.appendChild(this._toolbar.getElement());
 			widget.focus();
 		}, 0);
 	}
@@ -136,5 +163,43 @@ export class TerminalChatWidget extends Widget {
 
 	protected _onFocusTrackerBlur() {
 		this._chatWidgetFocused.reset();
+	}
+}
+
+class SubmitButtonActionViewItem extends ActionViewItem {
+	private readonly _tooltip: string;
+
+	constructor(
+		context: {
+			widget?: CodeEditorWidget;
+			inputValue?: string;
+			voice?: IVoiceChatExecuteActionContext;
+		},
+		action: IAction,
+		options: IActionViewItemOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+	) {
+		super(context, action, options);
+
+		const primaryKeybinding = keybindingService.lookupKeybinding(ChatSubmitEditorAction.ID)?.getLabel();
+		let tooltip = action.label;
+		if (primaryKeybinding) {
+			tooltip += ` (${primaryKeybinding})`;
+		}
+
+		const secondaryAgent = chatAgentService.getSecondaryAgent();
+		if (secondaryAgent) {
+			const secondaryKeybinding = keybindingService.lookupKeybinding(ChatSubmitSecondaryAgentEditorAction.ID)?.getLabel();
+			if (secondaryKeybinding) {
+				tooltip += `\n${chatAgentLeader}${secondaryAgent.id} (${secondaryKeybinding})`;
+			}
+		}
+
+		this._tooltip = tooltip;
+	}
+
+	protected override getTooltip(): string | undefined {
+		return this._tooltip;
 	}
 }

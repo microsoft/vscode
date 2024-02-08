@@ -572,11 +572,22 @@
 	position: absolute;
 	bottom: 30px;
 	left: 10px;
-	width: 300px;
+	width: fit-content;
 	min-width: 169px;
-	overflow: hidden;
+	display: flex;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .terminal-chat-widget.hide {
 	visibility: hidden;
+}
+
+.monaco-workbench .terminal-chat-widget .toolbar {
+	display: flex;
+	flex-direction: column;
+	align-self: stretch;
+	padding-right: 4px;
+	border-top-right-radius: 2px;
+	border-bottom-right-radius: 2px;
+	background: var(--vscode-inlineChatInput-background);
 }
