@@ -25,7 +25,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -44,6 +44,11 @@ import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/edit
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { MarkdownString, MarkdownStringTextNewlineStyle } from 'vs/base/common/htmlContent';
+import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -135,7 +140,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(themeService);
 
@@ -442,6 +449,41 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected get tabHeight() {
 		return this.groupsView.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
+	}
+
+	protected getHoverTitle(editor: EditorInput): ITooltipMarkdownString {
+		const title = editor.getTitle(Verbosity.LONG);
+		const markdown = new MarkdownString(title);
+
+		if (editor.resource) {
+			const decoration = this.decorationsService.getDecoration(editor.resource, false);
+			if (decoration) {
+				const decorations = decoration.tooltip.split('• ');
+				const decorationString = `• ${decorations.join('\n• ')}`;
+
+				markdown.appendText('\n', MarkdownStringTextNewlineStyle.Paragraph);
+				markdown.appendText(decorationString, MarkdownStringTextNewlineStyle.Break);
+			}
+		}
+
+		return {
+			markdown,
+			markdownNotSupportedFallback: title
+		};
+	}
+
+	protected getHoverDelegate(): IHoverDelegate {
+		return {
+			delay: 500,
+			showHover: options => {
+				return this.hoverService.showHover({
+					...options,
+					persistence: {
+						hideOnHover: true
+					}
+				});
+			}
+		};
 	}
 
 	protected updateTabHeight(): void {
