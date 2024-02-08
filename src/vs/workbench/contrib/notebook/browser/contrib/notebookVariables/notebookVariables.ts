@@ -9,24 +9,27 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IViewContainersRegistry, IViewsRegistry } from 'vs/workbench/common/views';
 import { VIEWLET_ID as debugContainerId } from 'vs/workbench/contrib/debug/common/debug';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { NotebookVariablesView } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesView';
-import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { variablesViewIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
 	private listeners: IDisposable[] = [];
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService
+		@IEditorService private readonly editorService: IEditorService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService
 	) {
 		super();
 
@@ -37,10 +40,18 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 	private handleInitEvent(configurationService: IConfigurationService) {
 		if (configurationService.getValue(NotebookSetting.notebookVariablesView)
 			&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
-			if (this.initializeView()) {
-				this.listeners.forEach(listener => listener.dispose());
+
+			if (this.hasVariableProvider()) {
+				if (this.initializeView()) {
+					this.listeners.forEach(listener => listener.dispose());
+				}
 			}
 		}
+	}
+
+	private hasVariableProvider() {
+		const notebookDocument = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane)?.getViewModel()?.notebookDocument;
+		return notebookDocument && this.notebookKernelService.getMatchingKernel(notebookDocument).selected?.hasVariableProvider;
 	}
 
 	private initializeView() {
