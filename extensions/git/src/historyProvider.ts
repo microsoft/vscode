@@ -34,19 +34,24 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private disposables: Disposable[] = [];
 
 	constructor(protected readonly repository: Repository, private readonly logger: LogOutputChannel) {
-		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
-		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this._onDidChangeCurrentHistoryItemGroup.fire()));
+		this.disposables.push(repository.onDidRunGitStatus(() => this.onDidRunGitStatus(), this));
+		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this.onDidRunGitStatus(true), this));
 
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
-	private async onDidRunGitStatus(): Promise<void> {
+	private async onDidRunGitStatus(force = false): Promise<void> {
+		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD:', JSON.stringify(this._HEAD));
+		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - repository.HEAD:', JSON.stringify(this.repository.HEAD));
+
 		// Check if HEAD has changed
-		if (this._HEAD?.name === this.repository.HEAD?.name &&
+		if (!force &&
+			this._HEAD?.name === this.repository.HEAD?.name &&
 			this._HEAD?.commit === this.repository.HEAD?.commit &&
 			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
 			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
 			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
+			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD has not changed');
 			return;
 		}
 
@@ -55,6 +60,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
 		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
 			this.currentHistoryItemGroup = undefined;
+			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD does not support incoming/outgoing');
 			return;
 		}
 
@@ -67,6 +73,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 				} : undefined
 		};
+
+		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup:', JSON.stringify(this.currentHistoryItemGroup));
 	}
 
 	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
