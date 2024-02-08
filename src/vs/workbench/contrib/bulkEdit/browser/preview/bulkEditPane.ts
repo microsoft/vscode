@@ -346,13 +346,6 @@ export class BulkEditPane extends ViewPane {
 			console.log('fileElement.edit : ', fileElement.edit);
 			console.log('previewUri : ', JSON.stringify(previewUri));
 
-			// delete -> show single editor
-			// this._editorService.openEditor({
-			// 	label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
-			// 	resource: previewUri,
-			// 	options
-			// });
-
 			const uri = previewUri;
 
 			const label = localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri));
@@ -364,39 +357,6 @@ export class BulkEditPane extends ViewPane {
 
 		} else {
 			console.log('fileElement.edit ; ', fileElement.edit);
-
-			// rename, create, edits -> show diff editr
-			// let leftResource: URI | undefined;
-			// try {
-			// 	(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
-			// 	leftResource = fileElement.edit.uri;
-			// } catch {
-			// 	leftResource = BulkEditPreviewProvider.emptyPreview;
-			// }
-
-			// let typeLabel: string | undefined;
-			// if (fileElement.edit.type & BulkFileOperationType.Rename) {
-			// 	typeLabel = localize('rename', "rename");
-			// } else if (fileElement.edit.type & BulkFileOperationType.Create) {
-			// 	typeLabel = localize('create', "create");
-			// }
-
-			// let label: string;
-			// if (typeLabel) {
-			// 	label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
-			// } else {
-			// 	label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
-			// }
-
-			// this._editorService.openEditor({
-			// 	original: { resource: leftResource },
-			// 	modified: { resource: previewUri },
-			// 	label,
-			// 	description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
-			// 	options
-			// }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-
-			// Perhaps a better way to access the parent instead of accessing through the parent of the file element
 
 			let bulkFileOperations: BulkFileOperations | undefined = undefined;
 			let currentParent = fileElement.parent;
@@ -446,6 +406,10 @@ export class BulkEditPane extends ViewPane {
 				});
 			}
 
+			// Issues with current implementation
+			// 1. Each time, this creates a new multi diff editor, we want it to reshow the same multi diff editor if there is one
+			// 2. The file naming does not look correct in the multi diff editor, there is a bug somewhere
+			// 3. Currently I am accessing the parent of the file element and showing all of the files, but we want to jump to the correct location when clicking on the multi diff editor
 			const refactorSourceUri = URI.from({ scheme: 'refactor-preview' });
 			this.commandService.executeCommand('_workbench.openMultiDiffEditor', { refactorSourceUri, label: 'Refactor Preview', resources });
 		}
