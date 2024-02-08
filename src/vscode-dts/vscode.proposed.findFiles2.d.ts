@@ -60,7 +60,7 @@ declare module 'vscode' {
 		 * If set to true, the `filePattern` arg will be fuzzy-searched instead of glob-searched.
 		 * If `filePattern` is a `GlobPattern`, then the fuzzy search will act on the `pattern` of the `RelativePattern`
 		 */
-		fuzzySearch?: boolean;
+		fuzzy?: boolean;
 	}
 
 	/**
