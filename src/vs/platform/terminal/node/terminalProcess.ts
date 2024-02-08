@@ -72,7 +72,9 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 	['fish', PosixShellType.Fish],
 	['ksh', PosixShellType.Ksh],
 	['sh', PosixShellType.Sh],
+	// ['nu',]
 	['pwsh', PosixShellType.PowerShell],
+	['Python', PosixShellType.Python],
 	['zsh', PosixShellType.Zsh]
 ]);
 
@@ -176,8 +178,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}));
 			}
 			// WindowsShellHelper is used to fetch the process title and shell type
-			this.onProcessReady(e => {
-				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
+			this.onProcessReady(e => { // special case for windows, periodically check process tree and gusses shell type from that
+				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid)); // goes down process tree and keeps going down until last one to guess
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
@@ -395,16 +397,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			windowsPty: this.getWindowsPty()
 		});
 	}
-
+	///////////////clean architecture
 	private _sendProcessTitle(ptyProcess: IPty): void {
 		if (this._store.isDisposed) {
 			return;
 		}
-		this._currentTitle = ptyProcess.process;
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
+		this._currentTitle = ptyProcess.process; // shell will tell us its own title
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle }); // fire property chain
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) }); /// FOR MAC AND LINUX ITS JUST MATTER OF CHECKING THE TITLE
 	}
 
 	shutdown(immediate: boolean): void {

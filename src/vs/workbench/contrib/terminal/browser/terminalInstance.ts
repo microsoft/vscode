@@ -118,6 +118,7 @@ const shellIntegrationSupportedShellTypes = [
 	PosixShellType.Bash,
 	PosixShellType.Zsh,
 	PosixShellType.PowerShell,
+	PosixShellType.Python,
 	WindowsShellType.PowerShell
 ];
 
@@ -1338,7 +1339,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 		processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		processManager.onDidChangeProperty(({ type, value }) => {
+		processManager.onDidChangeProperty(({ type, value }) => { //This is basically synchronizing data btw ptyhost and the main thread
+			//ptyhost is another process underneath the main process. The main process is thing that coordinate all the windows. One extenionhost per window
+			//ptyhost manage all the terminal processes.
+			//conpty-agent special for windows
 			switch (type) {
 				case ProcessPropertyType.Cwd:
 					this._cwd = value;
@@ -1857,6 +1861,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (shellType) {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
 		}
+		// if (this._title === 'Python') {
+		// 	this._shellType = PosixShellType.Python;
+		// }
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {

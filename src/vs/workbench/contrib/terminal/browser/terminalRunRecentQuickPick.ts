@@ -67,7 +67,8 @@ export async function showRunRecentQuickPick(
 	if (type === 'command') {
 		placeholder = isMacintosh ? localize('selectRecentCommandMac', 'Select a command to run (hold Option-key to edit the command)') : localize('selectRecentCommand', 'Select a command to run (hold Alt-key to edit the command)');
 		const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
-		const commands = cmdDetection?.commands;
+		const commands = cmdDetection?.commands; ///////////////////// This is blank without E injection
+		// above, get the command if the command detection is available
 		// Current session history
 		const executingCommand = cmdDetection?.executingCommand;
 		if (executingCommand) {
@@ -81,7 +82,7 @@ export async function showRunRecentQuickPick(
 				// to whitespace in the editor
 				.replace(/\s\s\s+/g, '\u22EF');
 		}
-		if (commands && commands.length > 0) {
+		if (commands && commands.length > 0) { //
 			for (const entry of commands) {
 				// Trim off any whitespace and/or line endings, replace new lines with the
 				// Downwards Arrow with Corner Leftwards symbol
@@ -108,7 +109,7 @@ export async function showRunRecentQuickPick(
 					lastItem.description = description;
 					continue;
 				}
-				items.push({
+				items.push({ // consturcting item
 					label: formatLabel(label),
 					rawLabel: label,
 					description,
@@ -154,7 +155,7 @@ export async function showRunRecentQuickPick(
 		}
 
 		// Gather shell file history
-		const shellFileHistory = await instantiationService.invokeFunction(getShellFileHistory, instance.shellType);
+		const shellFileHistory = await instantiationService.invokeFunction(getShellFileHistory, instance.shellType); // Terminal instance is the main object
 		const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
 		for (const label of shellFileHistory) {
 			if (!commandMap.has(label)) {
