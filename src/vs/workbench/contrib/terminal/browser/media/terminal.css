@@ -570,8 +570,13 @@
 	z-index: 33 !important;
 	height: 33px !important;
 	position: absolute;
-	bottom: 0px;
+	bottom: 30px;
 	left: 10px;
-	width: 100px;
-	border:#ffffff;
+	width: 300px;
+	min-width: 169px;
+	overflow: hidden;
+}
+
+.monaco-workbench .terminal-chat-widget.hide {
+	visibility: hidden;
 }

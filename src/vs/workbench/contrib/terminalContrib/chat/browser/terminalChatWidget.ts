@@ -11,6 +11,14 @@ import { ITerminalInstance, IDetachedTerminalInstance } from 'vs/workbench/contr
 import * as dom from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { _inputEditorOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IModelService } from 'vs/editor/common/services/model';
+import { URI } from 'vs/base/common/uri';
 
 export class TerminalChatWidget extends Widget {
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -21,17 +29,18 @@ export class TerminalChatWidget extends Widget {
 	private _chatWidgetVisible: IContextKey<boolean>;
 
 	constructor(
-		instance: ITerminalInstance | IDetachedTerminalInstance,
+		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
 		@IContextViewService _contextViewService: IContextViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextMenuService _contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('terminal-chat-widget');
-
 		this.onkeyup(this._domNode, e => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
@@ -48,13 +57,16 @@ export class TerminalChatWidget extends Widget {
 
 	public hide(animated = true): void {
 		if (this._isVisible) {
+			this._isVisible = false;
+			this._chatWidgetVisible.reset();
 			this._domNode.classList.toggle('suppress-transition', !animated);
 			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
+			this._instance.focus();
+
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
-				this._isVisible = false;
-				this._chatWidgetVisible.reset();
+				this._domNode.classList.add('hide');
 				this._domNode.classList.remove('visible', 'suppress-transition');
 			}, animated ? 200 : 0);
 		}
@@ -82,8 +94,16 @@ export class TerminalChatWidget extends Widget {
 		}
 
 		this._isVisible = true;
+		this._domNode.classList.remove('hide');
 		this.layout();
 		this._chatWidgetVisible.set(true);
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				SnippetController2.ID,
+				SuggestController.ID
+			])
+		};
 		setTimeout(() => {
 			this._domNode.classList.toggle('suppress-transition', !animated);
 			this._domNode.classList.add('visible', 'visible-transition');
@@ -95,6 +115,18 @@ export class TerminalChatWidget extends Widget {
 					this._domNode.classList.remove('suppress-transition');
 				}, 0);
 			}
+			const widget = this._instantiationService.createInstance(CodeEditorWidget, this._domNode, _inputEditorOptions, codeEditorWidgetOptions);
+			widget.setModel(undefined);
+			if (!widget.getModel()) {
+				let model = this._modelService.getModel(URI.from({ path: `terminalInlineChatWidget`, scheme: 'terminalInlineChatWidget', fragment: 'Chat Widget' }));
+				if (!model) {
+					model = this._modelService.createModel('', null, URI.from({ path: `terminalInlineChatWidget`, scheme: 'terminalInlineChatWidget', fragment: 'Chat Widget' }), true);
+				}
+				widget.setModel(model);
+			}
+			widget.getDomNode()?.classList.add('inline-chat');
+			this._domNode.appendChild(widget.getDomNode()!);
+			widget.focus();
 		}, 0);
 	}
 
