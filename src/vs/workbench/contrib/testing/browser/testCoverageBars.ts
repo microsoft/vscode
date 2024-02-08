@@ -35,7 +35,7 @@ export interface TestCoverageBarsOptions {
 }
 
 /** Type that can be used to render coverage bars */
-export type CoverageBarSource = Pick<AbstractFileCoverage, 'statement' | 'branch' | 'function'>;
+export type CoverageBarSource = Pick<AbstractFileCoverage, 'statement' | 'branch' | 'declaration'>;
 
 export class ManagedTestCoverageBars extends Disposable {
 	private _coverage?: CoverageBarSource;
@@ -142,7 +142,7 @@ export class ManagedTestCoverageBars extends Disposable {
 			renderBar(el.tpcBar, overallStat, false, thresholds);
 		} else {
 			renderBar(el.statement, percent(coverage.statement), coverage.statement.total === 0, thresholds);
-			renderBar(el.function, coverage.function && percent(coverage.function), coverage.function?.total === 0, thresholds);
+			renderBar(el.function, coverage.declaration && percent(coverage.declaration), coverage.declaration?.total === 0, thresholds);
 			renderBar(el.branch, coverage.branch && percent(coverage.branch), coverage.branch?.total === 0, thresholds);
 		}
 	}
@@ -196,11 +196,11 @@ const calculateDisplayedStat = (coverage: CoverageBarSource, method: TestingDisp
 		case TestingDisplayedCoveragePercent.Minimum: {
 			let value = percent(coverage.statement);
 			if (coverage.branch) { value = Math.min(value, percent(coverage.branch)); }
-			if (coverage.function) { value = Math.min(value, percent(coverage.function)); }
+			if (coverage.declaration) { value = Math.min(value, percent(coverage.declaration)); }
 			return value;
 		}
 		case TestingDisplayedCoveragePercent.TotalCoverage:
-			return getTotalCoveragePercent(coverage.statement, coverage.branch, coverage.function);
+			return getTotalCoveragePercent(coverage.statement, coverage.branch, coverage.declaration);
 		default:
 			assertNever(method);
 	}
@@ -219,7 +219,7 @@ const displayPercent = (value: number, precision = 2) => {
 };
 
 const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', coverage.statement.covered, coverage.statement.total, displayPercent(percent(coverage.statement)));
-const fnCoverageText = (coverage: CoverageBarSource) => coverage.function && localize('functionCoverage', '{0}/{1} functions covered ({2})', coverage.function.covered, coverage.function.total, displayPercent(percent(coverage.function)));
+const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', coverage.declaration.covered, coverage.declaration.total, displayPercent(percent(coverage.declaration)));
 const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', coverage.branch.covered, coverage.branch.total, displayPercent(percent(coverage.branch)));
 
 const getOverallHoverText = (coverage: CoverageBarSource) => new MarkdownString([
