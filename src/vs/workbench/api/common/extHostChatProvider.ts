@@ -22,24 +22,20 @@ type LanguageModelData = {
 
 class LanguageModelResponseStream {
 
-	readonly apiObj: vscode.LanguageModelResponseStream;
 	readonly stream = new AsyncIterableSource<string>();
 
-	constructor(option: number, stream?: AsyncIterableSource<string>) {
+	constructor(
+		readonly option: number,
+		stream?: AsyncIterableSource<string>
+	) {
 		this.stream = stream ?? new AsyncIterableSource<string>();
-		const that = this;
-		this.apiObj = {
-			option: option,
-			response: that.stream.asyncIterable
-		};
 	}
 }
 
 class LanguageModelRequest {
 
-	readonly apiObject: vscode.LanguageModelRequest;
+	readonly apiObject: vscode.LanguageModelResponse;
 
-	private readonly _onDidStart = new Emitter<vscode.LanguageModelResponseStream>();
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
 	private readonly _defaultStream = new AsyncIterableSource<string>();
 	private _isDone: boolean = false;
@@ -51,9 +47,8 @@ class LanguageModelRequest {
 		const that = this;
 		this.apiObject = {
 			result: promise,
-			response: that._defaultStream.asyncIterable,
-			onDidStartResponseStream: that._onDidStart.event,
-			cancel() { cts.cancel(); },
+			stream: that._defaultStream.asyncIterable,
+			// responses: AsyncIterable<string>[] // FUTURE responses per N
 		};
 
 		promise.finally(() => {
@@ -81,7 +76,6 @@ class LanguageModelRequest {
 				res = new LanguageModelResponseStream(fragment.index);
 			}
 			this._responseStreams.set(fragment.index, res);
-			this._onDidStart.fire(res.apiObj);
 		}
 		res.stream.emitOne(fragment.part);
 	}
