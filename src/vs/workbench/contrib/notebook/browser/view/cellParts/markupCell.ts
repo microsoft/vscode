@@ -174,9 +174,27 @@ export class MarkupCell extends Disposable {
 			}
 		}));
 
-		this._register(this.cellEditorOptions.onDidChange(() => {
-			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
-		}));
+		this._register(this.cellEditorOptions.onDidChange(() => this.updateMarkupCellOptions()));
+	}
+
+	private updateMarkupCellOptions(): any {
+		this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+		if (this.editor) {
+			this.editor.updateOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+			const cts = new CancellationTokenSource();
+			this._register({ dispose() { cts.dispose(true); } });
+			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+				if (model) {
+					model.updateOptions({
+						indentSize: this.cellEditorOptions.indentSize,
+						tabSize: this.cellEditorOptions.tabSize,
+						insertSpaces: this.cellEditorOptions.insertSpaces,
+					});
+				}
+			});
+		}
 	}
 
 	private updateCollapsedState() {
@@ -354,6 +372,11 @@ export class MarkupCell extends Disposable {
 				}
 
 				this.editor!.setModel(model);
+				model.updateOptions({
+					indentSize: this.cellEditorOptions.indentSize,
+					tabSize: this.cellEditorOptions.tabSize,
+					insertSpaces: this.cellEditorOptions.insertSpaces,
+				});
 
 				const realContentHeight = this.editor!.getContentHeight();
 				if (realContentHeight !== editorHeight) {

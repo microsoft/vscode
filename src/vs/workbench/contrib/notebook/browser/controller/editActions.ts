@@ -38,6 +38,7 @@ const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
@@ -559,3 +560,60 @@ async function setCellToLanguage(languageId: string, context: IChangeCellContext
 		);
 	}
 }
+
+registerAction2(class SelectNotebookIndentation extends NotebookAction {
+	constructor() {
+		super({
+			id: SELECT_NOTEBOOK_INDENTATION_ID,
+			title: localize2('selectNotebookIndentation', 'Select Indentation'),
+			f1: true,
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		await this.showNotebookIndentationPicker(accessor, context);
+	}
+
+	private async showNotebookIndentationPicker(accessor: ServicesAccessor, context: INotebookActionContext): Promise<unknown> {
+		// const editorService = accessor.get(IEditorService);
+		const quickInputService = accessor.get(IQuickInputService);
+		// const configurationService = accessor.get(IConfigurationService);
+
+		const activeNotebook = context.notebookEditor;
+		if (!activeNotebook) {
+			return quickInputService.pick([{ label: localize('noNotebookEditor', "No notebook editor active at this time") }]);
+		}
+
+		if (activeNotebook.isReadOnly) {
+			return quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+		}
+
+		throw new Error('Method not complete');
+		//! cell editor options
+
+		// const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
+		// 	assertIsDefined(activeNotebook.getAction(IndentUsingSpaces.ID)),
+		// 	assertIsDefined(activeNotebook.getAction(IndentUsingTabs.ID)),
+		// 	// assertIsDefined(activeNotebook.getAction(ChangeTabDisplaySize.ID)),
+		// 	// assertIsDefined(activeNotebook.getAction(DetectIndentation.ID)),
+		// 	// assertIsDefined(activeNotebook.getAction(IndentationToSpacesAction.ID)),
+		// 	// assertIsDefined(activeNotebook.getAction(IndentationToTabsAction.ID)),
+		// ].map((a: IEditorAction) => {
+		// 	return {
+		// 		id: a.id,
+		// 		label: a.label,
+		// 		detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
+		// 		run: () => {
+		// 			activeNotebook.focus();
+		// 			a.run();
+		// 		}
+		// 	};
+		// });
+
+		// const action = await quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
+		// return action?.run();
+	}
+
+
+});
