@@ -42,7 +42,7 @@ class Temp {
     }
 }
 function isCreateProvisionedFilesErrorResponse(response) {
-    return response?.ErrorDetails !== undefined;
+    return response?.ErrorDetails?.Code !== undefined;
 }
 class ProvisionService {
     log;

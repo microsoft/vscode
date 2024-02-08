@@ -70,7 +70,7 @@ interface CreateProvisionedFilesErrorResponse {
 type CreateProvisionedFilesResponse = CreateProvisionedFilesSuccessResponse | CreateProvisionedFilesErrorResponse;
 
 function isCreateProvisionedFilesErrorResponse(response: unknown): response is CreateProvisionedFilesErrorResponse {
-	return (response as CreateProvisionedFilesErrorResponse)?.ErrorDetails !== undefined;
+	return (response as CreateProvisionedFilesErrorResponse)?.ErrorDetails?.Code !== undefined;
 }
 
 class ProvisionService {
