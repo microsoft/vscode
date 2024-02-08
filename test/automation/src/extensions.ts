@@ -41,7 +41,7 @@ export class Extensions extends Viewlet {
 	}
 
 	async closeExtension(title: string): Promise<any> {
-		await this.code.waitAndClick(`.tabs-container div.tab[title="Extension: ${title}"] div.tab-actions a.action-label.codicon.codicon-close`);
+		await this.code.waitAndClick(`.tabs-container div.tab[aria-label="Extension: ${title}"] div.tab-actions a.action-label.codicon.codicon-close`);
 	}
 
 	async installExtension(id: string, waitUntilEnabled: boolean): Promise<void> {

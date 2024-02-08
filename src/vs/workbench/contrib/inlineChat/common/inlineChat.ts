@@ -193,8 +193,9 @@ export const overviewRulerInlineChatDiffRemoved = registerColor('editorOverviewR
 
 export const enum EditMode {
 	Live = 'live',
+	Preview = 'preview',
+	/** @deprecated */
 	LivePreview = 'livePreview',
-	Preview = 'preview'
 }
 
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
@@ -217,13 +218,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		[InlineChatConfigKeys.Mode]: {
 			description: localize('mode', "Configure if changes crafted with inline chat are applied directly to the document or are previewed first."),
-			default: EditMode.LivePreview,
+			default: EditMode.Live,
 			type: 'string',
-			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
+			enum: [EditMode.Live, EditMode.Preview],
 			markdownEnumDescriptions: [
-				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
-				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
+				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 			],
 			tags: ['experimental']
 		},
