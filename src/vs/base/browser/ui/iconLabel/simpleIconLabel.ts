@@ -7,6 +7,7 @@ import { reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 export class SimpleIconLabel {
+	element: number | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement

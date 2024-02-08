@@ -25,6 +25,7 @@ export function themeColorFromId(id: ColorIdentifier) {
 
 
 export interface ThemeIcon {
+	fontCharacter: any;
 	readonly id: string;
 	readonly color?: ThemeColor;
 }

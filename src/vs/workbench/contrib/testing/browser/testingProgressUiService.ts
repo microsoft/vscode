@@ -1,8 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,14 +8,59 @@ import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates
 import { ITestResult, LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService'; // Import Activity Bar service and NumberBadge
+import { EventEmitter } from 'vscode';
+import { NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { Event } from 'vscode';
+import { Codicon } from 'vs/base/common/codicons';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 
-/** Workbench contribution that triggers updates in the TestingProgressUi service */
+// Create a CodiconLabel with the clock icon
+const clockIcon = new SimpleIconLabel(document.createElement('div'));
+clockIcon.text = Codicon.clock.fontCharacter;
+
+
+export class TestingProgressUiService extends Disposable {
+	private readonly _onDidChangeTestingProgress = this._register(new EventEmitter<void>());
+	public readonly onDidChangeTestingProgress: Event<void> = this._onDidChangeTestingProgress.event;
+
+	constructor(private readonly activityBarService: IUserActivityService, testingProgressTrigger: TestingProgressTrigger) {
+
+		super();
+	}
+
+	public updateActivityBarIcon(testingInProgress: boolean): void {
+		if (testingInProgress) {
+			// Check if clockIcon.element is not undefined
+			const element = clockIcon.element;
+			if (element) {
+				// If element is not undefined, create the NumberBadge
+				const clockBadge = new NumberBadge(
+					element,
+					// Provide a function that returns the label string
+					() => 'Running tests'
+				);
+				// Set activity on the activity bar using clockBadge
+				this.activityBarService.setActivity('testing.progress', 'Tests Running', 'activity-badge', clockBadge);
+			} else {
+				// Handle the case when element is undefined
+				console.error('Clock icon element is undefined');
+			}
+		} else {
+			// Remove clock badge from the Activity Bar icon
+			this.activityBarService.setActivity('testing.progress', '', '');
+		}
+	}
+
+
+}
+
 export class TestingProgressTrigger extends Disposable {
+	// Inside the constructor of TestingProgressTrigger
 	constructor(
 		@ITestResultService resultService: ITestResultService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewsService private readonly viewsService: IViewsService,
-	) {
+		@IViewsService private readonly viewsService: IViewsService) {
 		super();
 
 		this._register(resultService.onResultsChanged((e) => {
@@ -28,7 +68,20 @@ export class TestingProgressTrigger extends Disposable {
 				this.attachAutoOpenForNewResults(e.started);
 			}
 		}));
+
+		// Call onDidChangeTestProgress with two arguments
+		this.onDidChangeTestProgress(
+			testingInProgress => {
+
+				throw new Error('Method not implemented.');
+			},
+			null // or undefined
+		);
 	}
+	onDidChangeTestProgress(arg0: (testingInProgress: any) => never, arg1: null) {
+		throw new Error('Method not implemented.');
+	}
+
 
 	private attachAutoOpenForNewResults(result: LiveTestResult) {
 		if (result.request.isUiTriggered === false) {
@@ -121,3 +174,4 @@ export const getTestProgressText = ({ isRunning, passed, runSoFar, totalWillBeRu
 		}
 	}
 };
+

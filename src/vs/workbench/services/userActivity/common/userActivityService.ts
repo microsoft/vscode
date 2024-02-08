@@ -14,6 +14,8 @@ import { userActivityRegistry } from 'vs/workbench/services/userActivity/common/
  * Service that observes user activity in the window.
  */
 export interface IUserActivityService {
+	setActivity(arg0: string, arg1: string, arg2: string): unknown;
+	setActivity(arg0: string, arg1: string, arg2: string, clockBadge: any): unknown;
 	_serviceBrand: undefined;
 
 	/**
@@ -61,6 +63,11 @@ export class UserActivityService extends Disposable implements IUserActivityServ
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this._register(runWhenGlobalIdle(() => userActivityRegistry.take(this, instantiationService)));
+	}
+	setActivity(arg0: string, arg1: string, arg2: string): unknown;
+	setActivity(arg0: string, arg1: string, arg2: string, clockBadge: any): unknown;
+	setActivity(arg0: unknown, arg1: unknown, arg2: unknown, clockBadge?: unknown): unknown {
+		throw new Error('Method not implemented.');
 	}
 
 	/** @inheritdoc */
