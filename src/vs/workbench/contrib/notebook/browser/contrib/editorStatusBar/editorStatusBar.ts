@@ -14,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { SELECT_NOTEBOOK_INDENTATION_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
+// import { SELECT_NOTEBOOK_INDENTATION_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -313,8 +313,9 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 			name: nls.localize('notebook.indentation', "Notebook Indentation"),
 			text: newText,
 			ariaLabel: newText,
-			tooltip: nls.localize('selectNotebookIndentation', "Select Notebook Indentation"),
-			command: SELECT_NOTEBOOK_INDENTATION_ID
+			// tooltip: nls.localize('selectNotebookIndentation', "Select Notebook Indentation"),
+			tooltip: nls.localize('selectNotebookIndentation', "Notebook Indentation"),
+			// command: SELECT_NOTEBOOK_INDENTATION_ID // TODO@Yoyokrazy -- finish hooking this up
 		};
 
 		if (!this._accessor.value) {
