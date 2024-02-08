@@ -417,7 +417,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						}
 						if (accessData?.current) {
 							const element = $('span', undefined, nls.localize('requests count', "Requests to {0}: {1}", feature.label, accessData.current.count));
-							element.title = nls.localize('requests count title', "Last request was {0}. Overall Requests: {1}", fromNow(accessData.current.lastAccessed), accessData.totalCount);
+							element.title = nls.localize('requests count title', "Last request was {0}. Overall Requests: {1}", fromNow(accessData.current.lastAccessed, true, true), accessData.totalCount);
 							data.msgContainer.appendChild(element);
 						}
 					}
