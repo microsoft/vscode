@@ -164,7 +164,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		}
 
 		const resolvedLanguage = language ?? this._initLanguage ?? PLAINTEXT_LANGUAGE_ID;
-		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource!, this.inputResource, resolvedLanguage);
+		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource, this.inputResource, resolvedLanguage);
 		this._inputModelRef = await this._textModelService.createModelReference(this.inputResource);
 
 		return this._inputModelRef.object.textEditorModel;
@@ -232,7 +232,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._notebookEditorInput?.dispose();
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
-		this._interactiveDocumentService.willRemoveInteractiveDocument(this.resource!, this.inputResource);
+		this._interactiveDocumentService.willRemoveInteractiveDocument(this.resource, this.inputResource);
 		this._inputModelRef?.dispose();
 		this._inputModelRef = null;
 		super.dispose();

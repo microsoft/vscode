@@ -35,6 +35,12 @@ export function assert(condition: boolean): void {
 	}
 }
 
+export function softAssert(condition: boolean): void {
+	if (!condition) {
+		onUnexpectedError(new BugIndicatingError('Assertion Failed'));
+	}
+}
+
 /**
  * condition must be side-effect free!
  */

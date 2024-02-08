@@ -8,7 +8,7 @@ import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider
 import { Repository, Resource } from './repository';
 import { IDisposable, filterEvent } from './util';
 import { toGitUri } from './uri';
-import { Branch, RefType, Status } from './api/git';
+import { Branch, RefType, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Operation } from './operation';
 
@@ -34,39 +34,47 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private disposables: Disposable[] = [];
 
 	constructor(protected readonly repository: Repository, private readonly logger: LogOutputChannel) {
-		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
-		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this._onDidChangeCurrentHistoryItemGroup.fire()));
+		this.disposables.push(repository.onDidRunGitStatus(() => this.onDidRunGitStatus(), this));
+		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this.onDidRunGitStatus(true), this));
 
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
-	private async onDidRunGitStatus(): Promise<void> {
+	private async onDidRunGitStatus(force = false): Promise<void> {
+		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD:', JSON.stringify(this._HEAD));
+		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - repository.HEAD:', JSON.stringify(this.repository.HEAD));
+
 		// Check if HEAD has changed
-		if (this._HEAD?.name === this.repository.HEAD?.name &&
+		if (!force &&
+			this._HEAD?.name === this.repository.HEAD?.name &&
 			this._HEAD?.commit === this.repository.HEAD?.commit &&
 			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
 			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
 			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
+			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD has not changed');
 			return;
 		}
 
 		this._HEAD = this.repository.HEAD;
 
-		// Check if HEAD supports incoming/outgoing (not a tag, not detached)
+		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
 		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
 			this.currentHistoryItemGroup = undefined;
+			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD does not support incoming/outgoing');
 			return;
 		}
 
 		this.currentHistoryItemGroup = {
-			id: `refs/heads/${this._HEAD.name}`,
-			label: this._HEAD.name,
-			upstream: this._HEAD.upstream ?
+			id: `refs/heads/${this._HEAD.name ?? ''}`,
+			label: this._HEAD.name ?? '',
+			base: this._HEAD.upstream ?
 				{
 					id: `refs/remotes/${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 				} : undefined
 		};
+
+		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup:', JSON.stringify(this.currentHistoryItemGroup));
 	}
 
 	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
@@ -133,12 +141,15 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			historyItemChanges.push({
 				uri: historyItemUri,
 				originalUri: toGitUri(change.originalUri, historyItemParentId),
-				modifiedUri: toGitUri(change.originalUri, historyItemId),
+				modifiedUri: toGitUri(change.uri, historyItemId),
 				renameUri: change.renameUri,
 			});
 
 			// History item change decoration
-			const fileDecoration = this.getHistoryItemChangeFileDecoration(change.status);
+			const letter = Resource.getStatusLetter(change.status);
+			const tooltip = Resource.getStatusText(change.status);
+			const color = Resource.getStatusColor(change.status);
+			const fileDecoration = new FileDecoration(letter, tooltip, color);
 			this.historyItemDecorations.set(historyItemUri.toString(), fileDecoration);
 
 			historyItemChangesUri.push(historyItemUri);
@@ -148,51 +159,26 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
-	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<SourceControlHistoryItemGroup | undefined> {
-		// TODO - support for all history item groups
-		if (historyItemGroupId !== this.currentHistoryItemGroup?.id) {
-			return undefined;
-		}
-
-		if (this.currentHistoryItemGroup?.upstream) {
-			return this.currentHistoryItemGroup.upstream;
-		}
-
-		// Branch base
-		try {
-			const branchBase = await this.repository.getBranchBase(historyItemGroupId);
-
-			if (branchBase?.name && branchBase?.type === RefType.Head) {
-				return {
-					id: `refs/heads/${branchBase.name}`,
-					label: branchBase.name
-				};
+	async resolveHistoryItemGroupCommonAncestor(historyItemId1: string, historyItemId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+		if (!historyItemId2) {
+			const upstreamRef = await this.resolveHistoryItemGroupBase(historyItemId1);
+			if (!upstreamRef) {
+				return undefined;
 			}
-			if (branchBase?.name && branchBase.remote && branchBase?.type === RefType.RemoteHead) {
-				return {
-					id: `refs/remotes/${branchBase.remote}/${branchBase.name}`,
-					label: `${branchBase.remote}/${branchBase.name}`
-				};
-			}
-		}
-		catch (err) {
-			this.logger.error(`Failed to get branch base for '${historyItemGroupId}': ${err.message}`);
+
+			historyItemId2 = `refs/remotes/${upstreamRef.remote}/${upstreamRef.name}`;
 		}
 
-		return undefined;
-	}
-
-	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
-		const ancestor = await this.repository.getMergeBase(refId1, refId2);
+		const ancestor = await this.repository.getMergeBase(historyItemId1, historyItemId2);
 		if (!ancestor) {
 			return undefined;
 		}
 
 		try {
-			const commitCount = await this.repository.getCommitCount(`${refId1}...${refId2}`);
+			const commitCount = await this.repository.getCommitCount(`${historyItemId1}...${historyItemId2}`);
 			return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
 		} catch (err) {
-			this.logger.error(`Failed to get ahead/behind for '${refId1}...${refId2}': ${err.message}`);
+			this.logger.error(`Failed to get ahead/behind for '${historyItemId1}...${historyItemId2}': ${err.message}`);
 		}
 
 		return undefined;
@@ -202,12 +188,31 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private getHistoryItemChangeFileDecoration(status: Status): FileDecoration {
-		const letter = Resource.getStatusLetter(status);
-		const tooltip = Resource.getStatusText(status);
-		const color = Resource.getStatusColor(status);
+	private async resolveHistoryItemGroupBase(historyItemId: string): Promise<UpstreamRef | undefined> {
+		try {
+			// Upstream
+			const branch = await this.repository.getBranch(historyItemId);
+			if (branch.upstream) {
+				return branch.upstream;
+			}
 
-		return new FileDecoration(letter, tooltip, color);
+			// Base (config -> reflog -> default)
+			const remoteBranch = await this.repository.getBranchBase(historyItemId);
+			if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
+				return undefined;
+			}
+
+			return {
+				name: remoteBranch.name,
+				remote: remoteBranch.remote,
+				commit: remoteBranch.commit
+			};
+		}
+		catch (err) {
+			this.logger.error(`Failed to get branch base for '${historyItemId}': ${err.message}`);
+		}
+
+		return undefined;
 	}
 
 	dispose(): void {

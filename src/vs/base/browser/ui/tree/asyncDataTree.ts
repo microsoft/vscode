@@ -239,10 +239,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			...options.accessibilityProvider,
 			getPosInSet: undefined,
 			getSetSize: undefined,
-			getRole: options.accessibilityProvider!.getRole ? (el) => {
+			getRole: options.accessibilityProvider.getRole ? (el) => {
 				return options.accessibilityProvider!.getRole!(el.element as T);
 			} : () => 'treeitem',
-			isChecked: options.accessibilityProvider!.isChecked ? (e) => {
+			isChecked: options.accessibilityProvider.isChecked ? (e) => {
 				return !!(options.accessibilityProvider?.isChecked!(e.element as T));
 			} : undefined,
 			getAriaLabel(e) {
@@ -251,8 +251,8 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			getWidgetAriaLabel() {
 				return options.accessibilityProvider!.getWidgetAriaLabel();
 			},
-			getWidgetRole: options.accessibilityProvider!.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
-			getAriaLevel: options.accessibilityProvider!.getAriaLevel && (node => {
+			getWidgetRole: options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
+			getAriaLevel: options.accessibilityProvider.getAriaLevel && (node => {
 				return options.accessibilityProvider!.getAriaLevel!(node.element as T);
 			}),
 			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
@@ -825,8 +825,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const treeNode = this.tree.getNode(node);
 
 			if (treeNode.collapsed) {
-				node.hasChildren = !!this.dataSource.hasChildren(node.element!);
+				node.hasChildren = !!this.dataSource.hasChildren(node.element);
 				node.stale = true;
+				this.setChildren(node, [], recursive, viewStateContext);
 				return;
 			}
 		}
@@ -855,7 +856,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private async doRefreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<IAsyncDataTreeNode<TInput, T>[]> {
-		node.hasChildren = !!this.dataSource.hasChildren(node.element!);
+		node.hasChildren = !!this.dataSource.hasChildren(node.element);
 
 		let childrenPromise: Promise<Iterable<T>>;
 
@@ -904,7 +905,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (result) {
 			return result;
 		}
-		const children = this.dataSource.getChildren(node.element!);
+		const children = this.dataSource.getChildren(node.element);
 		if (isIterable(children)) {
 			return this.processChildren(children);
 		} else {
@@ -1033,9 +1034,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const children = node.children.map(node => this.asTreeElement(node, viewStateContext));
 		const objectTreeOptions: IObjectTreeSetChildrenOptions<IAsyncDataTreeNode<TInput, T>> | undefined = options && {
 			...options,
-			diffIdentityProvider: options!.diffIdentityProvider && {
+			diffIdentityProvider: options.diffIdentityProvider && {
 				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string } {
-					return options!.diffIdentityProvider!.getId(node.element as T);
+					return options.diffIdentityProvider!.getId(node.element as T);
 				}
 			}
 		};
@@ -1210,7 +1211,7 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 		keyboardNavigationLabelProvider: objectTreeOptions.keyboardNavigationLabelProvider && {
 			...objectTreeOptions.keyboardNavigationLabelProvider,
 			getCompressedNodeKeyboardNavigationLabel(els) {
-				return options!.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
+				return options.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
 			}
 		}
 	};

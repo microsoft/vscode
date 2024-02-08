@@ -66,7 +66,7 @@ export class HoverService implements IHoverService {
 			hover.isLocked = true;
 		}
 		hover.onDispose(() => {
-			const hoverWasFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode!);
+			const hoverWasFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode);
 			if (hoverWasFocused) {
 				// Required to handle cases such as closing the hover with the escape key
 				this._lastFocusedElementBeforeOpen?.focus();
@@ -97,14 +97,12 @@ export class HoverService implements IHoverService {
 				}
 			}));
 		} else {
-			if (!options.disableHideOnClick) {
-				if ('targetElements' in options.target) {
-					for (const element of options.target.targetElements) {
-						hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));
-					}
-				} else {
-					hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
+			if ('targetElements' in options.target) {
+				for (const element of options.target.targetElements) {
+					hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));
 				}
+			} else {
+				hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
 			}
 			const focusedElement = getActiveElement();
 			if (focusedElement) {

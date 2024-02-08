@@ -55,11 +55,15 @@ function createCompile(src, build, emitError, transpileOnly) {
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
         const isUtf8Test = (f) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
         const isRuntimeJs = (f) => f.path.endsWith('.js') && !f.path.includes('fixtures');
+        const isCSS = (f) => f.path.endsWith('.css') && !f.path.includes('fixtures');
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
+        const postcss = require('gulp-postcss');
+        const postcssNesting = require('postcss-nesting');
         const input = es.through();
         const output = input
             .pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
+            .pipe(util.$if(isCSS, postcss([postcssNesting()])))
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))

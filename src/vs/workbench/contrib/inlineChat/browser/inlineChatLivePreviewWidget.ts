@@ -18,15 +18,14 @@ import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INLINE_CHAT_ID, inlineChatDiffInserted, inlineChatDiffRemoved, inlineChatRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { LineRange } from 'vs/editor/common/core/lineRange';
-import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
-import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { invertLineRange, asRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
-import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -170,22 +169,22 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		throw new Error('use showForChanges');
 	}
 
-	showForChanges(changes: readonly LineRangeMapping[]): void {
+	showForChanges(hunk: HunkInformation): void {
 		const hasFocus = this._diffEditor.hasTextFocus();
 		this._isVisible = true;
 
-		const onlyInserts = changes.every(change => change.original.isEmpty);
+		const onlyInserts = hunk.isInsertion();
 
-		if (onlyInserts || changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
+		if (onlyInserts || this._session.textModel0.getValueLength() === 0) {
 			// no change or changes to an empty file
 			this._logService.debug('[IE] livePreview-mode: no diff');
 			this._cleanupFullDiff();
-			this._renderInsertWithHighlight(changes);
+			this._renderInsertWithHighlight(hunk);
 		} else {
 			// complex changes
 			this._logService.debug('[IE] livePreview-mode: full diff');
 			this._decorationCollection.clear();
-			this._renderChangesWithFullDiff(changes);
+			this._renderChangesWithFullDiff(hunk);
 		}
 
 		// TODO@jrieken find a better fix for this. this is the challenge:
@@ -197,7 +196,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		}
 	}
 
-	private _renderInsertWithHighlight(changes: readonly LineRangeMapping[]) {
+	private _renderInsertWithHighlight(hunk: HunkInformation) {
 		assertType(this.editor.hasModel());
 
 		const options: IModelDecorationOptions = {
@@ -207,21 +206,18 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			className: 'inline-chat-lines-inserted-range',
 		};
 
-		this._decorationCollection.set(changes.map(change => {
-			return {
-				range: lineRangeAsRange(change.modified),
-				options,
-			};
-		}));
+		this._decorationCollection.set([{
+			range: hunk.getRangesN()[0],
+			options
+		}]);
 	}
 
 	// --- full diff
 
-	private _renderChangesWithFullDiff(changes: readonly LineRangeMapping[]) {
+	private _renderChangesWithFullDiff(hunk: HunkInformation) {
 		assertType(this.editor.hasModel());
 
-		const modified = this.editor.getModel();
-		const ranges = this._computeHiddenRanges(modified, changes);
+		const ranges = this._computeHiddenRanges(this._session.textModelN, hunk);
 
 		this._hideEditorRanges(this.editor, [ranges.modifiedHidden]);
 		this._hideEditorRanges(this._diffEditor.getOriginalEditor(), ranges.originalDiffHidden);
@@ -246,15 +242,11 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		this._isVisible = false;
 	}
 
-	private _computeHiddenRanges(model: ITextModel, changes: readonly LineRangeMapping[]) {
+	private _computeHiddenRanges(model: ITextModel, hunk: HunkInformation) {
 
-		let originalLineRange = changes[0].original;
-		let modifiedLineRange = changes[0].modified;
-		for (let i = 1; i < changes.length; i++) {
-			originalLineRange = originalLineRange.join(changes[i].original);
-			modifiedLineRange = modifiedLineRange.join(changes[i].modified);
-		}
 
+		const modifiedLineRange = LineRange.fromRangeInclusive(hunk.getRangesN()[0]);
+		let originalLineRange = LineRange.fromRangeInclusive(hunk.getRanges0()[0]);
 		if (originalLineRange.isEmpty) {
 			originalLineRange = new LineRange(originalLineRange.startLineNumber, originalLineRange.endLineNumberExclusive + 1);
 		}
@@ -287,7 +279,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			// TODO: not every line can be hidden, keep the first line around
 			hiddenRanges = [editor.getModel().getFullModelRange().delta(1)];
 		} else {
-			hiddenRanges = lineRanges.map(lineRangeAsRange);
+			hiddenRanges = lineRanges.map(lr => asRange(lr, editor.getModel()));
 		}
 		editor.setHiddenAreas(hiddenRanges, this._hideId);
 		this._logService.debug(`[IE] diff HIDING ${hiddenRanges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);

@@ -21,7 +21,7 @@ import { URI } from 'vs/base/common/uri';
 //#region --- Define, capture, and override some globals
 
 declare function postMessage(data: any, transferables?: Transferable[]): void;
-
+declare const name: string; // https://developer.mozilla.org/en-US/docs/Web/API/DedicatedWorkerGlobalScope/name
 declare type _Fetch = typeof fetch;
 
 declare namespace self {
@@ -137,7 +137,7 @@ if ((<any>self).Worker) {
 
 		const js = `(${bootstrapFnSource}('${stringUrl}'))`;
 		options = options || {};
-		options.name = options.name || path.basename(stringUrl.toString());
+		options.name = `${name} -> ${options.name || path.basename(stringUrl.toString())}`;
 		const blob = new Blob([js], { type: 'application/javascript' });
 		const blobUrl = URL.createObjectURL(blob);
 		return new _Worker(blobUrl, options);

@@ -352,6 +352,9 @@ class InlinedCodeAction extends vscode.CodeAction {
 		const title = copilotRename ? action.description + ' and suggest a name with Copilot.' : action.description;
 		super(title, InlinedCodeAction.getKind(action));
 
+		if (copilotRename) {
+			this.isAI = true;
+		}
 		if (action.notApplicableReason) {
 			this.disabled = { reason: action.notApplicableReason };
 		}
@@ -613,36 +616,39 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				yield new SelectCodeAction(refactor, document, rangeOrSelection);
 			} else {
 				for (const action of refactor.actions) {
-					yield this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
+					for (const codeAction of this.refactorActionToCodeActions(document, refactor, action, rangeOrSelection, refactor.actions)) {
+						yield codeAction;
+					}
 				}
 			}
 		}
 	}
 
-	private refactorActionToCodeAction(
+	private refactorActionToCodeActions(
 		document: vscode.TextDocument,
 		refactor: Proto.ApplicableRefactorInfo,
 		action: Proto.RefactorActionInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
-	): TsCodeAction {
-		let codeAction: TsCodeAction;
+	): TsCodeAction[] {
+		const codeActions: TsCodeAction[] = [];
 		if (action.name === 'Move to file') {
-			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
+			codeActions.push(new MoveToFileCodeAction(document, action, rangeOrSelection));
 		} else {
-			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
-			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiCodeActions')) {
-				if (Extract_Constant.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractConstant')
-					|| Extract_Function.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractFunction')
-					|| Extract_Type.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractType')
-					|| Extract_Interface.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractInterface')
+			codeActions.push(new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, undefined));
+			const copilot = vscode.extensions.getExtension('github.copilot-chat');
+			if (copilot?.isActive) {
+				if (Extract_Constant.matches(action)
+					|| Extract_Function.matches(action)
+					|| Extract_Type.matches(action)
+					|| Extract_Interface.matches(action)
 				) {
 					const newName = Extract_Constant.matches(action) ? 'newLocal'
 						: Extract_Function.matches(action) ? 'newFunction'
 							: Extract_Type.matches(action) ? 'NewType'
 								: Extract_Interface.matches(action) ? 'NewInterface'
 									: '';
-					copilotRename = info => ({
+					const copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) = info => ({
 						title: '',
 						command: EditorChatFollowUp.ID,
 						arguments: [{
@@ -658,14 +664,14 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 							document,
 						} satisfies EditorChatFollowUp_Args]
 					});
+					codeActions.push(new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, copilotRename));
 				}
-
 			}
-			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, copilotRename);
 		}
-
-		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
-		return codeAction;
+		for (const codeAction of codeActions) {
+			codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
+		}
+		return codeActions;
 	}
 
 	private shouldTrigger(context: vscode.CodeActionContext, rangeOrSelection: vscode.Range | vscode.Selection) {

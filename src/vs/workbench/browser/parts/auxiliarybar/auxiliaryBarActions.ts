@@ -26,12 +26,12 @@ const auxiliaryBarLeftOffIcon = registerIcon('auxiliarybar-left-off-layout-icon'
 export class ToggleAuxiliaryBarAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
-	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar Visibility");
+	static readonly LABEL = localize2('toggleAuxiliaryBar', "Toggle Secondary Side Bar Visibility");
 
 	constructor() {
 		super({
 			id: ToggleAuxiliaryBarAction.ID,
-			title: { value: ToggleAuxiliaryBarAction.LABEL, original: 'Toggle Secondary Side Bar Visibility' },
+			title: ToggleAuxiliaryBarAction.LABEL,
 			toggled: {
 				condition: AuxiliaryBarVisibleContext,
 				title: localize('secondary sidebar', "Secondary Side Bar"),
@@ -70,13 +70,12 @@ registerAction2(ToggleAuxiliaryBarAction);
 registerAction2(class FocusAuxiliaryBarAction extends Action2 {
 
 	static readonly ID = 'workbench.action.focusAuxiliaryBar';
-	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Secondary Side Bar");
-
+	static readonly LABEL = localize2('focusAuxiliaryBar', "Focus into Secondary Side Bar");
 
 	constructor() {
 		super({
 			id: FocusAuxiliaryBarAction.ID,
-			title: { value: FocusAuxiliaryBarAction.LABEL, original: 'Focus into Secondary Side Bar' },
+			title: FocusAuxiliaryBarAction.LABEL,
 			category: Categories.View,
 			f1: true,
 		});

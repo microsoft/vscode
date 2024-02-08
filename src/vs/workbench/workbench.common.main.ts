@@ -77,6 +77,7 @@ import 'vs/workbench/services/textresourceProperties/common/textResourceProperti
 import 'vs/workbench/services/textfile/common/textEditorService';
 import 'vs/workbench/services/language/common/languageService';
 import 'vs/workbench/services/model/common/modelService';
+import 'vs/workbench/services/notebook/common/notebookDocumentService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
@@ -85,6 +86,7 @@ import 'vs/workbench/services/extensionManagement/browser/extensionEnablementSer
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import 'vs/workbench/services/extensionManagement/common/extensionFeaturesManagemetService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
@@ -113,6 +115,7 @@ import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import 'vs/workbench/services/userActivity/common/userActivityService';
 import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
 import 'vs/workbench/services/issue/browser/issueTroubleshoot';
+import 'vs/workbench/services/editor/browser/editorPaneService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

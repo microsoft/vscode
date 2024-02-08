@@ -407,23 +407,23 @@ export class CodeApplication extends Disposable {
 
 			// All Windows: only allow about:blank auxiliary windows to open
 			// For all other URLs, delegate to the OS.
-			contents.setWindowOpenHandler(handler => {
+			contents.setWindowOpenHandler(details => {
 
 				// about:blank windows can open as window witho our default options
-				if (handler.url === 'about:blank') {
+				if (details.url === 'about:blank') {
 					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow()
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow(details)
 					};
 				}
 
 				// Any other URL: delegate to OS
 				else {
-					this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${handler.url}}`);
+					this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${details.url}}`);
 
-					this.nativeHostMainService?.openExternal(undefined, handler.url);
+					this.nativeHostMainService?.openExternal(undefined, details.url);
 
 					return { action: 'deny' };
 				}

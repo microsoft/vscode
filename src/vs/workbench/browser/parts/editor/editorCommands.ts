@@ -475,7 +475,7 @@ function registerDiffEditorCommands(): void {
 			return;
 		}
 
-		const untypedDiffInput = diffInput.toUntyped({ preserveViewState: activeGroup.id });
+		const untypedDiffInput = diffInput.toUntyped({ preserveViewState: activeGroup.id, preserveResource: true });
 		if (!untypedDiffInput) {
 			return;
 		}
@@ -484,7 +484,7 @@ function registerDiffEditorCommands(): void {
 		// sure to first open the modified side if it is not
 		// yet opened. This ensures that the swapping is not
 		// bringing up a confirmation dialog to save.
-		if (diffInput.modified.isModified() && !editorService.isOpened({ resource: diffInput.modified.resource, typeId: diffInput.modified.typeId, editorId: diffInput.modified.editorId })) {
+		if (diffInput.modified.isModified() && editorService.findEditors({ resource: diffInput.modified.resource, typeId: diffInput.modified.typeId, editorId: diffInput.modified.editorId }).length === 0) {
 			await editorService.openEditor({
 				...untypedDiffInput.modified,
 				options: {
@@ -563,10 +563,7 @@ function registerDiffEditorCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_DIFF_SIDE_BY_SIDE,
-			title: {
-				value: localize('toggleInlineView', "Toggle Inline View"),
-				original: 'Compare: Toggle Inline View'
-			},
+			title: localize2('toggleInlineView', "Toggle Inline View"),
 			category: localize('compare', "Compare")
 		},
 		when: TextCompareEditorActiveContext
@@ -575,10 +572,7 @@ function registerDiffEditorCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: DIFF_SWAP_SIDES,
-			title: {
-				value: localize('swapDiffSides', "Swap Left and Right Editor Side"),
-				original: 'Compare: Swap Left and Right Editor Side'
-			},
+			title: localize2('swapDiffSides', "Swap Left and Right Editor Side"),
 			category: localize('compare', "Compare")
 		},
 		when: TextCompareEditorActiveContext
