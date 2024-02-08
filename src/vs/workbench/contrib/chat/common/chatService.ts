@@ -311,4 +311,3 @@ export interface IChatService {
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
-export const CHAT_FEATURE_ID = 'chat';
