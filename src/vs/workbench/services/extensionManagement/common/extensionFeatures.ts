@@ -54,12 +54,12 @@ export interface IExtensionFeatureDescriptor {
 		readonly requireUserConsent?: boolean;
 		readonly extensionsList?: IStringDictionary<boolean>;
 	};
-	readonly renderer: SyncDescriptor<IExtensionFeatureRenderer>;
+	readonly renderer?: SyncDescriptor<IExtensionFeatureRenderer>;
 }
 
 export interface IExtensionFeaturesRegistry {
 
-	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): void;
+	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): IDisposable;
 	getExtensionFeature(id: string): IExtensionFeatureDescriptor | undefined;
 	getExtensionFeatures(): ReadonlyArray<IExtensionFeatureDescriptor>;
 }
@@ -93,11 +93,14 @@ class ExtensionFeaturesRegistry implements IExtensionFeaturesRegistry {
 
 	private readonly extensionFeatures = new Map<string, IExtensionFeatureDescriptor>();
 
-	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): void {
+	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): IDisposable {
 		if (this.extensionFeatures.has(descriptor.id)) {
 			throw new Error(`Extension feature with id '${descriptor.id}' already exists`);
 		}
 		this.extensionFeatures.set(descriptor.id, descriptor);
+		return {
+			dispose: () => this.extensionFeatures.delete(descriptor.id)
+		};
 	}
 
 	getExtensionFeature(id: string): IExtensionFeatureDescriptor | undefined {
