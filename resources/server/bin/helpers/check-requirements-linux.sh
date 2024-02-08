@@ -66,7 +66,7 @@ fi
 
 if [ -n "$libstdcpp_path" ]; then
     libstdcpp_real_path=$(readlink -f "$libstdcpp_path")
-    libstdcpp_version=$(strings "$libstdcpp_real_path" | grep -o 'GLIBCXX_[0-9]*\.[0-9]*\.[0-9]*' | sort -V | tail -1)
+	libstdcpp_version=$(grep -ao 'GLIBCXX_[0-9]*\.[0-9]*\.[0-9]*' "$libstdcpp_real_path" | sort -V | tail -1)
     libstdcpp_version_number=$(echo "$libstdcpp_version" | sed 's/GLIBCXX_//')
     if [ "$(printf '%s\n' "3.4.24" "$libstdcpp_version_number" | sort -V | head -n1)" = "3.4.24" ]; then
         found_required_glibcxx=1
