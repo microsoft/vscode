@@ -50,7 +50,7 @@ export class InlineCompletionsModel extends Disposable {
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
 		public readonly textModelVersionId: IObservable<number, VersionIdChangeReason>,
-		private readonly _positions: IObservable<Position[]>,
+		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _suggestPreviewEnabled: IObservable<boolean>,
 		private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
@@ -237,8 +237,9 @@ export class InlineCompletionsModel extends Disposable {
 			const replacement = item.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
+			const edits = [replacement, ...this._getSecondaryEdits(this.textModel, positions, replacement)];
 			const ghostTexts = edits
-				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], editPreviewLength))
+				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], 0))
 				.filter(isDefined);
 			if (!ghostTexts[0]) { return undefined; }
 			return { ghostTexts, primaryGhostText: ghostTexts[0], inlineCompletion: item, suggestItem: undefined, edits };
@@ -456,7 +457,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	private _getEdits(textModel: ITextModel, positions: Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
+	private _getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
 
 		const primaryPosition = positions[0];
 		const secondaryPositions = positions.slice(1);
