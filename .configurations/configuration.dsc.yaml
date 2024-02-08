@@ -2,6 +2,21 @@
 # Reference: https://github.com/microsoft/vscode/wiki/How-to-Contribute
 properties:
   resources:
+    # Resource configurations...
+  # Configuration Version
+  configurationVersion: 0.2.0
+
+# Document Configuration Version:
+# The `configurationVersion` field specifies the version of the configuration schema used in this file.
+# Its value follows a semantic versioning scheme (Major.Minor.Patch), where:
+# - Major version indicates significant changes that may introduce backward incompatibilities.
+# - Minor version indicates backward-compatible additions or modifications to the schema.
+# - Patch version indicates backward-compatible bug fixes or minor improvements.
+# Users can refer to this field to understand the structure and semantics of the configuration file.
+# It also helps tooling and parsers to validate and interpret the configuration correctly.
+# Any updates to the schema should be reflected in the configuration version to ensure compatibility.
+properties:
+  resources:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       directives:
         description: Install Git
