@@ -307,6 +307,7 @@ export class BulkFileOperations {
 		return result;
 	}
 
+	// Getting the edits for a specific file
 	getFileEdits(uri: URI): ISingleEditOperation[] {
 
 		for (const file of this.fileOperations) {

@@ -38,6 +38,7 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const enum State {
 	Data = 'data',
@@ -79,6 +80,7 @@ export class BulkEditPane extends ViewPane {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -223,6 +225,7 @@ export class BulkEditPane extends ViewPane {
 		return Boolean(this._currentInput);
 	}
 
+	// Presumably the method where we set the data to show in the tree refactors view
 	private async _setTreeInput(input: BulkFileOperations) {
 
 		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
@@ -316,6 +319,7 @@ export class BulkEditPane extends ViewPane {
 		}
 	}
 
+	// In this function, we actually open the element as an editor, and this is where we could open a multi file diff editor
 	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 
 		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
@@ -333,9 +337,15 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
+		console.log('options : ', JSON.stringify(options));
+
 		const previewUri = this._currentProvider!.asPreviewUri(fileElement.edit.uri);
 
 		if (fileElement.edit.type & BulkFileOperationType.Delete) {
+
+			console.log('fileElement.edit : ', fileElement.edit);
+			console.log('previewUri : ', JSON.stringify(previewUri));
+
 			// delete -> show single editor
 			this._editorService.openEditor({
 				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
@@ -343,7 +353,17 @@ export class BulkEditPane extends ViewPane {
 				options
 			});
 
+			// const label = localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri));
+			// const uri = fileElement.edit.newUri ?? fileElement.edit.uri;
+			// const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [{
+			// 	originalUri: fileElement.edit.uri,
+			// 	modifiedUri: fileElement.edit.newUri
+			// }];
+			// await commands.executeCommand('_workbench.openMultiDiffEditor', { uri, label, resources });
+
 		} else {
+			console.log('fileElement.edit ; ', fileElement.edit);
+
 			// rename, create, edits -> show diff editr
 			let leftResource: URI | undefined;
 			try {
@@ -367,13 +387,23 @@ export class BulkEditPane extends ViewPane {
 				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
 			}
 
-			this._editorService.openEditor({
-				original: { resource: leftResource },
-				modified: { resource: previewUri },
-				label,
-				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
-				options
-			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			console.log('leftResource : ', JSON.stringify(leftResource));
+			console.log('previewUri : ', JSON.stringify(previewUri));
+
+			// this._editorService.openEditor({
+			// 	original: { resource: leftResource },
+			// 	modified: { resource: previewUri },
+			// 	label,
+			// 	description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
+			// 	options
+			// }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+
+			const uri = previewUri;
+			const resources: { originalUri: URI | undefined; modifiedUri: URI | undefined }[] = [{
+				originalUri: leftResource,
+				modifiedUri: previewUri
+			}];
+			this.commandService.executeCommand('_workbench.openMultiDiffEditor', { uri, label, resources });
 		}
 	}
 

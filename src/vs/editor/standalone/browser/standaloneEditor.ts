@@ -100,6 +100,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneD
 	return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
 }
 
+// There is also a function which creates a multi file diff editor, but maybe we do not need it
 export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices) {
 	const instantiationService = StandaloneServices.initialize(override || {});
 	return new MultiDiffEditorWidget(domElement, {}, instantiationService);
