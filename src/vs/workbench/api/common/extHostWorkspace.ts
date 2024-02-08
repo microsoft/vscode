@@ -497,7 +497,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			disregardSearchExcludeSettings: typeof options.useDefaultSearchExcludes === 'boolean' ? !options.useDefaultSearchExcludes : false,
 			maxResults: options.maxResults,
 			excludePattern: excludePattern,
-			shouldGlobSearch: typeof options.fuzzy === 'boolean' ? !options.fuzzy : undefined,
+			shouldGlobSearch: typeof options.fuzzy === 'boolean' ? !options.fuzzy : true,
 			_reason: 'startFileSearch'
 		};
 		let folderToUse: URI | undefined;
