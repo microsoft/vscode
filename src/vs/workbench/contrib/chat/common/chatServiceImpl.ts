@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatAgentCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -539,8 +539,11 @@ export class ChatService extends Disposable implements IChatService {
 						history.push({ request: historyRequest, response: request.response.response.value, result: { errorDetails: request.response.errorDetails } });
 					}
 
+					const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
+					request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
-					request = model.addRequest(parsedRequest, variableData, agent, agentSlashCommandPart?.command);
+					request.variableData = variableData;
+
 					const requestProps: IChatAgentRequest = {
 						sessionId,
 						requestId: request.id,

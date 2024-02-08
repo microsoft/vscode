@@ -166,6 +166,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			this.toggleToolbarHidden(true);
 		}));
+
+		this.activeCommentListeners();
+	}
+
+	private activeCommentListeners() {
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.FOCUS_IN, () => {
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: this.commentThread, comment: this.comment });
+		}, true));
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
@@ -502,14 +510,16 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			uri: this._commentEditor.getModel()!.uri,
 			value: this.commentBodyValue
 		};
-		this.commentService.setActiveCommentThread(commentThread);
+		this.commentService.setActiveEditingCommentThread(commentThread);
+		this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 			commentThread.input = {
 				uri: this._commentEditor!.getModel()!.uri,
 				value: this.commentBodyValue
 			};
-			this.commentService.setActiveCommentThread(commentThread);
+			this.commentService.setActiveEditingCommentThread(commentThread);
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 		}));
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
@@ -519,7 +529,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					const input = commentThread.input;
 					input.value = newVal;
 					commentThread.input = input;
-					this.commentService.setActiveCommentThread(commentThread);
+					this.commentService.setActiveEditingCommentThread(commentThread);
+					this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 				}
 			}
 		}));

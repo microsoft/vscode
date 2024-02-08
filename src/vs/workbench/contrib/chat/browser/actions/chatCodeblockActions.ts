@@ -382,8 +382,10 @@ export function registerChatCodeBlockActions() {
 	});
 
 	const shellLangIds = [
+		'fish',
 		'powershell',
-		'shellscript'
+		'shellscript',
+		'zsh'
 	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {

@@ -89,9 +89,9 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				files(value) {
-					throwIfDone(this.files);
-					const part = new extHostTypes.ChatResponseFilesPart(value);
+				filetree(value, baseUri) {
+					throwIfDone(this.filetree);
+					const part = new extHostTypes.ChatResponseFileTreePart(value, baseUri);
 					const dto = typeConvert.ChatResponseFilesPart.to(part);
 					_report(dto);
 					return this;
@@ -121,6 +121,12 @@ class ChatAgentResponseStream {
 					throwIfDone(this.reference);
 					const part = new extHostTypes.ChatResponseReferencePart(value);
 					const dto = typeConvert.ChatResponseReferencePart.to(part);
+					_report(dto);
+					return this;
+				},
+				push(part) {
+					throwIfDone(this.push);
+					const dto = typeConvert.ChatResponsePart.to(part);
 					_report(dto);
 					return this;
 				},
@@ -186,7 +192,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
 
-		this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: true }]);
+		this._extHostChatProvider.$updateAccesslist([{ extension: agent.extension.identifier, enabled: true }]);
 
 		// Init session disposables
 		let sessionDisposables = this._sessionDisposables.get(request.sessionId);
@@ -229,7 +235,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		} finally {
 			stream.close();
-			this._extHostChatProvider.$updateAllowlist([{ extension: agent.extension.identifier, allowed: false }]);
+			this._extHostChatProvider.$updateAccesslist([{ extension: agent.extension.identifier, enabled: false }]);
 		}
 	}
 
@@ -240,7 +246,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					|| h.result;
 				return {
 					request: typeConvert.ChatAgentRequest.to(h.request),
-					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.toProgressContent(r, this.commands.converter))),
+					response: coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter))),
 					result
 				} satisfies vscode.ChatAgentHistoryEntry;
 			})));

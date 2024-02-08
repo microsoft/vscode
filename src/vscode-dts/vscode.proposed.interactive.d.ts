@@ -32,8 +32,12 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+
+		/**
+		 * @deprecated, use previewDocument
+		 */
 		live: boolean;
-		previewDocument: TextDocument | undefined;
+		previewDocument: TextDocument;
 		withIntentDetection: boolean;
 	}
 

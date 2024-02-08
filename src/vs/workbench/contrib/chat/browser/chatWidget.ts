@@ -79,6 +79,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidChangeViewModel = this._register(new Emitter<void>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
 
+	private _onDidScroll = this._register(new Emitter<void>());
+	readonly onDidScroll = this._onDidScroll.event;
+
 	private _onDidClear = this._register(new Emitter<void>());
 	readonly onDidClear = this._onDidClear.event;
 
@@ -321,6 +324,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate);
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
+			onDidScroll: this.onDidScroll,
 		};
 
 		// Create a dom element to hold UI from editor widgets embedded in chat messages
@@ -380,6 +384,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();
+		}));
+		this._register(this.tree.onDidScroll(() => {
+			this._onDidScroll.fire();
 		}));
 	}
 

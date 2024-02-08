@@ -51,6 +51,7 @@ import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { basename } from 'vs/base/common/resources';
 
 export namespace Command {
 
@@ -2021,7 +2022,7 @@ export namespace TestCoverage {
 			};
 		} else {
 			return {
-				type: DetailType.Function,
+				type: DetailType.Declaration,
 				name: coverage.name,
 				count: coverage.executed,
 				location: fromLocation(coverage.location),
@@ -2034,7 +2035,7 @@ export namespace TestCoverage {
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			function: coverage.functionCoverage && fromCoveredCount(coverage.functionCoverage),
+			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
 			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}
@@ -2249,7 +2250,6 @@ export namespace ChatMessageRole {
 			case chatProvider.ChatMessageRole.System: return types.ChatMessageRole.System;
 			case chatProvider.ChatMessageRole.User: return types.ChatMessageRole.User;
 			case chatProvider.ChatMessageRole.Assistant: return types.ChatMessageRole.Assistant;
-			case chatProvider.ChatMessageRole.Function: return types.ChatMessageRole.Function;
 		}
 	}
 
@@ -2257,7 +2257,6 @@ export namespace ChatMessageRole {
 		switch (role) {
 			case types.ChatMessageRole.System: return chatProvider.ChatMessageRole.System;
 			case types.ChatMessageRole.Assistant: return chatProvider.ChatMessageRole.Assistant;
-			case types.ChatMessageRole.Function: return chatProvider.ChatMessageRole.Function;
 			case types.ChatMessageRole.User:
 			default:
 				return chatProvider.ChatMessageRole.User;
@@ -2360,15 +2359,41 @@ export namespace ChatResponseMarkdownPart {
 }
 
 export namespace ChatResponseFilesPart {
-	export function to(part: vscode.ChatResponseFilesPart): IChatTreeData {
+	export function to(part: vscode.ChatResponseFileTreePart): IChatTreeData {
+		const { value, baseUri } = part;
+		function convert(items: vscode.ChatResponseFileTree[], baseUri: URI): extHostProtocol.IChatResponseProgressFileTreeData[] {
+			return items.map(item => {
+				const myUri = URI.joinPath(baseUri, item.name);
+				return {
+					label: item.name,
+					uri: myUri,
+					children: item.children && convert(item.children, myUri)
+				};
+			});
+		}
 		return {
 			kind: 'treeData',
-			treeData: part.value
+			treeData: {
+				label: basename(baseUri),
+				uri: baseUri,
+				children: convert(value, baseUri)
+			}
 		};
 	}
-	export function from(part: Dto<IChatTreeData>): vscode.ChatResponseFilesPart {
-		const value = revive<IChatTreeData>(part.treeData);
-		return new types.ChatResponseFilesPart(value.treeData);
+	export function from(part: Dto<IChatTreeData>): vscode.ChatResponseFileTreePart {
+		const { treeData } = revive<IChatTreeData>(part.treeData);
+		function convert(items: extHostProtocol.IChatResponseProgressFileTreeData[]): vscode.ChatResponseFileTree[] {
+			return items.map(item => {
+				return {
+					name: item.label,
+					children: item.children && convert(item.children)
+				};
+			});
+		}
+
+		const baseUri = treeData.uri;
+		const items = treeData.children ? convert(treeData.children) : [];
+		return new types.ChatResponseFileTreePart(items, baseUri);
 	}
 }
 
@@ -2434,7 +2459,26 @@ export namespace ChatResponseReferencePart {
 
 export namespace ChatResponsePart {
 
-	export function to(part: extHostProtocol.IChatProgressDto): vscode.ChatResponsePart {
+	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+		if (part instanceof types.ChatResponseMarkdownPart) {
+			return ChatResponseMarkdownPart.to(part);
+		} else if (part instanceof types.ChatResponseAnchorPart) {
+			return ChatResponseAnchorPart.to(part);
+		} else if (part instanceof types.ChatResponseReferencePart) {
+			return ChatResponseReferencePart.to(part);
+		} else if (part instanceof types.ChatResponseProgressPart) {
+			return ChatResponseProgressPart.to(part);
+		} else if (part instanceof types.ChatResponseFileTreePart) {
+			return ChatResponseFilesPart.to(part);
+		}
+		return {
+			kind: 'content',
+			content: ''
+		};
+
+	}
+
+	export function from(part: extHostProtocol.IChatProgressDto): vscode.ChatResponsePart {
 		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
 			case 'inlineReference': return ChatResponseAnchorPart.from(part);

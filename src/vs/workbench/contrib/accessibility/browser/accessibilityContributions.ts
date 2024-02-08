@@ -242,8 +242,8 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				if (!model || !state) {
 					return false;
 				}
-				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
-				const ghostText = state.ghostText.renderForScreenReader(lineText);
+				const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
+				const ghostText = state.primaryGhostText.renderForScreenReader(lineText);
 				if (!ghostText) {
 					return false;
 				}

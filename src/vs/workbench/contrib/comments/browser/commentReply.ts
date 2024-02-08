@@ -237,7 +237,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 				uri: commentEditor.getModel()!.uri,
 				value: commentEditor.getValue()
 			};
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveEditingCommentThread(this._commentThread);
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: this._commentThread });
 		}));
 
 		this._commentThreadDisposables.push(commentEditor.getModel()!.onDidChangeContent(() => {
@@ -247,7 +248,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 				newInput.value = modelContent;
 				this._commentThread.input = newInput;
 			}
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeInput(input => {

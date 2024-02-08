@@ -10,7 +10,10 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -20,9 +23,11 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
@@ -35,13 +40,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { IMarkdownVulnerability } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 
 const $ = dom.$;
 
@@ -120,6 +125,7 @@ export interface ICodeBlockPart<Data = ICodeBlockData> {
 	layout(width: number): void;
 	render(data: Data, width: number): Promise<void>;
 	focus(): void;
+	reset(): unknown;
 	dispose(): void;
 }
 
@@ -128,7 +134,7 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
-	protected readonly editor: CodeEditorWidget;
+	public readonly editor: CodeEditorWidget;
 	protected readonly toolbar: MenuWorkbenchToolBar;
 	private readonly contextKeyService: IContextKeyService;
 
@@ -140,6 +146,7 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 	constructor(
 		private readonly options: ChatEditorOptions,
 		readonly menuId: MenuId,
+		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -207,11 +214,19 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 		this._register(this.editor.onDidBlurEditorWidget(() => {
 			this.element.classList.remove('focused');
 			WordHighlighterContribution.get(this.editor)?.stopHighlighting();
+			this.clearWidgets();
 		}));
 		this._register(this.editor.onDidFocusEditorWidget(() => {
 			this.element.classList.add('focused');
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
+
+		// Parent list scrolled
+		if (delegate.onDidScroll) {
+			this._register(delegate.onDidScroll(e => {
+				this.clearWidgets();
+			}));
+		}
 	}
 
 	protected abstract createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget;
@@ -290,6 +305,14 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 	}
 
 	protected abstract updateEditor(data: Data): void | Promise<void>;
+
+	reset() {
+		this.clearWidgets();
+	}
+
+	private clearWidgets() {
+		HoverController.get(this.editor)?.hideContentHover();
+	}
 }
 
 
@@ -300,18 +323,24 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 
 	private currentCodeBlockData: ISimpleCodeBlockData | undefined;
 
-	private readonly textModel: ITextModel;
+	private readonly textModel: Promise<ITextModel>;
+
+	private readonly _uri: URI;
+
 	constructor(
 		options: ChatEditorOptions,
 		menuId: MenuId,
+		delegate: IChatRendererDelegate,
+		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
-		super(options, menuId, undefined, instantiationService, contextKeyService, modelService, configurationService, accessibilityService);
+		super(options, menuId, delegate, overflowWidgetsDomNode, instantiationService, contextKeyService, modelService, configurationService, accessibilityService);
 
 		const vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
 		const vulnsHeaderElement = dom.append(vulnsContainer, $('.interactive-result-vulns-header', undefined));
@@ -326,8 +355,12 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 			buttonSeparator: undefined,
 			supportIcons: true
 		});
-		this.textModel = this._register(this.modelService.createModel('', null, undefined, true));
-		this.editor.setModel(this.textModel);
+		this._uri = URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() });
+		this.textModel = textModelService.createModelReference(this._uri).then(ref => {
+			this.editor.setModel(ref.object.textEditorModel);
+			this._register(ref);
+			return ref.object.textEditorModel;
+		});
 
 		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
 
@@ -342,7 +375,7 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 	}
 
 	get uri(): URI {
-		return this.textModel.uri;
+		return this._uri;
 	}
 
 	protected override createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget {
@@ -357,6 +390,8 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
+				HoverController.ID,
+				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		}));
 	}
@@ -375,8 +410,8 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		}
 	}
 
-	protected override updateEditor(data: ISimpleCodeBlockData): void {
-		this.editor.setModel(this.textModel);
+	protected override async updateEditor(data: ISimpleCodeBlockData): Promise<void> {
+		this.editor.setModel(await this.textModel);
 		const text = this.fixCodeText(data.text, data.languageId);
 		this.setText(text);
 
@@ -414,25 +449,26 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		return text;
 	}
 
-	private setText(newText: string): void {
-		const currentText = this.textModel.getValue(EndOfLinePreference.LF);
+	private async setText(newText: string): Promise<void> {
+		const model = await this.textModel;
+		const currentText = model.getValue(EndOfLinePreference.LF);
 		if (newText === currentText) {
 			return;
 		}
 
 		if (newText.startsWith(currentText)) {
 			const text = newText.slice(currentText.length);
-			const lastLine = this.textModel.getLineCount();
-			const lastCol = this.textModel.getLineMaxColumn(lastLine);
-			this.textModel.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
+			const lastLine = model.getLineCount();
+			const lastCol = model.getLineMaxColumn(lastLine);
+			model.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
 		} else {
 			// console.log(`Failed to optimize setText`);
-			this.textModel.setValue(newText);
+			model.setValue(newText);
 		}
 	}
 
-	private setLanguage(vscodeLanguageId: string | undefined): void {
-		this.textModel.setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
+	private async setLanguage(vscodeLanguageId: string | undefined): Promise<void> {
+		(await this.textModel).setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
 	}
 }
 
@@ -444,6 +480,7 @@ export class LocalFileCodeBlockPart extends BaseCodeBlockPart<ILocalFileCodeBloc
 	constructor(
 		options: ChatEditorOptions,
 		menuId: MenuId,
+		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -452,7 +489,7 @@ export class LocalFileCodeBlockPart extends BaseCodeBlockPart<ILocalFileCodeBloc
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		super(options, menuId, overflowWidgetsDomNode, instantiationService, contextKeyService, modelService, configurationService, accessibilityService);
+		super(options, menuId, delegate, overflowWidgetsDomNode, instantiationService, contextKeyService, modelService, configurationService, accessibilityService);
 	}
 
 	get uri(): URI {
@@ -501,5 +538,25 @@ export class LocalFileCodeBlockPart extends BaseCodeBlockPart<ILocalFileCodeBloc
 			element: data.element,
 			languageId: model.getLanguageId()
 		} satisfies ICodeBlockActionContext;
+	}
+}
+
+
+export class ChatCodeBlockContentProvider extends Disposable implements ITextModelContentProvider {
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+	) {
+		super();
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatCodeBlock, this));
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		return this._modelService.createModel('', null, resource);
 	}
 }

@@ -8,6 +8,10 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 interface IColorExtensionPoint {
 	id: string;
@@ -150,5 +154,53 @@ export class ColorExtensionPoint {
 	}
 }
 
+class ColorDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
 
+	readonly type = 'table';
 
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.colors;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const colors = manifest.contributes?.colors || [];
+		if (!colors.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('id', "ID"),
+			nls.localize('description', "Description"),
+			nls.localize('defaultDark', "Dark Default"),
+			nls.localize('defaultLight', "Light Default"),
+			nls.localize('defaultHC', "High Contrast Default"),
+		];
+		const rows: IRowData[][] = colors.sort((a, b) => a.id.localeCompare(b.id))
+			.map(color => {
+				return [
+					{ data: color.id, type: 'code' },
+					color.description,
+					{ data: color.defaults.dark, type: 'color' },
+					{ data: color.defaults.light, type: 'color' },
+					{ data: color.defaults.highContrast, type: 'color' },
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'colors',
+	label: nls.localize('colors', "Colors"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ColorDataRenderer),
+});

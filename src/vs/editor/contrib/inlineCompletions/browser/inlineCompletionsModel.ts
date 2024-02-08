@@ -18,7 +18,7 @@ import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
-import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
@@ -41,6 +41,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
+	private readonly _primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
@@ -48,8 +49,8 @@ export class InlineCompletionsModel extends Disposable {
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
-		public readonly cursorPosition: IObservable<Position>,
 		public readonly textModelVersionId: IObservable<number, VersionIdChangeReason>,
+		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _suggestPreviewEnabled: IObservable<boolean>,
 		private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
@@ -126,7 +127,7 @@ export class InlineCompletionsModel extends Disposable {
 			});
 		}
 
-		const cursorPosition = this.cursorPosition.read(reader);
+		const cursorPosition = this._primaryPosition.read(reader);
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
@@ -157,7 +158,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _filteredInlineCompletionItems = derived(this, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return []; }
-		const cursorPosition = this.cursorPosition.read(reader);
+		const cursorPosition = this._primaryPosition.read(reader);
 		const filteredCompletions = c.inlineCompletions.filter(c => c.isVisible(this.textModel, cursorPosition, reader));
 		return filteredCompletions;
 	});
@@ -195,12 +196,14 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly state = derivedOpts<{
 		suggestItem: SuggestItemInfo | undefined;
 		inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
-		ghostText: GhostTextOrReplacement;
+		primaryGhostText: GhostTextOrReplacement;
+		ghostTexts: readonly GhostTextOrReplacement[];
+		edits: SingleTextEdit[];
 	} | undefined>({
 		owner: this,
 		equalityComparer: (a, b) => {
 			if (!a || !b) { return a === b; }
-			return ghostTextOrReplacementEquals(a.ghostText, b.ghostText)
+			return ghostTextsOrReplacementsEqual(a.ghostTexts, b.ghostTexts)
 				&& a.inlineCompletion === b.inlineCompletion
 				&& a.suggestItem === b.suggestItem;
 		}
@@ -219,12 +222,13 @@ export class InlineCompletionsModel extends Disposable {
 			const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
 
 			const mode = this._suggestPreviewMode.read(reader);
-			const cursor = this.cursorPosition.read(reader);
-			const newGhostText = edit.computeGhostText(model, mode, cursor, editPreviewLength);
-
-			// Show an invisible ghost text to reserve space
-			const ghostText = newGhostText ?? new GhostText(edit.range.endLineNumber, []);
-			return { ghostText, inlineCompletion: augmentedCompletion?.completion, suggestItem };
+			const positions = this._positions.read(reader);
+			const edits = [edit, ...this._getSecondaryEdits(this.textModel, positions, edit)];
+			const ghostTexts = edits
+				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], editPreviewLength))
+				.filter(isDefined);
+			const primaryGhostText = ghostTexts[0] ?? new GhostText(edit.range.endLineNumber, []);
+			return { ghostTexts, primaryGhostText, inlineCompletion: augmentedCompletion?.completion, suggestItem, edits };
 		} else {
 			if (!this._isActive.read(reader)) { return undefined; }
 			const item = this.selectedInlineCompletion.read(reader);
@@ -232,9 +236,13 @@ export class InlineCompletionsModel extends Disposable {
 
 			const replacement = item.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
-			const cursor = this.cursorPosition.read(reader);
-			const ghostText = replacement.computeGhostText(model, mode, cursor);
-			return ghostText ? { ghostText, inlineCompletion: item, suggestItem: undefined } : undefined;
+			const positions = this._positions.read(reader);
+			const edits = [replacement, ...this._getSecondaryEdits(this.textModel, positions, replacement)];
+			const ghostTexts = edits
+				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], 0))
+				.filter(isDefined);
+			if (!ghostTexts[0]) { return undefined; }
+			return { ghostTexts, primaryGhostText: ghostTexts[0], inlineCompletion: item, suggestItem: undefined, edits };
 		}
 	});
 
@@ -254,13 +262,22 @@ export class InlineCompletionsModel extends Disposable {
 		return augmentedCompletion;
 	}
 
-	public readonly ghostText = derivedOpts({
+	public readonly ghostTexts = derivedOpts({
+		owner: this,
+		equalityComparer: ghostTextsOrReplacementsEqual
+	}, reader => {
+		const v = this.state.read(reader);
+		if (!v) { return undefined; }
+		return v.ghostTexts;
+	});
+
+	public readonly primaryGhostText = derivedOpts({
 		owner: this,
 		equalityComparer: ghostTextOrReplacementEquals
 	}, reader => {
 		const v = this.state.read(reader);
 		if (!v) { return undefined; }
-		return v.ghostText;
+		return v?.primaryGhostText;
 	});
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
@@ -289,7 +306,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const state = this.state.get();
-		if (!state || state.ghostText.isEmpty() || !state.inlineCompletion) {
+		if (!state || state.primaryGhostText.isEmpty() || !state.inlineCompletion) {
 			return;
 		}
 		const completion = state.inlineCompletion.toInlineCompletion(undefined);
@@ -306,12 +323,13 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
-			const edits = this._getEdits(editor, completion.toSingleTextEdit());
+			const edits = state.edits;
+			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 			editor.executeEdits('inlineSuggestion.accept', [
-				...edits.edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)),
+				...edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)),
 				...completion.additionalTextEdits
 			]);
-			editor.setSelections(edits.editorSelections, 'inlineCompletionAccept');
+			editor.setSelections(selections, 'inlineCompletionAccept');
 		}
 
 		if (completion.command) {
@@ -380,10 +398,10 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const state = this.state.get();
-		if (!state || state.ghostText.isEmpty() || !state.inlineCompletion) {
+		if (!state || state.primaryGhostText.isEmpty() || !state.inlineCompletion) {
 			return;
 		}
-		const ghostText = state.ghostText;
+		const ghostText = state.primaryGhostText;
 		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
@@ -415,9 +433,11 @@ export class InlineCompletionsModel extends Disposable {
 					0,
 					firstPart.column - completion.range.startColumn + acceptUntilIndexExclusive);
 				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
-				const edits = this._getEdits(editor, singleTextEdit);
-				editor.executeEdits('inlineSuggestion.accept', edits.edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
-				editor.setSelections(edits.editorSelections, 'inlineCompletionPartialAccept');
+				const positions = this._positions.get();
+				const edits = [singleTextEdit, ...this._getSecondaryEdits(this.textModel, positions, singleTextEdit)];
+				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
+				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
+				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
 			}
@@ -437,36 +457,22 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	private _getEdits(editor: ICodeEditor, completion: SingleTextEdit): { edits: SingleTextEdit[]; editorSelections: Selection[] } {
+	private _getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
 
-		const selections = editor.getSelections() ?? [];
-		const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
-		const primaryPosition = selections[0].getPosition();
-		const textModel = editor.getModel()!;
+		const primaryPosition = positions[0];
+		const secondaryPositions = positions.slice(1);
 		const replacedTextAfterPrimaryCursor = textModel
 			.getLineContent(primaryPosition.lineNumber)
-			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-		const secondaryEditText = completion.text.substring(primaryPosition.column - completion.range.startColumn);
-		const edits = [
-			new SingleTextEdit(completion.range, completion.text),
-			...secondaryPositions.map(pos => {
-				const textAfterSecondaryCursor = this.textModel
-					.getLineContent(pos.lineNumber)
-					.substring(pos.column - 1);
-				const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-				const range = Range.fromPositions(pos, pos.delta(0, l));
-				return new SingleTextEdit(range, secondaryEditText);
-			})
-		];
-		const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
-		const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
-		const newRanges = sortPerm.inverse().apply(sortedNewRanges);
-		const editorSelections = newRanges.map(range => Selection.fromPositions(range.getEndPosition()));
-
-		return {
-			edits,
-			editorSelections
-		};
+			.substring(primaryPosition.column - 1, primaryEdit.range.endColumn - 1);
+		const secondaryEditText = primaryEdit.text.substring(primaryPosition.column - primaryEdit.range.startColumn);
+		return secondaryPositions.map(pos => {
+			const textAfterSecondaryCursor = this.textModel
+				.getLineContent(pos.lineNumber)
+				.substring(pos.column - 1);
+			const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+			const range = Range.fromPositions(pos, pos.delta(0, l));
+			return new SingleTextEdit(range, secondaryEditText);
+		});
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
@@ -481,4 +487,11 @@ export class InlineCompletionsModel extends Disposable {
 			itemEdit.text.length,
 		);
 	}
+}
+
+function getEndPositionsAfterApplying(edits: SingleTextEdit[]): Position[] {
+	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
+	const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
+	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
+	return newRanges.map(range => range.getEndPosition());
 }
