@@ -416,7 +416,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 							data.msgContainer.appendChild($('span', undefined, ...renderLabelWithIcons(`$(${status.severity === Severity.Error ? errorIcon.id : warningIcon.id}) ${status.message}`)));
 						}
 						if (accessData?.current) {
-							const element = $('span', undefined, nls.localize('requests count', "{0} Requests: {1}", feature.label, accessData.current.count));
+							const element = $('span', undefined, nls.localize('requests count', "{0} Requests: {1} (Session)", feature.label, accessData.current.count));
 							element.title = nls.localize('requests count title', "Last request was {0}. Overall Requests: {1}", fromNow(accessData.current.lastAccessed, true, true), accessData.totalCount);
 							data.msgContainer.appendChild(element);
 						}
