@@ -304,18 +304,13 @@ export async function fetchZshHistory(accessor: ServicesAccessor) {
 	return result.values();
 }
 
+// Was not able to check this because it never even gets called
+// PROBLEM: POSIXSHELLTYPE.PYTHON does not seem to be called nor shows up when Python REPL is launched
+
 export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
-	const remoteEnvironment = await remoteAgentService.getEnvironment();
 
-	// Python history file is typically stored in the user's home directory
-	const homeDirectory = remoteEnvironment?.userHome;
-	if (!homeDirectory) {
-		return undefined;
-	}
-
-	// const historyFilePath = '.python_history'; // The typical file name for Python history
 	const content = await fetchFileContents(env['HOME'], '.python_history', false, fileService, remoteAgentService);
 
 	if (content === undefined) {
