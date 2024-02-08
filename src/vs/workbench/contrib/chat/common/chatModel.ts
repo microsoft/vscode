@@ -92,10 +92,18 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this.session.requesterAvatarIconUri;
 	}
 
+	public get variableData(): IChatRequestVariableData {
+		return this._variableData;
+	}
+
+	public set variableData(v: IChatRequestVariableData) {
+		this._variableData = v;
+	}
+
 	constructor(
 		public readonly session: ChatModel,
 		public readonly message: IParsedChatRequest,
-		public readonly variableData: IChatRequestVariableData) {
+		private _variableData: IChatRequestVariableData) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
 	}
 }
@@ -353,7 +361,8 @@ export type ISerializableChatAgentData = UriDto<IChatAgentData>;
 
 export interface ISerializableChatRequestData {
 	message: string | IParsedChatRequest; // string => old format
-	variableData: IChatRequestVariableData; // make optional
+	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
+	variableData: IChatRequestVariableData;
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
 	agent?: ISerializableChatAgentData;
 	slashCommand?: IChatAgentCommand;

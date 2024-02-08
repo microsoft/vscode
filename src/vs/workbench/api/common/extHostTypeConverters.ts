@@ -2021,7 +2021,7 @@ export namespace TestCoverage {
 			};
 		} else {
 			return {
-				type: DetailType.Function,
+				type: DetailType.Declaration,
 				name: coverage.name,
 				count: coverage.executed,
 				location: fromLocation(coverage.location),
@@ -2034,7 +2034,7 @@ export namespace TestCoverage {
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			function: coverage.functionCoverage && fromCoveredCount(coverage.functionCoverage),
+			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
 			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}
@@ -2245,7 +2245,6 @@ export namespace ChatMessageRole {
 			case chatProvider.ChatMessageRole.System: return types.ChatMessageRole.System;
 			case chatProvider.ChatMessageRole.User: return types.ChatMessageRole.User;
 			case chatProvider.ChatMessageRole.Assistant: return types.ChatMessageRole.Assistant;
-			case chatProvider.ChatMessageRole.Function: return types.ChatMessageRole.Function;
 		}
 	}
 
@@ -2253,7 +2252,6 @@ export namespace ChatMessageRole {
 		switch (role) {
 			case types.ChatMessageRole.System: return chatProvider.ChatMessageRole.System;
 			case types.ChatMessageRole.Assistant: return chatProvider.ChatMessageRole.Assistant;
-			case types.ChatMessageRole.Function: return chatProvider.ChatMessageRole.Function;
 			case types.ChatMessageRole.User:
 			default:
 				return chatProvider.ChatMessageRole.User;
@@ -2390,7 +2388,7 @@ export namespace ChatResponseFilesPart {
 
 		const baseUri = treeData.uri;
 		const items = treeData.children ? convert(treeData.children) : [];
-		return new types.ChatResponseFilesPart(items, baseUri);
+		return new types.ChatResponseFileTreePart(items, baseUri);
 	}
 }
 
@@ -2450,7 +2448,7 @@ export namespace ChatResponsePart {
 			return ChatResponseReferencePart.to(part);
 		} else if (part instanceof types.ChatResponseProgressPart) {
 			return ChatResponseProgressPart.to(part);
-		} else if (part instanceof types.ChatResponseFilesPart) {
+		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.to(part);
 		}
 		return {

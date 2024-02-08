@@ -14,7 +14,6 @@ export const enum ChatMessageRole {
 	System,
 	User,
 	Assistant,
-	Function,
 }
 
 export interface IChatMessage {

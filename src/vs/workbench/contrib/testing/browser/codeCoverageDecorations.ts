@@ -366,7 +366,7 @@ export class CoverageDetailsModel {
 
 		//#region decoration generation
 		// Coverage from a provider can have a range that contains smaller ranges,
-		// such as a function declarationt that has nested statements. In this we
+		// such as a function declaration that has nested statements. In this we
 		// make sequential, non-overlapping ranges for each detail for display in
 		// the editor without ugly overlaps.
 		const detailRanges: DetailRange[] = details.map(detail => ({
@@ -445,8 +445,8 @@ export class CoverageDetailsModel {
 
 	/** Gets the markdown description for the given detail */
 	public describe(detail: CoverageDetailsWithBranch, model: ITextModel): IMarkdownString | undefined {
-		if (detail.type === DetailType.Function) {
-			return new MarkdownString().appendMarkdown(localize('coverage.fnExecutedCount', 'Function `{0}` was executed {1} time(s).', detail.name, detail.count));
+		if (detail.type === DetailType.Declaration) {
+			return new MarkdownString().appendMarkdown(localize('coverage.declExecutedCount', '`{0}` was executed {1} time(s).', detail.name, detail.count));
 		} else if (detail.type === DetailType.Statement) {
 			const text = wrapName(model.getValueInRange(tidyLocation(detail.location)).trim() || `<empty statement>`);
 			const str = new MarkdownString();

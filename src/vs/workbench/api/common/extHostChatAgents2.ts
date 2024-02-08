@@ -86,7 +86,7 @@ class ChatAgentResponseStream {
 				},
 				filetree(value, baseUri) {
 					throwIfDone(this.filetree);
-					const part = new extHostTypes.ChatResponseFilesPart(value, baseUri);
+					const part = new extHostTypes.ChatResponseFileTreePart(value, baseUri);
 					const dto = typeConvert.ChatResponseFilesPart.to(part);
 					_report(dto);
 					return this;

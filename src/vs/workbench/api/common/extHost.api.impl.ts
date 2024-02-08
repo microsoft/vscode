@@ -938,6 +938,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// Note, undefined/null have different meanings on "exclude"
 				return extHostWorkspace.findFiles(include, exclude, maxResults, extension.identifier, token);
 			},
+			findFiles2: (filePattern, options?, token?) => {
+				return extHostWorkspace.findFiles2(filePattern, options, extension.identifier, token);
+			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'findTextInFiles');
 				let options: vscode.FindTextInFilesOptions;
@@ -1612,7 +1615,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestMessage2: extHostTypes.TestMessage, // back compat for Oct 2023
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
@@ -1622,7 +1624,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
-			FunctionCoverage: extHostTypes.FunctionCoverage,
+			DeclarationCoverage: extHostTypes.DeclarationCoverage,
+			FunctionCoverage: extHostTypes.DeclarationCoverage,  // back compat for Feb 2024
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
 			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
@@ -1650,7 +1653,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
 			ChatResponseTextPart: extHostTypes.ChatResponseTextPart,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
-			ChatResponseFileTreePart: extHostTypes.ChatResponseFilesPart,
+			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
