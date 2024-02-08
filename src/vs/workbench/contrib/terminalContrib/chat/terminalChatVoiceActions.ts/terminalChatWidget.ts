@@ -21,12 +21,15 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { URI } from 'vs/base/common/uri';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { IVoiceChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { IVoiceChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAction } from 'vs/base/common/actions';
 import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+
+const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 export class TerminalChatWidget extends Widget {
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -36,6 +39,11 @@ export class TerminalChatWidget extends Widget {
 	private _width: number = 0;
 	private _chatWidgetFocused: IContextKey<boolean>;
 	private _chatWidgetVisible: IContextKey<boolean>;
+	// TODO: add a IChatModel to this widget, set this to true when a session is started and false when it is ended
+	private _chatSessionInProgress: IContextKey<boolean>;
+	private _chatInputHasText: IContextKey<boolean>;
+	private _widget: CodeEditorWidget | undefined;
+	private _inputEditorHeight: number = 0;
 
 	constructor(
 		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
@@ -44,10 +52,10 @@ export class TerminalChatWidget extends Widget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextMenuService _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IModelService private readonly _modelService: IModelService
+		@IModelService private readonly _modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
-
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('terminal-chat-widget');
 		this.onkeyup(this._domNode, e => {
@@ -59,6 +67,8 @@ export class TerminalChatWidget extends Widget {
 		});
 		this._chatWidgetFocused = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
 		this._chatWidgetVisible = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
+		this._chatSessionInProgress = TerminalContextKeys.chatSessionInProgress.bindTo(this._contextKeyService);
+		this._chatInputHasText = TerminalContextKeys.chatInputHasText.bindTo(this._contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._domNode));
 		this._register(this._focusTracker.onDidFocus(this._onFocusTrackerFocus.bind(this)));
 		this._register(this._focusTracker.onDidBlur(this._onFocusTrackerBlur.bind(this)));
@@ -123,38 +133,64 @@ export class TerminalChatWidget extends Widget {
 					this._domNode.classList.remove('suppress-transition');
 				}, 0);
 			}
-			const widget = this._instantiationService.createInstance(CodeEditorWidget, this._domNode, _inputEditorOptions, codeEditorWidgetOptions);
-			widget.setModel(undefined);
-			if (!widget.getModel()) {
+			this._widget = this._instantiationService.createInstance(CodeEditorWidget, this._domNode, _inputEditorOptions, codeEditorWidgetOptions);
+			this._widget.setModel(undefined);
+			if (!this._widget.getModel()) {
 				let model = this._modelService.getModel(URI.from({ path: `terminalInlineChatWidget`, scheme: 'terminalInlineChatWidget', fragment: 'Chat Widget' }));
 				if (!model) {
 					model = this._modelService.createModel('', null, URI.from({ path: `terminalInlineChatWidget`, scheme: 'terminalInlineChatWidget', fragment: 'Chat Widget' }), true);
 				}
-				widget.setModel(model);
+				this._widget.setModel(model);
 			}
-			const widgetDomNode = widget.getDomNode();
+			const widgetDomNode = this._widget.getDomNode();
 			if (!widgetDomNode) {
 				return;
 			}
 			this._domNode.appendChild(widgetDomNode);
+			this._register(this._widget.onDidChangeModelContent(() => {
+				const currentHeight = Math.min(this._widget!.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
+				if (currentHeight !== this._inputEditorHeight) {
+					this._inputEditorHeight = currentHeight;
+					widgetDomNode.style.height = `${currentHeight}px`;
+				}
+
+				const model = this._widget!.getModel();
+				const inputHasText = !!model && model.getValueLength() > 0;
+				this._chatInputHasText.set(inputHasText);
+			}));
+
 			this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, widgetDomNode, MenuId.TerminalChatExecute, {
 				menuOptions: {
 					shouldForwardArgs: true
 				},
 				hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 				actionViewItemProvider: (action, options) => {
-					if (action.id === SubmitAction.ID) {
-						return this._instantiationService.createInstance(SubmitButtonActionViewItem, { widget }, action, options);
+					if (action.id === TerminalCommandId.SubmitChat) {
+						return this._instantiationService.createInstance(SubmitButtonActionViewItem, { widget: this._widget }, action, options);
 					}
 
 					return undefined;
 				}
 			}));
 			this._toolbar.getElement().classList.add('interactive-execute-toolbar');
-			this._toolbar.context = { widget };
+			this._toolbar.context = { widget: this._widget };
 			this._domNode.appendChild(this._toolbar.getElement());
-			widget.focus();
+			this._widget.focus();
 		}, 0);
+	}
+
+	public acceptInput(): void {
+		if (!this._isVisible) {
+			return;
+		} else {
+			// TODO: Implement
+			console.log(`accepted input ${this._widget?.getValue()}`);
+		}
+	}
+
+	public cancel(): void {
+		// TODO: Implement
+		this._chatSessionInProgress.reset();
 	}
 
 	protected _onFocusTrackerFocus() {

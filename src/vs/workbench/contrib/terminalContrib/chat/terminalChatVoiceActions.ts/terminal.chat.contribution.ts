@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import { IDimension } from 'vs/base/browser/dom';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -22,10 +17,12 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessInfo, ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
+import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/terminalChatVoiceActions.ts/terminalChatWidget';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { Codicon } from 'vs/base/common/codicons';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
-class TerminalChatContribution extends Disposable implements ITerminalContribution {
+export class TerminalChatContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
 
 	/**
@@ -96,7 +93,6 @@ class TerminalChatContribution extends Disposable implements ITerminalContributi
 		super.dispose();
 		this._chatWidget.rawValue?.dispose();
 	}
-
 }
 registerTerminalContribution(TerminalChatContribution.ID, TerminalChatContribution, true);
 
@@ -130,3 +126,35 @@ registerActiveXtermAction({
 		contr?.chatWidget.hide();
 	}
 });
+
+registerActiveXtermAction({
+	id: TerminalCommandId.SubmitChat,
+	title: localize2('workbench.action.terminal.submitChat', 'Submit Chat'),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.chatInputHasText),
+	icon: Codicon.send,
+	menu: {
+		id: MenuId.TerminalChatExecute,
+		when: TerminalContextKeys.chatSessionInProgress.negate(),
+		group: 'navigation',
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
+		contr?.chatWidget.acceptInput();
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalCommandId.CancelChat,
+	title: localize2('workbench.action.terminal.cancelChat', 'Cancel Chat'),
+	precondition: TerminalContextKeys.chatSessionInProgress,
+	icon: Codicon.debugStop,
+	menu: {
+		id: MenuId.TerminalChatExecute,
+		group: 'navigation',
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
+		contr?.chatWidget.cancel();
+	}
+});
+
