@@ -53,7 +53,7 @@ if [ "$OS_ID" != "alpine" ]; then
         libstdcpp_paths=$(/sbin/ldconfig -p | grep 'libstdc++.so.6')
 
         if [ "$(echo "$libstdcpp_paths" | wc -l)" -gt 1 ]; then
-            libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}' | head -n1)
+            libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
         else
             libstdcpp_path=$(echo "$libstdcpp_paths" | awk '{print $NF}')
         fi
@@ -72,18 +72,22 @@ if [ -z "$libstdcpp_path" ]; then
     fi
 fi
 
-if [ -n "$libstdcpp_path" ]; then
+while [ -n "$libstdcpp_path" ]; do
 	# Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
 	# which is then compared based on the fact that release versioning and symbol versioning
 	# are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
 	# (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
-    libstdcpp_real_path=$(readlink -f "$libstdcpp_path")
+    libstdcpp_path_line=$(echo "$libstdcpp_path" | head -n1)
+    libstdcpp_real_path=$(readlink -f "$libstdcpp_path_line")
     libstdcpp_version=$(echo "$libstdcpp_real_path" | awk -F'\\.so\\.' '{print $NF}')
     if [ "$(printf '%s\n' "6.0.25" "$libstdcpp_version" | sort -V | head -n1)" = "6.0.25" ]; then
         found_required_glibcxx=1
-    else
-        echo "Warning: Missing GLIBCXX >= 3.4.25! from $libstdcpp_real_path"
+        break
     fi
+    libstdcpp_path=$(echo "$libstdcpp_path" | tail -n +2)    # remove first line
+done
+if [ "$found_required_glibcxx" = "0" ]; then
+    echo "Warning: Missing GLIBCXX >= 3.4.25! from $libstdcpp_real_path"
 fi
 
 if [ "$OS_ID" = "alpine" ]; then
@@ -105,7 +109,7 @@ elif [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
         libc_paths=$(/sbin/ldconfig -p | grep 'libc.so.6')
 
         if [ "$(echo "$libc_paths" | wc -l)" -gt 1 ]; then
-            libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}' | head -n1)
+            libc_path=$(echo "$libc_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
         else
             libc_path=$(echo "$libc_paths" | awk '{print $NF}')
         fi
@@ -119,16 +123,20 @@ elif [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
         echo "Warning: Can't find libc.so or ldconfig, can't verify libc version"
     fi
 
-    if [ -n "$libc_path" ]; then
+    while [ -n "$libc_path" ]; do
 		# Rather than trusting the output of ldd --version (which is not always accurate)
 		# we instead use the version of the cached libc.so.6 file itself.
-        libc_real_path=$(readlink -f "$libc_path")
+        libc_path_line=$(echo "$libc_path" | head -n1)
+        libc_real_path=$(readlink -f "$libc_path_line")
         libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
         if [ "$(printf '%s\n' "2.28" "$libc_version" | sort -V | head -n1)" = "2.28" ]; then
             found_required_glibc=1
-        else
-            echo "Warning: Missing GLIBC >= 2.28! from $libc_real_path"
+            break
         fi
+	    libc_path=$(echo "$libc_path" | tail -n +2)    # remove first line
+    done
+    if [ "$found_required_glibc" = "0" ]; then
+        echo "Warning: Missing GLIBC >= 2.28! from $libc_real_path"
     fi
 else
     echo "Warning: musl detected, skipping GLIBC check"
