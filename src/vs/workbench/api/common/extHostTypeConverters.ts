@@ -2478,13 +2478,14 @@ export namespace ChatResponsePart {
 
 	}
 
-	export function from(part: extHostProtocol.IChatProgressDto): vscode.ChatResponsePart {
+	export function from(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart {
 		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
 			case 'inlineReference': return ChatResponseAnchorPart.from(part);
 			case 'reference': return ChatResponseReferencePart.from(part);
 			case 'progressMessage': return ChatResponseProgressPart.from(part);
 			case 'treeData': return ChatResponseFilesPart.from(part);
+			case 'command': return ChatResponseCommandButtonPart.from(part, commandsConverter);
 		}
 		return new types.ChatResponseTextPart('');
 	}
