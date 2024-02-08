@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -13,7 +13,7 @@ import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
+import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
@@ -23,7 +23,7 @@ import { RemoteSourceAction } from './api/git-base';
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
 	get description(): string { return ''; }
-	get alwaysShow(): boolean { return false; }
+	get alwaysShow(): boolean { return true; }
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
@@ -2461,9 +2461,10 @@ export class CommandCenter {
 		const createBranchFrom = new CreateBranchFromItem();
 		const checkoutDetached = new CheckoutDetachedItem();
 		const picks: QuickPickItem[] = [];
+		const commands: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
-			picks.push(createBranch, createBranchFrom, checkoutDetached);
+			commands.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
 		const disposables: Disposable[] = [];
@@ -2477,7 +2478,7 @@ export class CommandCenter {
 		quickPick.show();
 
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = picks;
+		quickPick.items = [...commands, ...picks];
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
@@ -2492,6 +2493,22 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
+			disposables.push(quickPick.onDidChangeValue(value => {
+				switch (true) {
+					case value === '':
+						quickPick.items = [...commands, ...picks];
+						break;
+					case commands.length === 0:
+						quickPick.items = picks;
+						break;
+					case picks.length === 0:
+						quickPick.items = commands;
+						break;
+					default:
+						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+						break;
+				}
+			}));
 		});
 
 		dispose(disposables);
@@ -2597,49 +2614,75 @@ export class CommandCenter {
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
+		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
 
-		let rawBranchName = defaultName;
-
-		if (!rawBranchName) {
-			// Branch name
-			if (!initialValue) {
-				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
-				const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-
-				initialValue = `${branchPrefix}${branchName}`;
-			}
-
-			// Branch name selection
-			const initialValueSelection: [number, number] | undefined =
-				initialValue.startsWith(branchPrefix) ? [branchPrefix.length, initialValue.length] : undefined;
-
-			rawBranchName = await window.showInputBox({
-				placeHolder: l10n.t('Branch name'),
-				prompt: l10n.t('Please provide a new branch name'),
-				value: initialValue,
-				valueSelection: initialValueSelection,
-				ignoreFocusOut: true,
-				validateInput: (name: string) => {
-					const validateName = new RegExp(branchValidationRegex);
-					const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
-					if (validateName.test(sanitizedName)) {
-						// If the sanitized name that we will use is different than what is
-						// in the input box, show an info message to the user informing them
-						// the branch name that will be used.
-						return name === sanitizedName
-							? null
-							: {
-								message: l10n.t('The new branch will be "{0}"', sanitizedName),
-								severity: InputBoxValidationSeverity.Info
-							};
-					}
-
-					return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
-				}
-			});
+		if (defaultName) {
+			return sanitizeBranchName(defaultName, branchWhitespaceChar);
 		}
 
-		return sanitizeBranchName(rawBranchName || '', branchWhitespaceChar);
+		const getBranchName = async (): Promise<string> => {
+			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
+			return `${branchPrefix}${branchName}`;
+		};
+
+		const getValueSelection = (value: string): [number, number] | undefined => {
+			return value.startsWith(branchPrefix) ? [branchPrefix.length, value.length] : undefined;
+		};
+
+		const getValidationMessage = (name: string): string | InputBoxValidationMessage | undefined => {
+			const validateName = new RegExp(branchValidationRegex);
+			const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
+			if (validateName.test(sanitizedName)) {
+				// If the sanitized name that we will use is different than what is
+				// in the input box, show an info message to the user informing them
+				// the branch name that will be used.
+				return name === sanitizedName
+					? undefined
+					: {
+						message: l10n.t('The new branch will be "{0}"', sanitizedName),
+						severity: InputBoxValidationSeverity.Info
+					};
+			}
+
+			return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
+		};
+
+		const disposables: Disposable[] = [];
+		const inputBox = window.createInputBox();
+
+		inputBox.placeholder = l10n.t('Branch name');
+		inputBox.prompt = l10n.t('Please provide a new branch name');
+
+		inputBox.buttons = branchRandomNameEnabled ? [
+			{
+				iconPath: new ThemeIcon('refresh'),
+				tooltip: l10n.t('Regenerate Branch Name'),
+			}
+		] : [];
+
+		inputBox.value = initialValue ?? await getBranchName();
+		inputBox.valueSelection = getValueSelection(inputBox.value);
+		inputBox.validationMessage = getValidationMessage(inputBox.value);
+		inputBox.ignoreFocusOut = true;
+
+		inputBox.show();
+
+		const branchName = await new Promise<string | undefined>((resolve) => {
+			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+			disposables.push(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = getValidationMessage(value);
+			}));
+			disposables.push(inputBox.onDidTriggerButton(async () => {
+				inputBox.value = await getBranchName();
+				inputBox.valueSelection = getValueSelection(inputBox.value);
+			}));
+		});
+
+		dispose(disposables);
+		inputBox.dispose();
+
+		return sanitizeBranchName(branchName || '', branchWhitespaceChar);
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
@@ -3598,8 +3641,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.popStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.popStash(result.stash.index);
 	}
 
 	@command('git.stashApply', { repository: true })
@@ -3633,8 +3676,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await result.repository.applyStash(result.stash.index);
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await result.repository.applyStash(result.stash.index);
 	}
 
 	@command('git.stashDrop', { repository: true })
@@ -3708,19 +3751,33 @@ export class CommandCenter {
 			return;
 		}
 
-		const stashFiles = await repository.showStash(stash.index);
-
-		if (!stashFiles || stashFiles.length === 0) {
+		const stashChanges = await repository.showStash(stash.index);
+		if (!stashChanges || stashChanges.length === 0) {
 			return;
+		}
+
+		// A stash commit can have up to 3 parents:
+		// 1. The first parent is the commit that was HEAD when the stash was created.
+		// 2. The second parent is the commit that represents the index when the stash was created.
+		// 3. The third parent (when present) represents the untracked files when the stash was created.
+		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
+		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
+		const stashUntrackedFiles: string[] = [];
+
+		if (stashUntrackedFilesParentCommit) {
+			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
+			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
 
-		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
-		for (const file of stashFiles) {
-			const fileUri = Uri.file(path.join(repository.root, file));
-			resources.push({ originalUri: fileUri, modifiedUri: toGitUri(fileUri, `stash@{${stash.index}}`) });
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of stashChanges) {
+			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
+			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
+
+			resources.push(toMultiFileDiffEditorUris(change, stashFirstParentCommit, modifiedUriRef));
 		}
 
 		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
@@ -3841,15 +3898,15 @@ export class CommandCenter {
 		}
 
 		const commit = await repository.getCommit(item.ref);
-		const commitFiles = await repository.getCommitFiles(item.ref);
+		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : `${commit.hash}^`;
+		const changes = await repository.diffBetween(commitParentId, commit.hash);
 
 		const title = `${item.shortRef} - ${commit.message}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), item.ref, { scheme: 'git-commit' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), commit.hash, { scheme: 'git-commit' });
 
-		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
-		for (const commitFile of commitFiles) {
-			const commitFileUri = Uri.file(path.join(repository.root, commitFile));
-			resources.push({ originalUri: toGitUri(commitFileUri, item.previousRef), modifiedUri: toGitUri(commitFileUri, item.ref) });
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of changes) {
+			resources.push(toMultiFileDiffEditorUris(change, commitParentId, commit.hash));
 		}
 
 		return {
@@ -4046,15 +4103,14 @@ export class CommandCenter {
 	}
 
 	async _viewChanges(repository: Repository, historyItem: SourceControlHistoryItem, multiDiffSourceUri: Uri, title: string): Promise<void> {
-		const historyProvider = repository.historyProvider;
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
-		const files = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : `${historyItem.id}^`;
+		const changes = await repository.diffBetween(historyItemParentId, historyItem.id);
 
-		if (files.length === 0) {
+		if (changes.length === 0) {
 			return;
 		}
 
-		const resources = files.map(f => ({ originalUri: f.originalUri, modifiedUri: f.modifiedUri }));
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItem.id));
 
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}

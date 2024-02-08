@@ -875,9 +875,9 @@ export class CommentController implements IEditorContribution {
 					continueOnCommentText = this._inProcessContinueOnComments.get(e.owner)?.splice(continueOnCommentIndex, 1)[0].body;
 				}
 
-				const pendingCommentText = (this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId!])
+				const pendingCommentText = (this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId])
 					?? continueOnCommentText;
-				const pendingEdits = this._pendingEditsCache[e.owner] && this._pendingEditsCache[e.owner][thread.threadId!];
+				const pendingEdits = this._pendingEditsCache[e.owner] && this._pendingEditsCache[e.owner][thread.threadId];
 				this.displayCommentThread(e.owner, thread, pendingCommentText, pendingEdits);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 				this.tryUpdateReservedSpace();
@@ -1234,12 +1234,12 @@ export class CommentController implements IEditorContribution {
 			info.threads.forEach(thread => {
 				let pendingComment: string | undefined = undefined;
 				if (providerCacheStore) {
-					pendingComment = providerCacheStore[thread.threadId!];
+					pendingComment = providerCacheStore[thread.threadId];
 				}
 
 				let pendingEdits: { [key: number]: string } | undefined = undefined;
 				if (providerEditsCacheStore) {
-					pendingEdits = providerEditsCacheStore[thread.threadId!];
+					pendingEdits = providerEditsCacheStore[thread.threadId];
 				}
 
 				this.displayCommentThread(info.owner, thread, pendingComment, pendingEdits);
@@ -1288,10 +1288,10 @@ export class CommentController implements IEditorContribution {
 						this._pendingNewCommentCache[zone.owner] = {};
 					}
 
-					this._pendingNewCommentCache[zone.owner][zone.commentThread.threadId!] = pendingNewComment;
+					this._pendingNewCommentCache[zone.owner][zone.commentThread.threadId] = pendingNewComment;
 				} else {
 					if (providerNewCommentCacheStore) {
-						delete providerNewCommentCacheStore[zone.commentThread.threadId!];
+						delete providerNewCommentCacheStore[zone.commentThread.threadId];
 					}
 				}
 
@@ -1301,9 +1301,9 @@ export class CommentController implements IEditorContribution {
 					if (!providerEditsCacheStore) {
 						this._pendingEditsCache[zone.owner] = {};
 					}
-					this._pendingEditsCache[zone.owner][zone.commentThread.threadId!] = pendingEdits;
+					this._pendingEditsCache[zone.owner][zone.commentThread.threadId] = pendingEdits;
 				} else if (providerEditsCacheStore) {
-					delete providerEditsCacheStore[zone.commentThread.threadId!];
+					delete providerEditsCacheStore[zone.commentThread.threadId];
 				}
 
 				zone.dispose();

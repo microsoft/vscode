@@ -7,6 +7,11 @@ import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import * as resources from 'vs/base/common/resources';
 import { isString } from 'vs/base/common/types';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 interface IJSONValidationExtensionPoint {
 	fileMatch: string | string[];
@@ -82,3 +87,48 @@ export class JSONValidationExtensionPoint {
 	}
 
 }
+
+class JSONValidationDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.jsonValidation;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.jsonValidation || [];
+		if (!contrib.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('fileMatch', "File Match"),
+			nls.localize('schema', "Schema"),
+		];
+
+		const rows: IRowData[][] = contrib.map(v => {
+			return [
+				{ data: Array.isArray(v.fileMatch) ? v.fileMatch.join(', ') : v.fileMatch, type: 'code' },
+				v.url,
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'jsonValidation',
+	label: nls.localize('jsonValidation', "JSON Validation"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(JSONValidationDataRenderer),
+});

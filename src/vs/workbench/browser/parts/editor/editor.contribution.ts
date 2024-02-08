@@ -59,8 +59,7 @@ import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/com
 import { isMacintosh } from 'vs/base/common/platform';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { FloatingEditorClickMenu } from 'vs/workbench/browser/codeeditor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
@@ -128,12 +127,13 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 //#region Workbench Contributions
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, LifecyclePhase.Ready);
+registerWorkbenchContribution2(EditorAutoSave.ID, EditorAutoSave, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(EditorStatusContribution.ID, EditorStatusContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(UntitledTextEditorWorkingCopyEditorHandler.ID, UntitledTextEditorWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(DynamicEditorConfigurations.ID, DynamicEditorConfigurations, WorkbenchPhase.BlockRestore);
 
 registerEditorContribution(FloatingEditorClickMenu.ID, FloatingEditorClickMenu, EditorContributionInstantiation.AfterFirstRender);
+
 //#endregion
 
 //#region Quick Access
@@ -679,8 +679,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: SPLIT_EDITOR_UP,
 		title: {
-			original: 'Split Up',
-			value: localize('miSplitEditorUpWithoutMnemonic', "Split Up"),
+			...localize2('miSplitEditorUpWithoutMnemonic', "Split Up"),
 			mnemonicTitle: localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up"),
 		}
 	},
@@ -692,9 +691,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: SPLIT_EDITOR_DOWN,
 		title: {
-			original: 'Split Down',
-			value: localize('miSplitEditorDownWithoutMnemonic', "Split Down"),
-			mnemonicTitle: localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down")
+			...localize2('miSplitEditorDownWithoutMnemonic', "Split Down"),
+			mnemonicTitle: localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down"),
 		}
 	},
 	order: 2
@@ -705,9 +703,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: SPLIT_EDITOR_LEFT,
 		title: {
-			original: 'Split Left',
-			value: localize('miSplitEditorLeftWithoutMnemonic', "Split Left"),
-			mnemonicTitle: localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left")
+			...localize2('miSplitEditorLeftWithoutMnemonic', "Split Left"),
+			mnemonicTitle: localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left"),
 		}
 	},
 	order: 3
@@ -718,9 +715,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: SPLIT_EDITOR_RIGHT,
 		title: {
-			original: 'Split Right',
-			value: localize('miSplitEditorRightWithoutMnemonic', "Split Right"),
-			mnemonicTitle: localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right")
+			...localize2('miSplitEditorRightWithoutMnemonic', "Split Right"),
+			mnemonicTitle: localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right"),
 		}
 	},
 	order: 4
@@ -731,9 +727,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: SPLIT_EDITOR_IN_GROUP,
 		title: {
-			original: 'Split in Group',
-			value: localize('miSplitEditorInGroupWithoutMnemonic', "Split in Group"),
-			mnemonicTitle: localize({ key: 'miSplitEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Split in &&Group")
+			...localize2('miSplitEditorInGroupWithoutMnemonic', "Split in Group"),
+			mnemonicTitle: localize({ key: 'miSplitEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Split in &&Group"),
 		}
 	},
 	when: ActiveEditorCanSplitInGroupContext,
@@ -745,9 +740,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: JOIN_EDITOR_IN_GROUP,
 		title: {
-			original: 'Join in Group',
-			value: localize('miJoinEditorInGroupWithoutMnemonic', "Join in Group"),
-			mnemonicTitle: localize({ key: 'miJoinEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Join in &&Group")
+			...localize2('miJoinEditorInGroupWithoutMnemonic', "Join in Group"),
+			mnemonicTitle: localize({ key: 'miJoinEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Join in &&Group"),
 		}
 	},
 	when: SideBySideEditorActiveContext,
@@ -759,9 +753,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 		title: {
-			original: 'Move Editor into New Window',
-			value: localize('moveEditorToNewWindow', "Move Editor into New Window"),
-			mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window")
+			...localize2('moveEditorToNewWindow', "Move Editor into New Window"),
+			mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
 		}
 	},
 	order: 1
@@ -772,9 +765,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 		title: {
-			original: 'Copy Editor into New Window',
-			value: localize('copyEditorToNewWindow', "Copy Editor into New Window"),
-			mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window")
+			...localize2('copyEditorToNewWindow', "Copy Editor into New Window"),
+			mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
 		}
 	},
 	order: 2
@@ -785,9 +777,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutSingleAction.ID,
 		title: {
-			original: 'Single',
-			value: localize('miSingleColumnEditorLayoutWithoutMnemonic', "Single"),
-			mnemonicTitle: localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single")
+			...localize2('miSingleColumnEditorLayoutWithoutMnemonic', "Single"),
+			mnemonicTitle: localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single"),
 		}
 	},
 	order: 1
@@ -798,9 +789,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutTwoColumnsAction.ID,
 		title: {
-			original: 'Two Columns',
-			value: localize('miTwoColumnsEditorLayoutWithoutMnemonic', "Two Columns"),
-			mnemonicTitle: localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns")
+			...localize2('miTwoColumnsEditorLayoutWithoutMnemonic', "Two Columns"),
+			mnemonicTitle: localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns"),
 		}
 	},
 	order: 3
@@ -811,9 +801,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutThreeColumnsAction.ID,
 		title: {
-			original: 'Three Columns',
-			value: localize('miThreeColumnsEditorLayoutWithoutMnemonic', "Three Columns"),
-			mnemonicTitle: localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns")
+			...localize2('miThreeColumnsEditorLayoutWithoutMnemonic', "Three Columns"),
+			mnemonicTitle: localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns"),
 		}
 	},
 	order: 4
@@ -824,9 +813,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutTwoRowsAction.ID,
 		title: {
-			original: 'Two Rows',
-			value: localize('miTwoRowsEditorLayoutWithoutMnemonic', "Two Rows"),
-			mnemonicTitle: localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows")
+			...localize2('miTwoRowsEditorLayoutWithoutMnemonic', "Two Rows"),
+			mnemonicTitle: localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows"),
 		}
 	},
 	order: 5
@@ -837,9 +825,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutThreeRowsAction.ID,
 		title: {
-			original: 'Three Rows',
-			value: localize('miThreeRowsEditorLayoutWithoutMnemonic', "Three Rows"),
-			mnemonicTitle: localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows")
+			...localize2('miThreeRowsEditorLayoutWithoutMnemonic', "Three Rows"),
+			mnemonicTitle: localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows"),
 		}
 	},
 	order: 6
@@ -850,9 +837,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutTwoByTwoGridAction.ID,
 		title: {
-			original: 'Grid (2x2)',
-			value: localize('miTwoByTwoGridEditorLayoutWithoutMnemonic', "Grid (2x2)"),
-			mnemonicTitle: localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
+			...localize2('miTwoByTwoGridEditorLayoutWithoutMnemonic', "Grid (2x2)"),
+			mnemonicTitle: localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)"),
 		}
 	},
 	order: 7
@@ -863,9 +849,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutTwoRowsRightAction.ID,
 		title: {
-			original: 'Two Rows Right',
-			value: localize('miTwoRowsRightEditorLayoutWithoutMnemonic', "Two Rows Right"),
-			mnemonicTitle: localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
+			...localize2('miTwoRowsRightEditorLayoutWithoutMnemonic', "Two Rows Right"),
+			mnemonicTitle: localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right"),
 		}
 	},
 	order: 8
@@ -876,9 +861,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: EditorLayoutTwoColumnsBottomAction.ID,
 		title: {
-			original: 'Two Columns Bottom',
-			value: localize('miTwoColumnsBottomEditorLayoutWithoutMnemonic', "Two Columns Bottom"),
-			mnemonicTitle: localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom")
+			...localize2('miTwoColumnsBottomEditorLayoutWithoutMnemonic', "Two Columns Bottom"),
+			mnemonicTitle: localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom"),
 		}
 	},
 	order: 9

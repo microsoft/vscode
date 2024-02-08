@@ -347,10 +347,10 @@ suite('ConfigurationModel', () => {
 	test('inspect when raw is same', () => {
 		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 1 }, keys: ['a'] }]);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: undefined, override: 1, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('d'), { value: undefined, override: undefined, merged: undefined });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: undefined, override: 1, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 1 }] });
+		assert.deepStrictEqual(testObject.inspect('d'), { value: undefined, override: undefined, merged: undefined, overrides: undefined });
 	});
 
 	test('inspect when raw is not same', () => {
@@ -365,11 +365,11 @@ suite('ConfigurationModel', () => {
 			}
 		}]);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: 2, override: 1, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('d'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('e'), { value: undefined, override: undefined, merged: undefined });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: 2, override: 1, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 1 }] });
+		assert.deepStrictEqual(testObject.inspect('d'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+		assert.deepStrictEqual(testObject.inspect('e'), { value: undefined, override: undefined, merged: undefined, overrides: undefined });
 	});
 
 	test('inspect in merged configuration when raw is same', () => {
@@ -377,11 +377,11 @@ suite('ConfigurationModel', () => {
 		const target2 = new ConfigurationModel({ 'b': 3 }, ['b'], []);
 		const testObject = target1.merge(target2);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('c'), { value: undefined, override: undefined, merged: undefined });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+		assert.deepStrictEqual(testObject.inspect('c'), { value: undefined, override: undefined, merged: undefined, overrides: undefined });
 	});
 
 	test('inspect in merged configuration when raw is not same for one model', () => {
@@ -397,11 +397,30 @@ suite('ConfigurationModel', () => {
 		const target2 = new ConfigurationModel({ 'b': 3 }, ['b'], []);
 		const testObject = target1.merge(target2);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: 4, merged: 4 });
-		assert.deepStrictEqual(testObject.inspect('c'), { value: 3, override: undefined, merged: 3 });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3, overrides: [{ identifiers: ['x', 'y'], value: 4 }] });
+		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: 4, merged: 4, overrides: [{ identifiers: ['x', 'y'], value: 4 }] });
+		assert.deepStrictEqual(testObject.inspect('c'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+	});
+
+	test('inspect: return all overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [
+			{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 1 }, keys: ['a', 'b'] },
+			{ identifiers: ['x'], contents: { 'a': 3 }, keys: ['a'] },
+			{ identifiers: ['y'], contents: { 'b': 3 }, keys: ['b'] }
+		]);
+
+		assert.deepStrictEqual(testObject.inspect('a').overrides, [
+			{ identifiers: ['x', 'y'], value: 2 },
+			{ identifiers: ['x'], value: 3 }
+		]);
+	});
+
+	test('inspect when no overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c']);
+
+		assert.strictEqual(testObject.inspect('a').overrides, undefined);
 	});
 
 });
@@ -493,12 +512,12 @@ suite('CustomConfigurationModel', () => {
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parse(null!);
+		testObject.parse(null);
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parse(undefined!);
+		testObject.parse(undefined);
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);

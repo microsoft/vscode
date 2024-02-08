@@ -11,7 +11,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
+import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions, LsTreeElement } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
@@ -1484,11 +1484,6 @@ export class Repository implements Disposable {
 
 	async getBranchBase(ref: string): Promise<Branch | undefined> {
 		const branch = await this.getBranch(ref);
-		const branchUpstream = await this.getUpstreamBranch(branch);
-
-		if (branchUpstream) {
-			return branchUpstream;
-		}
 
 		// Git config
 		const mergeBaseConfigKey = `branch.${branch.name}.vscode-merge-base`;
@@ -1650,10 +1645,6 @@ export class Repository implements Disposable {
 
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
-	}
-
-	async getCommitFiles(ref: string): Promise<string[]> {
-		return await this.repository.getCommitFiles(ref);
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
@@ -1955,6 +1946,10 @@ export class Repository implements Disposable {
 		});
 	}
 
+	getObjectFiles(ref: string): Promise<LsTreeElement[]> {
+		return this.run(Operation.GetObjectFiles, () => this.repository.lstree(ref));
+	}
+
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
 		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
@@ -1995,7 +1990,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
 	}
 
-	async showStash(index: number): Promise<string[] | undefined> {
+	async showStash(index: number): Promise<Change[] | undefined> {
 		return await this.run(Operation.Stash, () => this.repository.showStash(index));
 	}
 

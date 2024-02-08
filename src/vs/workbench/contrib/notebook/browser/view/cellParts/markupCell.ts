@@ -380,7 +380,7 @@ export class MarkupCell extends Disposable {
 
 		this.viewCell.editorHeight = editorHeight;
 		this.focusEditorIfNeeded();
-		this.renderedEditors.set(this.viewCell, this.editor!);
+		this.renderedEditors.set(this.viewCell, this.editor);
 	}
 
 	private viewUpdatePreview(): void {

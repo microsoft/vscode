@@ -12,6 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class NativeDialogHandler extends AbstractDialogHandler {
 
@@ -37,7 +38,8 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			buttons,
 			cancelId: prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */,
 			checkboxLabel: prompt.checkbox?.label,
-			checkboxChecked: prompt.checkbox?.checked
+			checkboxChecked: prompt.checkbox?.checked,
+			targetWindowId: getActiveWindow().vscodeWindowId
 		});
 
 		return this.getPromptResult(prompt, response, checkboxChecked);
@@ -56,7 +58,8 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			buttons,
 			cancelId: buttons.length - 1,
 			checkboxLabel: confirmation.checkbox?.label,
-			checkboxChecked: confirmation.checkbox?.checked
+			checkboxChecked: confirmation.checkbox?.checked,
+			targetWindowId: getActiveWindow().vscodeWindowId
 		});
 
 		return { confirmed: response === 0, checkboxChecked };
@@ -101,7 +104,8 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			buttons: [
 				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
 				localize('okButton', "OK")
-			]
+			],
+			targetWindowId: getActiveWindow().vscodeWindowId
 		});
 
 		if (response === 0) {

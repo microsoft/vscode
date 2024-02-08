@@ -122,8 +122,12 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	createResourceLabel(element: HTMLElement): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
 		return {
-			setUri(uri) {
-				label.element.setFile(uri, {});
+			setUri(uri, options = {}) {
+				if (!uri) {
+					label.element.clear();
+				} else {
+					label.element.setFile(uri, { strikethrough: options.strikethrough });
+				}
 			},
 			dispose() {
 				label.dispose();

@@ -22,6 +22,7 @@ export interface IAudioCueService {
 	isCueEnabled(cue: AudioCue): boolean;
 	isAlertEnabled(cue: AudioCue): boolean;
 	onEnabledChanged(cue: AudioCue): Event<void>;
+	onAlertEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable;
@@ -58,7 +59,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		const alertMessage = cue.alertMessage;
 		if (this.isAlertEnabled(cue, options.userGesture) && alertMessage) {
-			this.accessibilityService.alert(alertMessage);
+			this.accessibilityService.status(alertMessage);
 		}
 
 		if (this.isCueEnabled(cue, options.userGesture)) {
@@ -74,7 +75,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
 		const alerts = cueArray.filter(cue => this.isAlertEnabled(cue)).map(c => c.alertMessage);
 		if (alerts.length) {
-			this.accessibilityService.alert(alerts.join(', '));
+			this.accessibilityService.status(alerts.join(', '));
 		}
 
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
@@ -208,12 +209,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	private readonly isAlertEnabledCache = new Cache((event: { readonly cue: AudioCue; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-				e.affectsConfiguration(event.cue.settingsKey)
+				e.affectsConfiguration(event.cue.alertSettingsKey!)
 			),
 			() => event.cue.alertSettingsKey ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(event.cue.alertSettingsKey) : false
 		);
 		return derived(reader => {
-			/** @description audio cue enabled */
+			/** @description alert enabled */
 			const setting = settingObservable.read(reader);
 			if (
 				!this.screenReaderAttached.read(reader)
@@ -225,6 +226,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}, JSON.stringify);
 
 	public isAlertEnabled(cue: AudioCue, userGesture?: boolean): boolean {
+		if (!cue.alertSettingsKey) {
+			return false;
+		}
 		return this.isAlertEnabledCache.get({ cue, userGesture }).get() ?? false;
 	}
 
@@ -234,6 +238,10 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
 		return Event.fromObservableLight(this.isCueEnabledCache.get({ cue }));
+	}
+
+	public onAlertEnabledChanged(cue: AudioCue): Event<void> {
+		return Event.fromObservableLight(this.isAlertEnabledCache.get({ cue }));
 	}
 }
 

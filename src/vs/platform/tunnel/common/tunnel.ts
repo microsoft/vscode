@@ -141,18 +141,31 @@ export interface ITunnelService {
 	isPortPrivileged(port: number): boolean;
 }
 
-export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string; port: number } | undefined {
+export function extractLocalHostUriMetaDataForPortMapping(uri: URI, { checkQuery = true } = {}): { address: string; port: number } | undefined {
 	if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 		return undefined;
 	}
 	const localhostMatch = /^(localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)$/.exec(uri.authority);
-	if (!localhostMatch) {
+	if (localhostMatch) {
+		return {
+			address: localhostMatch[1],
+			port: +localhostMatch[2],
+		};
+	}
+	if (!uri.query || !checkQuery) {
 		return undefined;
 	}
-	return {
-		address: localhostMatch[1],
-		port: +localhostMatch[2],
-	};
+	const keyvalues = uri.query.split('&');
+	for (const keyvalue of keyvalues) {
+		const value = keyvalue.split('=')[1];
+		if (/^https?:/.exec(value)) {
+			const result = extractLocalHostUriMetaDataForPortMapping(URI.parse(value));
+			if (result) {
+				return result;
+			}
+		}
+	}
+	return undefined;
 }
 
 export const LOCALHOST_ADDRESSES = ['localhost', '127.0.0.1', '0:0:0:0:0:0:0:1', '::1'];
@@ -354,11 +367,11 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return resolvedTunnel.then(tunnel => {
 			if (!tunnel) {
 				this.logService.trace('ForwardedPorts: (TunnelService) New tunnel is undefined.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost!, remotePort);
+				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
 				return undefined;
 			} else if (typeof tunnel === 'string') {
 				this.logService.trace('ForwardedPorts: (TunnelService) The tunnel provider returned an error when creating the tunnel.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost!, remotePort);
+				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
 				return tunnel;
 			}
 			this.logService.trace('ForwardedPorts: (TunnelService) New tunnel established.');

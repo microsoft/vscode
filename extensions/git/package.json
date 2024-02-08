@@ -18,6 +18,7 @@
     "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlInputBoxMenu",
+    "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "diffCommand",
     "editSessionIdentityProvider",
@@ -94,6 +95,7 @@
       {
         "command": "git.reopenClosedRepositories",
         "title": "%command.reopenClosedRepositories%",
+        "icon": "$(repo)",
         "category": "Git",
         "enablement": "!operationInProgress && git.closedRepositoryCount != 0"
       },
@@ -627,6 +629,7 @@
         "command": "git.publish",
         "title": "%command.publish%",
         "category": "Git",
+        "icon": "$(cloud-upload)",
         "enablement": "!operationInProgress"
       },
       {
@@ -1448,6 +1451,13 @@
           "when": "scmProvider == git"
         }
       ],
+      "scm/sourceControl/title": [
+        {
+          "command": "git.reopenClosedRepositories",
+          "group": "navigation@1",
+          "when": "scmProvider == git && git.closedRepositoryCount > 0"
+        }
+      ],
       "scm/sourceControl": [
         {
           "command": "git.close",
@@ -1848,17 +1858,29 @@
           "when": "scmProvider == git"
         }
       ],
+      "scm/incomingChanges/context": [
+        {
+          "command": "git.fetchRef",
+          "group": "1_modification@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pullRef",
+          "group": "1_modification@2",
+          "when": "scmProvider == git"
+        }
+      ],
       "scm/incomingChanges/allChanges/context": [
         {
           "command": "git.viewAllChanges",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
       "scm/incomingChanges/historyItem/context": [
         {
           "command": "git.viewCommit",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
@@ -1866,20 +1888,37 @@
         {
           "command": "git.pushRef",
           "group": "navigation",
-          "when": "scmProvider == git"
+          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+        },
+        {
+          "command": "git.publish",
+          "group": "navigation",
+          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
+        }
+      ],
+      "scm/outgoingChanges/context": [
+        {
+          "command": "git.pushRef",
+          "group": "1_modification@1",
+          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+        },
+        {
+          "command": "git.publish",
+          "group": "1_modification@1",
+          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
         }
       ],
       "scm/outgoingChanges/allChanges/context": [
         {
           "command": "git.viewAllChanges",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
       "scm/outgoingChanges/historyItem/context": [
         {
           "command": "git.viewCommit",
-          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
