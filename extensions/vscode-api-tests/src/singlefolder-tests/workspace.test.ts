@@ -598,9 +598,8 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('`findFiles2`', () => {
-		return vscode.workspace.findFiles2('*image.png').then((res) => {
-			assert.strictEqual(res.length, 4);
-			// TODO: see why this is fuzzy matching
+		return vscode.workspace.findFiles2('**/image.png').then((res) => {
+			assert.strictEqual(res.length, 2);
 		});
 	});
 
@@ -619,9 +618,8 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles2, exclude', () => {
-		return vscode.workspace.findFiles2('*image.png', { exclude: '**/sub/**' }).then((res) => {
-			assert.strictEqual(res.length, 3);
-			// TODO: see why this is fuzzy matching
+		return vscode.workspace.findFiles2('**/image.png', { exclude: '**/sub/**' }).then((res) => {
+			assert.strictEqual(res.length, 1);
 		});
 	});
 
