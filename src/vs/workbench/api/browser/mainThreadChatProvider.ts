@@ -73,14 +73,12 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	}
 
 	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
-		const access = await this._extensionFeaturesManagementService.getAccess(extension, `lm-${providerId}`, justification);
-		if (!access) {
-			return undefined;
-		}
 		return this._chatProviderService.lookupChatResponseProvider(providerId);
 	}
 
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
+		await this._extensionFeaturesManagementService.getAccess(extension, `lm-${providerId}`);
+
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 
 		const task = this._chatProviderService.fetchChatResponse(providerId, extension, messages, options, new Progress(value => {
