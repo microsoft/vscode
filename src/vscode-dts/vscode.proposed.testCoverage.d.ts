@@ -47,7 +47,7 @@ declare module 'vscode' {
 
 	/**
 	 * A class that contains information about a covered resource. A count can
-	 * be give for lines, branches, and functions in a file.
+	 * be give for lines, branches, and declarations in a file.
 	 */
 	export class CoveredCount {
 		/**
@@ -87,9 +87,10 @@ declare module 'vscode' {
 		branchCoverage?: CoveredCount;
 
 		/**
-		 * Function coverage information.
+		 * Declaration coverage information. Depending on the reporter and
+		 * language, this may be types such as functions, methods, or namespaces.
 		 */
-		functionCoverage?: CoveredCount;
+		declarationCoverage?: CoveredCount;
 
 		/**
 		 * Detailed, per-statement coverage. If this is undefined, the editor will
@@ -111,18 +112,15 @@ declare module 'vscode' {
 		 * does not provide statement coverage information, this can instead be
 		 * used to represent line coverage.
 		 * @param branchCoverage Branch coverage information
-		 * @param functionCoverage Function coverage information
+		 * @param declarationCoverage Declaration coverage information
 		 */
 		constructor(
 			uri: Uri,
 			statementCoverage: CoveredCount,
 			branchCoverage?: CoveredCount,
-			functionCoverage?: CoveredCount,
+			declarationCoverage?: CoveredCount,
 		);
 	}
-
-	// @API are StatementCoverage and BranchCoverage etc really needed
-	// or is a generic type with a kind-property enough
 
 	/**
 	 * Contains coverage information for a single statement or line.
@@ -189,35 +187,36 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Contains coverage information for a function or method.
+	 * Contains coverage information for a declaration. Depending on the reporter
+	 * and language, this may be types such as functions, methods, or namespaces.
 	 */
-	export class FunctionCoverage {
+	export class DeclarationCoverage {
 		/**
-		 * Name of the function or method.
+		 * Name of the declaration.
 		 */
 		name: string;
 
 		/**
-		 * The number of times this function was executed, or a boolean indicating
-		 * whether it was executed if the exact count is unknown. If zero or false,
-		 * the function will be marked as un-covered.
+		 * The number of times this declaration was executed, or a boolean
+		 * indicating whether it was executed if the exact count is unknown. If
+		 * zero or false, the declaration will be marked as un-covered.
 		 */
 		executed: number | boolean;
 
 		/**
-		 * Function location.
+		 * Declaration location.
 		 */
 		location: Position | Range;
 
 		/**
-		 * @param executed The number of times this function was executed, or a
+		 * @param executed The number of times this declaration was executed, or a
 		 * boolean indicating  whether it was executed if the exact count is
-		 * unknown. If zero or false, the function will be marked as un-covered.
-		 * @param location The function position.
+		 * unknown. If zero or false, the declaration will be marked as un-covered.
+		 * @param location The declaration position.
 		 */
 		constructor(name: string, executed: number | boolean, location: Position | Range);
 	}
 
-	export type DetailedCoverage = StatementCoverage | FunctionCoverage;
+	export type DetailedCoverage = StatementCoverage | DeclarationCoverage;
 
 }
