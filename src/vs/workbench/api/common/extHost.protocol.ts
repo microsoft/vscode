@@ -1183,7 +1183,7 @@ export interface MainThreadChatProviderShape extends IDisposable {
 export interface ExtHostChatProviderShape {
 	$updateLanguageModels(data: { added?: string[]; removed?: string[] }): void;
 	$updateAccesslist(data: { extension: ExtensionIdentifier; enabled: boolean }[]): void;
-	$provideLanguageModelResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
+	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 }
 

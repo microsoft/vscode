@@ -121,7 +121,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		});
 	}
 
-	async $provideLanguageModelResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any> {
+	async $provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any> {
 		const data = this._languageModels.get(handle);
 		if (!data) {
 			return;
@@ -134,13 +134,14 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
 		});
 
-		return data.provider.provideChatResponse(messages.map(typeConvert.ChatMessage.to), options, progress, token);
+		if (data.provider.provideLanguageModelResponse) {
+			return data.provider.provideLanguageModelResponse(messages.map(typeConvert.ChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
+		} else {
+			return data.provider.provideChatResponse(messages.map(typeConvert.ChatMessage.to), options, progress, token);
+		}
 	}
 
 	//#region --- making request
-
-
-
 
 	$updateLanguageModels(data: { added?: string[] | undefined; removed?: string[] | undefined }): void {
 		const added: string[] = [];
