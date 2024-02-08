@@ -145,6 +145,7 @@ export class BulkEditPane extends ViewPane {
 		);
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
+		// Thing is when the tree is clicked, we want actually to show all of the files inside of the multi diff editor
 		this._disposables.add(this._tree.onDidOpen(e => this._openElementAsEditor(e)));
 
 		// buttons
@@ -339,56 +340,53 @@ export class BulkEditPane extends ViewPane {
 
 		console.log('options : ', JSON.stringify(options));
 
-		const previewUri = this._currentProvider!.asPreviewUri(fileElement.edit.uri);
-
 		if (fileElement.edit.type & BulkFileOperationType.Delete) {
+			const previewUri = this._currentProvider!.asPreviewUri(fileElement.edit.uri);
 
 			console.log('fileElement.edit : ', fileElement.edit);
 			console.log('previewUri : ', JSON.stringify(previewUri));
 
 			// delete -> show single editor
-			this._editorService.openEditor({
-				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
-				resource: previewUri,
-				options
-			});
+			// this._editorService.openEditor({
+			// 	label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
+			// 	resource: previewUri,
+			// 	options
+			// });
 
-			// const label = localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri));
-			// const uri = fileElement.edit.newUri ?? fileElement.edit.uri;
-			// const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [{
-			// 	originalUri: fileElement.edit.uri,
-			// 	modifiedUri: fileElement.edit.newUri
-			// }];
-			// await commands.executeCommand('_workbench.openMultiDiffEditor', { uri, label, resources });
+			const uri = previewUri;
+
+			const label = localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri));
+			const resources: { originalUri: URI | undefined; modifiedUri: URI | undefined }[] = [{
+				originalUri: undefined,
+				modifiedUri: previewUri
+			}];
+			this.commandService.executeCommand('_workbench.openMultiDiffEditor', { uri, label, resources });
 
 		} else {
 			console.log('fileElement.edit ; ', fileElement.edit);
 
 			// rename, create, edits -> show diff editr
-			let leftResource: URI | undefined;
-			try {
-				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
-				leftResource = fileElement.edit.uri;
-			} catch {
-				leftResource = BulkEditPreviewProvider.emptyPreview;
-			}
+			// let leftResource: URI | undefined;
+			// try {
+			// 	(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
+			// 	leftResource = fileElement.edit.uri;
+			// } catch {
+			// 	leftResource = BulkEditPreviewProvider.emptyPreview;
+			// }
 
-			let typeLabel: string | undefined;
-			if (fileElement.edit.type & BulkFileOperationType.Rename) {
-				typeLabel = localize('rename', "rename");
-			} else if (fileElement.edit.type & BulkFileOperationType.Create) {
-				typeLabel = localize('create', "create");
-			}
+			// let typeLabel: string | undefined;
+			// if (fileElement.edit.type & BulkFileOperationType.Rename) {
+			// 	typeLabel = localize('rename', "rename");
+			// } else if (fileElement.edit.type & BulkFileOperationType.Create) {
+			// 	typeLabel = localize('create', "create");
+			// }
 
-			let label: string;
-			if (typeLabel) {
-				label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
-			} else {
-				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
-			}
-
-			console.log('leftResource : ', JSON.stringify(leftResource));
-			console.log('previewUri : ', JSON.stringify(previewUri));
+			// let label: string;
+			// if (typeLabel) {
+			// 	label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
+			// } else {
+			// 	label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
+			// }
 
 			// this._editorService.openEditor({
 			// 	original: { resource: leftResource },
@@ -398,12 +396,58 @@ export class BulkEditPane extends ViewPane {
 			// 	options
 			// }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
-			const uri = previewUri;
-			const resources: { originalUri: URI | undefined; modifiedUri: URI | undefined }[] = [{
-				originalUri: leftResource,
-				modifiedUri: previewUri
-			}];
-			this.commandService.executeCommand('_workbench.openMultiDiffEditor', { uri, label, resources });
+			// Perhaps a better way to access the parent instead of accessing through the parent of the file element
+
+			let bulkFileOperations: BulkFileOperations | undefined = undefined;
+			let currentParent = fileElement.parent;
+			while (true) {
+				if (currentParent instanceof BulkFileOperations) {
+					bulkFileOperations = currentParent;
+					break;
+				}
+				currentParent = currentParent.parent;
+			}
+			const allBulkFileOperations = bulkFileOperations.fileOperations;
+			console.log('allBulkFileOperations : ', allBulkFileOperations);
+
+			const resources: { originalUri: URI | undefined; modifiedUri: URI | undefined }[] = [];
+
+			for (const operation of allBulkFileOperations) {
+				const previewUri = this._currentProvider!.asPreviewUri(operation.textEdits[0].textEdit.resource);
+
+				let leftResource: URI | undefined;
+				try {
+					(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
+					leftResource = fileElement.edit.uri;
+				} catch {
+					leftResource = BulkEditPreviewProvider.emptyPreview;
+				}
+
+				let typeLabel: string | undefined;
+				if (fileElement.edit.type & BulkFileOperationType.Rename) {
+					typeLabel = localize('rename', "rename");
+				} else if (fileElement.edit.type & BulkFileOperationType.Create) {
+					typeLabel = localize('create', "create");
+				}
+
+				let label: string;
+				if (typeLabel) {
+					label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
+				} else {
+					label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
+				}
+
+				console.log('leftResource : ', JSON.stringify(leftResource));
+				console.log('previewUri : ', JSON.stringify(previewUri));
+
+				resources.push({
+					originalUri: leftResource,
+					modifiedUri: previewUri
+				});
+			}
+
+			const refactorSourceUri = URI.from({ scheme: 'refactor-preview' });
+			this.commandService.executeCommand('_workbench.openMultiDiffEditor', { refactorSourceUri, label: 'Refactor Preview', resources });
 		}
 	}
 

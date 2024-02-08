@@ -770,6 +770,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		this._open(element, preserveFocus, pinned, sideBySide, browserEvent);
 	}
 
+	// We want to actually retrieve all of the elements, not just the element at hand
 	private _open(element: T | undefined, preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
 		if (!element) {
 			return;
