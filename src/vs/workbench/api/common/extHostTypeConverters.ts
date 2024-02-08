@@ -2021,7 +2021,7 @@ export namespace TestCoverage {
 			};
 		} else {
 			return {
-				type: DetailType.Function,
+				type: DetailType.Declaration,
 				name: coverage.name,
 				count: coverage.executed,
 				location: fromLocation(coverage.location),
@@ -2034,7 +2034,7 @@ export namespace TestCoverage {
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			function: coverage.functionCoverage && fromCoveredCount(coverage.functionCoverage),
+			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
 			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}

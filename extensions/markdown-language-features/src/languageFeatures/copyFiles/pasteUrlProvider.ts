@@ -89,6 +89,7 @@ const smartPasteLineRegexes = [
 	{ regex: /\$\$[\s\S]*?\$\$/gm }, // In a fenced math block
 	{ regex: /`[^`]*`/g }, // In inline code
 	{ regex: /\$[^$]*\$/g }, // In inline math
+	{ regex: /<[^<>\s]*>/g }, // Autolink
 	{ regex: /^[ ]{0,3}\[\w+\]:\s.*$/g, isWholeLine: true }, // Block link definition (needed as tokens are not generated for these)
 ];
 

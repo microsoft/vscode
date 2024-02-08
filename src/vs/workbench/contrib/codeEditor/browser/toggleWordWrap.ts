@@ -314,7 +314,7 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 	}
 }
 
-registerWorkbenchContribution2(EditorWordWrapContextKeyTracker.ID, EditorWordWrapContextKeyTracker, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(EditorWordWrapContextKeyTracker.ID, EditorWordWrapContextKeyTracker, WorkbenchPhase.AfterRestored);
 
 registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController, EditorContributionInstantiation.Eager); // eager because it needs to change the editor word wrap configuration
 registerDiffEditorContribution(DiffToggleWordWrapController.ID, DiffToggleWordWrapController);

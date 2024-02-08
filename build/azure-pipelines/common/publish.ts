@@ -113,7 +113,7 @@ class ProvisionService {
 		const res = await fetch(`https://dsprovisionapi.microsoft.com${url}`, opts);
 
 		if (!res.ok || res.status < 200 || res.status >= 500) {
-			throw new Error(`Unexpected status code: ${res.status}`);
+			throw new Error(`Unexpected status code: ${res.status}\nResponse Headers: ${JSON.stringify(res.headers)}\nBody Text: ${await res.text()}`);
 		}
 
 		return await res.json();

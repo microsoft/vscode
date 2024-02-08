@@ -1652,6 +1652,10 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+export interface NewSymbolNamesProvider {
+	provideNewSymbolNames(model: model.ITextModel, range: IRange, token: CancellationToken): ProviderResult<string[]>;
+}
+
 export interface Command {
 	id: string;
 	title: string;

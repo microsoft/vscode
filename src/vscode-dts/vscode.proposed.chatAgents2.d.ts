@@ -12,6 +12,7 @@ declare module 'vscode' {
 		/**
 		 * The request that was sent to the chat agent.
 		 */
+		// TODO@API make this optional? Allow for response without request?
 		request: ChatAgentRequest;
 
 		/**
@@ -25,11 +26,27 @@ declare module 'vscode' {
 		result: ChatAgentResult2;
 	}
 
+	// TODO@API class
+	// export interface ChatAgentResponse {
+	// 	/**
+	// 	 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
+	// 	 */
+	// 	response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
+
+	// 	/**
+	// 	 * The result that was received from the chat agent.
+	// 	 */
+	// 	result: ChatAgentResult2;
+	// }
+
 	export interface ChatAgentContext {
 		/**
 		 * All of the chat messages so far in the current chat session.
 		 */
 		history: ChatAgentHistoryEntry[];
+
+		// TODO@API have "turns"
+		// history2: (ChatAgentRequest | ChatAgentResponse)[];
 	}
 
 	/**
@@ -235,6 +252,14 @@ declare module 'vscode' {
 		 */
 		followupProvider?: ChatAgentFollowupProvider<TResult>;
 
+
+		// TODO@
+		// notify(request: ChatResponsePart, reference: string): boolean;
+
+		// TODO@API
+		// clear NEVER happens
+		// onDidClearResult(value: TResult): void;
+
 		/**
 		 * When the user clicks this agent in `/help`, this text will be submitted to this subCommand
 		 */
@@ -276,6 +301,9 @@ declare module 'vscode' {
 		subCommand?: string;
 
 		variables: Record<string, ChatVariableValue[]>;
+
+		// TODO@API argumented prompt, reverse order!
+		// variables2: { start:number, length:number,  values: ChatVariableValue[]}[]
 	}
 
 	export interface ChatAgentResponseStream {

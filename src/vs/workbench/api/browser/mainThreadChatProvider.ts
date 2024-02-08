@@ -48,11 +48,11 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void {
 		const registration = this._chatProviderService.registerChatResponseProvider(identifier, {
 			metadata,
-			provideChatResponse: async (messages, options, progress, token) => {
+			provideChatResponse: async (messages, from, options, progress, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				this._pendingProgress.set(requestId, progress);
 				try {
-					await this._proxy.$provideLanguageModelResponse(handle, requestId, messages, options, token);
+					await this._proxy.$provideLanguageModelResponse(handle, requestId, from, messages, options, token);
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}
@@ -80,7 +80,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 
-		const task = this._chatProviderService.fetchChatResponse(providerId, messages, options, new Progress(value => {
+		const task = this._chatProviderService.fetchChatResponse(providerId, extension, messages, options, new Progress(value => {
 			this._proxy.$handleResponseFragment(requestId, value);
 		}), token);
 

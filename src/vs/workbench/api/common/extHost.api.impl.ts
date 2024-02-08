@@ -582,6 +582,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerRenameProvider(extension, checkSelector(selector), provider);
 			},
+			registerNewSymbolNamesProvider(selector: vscode.DocumentSelector, provider: vscode.NewSymbolNamesProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'newSymbolNamesProvider');
+				return extHostLanguageFeatures.registerNewSymbolNamesProvider(extension, checkSelector(selector), provider);
+			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider, metadata);
 			},
@@ -939,6 +943,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWorkspace.findFiles(include, exclude, maxResults, extension.identifier, token);
 			},
 			findFiles2: (filePattern, options?, token?) => {
+				checkProposedApiEnabled(extension, 'findFiles2');
 				return extHostWorkspace.findFiles2(filePattern, options, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
@@ -1615,7 +1620,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestMessage2: extHostTypes.TestMessage, // back compat for Oct 2023
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
@@ -1625,7 +1629,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,
 			BranchCoverage: extHostTypes.BranchCoverage,
-			FunctionCoverage: extHostTypes.FunctionCoverage,
+			DeclarationCoverage: extHostTypes.DeclarationCoverage,
+			FunctionCoverage: extHostTypes.DeclarationCoverage,  // back compat for Feb 2024
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
 			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
