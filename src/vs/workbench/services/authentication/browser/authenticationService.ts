@@ -433,8 +433,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const trustedExtensionAuthAccess = this.productService.trustedExtensionAuthAccess;
 		if (Array.isArray(trustedExtensionAuthAccess)) {
 			return trustedExtensionAuthAccess.includes(extensionId) ?? undefined;
-		} else if (trustedExtensionAuthAccess !== undefined) {
-			return trustedExtensionAuthAccess[providerId].includes(extensionId);
+		} else if (trustedExtensionAuthAccess?.[providerId]?.includes(extensionId)) {
+			return true;
 		}
 
 		const allowList = this.readAllowedExtensions(providerId, accountName);
@@ -843,7 +843,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				? trustedExtensionAuthAccess
 				// Case 2: trustedExtensionAuthAccess is an object
 				: typeof trustedExtensionAuthAccess === 'object'
-					? trustedExtensionAuthAccess[authProvider.id]
+					? trustedExtensionAuthAccess[authProvider.id] ?? []
 					: [];
 		for (const extensionId of trustedExtensionIds) {
 			const allowedExtension = allowedExtensions.find(ext => ext.id === extensionId);
