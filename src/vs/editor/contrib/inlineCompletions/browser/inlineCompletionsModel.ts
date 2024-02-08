@@ -41,7 +41,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
-	private readonly _primaryPosition = observableValue<Position>(this, new Position(1, 1));
+	private readonly _primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
@@ -77,11 +77,6 @@ export class InlineCompletionsModel extends Disposable {
 					src.provider.handleItemDidShow?.(src.inlineCompletions, i.sourceInlineCompletion, i.insertText);
 				}
 			}
-		}));
-		this._register(autorun(reader => {
-			/** @description change cursor position */
-			const positions = this._positions.read(reader);
-			this._primaryPosition.set(positions[0] ?? new Position(1, 1), undefined);
 		}));
 	}
 
@@ -228,25 +223,12 @@ export class InlineCompletionsModel extends Disposable {
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
-			const newGhostText = edit.computeGhostText(model, mode, positions[0], editPreviewLength);
-			const primaryGhostText = newGhostText ?? new GhostText(edit.range.endLineNumber, []);
-
-			const ghostTexts: GhostText[] = [];
-			ghostTexts.push(primaryGhostText);
-
-			let edits: SingleTextEdit[] = [];
-			const inlineCompletion = augmentedCompletion?.completion;
-			if (inlineCompletion) {
-				const primaryEdit = inlineCompletion.toSingleTextEdit(reader);
-				edits = this._getSecondaryEdits(this.textModel, positions, primaryEdit);
-				for (const [index, edit] of edits.entries()) {
-					const ghostText = edit.computeGhostText(model, mode, positions[index + 1], editPreviewLength);
-					// Show an invisible ghost text to reserve space
-					ghostTexts.push(ghostText ?? new GhostText(edit.range.endLineNumber, []));
-				}
-				edits.unshift(primaryEdit);
-			}
-			return { ghostTexts, primaryGhostText, inlineCompletion, suggestItem, edits };
+			const edits = [edit, ...this._getSecondaryEdits(this.textModel, positions, edit)];
+			const ghostTexts = edits
+				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], editPreviewLength))
+				.filter(isDefined);
+			const primaryGhostText = ghostTexts[0] ?? new GhostText(edit.range.endLineNumber, []);
+			return { ghostTexts, primaryGhostText, inlineCompletion: augmentedCompletion?.completion, suggestItem, edits };
 		} else {
 			if (!this._isActive.read(reader)) { return undefined; }
 			const item = this.selectedInlineCompletion.read(reader);
@@ -255,16 +237,10 @@ export class InlineCompletionsModel extends Disposable {
 			const replacement = item.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
-			const ghostTexts: GhostTextOrReplacement[] = [];
-			const edits = this._getSecondaryEdits(this.textModel, positions, replacement);
-			edits.unshift(replacement);
-			for (const [index, edit] of edits.entries()) {
-				const ghostText = edit.computeGhostText(model, mode, positions[index]);
-				if (!ghostText) {
-					return undefined;
-				}
-				ghostTexts.push(ghostText);
-			}
+			const ghostTexts = edits
+				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], editPreviewLength))
+				.filter(isDefined);
+			if (!ghostTexts[0]) { return undefined; }
 			return { ghostTexts, primaryGhostText: ghostTexts[0], inlineCompletion: item, suggestItem: undefined, edits };
 		}
 	});
@@ -300,7 +276,7 @@ export class InlineCompletionsModel extends Disposable {
 	}, reader => {
 		const v = this.state.read(reader);
 		if (!v) { return undefined; }
-		return v.primaryGhostText;
+		return v?.primaryGhostText;
 	});
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
@@ -347,7 +323,7 @@ export class InlineCompletionsModel extends Disposable {
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			const edits = state.edits;
-			const selections = this._getSelectionsFromEdits(edits);
+			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 			editor.executeEdits('inlineSuggestion.accept', [
 				...edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)),
 				...completion.additionalTextEdits
@@ -457,9 +433,8 @@ export class InlineCompletionsModel extends Disposable {
 					firstPart.column - completion.range.startColumn + acceptUntilIndexExclusive);
 				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
 				const positions = this._positions.get();
-				const edits = this._getSecondaryEdits(this.textModel, positions, singleTextEdit);
-				edits.unshift(singleTextEdit);
-				const selections = this._getSelectionsFromEdits(edits);
+				const edits = [singleTextEdit, ...this._getSecondaryEdits(this.textModel, positions, singleTextEdit)];
+				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 			} finally {
@@ -481,14 +456,14 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	private _getSecondaryEdits(textModel: ITextModel, positions: Position[], completion: SingleTextEdit): SingleTextEdit[] {
+	private _getEdits(textModel: ITextModel, positions: Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
 
-		const secondaryPositions = positions.slice(1);
 		const primaryPosition = positions[0];
+		const secondaryPositions = positions.slice(1);
 		const replacedTextAfterPrimaryCursor = textModel
 			.getLineContent(primaryPosition.lineNumber)
-			.substring(primaryPosition.column - 1, completion.range.endColumn - 1);
-		const secondaryEditText = completion.text.substring(primaryPosition.column - completion.range.startColumn);
+			.substring(primaryPosition.column - 1, primaryEdit.range.endColumn - 1);
+		const secondaryEditText = primaryEdit.text.substring(primaryPosition.column - primaryEdit.range.startColumn);
 		return secondaryPositions.map(pos => {
 			const textAfterSecondaryCursor = this.textModel
 				.getLineContent(pos.lineNumber)
@@ -497,13 +472,6 @@ export class InlineCompletionsModel extends Disposable {
 			const range = Range.fromPositions(pos, pos.delta(0, l));
 			return new SingleTextEdit(range, secondaryEditText);
 		});
-	}
-
-	private _getSelectionsFromEdits(edits: SingleTextEdit[]): Selection[] {
-		const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
-		const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
-		const newRanges = sortPerm.inverse().apply(sortedNewRanges);
-		return newRanges.map(range => Selection.fromPositions(range.getEndPosition()));
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
@@ -518,4 +486,11 @@ export class InlineCompletionsModel extends Disposable {
 			itemEdit.text.length,
 		);
 	}
+}
+
+function getEndPositionsAfterApplying(edits: SingleTextEdit[]): Position[] {
+	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
+	const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
+	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
+	return newRanges.map(range => range.getEndPosition());
 }

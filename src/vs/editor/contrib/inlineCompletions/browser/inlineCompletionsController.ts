@@ -41,7 +41,7 @@ export class InlineCompletionsController extends Disposable {
 
 	public readonly model = disposableObservableValue<InlineCompletionsModel | undefined>('inlineCompletionModel', undefined);
 	private readonly _textModelVersionId = observableValue<number, VersionIdChangeReason>(this, -1);
-	private readonly _positions = observableValue<Position[]>(this, [new Position(1, 1)]);
+	private readonly _positions = observableValue<readonly Position[]>(this, [new Position(1, 1)]);
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
 		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
