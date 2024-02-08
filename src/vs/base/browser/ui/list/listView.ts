@@ -10,18 +10,18 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { distinct, equals } from 'vs/base/common/arrays';
-import { Delayer, disposableTimeout } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer, disposableTimeout } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IRange, Range } from 'vs/base/common/range';
 import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListHoverDelegate, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { IRangeMap, RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
 import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 import { IObservableValue } from 'vs/base/common/observableValue';
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { BugIndicatingError, isCancellationError } from 'vs/base/common/errors';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { clamp } from 'vs/base/common/numbers';
@@ -76,6 +76,7 @@ export interface IListViewOptionsUpdate {
 
 export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly dnd?: IListViewDragAndDrop<T>;
+	readonly hoverDelegate?: IListHoverDelegate;
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
 	readonly setRowLineHeight?: boolean;
@@ -321,6 +322,7 @@ export class ListView<T> implements IListView<T> {
 	private currentDragFeedbackPosition: ListDragOverEffectPosition | undefined;
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
+	private hoverDelegate: IListHoverDelegate | undefined;
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
@@ -445,10 +447,14 @@ export class ListView<T> implements IListView<T> {
 		this.disposables.add(addDisposableListener(this.domNode, 'dragleave', e => this.onDragLeave(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'dragend', e => this.onDragEnd(e)));
 
+		const delayer = new ThrottledDelayer(500);
+		this.disposables.add(addDisposableListener(this.domNode, 'mouseover', async e => this.hoverOver(this.toMouseEvent(e), delayer)));
+
 		this.setRowLineHeight = options.setRowLineHeight ?? DefaultOptions.setRowLineHeight;
 		this.setRowHeight = options.setRowHeight ?? DefaultOptions.setRowHeight;
 		this.supportDynamicHeights = options.supportDynamicHeights ?? DefaultOptions.supportDynamicHeights;
 		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
+		this.hoverDelegate = options.hoverDelegate;
 
 		this.layout(options.initialSize?.height, options.initialSize?.width);
 	}
@@ -1366,6 +1372,64 @@ export class ListView<T> implements IListView<T> {
 			this.dragOverAnimationDisposable.dispose();
 			this.dragOverAnimationDisposable = undefined;
 		}
+	}
+
+	// Hover
+
+	private async hoverOver(e: IListMouseEvent<T>, delayer: ThrottledDelayer<any>): Promise<void> {
+		if (!this.hoverDelegate) {
+			return;
+		}
+
+		// If hovering over a new element, reset the hover
+		if (e.browserEvent.target !== e.browserEvent.relatedTarget && e.index !== this.getItemIndexFromEventTarget(e.browserEvent.relatedTarget || null)) {
+			this.hoverDelegate.hideHover();
+			delayer.cancel();
+		}
+
+		// Check if valid item
+		if (e.index === undefined || !this.items[e.index].row) {
+			this.hoverDelegate.hideHover();
+			return;
+		}
+
+		const row = this.items[e.index].row!;
+
+		// Check if the item overflows
+		const isOverflowing = this.doesElementOverflow(row.domNode);
+
+		// Render the hover after delay
+		try {
+			await delayer.trigger(async () => this.hoverDelegate!.showHover(row.domNode, isOverflowing, undefined));
+		} catch (error) {
+			// Ignore cancellation errors due to mouse out
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		}
+	}
+
+	private doesElementOverflow(container: HTMLElement): boolean {
+
+		function checkChildren(element: HTMLElement, isOverflowing: (e: HTMLElement) => boolean): boolean {
+			// Base case: If the current overflows
+			if (isOverflowing(element)) {
+				return true;
+			}
+
+			// Recursive case: Check each child element
+			for (let i = 0; i < element.children.length; i++) {
+				if (checkChildren(element.children[i] as HTMLElement, isOverflowing)) {
+					return true;
+				}
+			}
+
+			// No child overflows
+			return false;
+		}
+
+		// If the element does not overflow, do not show the hover
+		return checkChildren(container, (e) => e.scrollWidth > e.clientWidth);
 	}
 
 	// Util

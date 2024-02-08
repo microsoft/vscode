@@ -106,6 +106,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			listService,
 			_configurationService,
 			instantiationService,
+			_hoverService
 		);
 
 		const instanceDisposables: IDisposable[] = [

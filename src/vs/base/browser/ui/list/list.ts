@@ -7,8 +7,11 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
+import { IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
+import { mainWindow } from 'vs/base/browser/window';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { getWindow } from 'vs/base/browser/dom';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
@@ -24,6 +27,102 @@ export interface IListRenderer<T, TTemplateData> {
 	renderElement(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
 	disposeElement?(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
 	disposeTemplate(templateData: TTemplateData): void;
+}
+
+export class GlobalListHoverDelegate implements IListHoverDelegate {
+
+	private activeHoverContainer: HTMLElement | undefined = undefined;
+
+	constructor() { }
+
+	showHover(container: HTMLElement, isOverflowing: boolean, options?: IHoverDelegateOptions, forceUpdate?: boolean): IHoverWidget | undefined {
+		// handle old state
+		if (!forceUpdate && this.activeHoverContainer === container) {
+			return;
+		}
+		else if (this.activeHoverContainer) {
+			this.hideHover();
+		}
+
+		if (!isOverflowing) {
+			return undefined;
+		}
+
+		const clone = this.cloneContainer(container);
+		this.setupHoverBehaviours(clone);
+
+		this.activeHoverContainer = clone;
+		getWindow(container).document.body.appendChild(clone);
+
+		return undefined;
+	}
+
+	hideHover(): void {
+		if (!this.activeHoverContainer) {
+			return;
+		}
+
+		const clone = this.activeHoverContainer;
+
+		getWindow(clone).document.body.removeChild(clone);
+
+		this.activeHoverContainer = undefined;
+	}
+
+	private getTargetPosition(container: HTMLElement): { x: number; y: number } {
+		const rect = container.getBoundingClientRect();
+		return { x: rect.left, y: rect.top };
+	}
+
+	private cloneContainer(container: HTMLElement): HTMLElement {
+		const oldWidth = container.style.width;
+		container.style.width = 'fit-content';
+
+		const clone = container.cloneNode(true) as HTMLElement;
+		this.applyStylesRecursively(clone, container);
+
+		container.style.width = oldWidth;
+
+		const pos = this.getTargetPosition(container);
+		clone.style.left = `${pos.x}px`;
+		clone.style.top = `${pos.y}px`;
+		clone.style.zIndex = `100`;
+
+		clone.style.width = 'fit-content';
+		clone.style.paddingRight = `10px`;
+		clone.classList.add('show-file-icons'); // make sure any file icons are shown
+
+		return clone;
+	}
+
+	private applyStylesRecursively(clone: HTMLElement, original: HTMLElement): void {
+		const computedStyle = getWindow(original).getComputedStyle(original);
+		for (const prop of computedStyle) {
+			try {
+				clone.style.setProperty(prop, computedStyle.getPropertyValue(prop));
+			} catch (error) {
+				console.error(`Error applying property ${prop}:`, error);
+			}
+		}
+
+		// Copy classes from original to clone
+		clone.className = original.className;
+
+		const originalChildren = Array.from(original.children) as HTMLElement[];
+		const clonedChildren = Array.from(clone.children) as HTMLElement[];
+
+		for (let i = 0; i < originalChildren.length; i++) {
+			this.applyStylesRecursively(clonedChildren[i], originalChildren[i]);
+		}
+	}
+
+	private setupHoverBehaviours(clone: HTMLElement): void {
+		clone.addEventListener('mouseleave', () => {
+			mainWindow.setTimeout(() => {
+				this.hideHover();
+			}, 250);
+		});
+	}
 }
 
 export interface IListEvent<T> {
@@ -84,6 +183,11 @@ export interface IKeyboardNavigationLabelProvider<T> {
 
 export interface IKeyboardNavigationDelegate {
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+}
+
+export interface IListHoverDelegate {
+	showHover(container: HTMLElement, isOverflowing: boolean, options?: IHoverDelegateOptions): IHoverWidget | undefined;
+	hideHover(): void;
 }
 
 export const enum ListDragOverEffectType {

@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet, isActiveElement, isKeyboardEvent } from 'vs/base/browser/dom';
+import { createStyleSheet, getWindow, isActiveElement, isKeyboardEvent } from 'vs/base/browser/dom';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IListHoverDelegate, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedListOptions, IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { DefaultStyleController, IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
@@ -15,6 +17,7 @@ import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsync
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, IDataSource, ITreeEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -24,6 +27,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyServi
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -259,6 +263,192 @@ export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, I
 	readonly selectionNavigation?: boolean;
 }
 
+export class ListHoverDelegate implements IListHoverDelegate {
+
+	private activeHoverContainer: HTMLElement | undefined = undefined;
+
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService
+	) { }
+
+	showHover(container: HTMLElement, isOverflowing: boolean, options?: IHoverDelegateOptions, forceUpdate?: boolean): IHoverWidget | undefined {
+		// handle old state
+		if (!forceUpdate && this.activeHoverContainer === container) {
+			return;
+		}
+		else if (this.activeHoverContainer) {
+			this.hideHover();
+		}
+
+		this.activeHoverContainer = container;
+
+		let content;
+		let position;
+		let appearance;
+
+		if (isOverflowing) {
+			content = this.cloneContainer(container);
+			position = { hoverPosition: HoverPosition.OVER };
+		} else {
+			content = 'hello world';
+			position = { hoverPosition: HoverPosition.RIGHT };
+			appearance = { showPointer: true };
+		}
+
+		return this.hoverService.showHover({ ...options, position, target: container, content, appearance });
+	}
+
+	hideHover(): void {
+		this.activeHoverContainer = undefined;
+		this.hoverService.hideHover();
+	}
+
+	/* private getTargetPosition(container: HTMLElement): { x: number; y: number } {
+		const rect = container.getBoundingClientRect();
+		return { x: rect.left, y: rect.top };
+	} */
+
+	private cloneContainer(container: HTMLElement): HTMLElement {
+		const oldWidth = container.style.width;
+		container.style.width = 'fit-content';
+
+		const clone = container.cloneNode(true) as HTMLElement;
+		this.applyStylesRecursively(clone, container);
+
+		container.style.width = oldWidth;
+
+		// position the clone
+		clone.style.position = 'relative';
+		clone.style.top = 'unset';
+		clone.style.left = 'unset';
+		clone.style.right = 'unset';
+		clone.style.bottom = 'unset';
+
+		clone.style.width = 'fit-content';
+		clone.style.paddingRight = `10px`;
+		clone.classList.add('show-file-icons'); // make sure any file icons are shown
+
+		return clone;
+	}
+
+	private applyStylesRecursively(clone: HTMLElement, original: HTMLElement): void {
+		const computedStyle = getWindow(original).getComputedStyle(original);
+		for (const prop of computedStyle) {
+			try {
+				clone.style.setProperty(prop, computedStyle.getPropertyValue(prop));
+			} catch (error) {
+				console.error(`Error applying property ${prop}:`, error);
+			}
+		}
+
+		// Copy classes from original to clone
+		clone.className = original.className;
+
+		const originalChildren = Array.from(original.children) as HTMLElement[];
+		const clonedChildren = Array.from(clone.children) as HTMLElement[];
+
+		for (let i = 0; i < originalChildren.length; i++) {
+			this.applyStylesRecursively(clonedChildren[i], originalChildren[i]);
+		}
+	}
+}
+
+export class GlobalListHoverDelegate implements IListHoverDelegate {
+
+	private activeHoverContainer: HTMLElement | undefined = undefined;
+
+	constructor() { }
+
+	showHover(container: HTMLElement, isOverflowing: boolean, options?: IHoverDelegateOptions, forceUpdate?: boolean): IHoverWidget | undefined {
+		// handle old state
+		if (!forceUpdate && this.activeHoverContainer === container) {
+			return;
+		}
+		else if (this.activeHoverContainer) {
+			this.hideHover();
+		}
+
+		if (!isOverflowing) {
+			return undefined;
+		}
+
+		const clone = this.cloneContainer(container);
+		this.setupHoverBehaviours(clone);
+
+		this.activeHoverContainer = clone;
+		getWindow(container).document.body.appendChild(clone);
+
+		return undefined;
+	}
+
+	hideHover(): void {
+		if (!this.activeHoverContainer) {
+			return;
+		}
+
+		const clone = this.activeHoverContainer;
+
+		getWindow(clone).document.body.removeChild(clone);
+
+		this.activeHoverContainer = undefined;
+	}
+
+	private getTargetPosition(container: HTMLElement): { x: number; y: number } {
+		const rect = container.getBoundingClientRect();
+		return { x: rect.left, y: rect.top };
+	}
+
+	private cloneContainer(container: HTMLElement): HTMLElement {
+		const oldWidth = container.style.width;
+		container.style.width = 'fit-content';
+
+		const clone = container.cloneNode(true) as HTMLElement;
+		this.applyStylesRecursively(clone, container);
+
+		container.style.width = oldWidth;
+
+		const pos = this.getTargetPosition(container);
+		clone.style.left = `${pos.x}px`;
+		clone.style.top = `${pos.y}px`;
+		clone.style.zIndex = `100`;
+
+		clone.style.width = 'fit-content';
+		clone.style.paddingRight = `10px`;
+		clone.classList.add('show-file-icons'); // make sure any file icons are shown
+
+		return clone;
+	}
+
+	private applyStylesRecursively(clone: HTMLElement, original: HTMLElement): void {
+		const computedStyle = getWindow(original).getComputedStyle(original);
+		for (const prop of computedStyle) {
+			try {
+				clone.style.setProperty(prop, computedStyle.getPropertyValue(prop));
+			} catch (error) {
+				console.error(`Error applying property ${prop}:`, error);
+			}
+		}
+
+		// Copy classes from original to clone
+		clone.className = original.className;
+
+		const originalChildren = Array.from(original.children) as HTMLElement[];
+		const clonedChildren = Array.from(clone.children) as HTMLElement[];
+
+		for (let i = 0; i < originalChildren.length; i++) {
+			this.applyStylesRecursively(clonedChildren[i], originalChildren[i]);
+		}
+	}
+
+	private setupHoverBehaviours(clone: HTMLElement): void {
+		clone.addEventListener('mouseleave', () => {
+			mainWindow.setTimeout(() => {
+				this.hideHover();
+			}, 250);
+		});
+	}
+}
+
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IScopedContextKeyService;
@@ -280,7 +470,8 @@ export class WorkbenchList<T> extends List<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 		const [workbenchListOptions, workbenchListOptionsDisposable] = instantiationService.invokeFunction(toWorkbenchListOptions, options);
@@ -290,7 +481,8 @@ export class WorkbenchList<T> extends List<T> {
 				keyboardSupport: false,
 				...workbenchListOptions,
 				horizontalScrolling,
-			}
+				hoverDelegate: new ListHoverDelegate(hoverService)
+			},
 		);
 
 		this.disposables.add(workbenchListOptionsDisposable);

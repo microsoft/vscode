@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 const $ = dom.$;
 
 export const enum HoverPosition {
-	LEFT, RIGHT, BELOW, ABOVE
+	LEFT, RIGHT, BELOW, ABOVE, OVER
 }
 
 export class HoverWidget extends Disposable {

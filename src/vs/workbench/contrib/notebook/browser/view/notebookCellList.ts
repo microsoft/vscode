@@ -35,6 +35,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookO
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookCellAnchor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellAnchor';
 import { NotebookViewZones } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookViewZones';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const enum CellRevealPosition {
 	Top,
@@ -157,8 +158,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService, hoverService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {

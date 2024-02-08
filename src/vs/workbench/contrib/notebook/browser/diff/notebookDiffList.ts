@@ -30,6 +30,7 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
 	private readonly lineHeight: number;
@@ -317,8 +318,10 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		options: IWorkbenchListOptions<DiffElementViewModelBase>,
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService
+	) {
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService, hoverService);
 	}
 
 	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
