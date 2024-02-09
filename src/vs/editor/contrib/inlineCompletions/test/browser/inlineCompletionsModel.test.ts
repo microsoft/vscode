@@ -33,7 +33,7 @@ suite('inlineCompletionModel', () => {
 		textModel.dispose();
 	});
 
-	test('getSecondaryEdits - cursor not on same line as primary edit', async function () {
+	test('getSecondaryEdits - cursor not on same line as primary edit 1', async function () {
 
 		const textModel = createTextModel([
 			'function fib(',
@@ -54,6 +54,37 @@ suite('inlineCompletionModel', () => {
 		assert.deepStrictEqual(secondaryEdits, [new SingleTextEdit(
 			new Range(4, 1, 4, 1), [
 				'	return 0;',
+				'}'
+			].join('\n')
+		)]);
+		console.log('secondaryEdits : ', JSON.stringify(secondaryEdits));
+		textModel.dispose();
+	});
+
+	test('getSecondaryEdits - cursor not on same line as primary edit 2', async function () {
+
+		const textModel = createTextModel([
+			'class A {',
+			'',
+			'class B {',
+			'',
+			'function f() {}'
+		].join('\n'));
+		const positions = [
+			new Position(2, 1),
+			new Position(4, 1)
+		];
+		const primaryEdit = new SingleTextEdit(new Range(1, 1, 2, 1), [
+			'class A {',
+			'	public x: number = 0;',
+			'   public y: number = 0;',
+			'}'
+		].join('\n'));
+		const secondaryEdits = getSecondaryEdits(textModel, positions, primaryEdit);
+		assert.deepStrictEqual(secondaryEdits, [new SingleTextEdit(
+			new Range(4, 1, 4, 1), [
+				'	public x: number = 0;',
+				'   public y: number = 0;',
 				'}'
 			].join('\n')
 		)]);
