@@ -16,6 +16,7 @@ import { AsyncIterableSource } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { localize } from 'vs/nls';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 
 type LanguageModelData = {
 	readonly extension: ExtensionIdentifier;
@@ -197,7 +198,6 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		}
 
 		const justification = options?.justification;
-		await this._checkAuthAccess(extension, languageModelId, justification);
 		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, justification);
 
 		if (!metadata) {
@@ -206,6 +206,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			}
 			throw new Error(`Language model '${languageModelId}' NOT found`);
 		}
+		await this._checkAuthAccess(extension, languageModelId, justification);
 
 		const that = this;
 
@@ -230,9 +231,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				}
 				const cts = new CancellationTokenSource(token);
 				const requestId = (Math.random() * 1e6) | 0;
-				const requestPromise =
-					that._checkAuthAccess(extension, languageModelId, justification)
-						.then(() => that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.ChatMessage.from), options ?? {}, cts.token));
+				const requestPromise = that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.ChatMessage.from), options ?? {}, cts.token);
 				const res = new LanguageModelRequest(requestPromise, cts);
 				that._pendingRequest.set(requestId, { languageModelId, res });
 
@@ -255,14 +254,14 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	// BIG HACK: Using AuthenticationProviders to check access to Language Models
 	private async _checkAuthAccess(from: Readonly<IRelaxedExtensionDescription>, languageModelId: string, detail?: string): Promise<void> {
-		// TODO: Should the auth provider id be derived from the language model id or contributed by the provider?
-		const providerId = languageModelId + '-access';
+		// This needs to be done in both MainThread & ExtHost ChatProvider
+		const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + languageModelId;
 		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true });
 		if (!session) {
 			try {
 				await this._extHostAuthentication.getSession(from, providerId, [], {
 					forceNewSession: {
-						detail: detail ?? localize('chatAccess', "To allow access to the language model provided by '{0}'", languageModelId),
+						detail: detail ?? localize('chatAccess', "To allow access to the '{0}' language model", languageModelId),
 					}
 				});
 			} catch (err) {
