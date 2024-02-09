@@ -23,7 +23,7 @@ import { ActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
-import { GitHistoryProvider } from './historyProvider';
+import { GitHistoryProvider, GitIncomingChangesProvider } from './historyProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -872,6 +872,7 @@ export class Repository implements Disposable {
 
 		this._historyProvider = new GitHistoryProvider(this, logger);
 		this._sourceControl.historyProvider = this._historyProvider;
+		this.disposables.push(new GitIncomingChangesProvider(this));
 		this.disposables.push(this._historyProvider);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
