@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { startsWithIgnoreCase } from 'vs/base/common/strings';
+import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -100,7 +100,8 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	createVoiceChatSession(token: CancellationToken): IVoiceChatSession {
 		const disposables = new DisposableStore();
 
-		let finishedPhraseDetection = false;
+		let detectedAgent = false;
+		let detectedSlashCommand = false;
 
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
 		const session = disposables.add(this.speechService.createSpeechToTextSession(token));
@@ -109,7 +110,6 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 				case SpeechToTextStatus.Recognizing:
 				case SpeechToTextStatus.Recognized:
 					if (
-						!finishedPhraseDetection && // only if we have not yet attempted phrase detection
 						e.text &&
 						startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX].trim())
 					) {
@@ -119,26 +119,31 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 						let waitingForInput = false;
 
 						// Check for slash command
-						if (originalWords.length >= 4) {
-							const slashCommandResult = this.phrases.get(originalWords.slice(0, 4).join(' ').toLowerCase());
+						if (!detectedSlashCommand && originalWords.length >= 4) {
+							const slashCommandResult = this.phrases.get(originalWords.slice(0, 4).map(word => this.normalizeWord(word)).join(' '));
 							if (slashCommandResult) {
 								transformedWords = [slashCommandResult, ...originalWords.slice(4)];
 
 								waitingForInput = originalWords.length === 4;
-							}
 
-							if (e.status === SpeechToTextStatus.Recognized) {
-								finishedPhraseDetection = true; // only detect phrases in the beginning of the session
+								if (e.status === SpeechToTextStatus.Recognized) {
+									detectedAgent = true;
+									detectedSlashCommand = true;
+								}
 							}
 						}
 
-						// Check for agent
-						if (!transformedWords && originalWords.length >= 2) {
-							const agentResult = this.phrases.get(originalWords.slice(0, 2).join(' ').toLowerCase());
+						// Check for agent (if not done already)
+						if (!detectedAgent && !transformedWords && originalWords.length >= 2) {
+							const agentResult = this.phrases.get(originalWords.slice(0, 2).map(word => this.normalizeWord(word)).join(' '));
 							if (agentResult) {
 								transformedWords = [agentResult, ...originalWords.slice(2)];
 
 								waitingForInput = originalWords.length === 2;
+
+								if (e.status === SpeechToTextStatus.Recognized) {
+									detectedAgent = true;
+								}
 							}
 						}
 
@@ -160,5 +165,13 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 			onDidChange: emitter.event,
 			dispose: () => disposables.dispose()
 		};
+	}
+
+	private normalizeWord(word: string): string {
+		word = rtrim(word, '.');
+		word = rtrim(word, ',');
+		word = rtrim(word, '?');
+
+		return word.toLowerCase();
 	}
 }
