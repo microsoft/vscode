@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { IDimension } from 'vs/base/browser/dom';
+import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize2 } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { Codicon } from 'vs/base/common/codicons';
-import { MenuId } from 'vs/platform/actions/common/actions';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalChatContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
 
-	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalChatContribution | null {
+	static get(instance: ITerminalInstance): TerminalChatContribution | null {
 		return instance.getContribution<TerminalChatContribution>(TerminalChatContribution.ID);
 	}
 	/**
@@ -41,8 +41,8 @@ export class TerminalChatContribution extends Disposable implements ITerminalCon
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
 	constructor(
-		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo,
+		private readonly _instance: ITerminalInstance,
+		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private _configurationService: IConfigurationService,
@@ -96,7 +96,7 @@ export class TerminalChatContribution extends Disposable implements ITerminalCon
 		this._chatWidget?.rawValue?.dispose();
 	}
 }
-registerTerminalContribution(TerminalChatContribution.ID, TerminalChatContribution, true);
+registerTerminalContribution(TerminalChatContribution.ID, TerminalChatContribution, false);
 
 registerActiveXtermAction({
 	id: TerminalCommandId.FocusChat,
@@ -112,6 +112,9 @@ registerActiveXtermAction({
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	),
 	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
 		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
 		contr?.chatWidget?.reveal();
 	}
@@ -132,6 +135,9 @@ registerActiveXtermAction({
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	),
 	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
 		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
 		contr?.chatWidget?.hide();
 	}
@@ -152,6 +158,9 @@ registerActiveXtermAction({
 		group: 'navigation',
 	},
 	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
 		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
 		contr?.chatWidget?.acceptInput();
 	}
@@ -170,6 +179,9 @@ registerActiveXtermAction({
 		group: 'navigation',
 	},
 	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
 		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
 		contr?.chatWidget?.cancel();
 	}
