@@ -13,9 +13,9 @@ import { IDetachedTerminalInstance, ITerminalInstance } from 'vs/workbench/contr
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export class TerminalChatWidget extends Disposable {
-	private _widget: ChatWidget | undefined;
+	private _widget: ChatWidget;
 	private _scopedInstantiationService: IInstantiationService;
-	private _widgetContainer: HTMLElement | undefined;
+	private _widgetContainer: HTMLElement;
 	private _chatWidgetFocused: IContextKey<boolean>;
 	private _chatWidgetVisible: IContextKey<boolean>;
 	constructor(
@@ -29,10 +29,9 @@ export class TerminalChatWidget extends Disposable {
 		this._scopedInstantiationService = this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		this._chatWidgetFocused = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
 		this._chatWidgetVisible = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
-	}
-	reveal(): void {
 		this._widgetContainer = document.createElement('div');
 		this._widgetContainer.classList.add('terminal-chat-widget');
+		this._container.appendChild(this._widgetContainer);
 		this._widget = this._register(this._scopedInstantiationService.createInstance(
 			ChatWidget,
 			{ viewId: 'terminal' },
@@ -44,19 +43,22 @@ export class TerminalChatWidget extends Disposable {
 				resultEditorBackground: editorBackground
 			}));
 		this._widget.render(this._widgetContainer);
-		this._container.appendChild(this._widgetContainer);
 		this._register(this._widget.onDidFocus(() => this._chatWidgetFocused.set(true)));
+	}
+	reveal(): void {
+		this._widgetContainer.classList.remove('hide');
 		this._widget.setVisible(true);
+		this._chatWidgetFocused.set(true);
 		this._chatWidgetVisible.set(true);
 		this._widget.setInput('@terminal');
 		this._widget.setInputPlaceholder('Request a terminal command');
 		this._widget.focusInput();
 	}
 	hide(): void {
-		if (this._widgetContainer) {
-			this._container.removeChild(this._widgetContainer);
-		}
+		this._widgetContainer.classList.add('hide');
+		this._chatWidgetFocused.set(false);
 		this._chatWidgetVisible.set(false);
+		this._widget.clear();
 		this._instance.focus();
 	}
 	cancel(): void {
@@ -66,6 +68,6 @@ export class TerminalChatWidget extends Disposable {
 		this._widget?.acceptInput();
 	}
 	layout(width: number): void {
-		this._widget?.layout(40, width);
+		this._widget?.layout(100, width < 300 ? 300 : width);
 	}
 }
