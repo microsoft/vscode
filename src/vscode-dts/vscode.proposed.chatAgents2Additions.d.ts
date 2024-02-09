@@ -77,7 +77,7 @@ declare module 'vscode' {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
+		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
 	}
 
 	/*

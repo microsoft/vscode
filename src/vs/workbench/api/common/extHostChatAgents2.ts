@@ -160,7 +160,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	private readonly _agents = new Map<number, ExtHostChatAgent<any>>();
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
-	private readonly _resultsBySessionAndRequestId: Map<string, Map<string, vscode.ChatAgentResult2>> = new Map();
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = new DisposableMap();
 
 	constructor(
@@ -198,7 +197,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter, sessionDisposables);
 		try {
-			const convertedHistory = await this.prepareHistory(agent, request, context);
+			const convertedHistory = await this.prepareHistory(request, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
 				{ history: convertedHistory },
@@ -207,27 +206,16 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			);
 
 			return await raceCancellation(Promise.resolve(task).then((result) => {
-				if (result) {
-					let sessionResults = this._resultsBySessionAndRequestId.get(request.sessionId);
-					if (!sessionResults) {
-						sessionResults = new Map();
-						this._resultsBySessionAndRequestId.set(request.sessionId, sessionResults);
+				if (result?.metadata) {
+					try {
+						JSON.stringify(result.metadata);
+					} catch (err) {
+						const msg = `result.metadata MUST be JSON.stringify-able. Got error: ${err.message}`;
+						this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] ${msg}`, agent.extension);
+						return { errorDetails: { message: msg }, timings: stream.timings };
 					}
-					sessionResults.set(request.requestId, result);
-
-					if (result.metadata) {
-						try {
-							JSON.stringify(result.metadata);
-						} catch (err) {
-							const msg = `result.metadata MUST be JSON.stringify-able. Got error: ${err.message}`;
-							this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] ${msg}`, agent.extension);
-							return { errorDetails: { message: msg }, timings: stream.timings };
-						}
-					}
-					return { errorDetails: result.errorDetails, timings: stream.timings, metadata: result.metadata };
 				}
-
-				return undefined;
+				return { errorDetails: result?.errorDetails, timings: stream.timings, metadata: result?.metadata };
 			}), token);
 
 		} catch (e) {
@@ -240,21 +228,18 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 	}
 
-	private async prepareHistory<T extends vscode.ChatAgentResult2>(agent: ExtHostChatAgent<T>, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<vscode.ChatAgentHistoryEntry[]> {
+	private async prepareHistory(request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<vscode.ChatAgentHistoryEntry[]> {
 		return coalesce(await Promise.all(context.history
 			.map(async h => {
-				const result = request.agentId === h.request.agentId && this._resultsBySessionAndRequestId.get(request.sessionId)?.get(h.request.requestId)
-					|| h.result;
 				return {
 					request: typeConvert.ChatAgentRequest.to(h.request),
 					response: coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter))),
-					result
+					result: typeConvert.ChatAgentResult.to(h.result),
 				} satisfies vscode.ChatAgentHistoryEntry;
 			})));
 	}
 
 	$releaseSession(sessionId: string): void {
-		this._resultsBySessionAndRequestId.delete(sessionId);
 		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
 
