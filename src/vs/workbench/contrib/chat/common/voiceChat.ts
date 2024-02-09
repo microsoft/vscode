@@ -76,13 +76,13 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		for (const agent of this.chatAgentService.getAgents()) {
 			const agentPhrase = `${VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX]}${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
 			const agentResult = `${VoiceChatService.AGENT_PREFIX}${agent.id}`;
-			this.phrases.set(agentPhrase, agentResult);
+			phrases.set(agentPhrase, agentResult);
 
 			if (agent.lastSlashCommands) {
 				for (const slashCommand of agent.lastSlashCommands) {
 					const slashCommandPhrase = `${agentPhrase} ${VoiceChatService.PHRASES[VoiceChatService.COMMAND_PREFIX]}${slashCommand.name}`.toLowerCase();
 					const slashCommandResult = `${agentResult} ${VoiceChatService.COMMAND_PREFIX}${slashCommand.name}`;
-					this.phrases.set(slashCommandPhrase, slashCommandResult);
+					phrases.set(slashCommandPhrase, slashCommandResult);
 				}
 			}
 		}
@@ -120,7 +120,9 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 								waitingForInput = originalWords.length === 4;
 							}
 
-							finishedPhraseDetection = true; // only detect phrases in the beginning of the session
+							if (e.status === SpeechToTextStatus.Recognized) {
+								finishedPhraseDetection = true; // only detect phrases in the beginning of the session
+							}
 						}
 
 						// Check for agent
