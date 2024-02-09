@@ -486,7 +486,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 }
 
-function getEndPositionsAfterApplying(edits: SingleTextEdit[]): Position[] {
+function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
 	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
 	const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
 	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
