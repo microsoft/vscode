@@ -223,7 +223,9 @@ export class InlineCompletionsModel extends Disposable {
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [edit, ...this._getSecondaryEdits(this.textModel, positions, edit)];
+			const secondaryEdits = this._getSecondaryEdits(this.textModel, positions, edit);
+			console.log('secondaryEdits : ', secondaryEdits);
+			const edits = [edit, ...secondaryEdits];
 			const ghostTexts = edits
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], editPreviewLength))
 				.filter(isDefined);
@@ -237,11 +239,14 @@ export class InlineCompletionsModel extends Disposable {
 			const replacement = item.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [replacement, ...this._getSecondaryEdits(this.textModel, positions, replacement)];
+			const secondaryEdits = this._getSecondaryEdits(this.textModel, positions, replacement);
+			console.log('secondaryEdits : ', secondaryEdits);
+			const edits = [replacement, ...secondaryEdits];
 			const ghostTexts = edits
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], 0))
 				.filter(isDefined);
 			if (!ghostTexts[0]) { return undefined; }
+			console.log('ghostTexts : ', ghostTexts);
 			return { ghostTexts, primaryGhostText: ghostTexts[0], inlineCompletion: item, suggestItem: undefined, edits };
 		}
 	});
@@ -427,6 +432,7 @@ export class InlineCompletionsModel extends Disposable {
 		try {
 			this._isAcceptingPartially = true;
 			try {
+				console.log('inside of _acceptNext');
 				editor.pushUndoStop();
 				const replaceRange = Range.fromPositions(completion.range.getStartPosition(), position);
 				const newText = completion.insertText.substring(
@@ -434,7 +440,10 @@ export class InlineCompletionsModel extends Disposable {
 					firstPart.column - completion.range.startColumn + acceptUntilIndexExclusive);
 				const singleTextEdit = new SingleTextEdit(replaceRange, newText);
 				const positions = this._positions.get();
+				console.log('positions : ', positions);
+				console.log('singleTextEdit : ', singleTextEdit);
 				const edits = [singleTextEdit, ...this._getSecondaryEdits(this.textModel, positions, singleTextEdit)];
+				console.log('edits : ', edits);
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
