@@ -11,9 +11,11 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
+import { localize } from 'vs/nls';
 
 type LanguageModelData = {
 	readonly extension: ExtensionIdentifier;
@@ -100,6 +102,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	constructor(
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
+		private readonly _extHostAuthentication: ExtHostAuthentication,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatProvider);
 	}
@@ -186,13 +189,16 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		this._onDidChangeAccess.fire(updated);
 	}
 
-	async requestLanguageModelAccess(from: ExtensionIdentifier, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
+	async requestLanguageModelAccess(extension: Readonly<IRelaxedExtensionDescription>, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
+		const from = extension.identifier;
 		// check if the extension is in the access list and allowed to make chat requests
 		if (this._accesslist.get(from) === false) {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
-		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options?.justification);
+		const justification = options?.justification;
+		await this._checkAuthAccess(extension, languageModelId, justification);
+		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, justification);
 
 		if (!metadata) {
 			if (!this._accesslist.get(from)) {
@@ -224,7 +230,9 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				}
 				const cts = new CancellationTokenSource(token);
 				const requestId = (Math.random() * 1e6) | 0;
-				const requestPromise = that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.ChatMessage.from), options ?? {}, cts.token);
+				const requestPromise =
+					that._checkAuthAccess(extension, languageModelId, justification)
+						.then(() => that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.ChatMessage.from), options ?? {}, cts.token));
 				const res = new LanguageModelRequest(requestPromise, cts);
 				that._pendingRequest.set(requestId, { languageModelId, res });
 
@@ -242,6 +250,24 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		const data = this._pendingRequest.get(requestId);//.report(chunk);
 		if (data) {
 			data.res.handleFragment(chunk);
+		}
+	}
+
+	// BIG HACK: Using AuthenticationProviders to check access to Language Models
+	private async _checkAuthAccess(from: Readonly<IRelaxedExtensionDescription>, languageModelId: string, detail?: string): Promise<void> {
+		// TODO: Should the auth provider id be derived from the language model id or contributed by the provider?
+		const providerId = languageModelId + '-access';
+		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true });
+		if (!session) {
+			try {
+				await this._extHostAuthentication.getSession(from, providerId, [], {
+					forceNewSession: {
+						detail: detail ?? localize('chatAccess', "To allow access to the language model provided by '{0}'", languageModelId),
+					}
+				});
+			} catch (err) {
+				throw new Error('Access to language model has not been granted');
+			}
 		}
 	}
 }
