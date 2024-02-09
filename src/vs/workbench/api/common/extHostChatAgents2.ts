@@ -157,7 +157,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	private static _idPool = 0;
 
-	private readonly _agents = new Map<number, ExtHostChatAgent<any>>();
+	private readonly _agents = new Map<number, ExtHostChatAgent>();
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = new DisposableMap();
@@ -171,9 +171,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent<TResult extends vscode.ChatAgentResult2>(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2 {
+	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2 {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent<TResult>(extension, name, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
 		this._proxy.$registerAgent(handle, name, {});
@@ -231,10 +231,14 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	private async prepareHistory(request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<vscode.ChatAgentHistoryEntry[]> {
 		return coalesce(await Promise.all(context.history
 			.map(async h => {
+				const ehResult = typeConvert.ChatAgentResult.to(h.result);
+				const result: vscode.ChatAgentResult2 = request.agentId === h.request.agentId ?
+					ehResult :
+					{ ...ehResult, metadata: undefined };
 				return {
 					request: typeConvert.ChatAgentRequest.to(h.request),
 					response: coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter))),
-					result: typeConvert.ChatAgentResult.to(h.result),
+					result,
 				} satisfies vscode.ChatAgentHistoryEntry;
 			})));
 	}
@@ -332,7 +336,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	}
 }
 
-class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
+class ExtHostChatAgent {
 
 	private _subCommandProvider: vscode.ChatAgentSubCommandProvider | undefined;
 	private _followupProvider: vscode.ChatAgentFollowupProvider | undefined;
