@@ -18,7 +18,7 @@ declare module 'vscode' {
 		/**
 		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
 		 */
-		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
+		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart)[];
 
 		/**
 		 * The result that was received from the chat agent.
@@ -173,19 +173,10 @@ declare module 'vscode' {
 		provideSubCommands(token: CancellationToken): ProviderResult<ChatAgentSubCommand[]>;
 	}
 
-	// TODO@API This should become a progress type, and use vscode.Command
-	// TODO@API what's the when-property for? how about not returning it in the first place?
-	export interface ChatAgentCommandFollowup {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
-	}
-
 	/**
 	 * A followup question suggested by the model.
 	 */
-	export interface ChatAgentReplyFollowup {
+	export interface ChatAgentFollowup {
 		/**
 		 * The message to send to the chat.
 		 */
@@ -201,8 +192,6 @@ declare module 'vscode' {
 		 */
 		title?: string;
 	}
-
-	export type ChatAgentFollowup = ChatAgentCommandFollowup | ChatAgentReplyFollowup;
 
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
@@ -346,6 +335,15 @@ declare module 'vscode' {
 		anchor(value: Uri | Location, title?: string): ChatAgentResponseStream;
 
 		/**
+		 * Push a command button part to this stream. Short-hand for
+		 * `push(new ChatResponseCommandButtonPart(value, title))`.
+		 *
+		 * @param command A Command that will be executed when the button is clicked.
+		 * @returns This stream.
+		 */
+		button(command: Command): ChatAgentResponseStream;
+
+		/**
 		 * Push a filetree part to this stream. Short-hand for
 		 * `push(new ChatResponseFileTreePart(value))`.
 		 *
@@ -437,8 +435,13 @@ declare module 'vscode' {
 		constructor(value: Uri | Location);
 	}
 
+	export class ChatResponseCommandButtonPart {
+		value: Command;
+		constructor(value: Command);
+	}
+
 	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-		| ChatResponseProgressPart | ChatResponseReferencePart;
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
@@ -446,7 +449,8 @@ declare module 'vscode' {
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
-		| ChatAgentInlineContentReference;
+		| ChatAgentInlineContentReference
+		| ChatAgentCommandButton;
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
@@ -491,6 +495,13 @@ declare module 'vscode' {
 		 * An alternate title for the resource.
 		 */
 		title?: string;
+	}
+
+	/**
+	 * Displays a {@link Command command} as a button in the chat response.
+	 */
+	export interface ChatAgentCommandButton {
+		command: Command;
 	}
 
 	/**

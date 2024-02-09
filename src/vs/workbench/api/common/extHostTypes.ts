@@ -4242,6 +4242,13 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseCommandButtonPart {
+	value: vscode.Command;
+	constructor(value: vscode.Command) {
+		this.value = value;
+	}
+}
+
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location;
 	constructor(value: vscode.Uri | vscode.Location) {

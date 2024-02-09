@@ -10,10 +10,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IInlineChatFollowup } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 const $ = dom.$;
 
-export class ChatFollowups<T extends IChatFollowup> extends Disposable {
+export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extends Disposable {
 	constructor(
 		container: HTMLElement,
 		followups: T[],
