@@ -52,6 +52,7 @@ import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { basename } from 'vs/base/common/resources';
+import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 
 export namespace Command {
 
@@ -2638,5 +2639,18 @@ export namespace TerminalQuickFix {
 			return { uri: quickFix.uri };
 		}
 		return converter.toInternal(quickFix, disposables);
+	}
+}
+
+export namespace DebugTreeItem {
+	export function from(item: vscode.DebugTreeItem, id: number): IDebugVisualizationTreeItem {
+		return {
+			id,
+			label: item.label,
+			description: item.description,
+			canEdit: item.canEdit,
+			collapsibleState: (item.collapsibleState || DebugTreeItemCollapsibleState.None) as DebugTreeItemCollapsibleState,
+			contextValue: item.contextValue,
+		};
 	}
 }

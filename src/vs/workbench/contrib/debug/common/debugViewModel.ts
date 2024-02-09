@@ -22,6 +22,8 @@ export class ViewModel implements IViewModel {
 	private readonly _onDidSelectExpression = new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>();
 	private readonly _onDidEvaluateLazyExpression = new Emitter<IExpressionContainer>();
 	private readonly _onWillUpdateViews = new Emitter<void>();
+	private readonly _onDidChangeVisualization = new Emitter<{ original: IExpression; replacement: IExpression }>();
+	private readonly visualized = new WeakMap<IExpression, IExpression>();
 	private expressionSelectedContextKey!: IContextKey<boolean>;
 	private loadedScriptsSupportedContextKey!: IContextKey<boolean>;
 	private stepBackSupportedContextKey!: IContextKey<boolean>;
@@ -125,6 +127,10 @@ export class ViewModel implements IViewModel {
 		return this._onDidFocusStackFrame.event;
 	}
 
+	get onDidChangeVisualization() {
+		return this._onDidChangeVisualization.event;
+	}
+
 	getSelectedExpression(): { expression: IExpression; settingWatch: boolean } | undefined {
 		return this.selectedExpression;
 	}
@@ -157,6 +163,21 @@ export class ViewModel implements IViewModel {
 
 	setMultiSessionView(isMultiSessionView: boolean): void {
 		this.multiSessionDebug.set(isMultiSessionView);
+	}
+
+	setVisualizedExpression(original: IExpression, visualized: IExpression | undefined): void {
+		const current = this.visualized.get(original) || original;
+
+		if (visualized) {
+			this.visualized.set(original, visualized);
+		} else {
+			this.visualized.delete(original);
+		}
+		this._onDidChangeVisualization.fire({ original: current, replacement: visualized || original });
+	}
+
+	getVisualizedExpression(expression: IExpression): IExpression | undefined {
+		return this.visualized.get(expression);
 	}
 
 	async evaluateLazyExpression(expression: IExpressionContainer): Promise<void> {
