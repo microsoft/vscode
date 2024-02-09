@@ -24,6 +24,8 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -115,15 +117,30 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	readonly templateId: string = DocumentSymbolTemplate.id;
 
+	private _hoverDelegate: IHoverDelegate;
+
 	constructor(
 		private _renderMarker: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-	) { }
+		@IHoverService hoverService: IHoverService,
+	) {
+		this._hoverDelegate = {
+			delay: 500,
+			showHover: (options: IHoverOptions) => {
+				return hoverService.showHover({
+					...options,
+					persistence: {
+						hideOnHover: true
+					}
+				});
+			}
+		};
+	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {
 		container.classList.add('outline-element');
-		const iconLabel = new IconLabel(container, { supportHighlights: true });
+		const iconLabel = new IconLabel(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
 		const iconClass = dom.$('.outline-element-icon');
 		const decoration = dom.$('.outline-element-decoration');
 		container.prepend(iconClass);

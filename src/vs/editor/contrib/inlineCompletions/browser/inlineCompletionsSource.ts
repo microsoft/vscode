@@ -17,8 +17,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
-/* hot-reload:patch-prototype-methods */
-
 export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	public readonly inlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined);

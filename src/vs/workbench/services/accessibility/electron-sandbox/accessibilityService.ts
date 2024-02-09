@@ -12,7 +12,7 @@ import { AccessibilityService } from 'vs/platform/accessibility/browser/accessib
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
@@ -88,5 +88,5 @@ class LinuxAccessibilityContribution implements IWorkbenchContribution {
 }
 
 if (isLinux) {
-	registerWorkbenchContribution2(LinuxAccessibilityContribution.ID, LinuxAccessibilityContribution, WorkbenchContributionInstantiation.BlockRestore);
+	registerWorkbenchContribution2(LinuxAccessibilityContribution.ID, LinuxAccessibilityContribution, WorkbenchPhase.BlockRestore);
 }

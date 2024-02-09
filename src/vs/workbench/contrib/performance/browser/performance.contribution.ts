@@ -9,7 +9,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Extensions, IWorkbenchContributionsRegistry, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -22,7 +22,7 @@ import { InputLatencyContrib } from 'vs/workbench/contrib/performance/browser/in
 registerWorkbenchContribution2(
 	PerfviewContrib.ID,
 	PerfviewContrib,
-	WorkbenchContributionInstantiation.Lazy
+	{ lazy: true }
 );
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(

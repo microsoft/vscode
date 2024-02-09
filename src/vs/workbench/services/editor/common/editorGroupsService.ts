@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -576,12 +576,6 @@ export interface IEditorGroup {
 	 * a different group.
 	 */
 	readonly onWillMoveEditor: Event<IEditorWillMoveEvent>;
-
-	/**
-	 * An event that is fired when an editor is about to be opened
-	 * in the group.
-	 */
-	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
 
 	/**
 	 * A unique identifier of this group that remains identical even if the

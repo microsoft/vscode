@@ -32,8 +32,12 @@ declare module 'vscode' {
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+
+		/**
+		 * @deprecated, use previewDocument
+		 */
 		live: boolean;
-		previewDocument: TextDocument | undefined;
+		previewDocument: TextDocument;
 		withIntentDetection: boolean;
 	}
 
@@ -121,7 +125,7 @@ declare module 'vscode' {
 		inputPlaceholder?: string;
 	}
 
-	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentReplyFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		prepareSession(token: CancellationToken): ProviderResult<S>;

@@ -98,14 +98,14 @@
       "editor/context/share": [
         {
           "command": "github.copyVscodeDevLink",
-          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && !isInEmbeddedEditor && remoteName != 'codespaces'",
           "group": "0_vscode@0"
         }
       ],
       "explorer/context/share": [
         {
           "command": "github.copyVscodeDevLinkWithoutRange",
-          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && !isInEmbeddedEditor && remoteName != 'codespaces'",
           "group": "0_vscode@0"
         }
       ],

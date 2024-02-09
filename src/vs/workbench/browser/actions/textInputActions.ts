@@ -9,7 +9,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -107,5 +107,5 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 registerWorkbenchContribution2(
 	TextInputActionsProvider.ID,
 	TextInputActionsProvider,
-	WorkbenchContributionInstantiation.BlockRestore // Block to allow right-click into input fields before restore finished
+	WorkbenchPhase.BlockRestore // Block to allow right-click into input fields before restore finished
 );
