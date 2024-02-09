@@ -166,7 +166,7 @@ export class Permutation {
 		return new Permutation(sortIndices);
 	}
 
-	apply<T>(arr: T[]): T[] {
+	apply<T>(arr: readonly T[]): T[] {
 		return arr.map((_, index) => arr[this._indexMap[index]]);
 	}
 

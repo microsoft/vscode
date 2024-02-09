@@ -134,11 +134,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
 		});
 
-		if (data.provider.provideLanguageModelResponse) {
-			return data.provider.provideLanguageModelResponse(messages.map(typeConvert.ChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
-		} else {
-			return data.provider.provideChatResponse(messages.map(typeConvert.ChatMessage.to), options, progress, token);
-		}
+		return data.provider.provideLanguageModelResponse(messages.map(typeConvert.ChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
 	}
 
 	//#region --- making request

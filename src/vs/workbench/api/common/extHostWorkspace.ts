@@ -462,7 +462,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			maxResults,
 			useDefaultExcludes: useFileExcludes,
 			useDefaultSearchExcludes: false,
-			useIgnoreFiles: true
+			useIgnoreFiles: false
 		}, token);
 	}
 
