@@ -11,7 +11,7 @@ import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -24,12 +24,6 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 
 export class TerminalChatContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
-
-	/**
-	 * Currently focused Chat widget. This is used to track action context since
-	 * 'active terminals' are only tracked for non-detached terminal instanecs.
-	 */
-	static activeChatWidget?: TerminalChatContribution;
 
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalChatContribution | null {
 		return instance.getContribution<TerminalChatContribution>(TerminalChatContribution.ID);
@@ -59,19 +53,6 @@ export class TerminalChatContribution extends Disposable implements ITerminalCon
 		this._chatWidget = new Lazy(() => {
 			const chatWidget = this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance);
 
-			// Track focus and set state so we can force the scroll bar to be visible
-			chatWidget.onDidFocus(() => {
-				TerminalChatContribution.activeChatWidget = this;
-				this._instance.forceScrollbarVisibility();
-				if (!isDetachedTerminalInstance(this._instance)) {
-					this._terminalService.setActiveInstance(this._instance);
-				}
-			});
-			// chatWidget.onDidBlur(() => {
-			// 	TerminalChatContribution.activeChatWidget = undefined;
-			// 	this._instance.resetScrollbarVisibility();
-			// });
-
 			if (!this._instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
@@ -86,9 +67,6 @@ export class TerminalChatContribution extends Disposable implements ITerminalCon
 	}
 
 	override dispose() {
-		if (TerminalChatContribution.activeChatWidget === this) {
-			TerminalChatContribution.activeChatWidget = undefined;
-		}
 		super.dispose();
 		this._chatWidget?.rawValue?.dispose();
 	}
@@ -106,8 +84,7 @@ registerActiveXtermAction({
 	f1: true,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (_xterm, _accessor, activeInstance) => {
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
-		contr?.chatWidget?.reveal();
+		TerminalChatContribution.get(activeInstance)?.chatWidget?.reveal();
 	}
 });
 
@@ -123,8 +100,7 @@ registerActiveXtermAction({
 	f1: true,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (_xterm, _accessor, activeInstance) => {
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
-		contr?.chatWidget?.hide();
+		TerminalChatContribution.get(activeInstance)?.chatWidget?.hide();
 	}
 });
 
@@ -139,8 +115,7 @@ registerActiveXtermAction({
 		group: 'navigation',
 	},
 	run: (_xterm, _accessor, activeInstance) => {
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
-		contr?.chatWidget?.acceptInput();
+		TerminalChatContribution.get(activeInstance)?.chatWidget?.acceptInput();
 	}
 });
 
@@ -154,7 +129,6 @@ registerActiveXtermAction({
 		group: 'navigation',
 	},
 	run: (_xterm, _accessor, activeInstance) => {
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
-		contr?.chatWidget?.cancel();
+		TerminalChatContribution.get(activeInstance)?.chatWidget?.cancel();
 	}
 });

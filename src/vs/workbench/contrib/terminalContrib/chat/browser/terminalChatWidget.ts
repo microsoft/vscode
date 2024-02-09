@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,8 +15,6 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 export class TerminalChatWidget extends Disposable {
 	private _widget: ChatWidget | undefined;
 	private _scopedInstantiationService: IInstantiationService;
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
 	private _widgetContainer: HTMLElement | undefined;
 	private _chatWidgetFocused: IContextKey<boolean>;
 	private _chatWidgetVisible: IContextKey<boolean>;
@@ -49,7 +46,6 @@ export class TerminalChatWidget extends Disposable {
 		this._widget.render(this._widgetContainer);
 		this._container.appendChild(this._widgetContainer);
 		this._register(this._widget.onDidFocus(() => {
-			this._onDidFocus.fire();
 			this._chatWidgetFocused.set(true);
 		}));
 		this._widget.setVisible(true);
@@ -63,6 +59,7 @@ export class TerminalChatWidget extends Disposable {
 			this._container.removeChild(this._widgetContainer);
 		}
 		this._chatWidgetVisible.set(false);
+		this._instance.focus();
 	}
 	cancel(): void {
 		this._widget?.clear();
