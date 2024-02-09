@@ -35,9 +35,9 @@
 	border-right-width: 0; /* no border when main editor area is hiden */
 }
 
-.monaco-workbench .part.panel > .content .monaco-editor,
-.monaco-workbench .part.panel > .content .monaco-editor .margin,
-.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+.monaco-workbench .part.panel > .content .monaco-editor:not(.ignore-panel-bg),
+.monaco-workbench .part.panel > .content .monaco-editor:not(.ignore-panel-bg) .margin,
+.monaco-workbench .part.panel > .content .monaco-editor:not(.ignore-panel-bg) .monaco-editor-background {
 	background-color: var(--vscode-panel-background);
 }
 

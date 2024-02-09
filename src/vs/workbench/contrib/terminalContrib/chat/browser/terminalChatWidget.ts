@@ -62,7 +62,9 @@ export class TerminalChatWidget extends Disposable {
 		const fakeParentEditor = this._scopedInstantiationService.createInstance(
 			CodeEditorWidget,
 			fakeParentEditorElement,
-			{},
+			{
+				extraEditorClassName: 'ignore-panel-bg'
+			},
 			{ isSimpleWidget: true }
 		);
 
