@@ -100,7 +100,7 @@ registerTerminalContribution(TerminalChatContribution.ID, TerminalChatContributi
 
 registerActiveXtermAction({
 	id: TerminalCommandId.FocusChat,
-	title: localize2('workbench.action.terminal.focusChat', 'Terminal: Focus Chat'),
+	title: localize2('workbench.action.terminal.focusChat', 'Focus Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused.negate(), TerminalContextKeys.focusInAny),
@@ -122,7 +122,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.HideChat,
-	title: localize2('workbench.action.terminal.hideChat', 'Terminal: Hide Chat'),
+	title: localize2('workbench.action.terminal.hideChat', 'Hide Chat'),
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
@@ -144,18 +144,28 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.SubmitChat,
-	title: localize2('workbench.action.terminal.submitChat', 'Terminal: Submit Chat'),
+	id: TerminalCommandId.MakeChatRequest,
+	title: localize2('workbench.action.terminal.submitChat', 'Make Chat Request'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalContextKeys.chatInputHasText
 	),
 	icon: Codicon.send,
+	keybinding: {
+		when: TerminalContextKeys.chatSessionInProgress,
+		// TODO:
+		// when: CTX_INLINE_CHAT_FOCUSED,
+		weight: KeybindingWeight.EditorCore + 7,
+		primary: KeyCode.Enter
+	},
 	menu: {
-		id: MenuId.ChatExecute,
+		id: MenuId.TerminalChat,
+		group: 'main',
+		order: 1,
 		when: TerminalContextKeys.chatSessionInProgress.negate(),
-		group: 'navigation',
+		// TODO:
+		// when: CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.isEqualTo(false)
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
