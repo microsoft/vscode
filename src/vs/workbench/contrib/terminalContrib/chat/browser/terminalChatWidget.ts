@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +19,7 @@ export class TerminalChatWidget extends Disposable {
 	private _widgetContainer: HTMLElement;
 	private _chatWidgetFocused: IContextKey<boolean>;
 	private _chatWidgetVisible: IContextKey<boolean>;
+	private readonly _focusTracker: IFocusTracker;
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
@@ -44,6 +46,7 @@ export class TerminalChatWidget extends Disposable {
 			}));
 		this._widget.render(this._widgetContainer);
 		this._register(this._widget.onDidFocus(() => this._chatWidgetFocused.set(true)));
+		this._focusTracker = this._register(trackFocus(this._widgetContainer));
 	}
 	reveal(): void {
 		this._widgetContainer.classList.remove('hide');
@@ -69,5 +72,8 @@ export class TerminalChatWidget extends Disposable {
 	}
 	layout(width: number): void {
 		this._widget?.layout(100, width < 300 ? 300 : width);
+	}
+	public get focusTracker(): IFocusTracker {
+		return this._focusTracker;
 	}
 }
