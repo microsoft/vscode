@@ -350,22 +350,22 @@ export class BulkEditPane extends ViewPane {
 
 		const resources = [];
 		for (const operation of fileOperations) {
-			const previewUri = this._currentProvider!.asPreviewUri(operation.textEdits[0].textEdit.resource);
 
-			let leftResource: URI | undefined;
+			let leftResource: URI | undefined = operation.textEdits[0].textEdit.resource;
+			let rightResource: URI | undefined = undefined;
 			try {
-				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
-				leftResource = fileElement.edit.uri;
+				(await this._textModelService.createModelReference(leftResource)).dispose();
+				rightResource = this._currentProvider!.asPreviewUri(leftResource);
 			} catch {
 				leftResource = BulkEditPreviewProvider.emptyPreview;
 			}
 			resources.push({
 				originalUri: leftResource,
-				modifiedUri: previewUri
+				modifiedUri: rightResource
 			});
 
 			console.log('leftResource : ', JSON.stringify(leftResource));
-			console.log('previewUri : ', JSON.stringify(previewUri));
+			console.log('rightResource : ', JSON.stringify(rightResource));
 		}
 
 		let typeLabel: string | undefined;
