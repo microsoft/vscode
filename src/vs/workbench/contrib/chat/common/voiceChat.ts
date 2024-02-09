@@ -91,16 +91,21 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	}
 
 	createVoiceChatSession(token: CancellationToken): IVoiceChatSession {
-		const session = this.speechService.createSpeechToTextSession(token);
-
 		const disposables = new DisposableStore();
 
+		let finishedPhraseDetection = false;
+
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
+		const session = disposables.add(this.speechService.createSpeechToTextSession(token));
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
 				case SpeechToTextStatus.Recognizing:
 				case SpeechToTextStatus.Recognized:
-					if (e.text && startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX].trim())) {
+					if (
+						!finishedPhraseDetection && // only if we have not yet attempted phrase detection
+						e.text &&
+						startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX].trim())
+					) {
 						const originalWords = e.text.split(' ');
 						let transformedWords: string[] | undefined;
 
@@ -114,6 +119,8 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 								waitingForInput = originalWords.length === 4;
 							}
+
+							finishedPhraseDetection = true; // only detect phrases in the beginning of the session
 						}
 
 						// Check for agent
