@@ -21,6 +21,8 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Codicon } from 'vs/base/common/codicons';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalChatContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
@@ -39,17 +41,27 @@ export class TerminalChatContribution extends Disposable implements ITerminalCon
 		processManager: ITerminalProcessManager | ITerminalProcessInfo,
 		widgetManager: TerminalWidgetManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService terminalService: ITerminalService
 	) {
 		super();
+		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
+			return;
+		}
 	}
 
 	layout(_xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void {
+		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
+			return;
+		}
 		this._lastLayoutDimensions = dimension;
 		this._chatWidget?.rawValue?.layout(dimension.width);
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
+			return;
+		}
 		this._chatWidget = new Lazy(() => {
 			const chatWidget = this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance);
 
@@ -82,7 +94,10 @@ registerActiveXtermAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	f1: true,
-	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+	),
 	run: (_xterm, _accessor, activeInstance) => {
 		TerminalChatContribution.get(activeInstance)?.chatWidget?.reveal();
 	}
@@ -98,7 +113,10 @@ registerActiveXtermAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	f1: true,
-	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+	),
 	run: (_xterm, _accessor, activeInstance) => {
 		TerminalChatContribution.get(activeInstance)?.chatWidget?.hide();
 	}
@@ -107,7 +125,11 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalCommandId.SubmitChat,
 	title: localize2('workbench.action.terminal.submitChat', 'Terminal: Submit Chat'),
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.chatInputHasText),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalContextKeys.chatInputHasText
+	),
 	icon: Codicon.send,
 	menu: {
 		id: MenuId.ChatExecute,
@@ -122,7 +144,10 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalCommandId.CancelChat,
 	title: localize2('workbench.action.terminal.cancelChat', 'Cancel Chat'),
-	precondition: TerminalContextKeys.chatSessionInProgress,
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalContextKeys.chatSessionInProgress,
+	),
 	icon: Codicon.debugStop,
 	menu: {
 		id: MenuId.ChatExecute,

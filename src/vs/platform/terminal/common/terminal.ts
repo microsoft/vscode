@@ -121,10 +121,7 @@ export const enum TerminalSettingId {
 	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
 	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
 	MouseWheelZoom = 'terminal.integrated.mouseWheelZoom',
-	FocusChat = 'workbench.action.terminal.focusChat',
-	HideChat = 'workbench.action.terminal.hideChat',
-	SubmitChat = 'workbench.action.terminal.submitChat',
-	CancelChat = 'workbench.action.terminal.cancelChat',
+	ExperimentalInlineChat = 'workbench.action.terminal.experimentalInlineChat',
 
 	// Debug settings that are hidden from user
 
