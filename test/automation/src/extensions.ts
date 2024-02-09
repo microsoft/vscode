@@ -41,7 +41,12 @@ export class Extensions extends Viewlet {
 	}
 
 	async closeExtension(title: string): Promise<any> {
-		await this.code.waitAndClick(`.tabs-container div.tab[title="Extension: ${title}"] div.tab-actions a.action-label.codicon.codicon-close`);
+		try {
+			await this.code.waitAndClick(`.tabs-container div.tab[aria-label="Extension: ${title}, preview"] div.tab-actions a.action-label.codicon.codicon-close`);
+		} catch (e) {
+			this.code.logger.log(`Extension '${title}' not opened as preview. Trying without 'preview'.`);
+			await this.code.waitAndClick(`.tabs-container div.tab[aria-label="Extension: ${title}"] div.tab-actions a.action-label.codicon.codicon-close`);
+		}
 	}
 
 	async installExtension(id: string, waitUntilEnabled: boolean): Promise<void> {

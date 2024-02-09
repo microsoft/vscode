@@ -27,6 +27,7 @@ export interface IRemoteAgentEnvironment {
 		all: IUserDataProfile[];
 		home: URI;
 	};
+	isUnsupportedGlibc: boolean;
 }
 
 export interface RemoteAgentConnectionContext {

@@ -281,12 +281,12 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 	/**
 	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
 	 */
-	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): any {
+	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): string | undefined {
 		const schema = this.configurationRegistry.getConfigurationProperties()[key];
 		const inpsectData = this.configurationService.inspect(key);
 		const value = target === ConfigurationTarget.USER_LOCAL ? inpsectData.user?.value : inpsectData.workspace?.value;
 		if (isNumber(value) || isBoolean(value)) {
-			return value;
+			return value.toString();
 		}
 		if (isString(value)) {
 			if (schema?.enum?.includes(value)) {
@@ -296,7 +296,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 		}
 		if (Array.isArray(value)) {
 			if (value.every(v => isNumber(v) || isBoolean(v) || (isString(v) && schema?.enum?.includes(v)))) {
-				return value;
+				return JSON.stringify(value);
 			}
 		}
 		return undefined;
@@ -304,7 +304,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 
 	private reportTelemetry(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): void {
 		type UpdatedSettingEvent = {
-			value: any;
+			value: string | undefined;
 			source: string;
 		};
 		const source = ConfigurationTargetToString(target);

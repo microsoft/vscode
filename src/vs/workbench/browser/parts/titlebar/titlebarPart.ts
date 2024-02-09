@@ -55,6 +55,11 @@ import { mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 
+export interface ITitleVariable {
+	readonly name: string;
+	readonly contextKey: string;
+}
+
 export interface ITitleProperties {
 	isPure?: boolean;
 	isAdmin?: boolean;
@@ -72,6 +77,11 @@ export interface ITitlebarPart extends IDisposable {
 	 * Update some environmental title properties.
 	 */
 	updateProperties(properties: ITitleProperties): void;
+
+	/**
+	 * Adds variables to be supported in the window title.
+	 */
+	registerVariables(variables: ITitleVariable[]): void;
 }
 
 export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> implements ITitleService {
@@ -134,6 +144,14 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
 
+		if (this.properties) {
+			titlebarPart.updateProperties(this.properties);
+		}
+
+		if (this.variables.length) {
+			titlebarPart.registerVariables(this.variables);
+		}
+
 		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
 
 		return titlebarPart;
@@ -150,9 +168,23 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 
 	readonly onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
 
+	private properties: ITitleProperties | undefined = undefined;
+
 	updateProperties(properties: ITitleProperties): void {
+		this.properties = properties;
+
 		for (const part of this.parts) {
 			part.updateProperties(properties);
+		}
+	}
+
+	private variables: ITitleVariable[] = [];
+
+	registerVariables(variables: ITitleVariable[]): void {
+		this.variables.push(...variables);
+
+		for (const part of this.parts) {
+			part.registerVariables(variables);
 		}
 	}
 
@@ -377,6 +409,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	updateProperties(properties: ITitleProperties): void {
 		this.windowTitle.updateProperties(properties);
+	}
+
+	registerVariables(variables: ITitleVariable[]): void {
+		this.windowTitle.registerVariables(variables);
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {

@@ -22,6 +22,7 @@ import { IQuickInputOptions, IQuickInputStyles, QuickInputHoverDelegate } from '
 import { QuickInputController, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInputController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { getWindow } from 'vs/base/browser/dom';
 
 export class QuickInputService extends Themable implements IQuickInputService {
 
@@ -105,7 +106,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		controller.layout(host.activeContainerDimension, host.activeContainerOffset.quickPickTop);
 
 		// Layout changes
-		this._register(host.onDidLayoutActiveContainer(dimension => controller.layout(dimension, host.activeContainerOffset.quickPickTop)));
+		this._register(host.onDidLayoutActiveContainer(dimension => {
+			if (getWindow(host.activeContainer) === getWindow(controller.container)) {
+				controller.layout(dimension, host.activeContainerOffset.quickPickTop);
+			}
+		}));
 		this._register(host.onDidChangeActiveContainer(() => {
 			if (controller.isVisible()) {
 				return;

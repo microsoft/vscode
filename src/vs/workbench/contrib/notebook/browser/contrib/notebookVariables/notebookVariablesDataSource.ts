@@ -53,7 +53,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		}
 	}
 
-	async getVariables(parent: INotebookVariableElement): Promise<INotebookVariableElement[]> {
+	private async getVariables(parent: INotebookVariableElement): Promise<INotebookVariableElement[]> {
 		const selectedKernel = this.notebookKernelService.getMatchingKernel(parent.notebook).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
 
@@ -75,7 +75,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		return [];
 	}
 
-	async getIndexedChildren(parent: INotebookVariableElement, kernel: INotebookKernel) {
+	private async getIndexedChildren(parent: INotebookVariableElement, kernel: INotebookKernel) {
 		const childNodes: INotebookVariableElement[] = [];
 
 		if (parent.indexedChildrenCount > variablePageSize) {
@@ -128,7 +128,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		return childNodes;
 	}
 
-	async getRootVariables(notebook: NotebookTextModel): Promise<INotebookVariableElement[]> {
+	private async getRootVariables(notebook: NotebookTextModel): Promise<INotebookVariableElement[]> {
 		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
 			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, this.cancellationTokenSource.token);

@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 
 class EditorFeaturesInstantiator extends Disposable implements IWorkbenchContribution {
 
@@ -50,4 +50,4 @@ class EditorFeaturesInstantiator extends Disposable implements IWorkbenchContrib
 	}
 }
 
-registerWorkbenchContribution2(EditorFeaturesInstantiator.ID, EditorFeaturesInstantiator, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(EditorFeaturesInstantiator.ID, EditorFeaturesInstantiator, WorkbenchPhase.BlockRestore);

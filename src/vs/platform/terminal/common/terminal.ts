@@ -425,7 +425,7 @@ export enum HeartbeatConstants {
 	BeatInterval = 5000,
 	/**
 	 * The duration of the first heartbeat while the pty host is starting up. This is much larger
-	 * than the regular BeatInterval to accomodate slow machines, we still want to warn about the
+	 * than the regular BeatInterval to accommodate slow machines, we still want to warn about the
 	 * pty host's unresponsiveness eventually though.
 	 */
 	ConnectingBeatInterval = 20000,

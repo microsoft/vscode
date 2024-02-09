@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IUserDataSyncUtilService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -31,7 +31,7 @@ class UserDataSyncServicesContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-registerWorkbenchContribution2(UserDataSyncServicesContribution.ID, UserDataSyncServicesContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(UserDataSyncServicesContribution.ID, UserDataSyncServicesContribution, WorkbenchPhase.BlockStartup);
 
 registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	constructor() {

@@ -18,6 +18,11 @@ export class SingleTextEdit {
 	) {
 	}
 
+	static equals(first: SingleTextEdit, second: SingleTextEdit) {
+		return first.range.equalsRange(second.range) && first.text === second.text;
+
+	}
+
 	removeCommonPrefix(model: ITextModel, validModelRange?: Range): SingleTextEdit {
 		const modelRange = validModelRange ? this.range.intersectRanges(validModelRange) : this.range;
 		if (!modelRange) {

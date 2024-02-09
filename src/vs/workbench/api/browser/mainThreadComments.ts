@@ -242,7 +242,7 @@ export class MainThreadCommentController implements ICommentController {
 	}
 
 	private readonly _threads: Map<number, MainThreadCommentThread<IRange | ICellRange>> = new Map<number, MainThreadCommentThread<IRange | ICellRange>>();
-	public activeCommentThread?: MainThreadCommentThread<IRange | ICellRange>;
+	public activeEditingCommentThread?: MainThreadCommentThread<IRange | ICellRange>;
 
 	get features(): CommentProviderFeatures {
 		return this._features;
@@ -257,6 +257,10 @@ export class MainThreadCommentController implements ICommentController {
 		private readonly _label: string,
 		private _features: CommentProviderFeatures
 	) { }
+
+	async setActiveCommentAndThread(commentInfo: { thread: languages.CommentThread; comment?: languages.Comment } | undefined) {
+		return this._proxy.$setActiveComment(this._handle, commentInfo ? { commentThreadHandle: commentInfo.thread.commentThreadHandle, uniqueIdInThread: commentInfo.comment?.uniqueIdInThread } : undefined);
+	}
 
 	updateFeatures(features: CommentProviderFeatures) {
 		this._features = features;
@@ -357,7 +361,7 @@ export class MainThreadCommentController implements ICommentController {
 	}
 
 	updateInput(input: string) {
-		const thread = this.activeCommentThread;
+		const thread = this.activeEditingCommentThread;
 
 		if (thread && thread.input) {
 			const commentInput = thread.input;
@@ -477,8 +481,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _handlers = new Map<number, string>();
 	private _commentControllers = new Map<number, MainThreadCommentController>();
 
-	private _activeCommentThread?: MainThreadCommentThread<IRange | ICellRange>;
-	private readonly _activeCommentThreadDisposables = this._register(new DisposableStore());
+	private _activeEditingCommentThread?: MainThreadCommentThread<IRange | ICellRange>;
+	private readonly _activeEditingCommentThreadDisposables = this._register(new DisposableStore());
 
 	private _openViewListener: IDisposable | null = null;
 
@@ -493,7 +497,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 		this._commentService.unregisterCommentController();
 
-		this._register(this._commentService.onDidChangeActiveCommentThread(async thread => {
+		this._register(this._commentService.onDidChangeActiveEditingCommentThread(async thread => {
 			const handle = (thread as MainThreadCommentThread<IRange | ICellRange>).controllerHandle;
 			const controller = this._commentControllers.get(handle);
 
@@ -501,9 +505,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				return;
 			}
 
-			this._activeCommentThreadDisposables.clear();
-			this._activeCommentThread = thread as MainThreadCommentThread<IRange | ICellRange>;
-			controller.activeCommentThread = this._activeCommentThread;
+			this._activeEditingCommentThreadDisposables.clear();
+			this._activeEditingCommentThread = thread as MainThreadCommentThread<IRange | ICellRange>;
+			controller.activeEditingCommentThread = this._activeEditingCommentThread;
 		}));
 	}
 

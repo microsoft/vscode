@@ -816,6 +816,44 @@ class RenameAdapter {
 	}
 }
 
+class NewSymbolNamesAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.NewSymbolNamesProvider,
+		private readonly _logService: ILogService
+	) { }
+
+	async provideNewSymbolNames(resource: URI, range: IRange, token: CancellationToken): Promise<string[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Range.to(range);
+
+		try {
+			const value = await this._provider.provideNewSymbolNames(doc, pos, token);
+			if (!value) {
+				return undefined;
+			}
+			return value;
+
+		} catch (err: unknown) {
+			this._logService.error(NewSymbolNamesAdapter._asMessage(err) ?? JSON.stringify(err, null, '\t') /* @ulugbekna: assuming `err` doesn't have circular references that could result in an exception when converting to JSON */);
+			return undefined;
+		}
+	}
+
+	// @ulugbekna: this method is also defined in RenameAdapter but seems OK to be duplicated
+	private static _asMessage(err: any): string | undefined {
+		if (typeof err === 'string') {
+			return err;
+		} else if (err instanceof Error && typeof err.message === 'string') {
+			return err.message;
+		} else {
+			return undefined;
+		}
+	}
+}
+
 class SemanticTokensPreviousResult {
 	constructor(
 		readonly resultId: string | undefined,
@@ -1905,7 +1943,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentOnDropEditAdapter | MappedEditsAdapter;
+	| DocumentOnDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter;
 
 class AdapterData {
 	constructor(
@@ -2285,6 +2323,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$resolveRenameLocation(handle: number, resource: URI, position: IPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined, token);
+	}
+
+	registerNewSymbolNamesProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.NewSymbolNamesProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new NewSymbolNamesAdapter(this._documents, provider, this._logService), extension);
+		this._proxy.$registerNewSymbolNamesProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<string[] | undefined> {
+		return this._withAdapter(handle, NewSymbolNamesAdapter, adapter => adapter.provideNewSymbolNames(URI.revive(resource), range, token), undefined, token);
 	}
 
 	//#region semantic coloring

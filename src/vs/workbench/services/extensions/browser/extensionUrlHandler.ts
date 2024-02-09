@@ -19,7 +19,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ActivationKind, IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -425,7 +425,7 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 	}
 }
 
-registerWorkbenchContribution2(ExtensionUrlBootstrapHandler.ID, ExtensionUrlBootstrapHandler, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(ExtensionUrlBootstrapHandler.ID, ExtensionUrlBootstrapHandler, WorkbenchPhase.BlockRestore /* registration only */);
 
 class ManageAuthorizedExtensionURIsAction extends Action2 {
 

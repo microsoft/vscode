@@ -17,31 +17,140 @@ declare module 'vscode' {
 		responseIsRedacted?: boolean;
 	}
 
-	/**
-	 * This is temporary until inline references are fully supported and adopted
-	 */
+	/** @deprecated */
 	export interface ChatAgentMarkdownContent {
 		markdownContent: MarkdownString;
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
 		command?: ChatAgentSubCommand;
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentVulnerability {
 		title: string;
 		description: string;
 		// id: string; // Later we will need to be able to link these across multiple content chunks.
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentContent {
 		vulnerabilities?: ChatAgentVulnerability[];
 	}
 
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentContentProgress =
+		| ChatAgentContent
+		| ChatAgentFileTree
+		| ChatAgentInlineContentReference
+		| ChatAgentCommandButton;
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentMetadataProgress =
+		| ChatAgentUsedContext
+		| ChatAgentContentReference
+		| ChatAgentProgressMessage;
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
+
+	/** @deprecated */
+	export interface ChatAgentProgressMessage {
+		message: string;
+	}
+
+	/** @deprecated */
+
+	export interface ChatAgentContentReference {
+		/**
+		 * The resource that was referenced.
+		 */
+		reference: Uri | Location;
+	}
+
+	/**
+	 * A reference to a piece of content that will be rendered inline with the markdown content.
+	 */
+	export interface ChatAgentInlineContentReference {
+		/**
+		 * The resource being referenced.
+		 */
+		inlineReference: Uri | Location;
+
+		/**
+		 * An alternate title for the resource.
+		 */
+		title?: string;
+	}
+
+	/**
+	 * Displays a {@link Command command} as a button in the chat response.
+	 */
+	export interface ChatAgentCommandButton {
+		command: Command;
+	}
+
+	/**
+	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
+	 */
+	export interface ChatAgentContent {
+		/**
+		 * The content as a string of markdown source.
+		 */
+		content: string;
+	}
+
+	/** @deprecated */
+	export interface ChatAgentFileTree {
+		treeData: ChatAgentFileTreeData;
+	}
+
+	/** @deprecated */
+	export interface ChatAgentFileTreeData {
+		label: string;
+		uri: Uri;
+		type?: FileType;
+		children?: ChatAgentFileTreeData[];
+	}
+
+
+	export interface ChatAgentDocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	// TODO@API fit this into the stream
+	export interface ChatAgentUsedContext {
+		documents: ChatAgentDocumentContext[];
+	}
+
+	export interface ChatAgentResponseStream {
+		/**
+		 * @deprecated use above methods instread
+		 */
+		report(value: ChatAgentProgress): void;
+	}
+
+	/** @deprecated */
 	export type ChatAgentExtendedProgress = ChatAgentProgress
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
+
+	export type ChatAgentExtendedResponseStream = ChatAgentResponseStream & {
+		/**
+		 * @deprecated
+		 */
+		report(value: ChatAgentExtendedProgress): void;
+	};
 
 	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		/**
@@ -64,7 +173,7 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentExtendedProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 		/**
@@ -111,7 +220,7 @@ declare module 'vscode' {
 	export interface ChatAgentCommandAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
-		command: ChatAgentCommandFollowup;
+		commandButton: ChatAgentCommandButton;
 	}
 
 	export interface ChatAgentSessionFollowupAction {
