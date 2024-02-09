@@ -223,7 +223,9 @@ export class InlineCompletionsModel extends Disposable {
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
+			console.log('positions : ', positions);
 			const secondaryEdits = this._getSecondaryEdits(this.textModel, positions, edit);
+			console.log('edit : ', edit);
 			console.log('secondaryEdits : ', secondaryEdits);
 			const edits = [edit, ...secondaryEdits];
 			const ghostTexts = edits
@@ -239,7 +241,9 @@ export class InlineCompletionsModel extends Disposable {
 			const replacement = item.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
+			console.log('positions : ', positions);
 			const secondaryEdits = this._getSecondaryEdits(this.textModel, positions, replacement);
+			console.log('edit : ', replacement);
 			console.log('secondaryEdits : ', secondaryEdits);
 			const edits = [replacement, ...secondaryEdits];
 			const ghostTexts = edits
@@ -407,6 +411,7 @@ export class InlineCompletionsModel extends Disposable {
 			return;
 		}
 		const ghostText = state.primaryGhostText;
+		console.log('ghostText : ', ghostText);
 		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
@@ -434,6 +439,9 @@ export class InlineCompletionsModel extends Disposable {
 			try {
 				console.log('inside of _acceptNext');
 				editor.pushUndoStop();
+				console.log('completion ; ', completion);
+				console.log('completion.range.getStartPosition() : ', completion.range.getStartPosition());
+				console.log('position : ', position);
 				const replaceRange = Range.fromPositions(completion.range.getStartPosition(), position);
 				const newText = completion.insertText.substring(
 					0,
