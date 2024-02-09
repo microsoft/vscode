@@ -119,7 +119,7 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
 		assert.strictEqual(event?.text, 'Hello World');
 
-		// Simple detection: Agent
+		// Agent
 		createSession();
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At' });
@@ -138,7 +138,7 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
 		assert.strictEqual(event?.text, '@workspace help');
 
-		// Simple detection: Agent with punctuation
+		// Agent with punctuation
 		createSession();
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace, help' });
@@ -159,7 +159,7 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
 		assert.strictEqual(event?.text, '@workspace help');
 
-		// Simple detection: Slash Command
+		// Slash Command
 		createSession();
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At code slash search help' });
@@ -170,7 +170,7 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
 		assert.strictEqual(event?.text, '@vscode /search help');
 
-		// Simple detection: Slash Command with punctuation
+		// Slash Command with punctuation
 		createSession();
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At code, slash search, help' });
@@ -190,6 +190,17 @@ suite('VoiceChat', () => {
 		emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'At code. slash search, help' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
 		assert.strictEqual(event?.text, '@vscode /search help');
+
+		// Agent not detected twice
+		createSession();
+
+		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace, for at workspace' });
+		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+		assert.strictEqual(event?.text, '@workspace for at workspace');
+
+		emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'At workspace, for at workspace' });
+		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+		assert.strictEqual(event?.text, '@workspace for at workspace');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
