@@ -334,6 +334,13 @@ declare module 'vscode' {
 		 */
 		anchor(value: Uri | Location, title?: string): ChatAgentResponseStream;
 
+		/**
+		 * Push a command button part to this stream. Short-hand for
+		 * `push(new ChatResponseCommandButtonPart(value, title))`.
+		 *
+		 * @param command A Command that will be executed when the button is clicked.
+		 * @returns This stream.
+		 */
 		button(command: Command): ChatAgentResponseStream;
 
 		/**

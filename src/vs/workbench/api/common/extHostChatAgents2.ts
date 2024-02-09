@@ -318,8 +318,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 
 		if (action.action.kind === 'command') {
-			const action2: vscode.ChatAgentCommandAction = { kind: 'command', commandButton: typeConvert.ChatResponseProgress.toProgressContent(action.action.commandButton, this.commands.converter) as vscode.ChatAgentCommandButton };
-			agent.acceptAction(Object.freeze({ action: action2, result }));
+			const commandAction: vscode.ChatAgentCommandAction = { kind: 'command', commandButton: typeConvert.ChatResponseProgress.toProgressContent(action.action.commandButton, this.commands.converter) as vscode.ChatAgentCommandButton };
+			agent.acceptAction(Object.freeze({ action: commandAction, result }));
 			return;
 		} else {
 			agent.acceptAction(Object.freeze({ action: action.action, result }));
