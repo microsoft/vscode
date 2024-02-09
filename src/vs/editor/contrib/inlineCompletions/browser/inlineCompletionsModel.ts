@@ -7,7 +7,7 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
-import { commonPrefixLength } from 'vs/base/common/strings';
+import { commonPrefixLength, splitLines } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -212,6 +212,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
+			console.log('first if statement');
 			const suggestCompletionEdit = suggestItem.toSingleTextEdit().removeCommonPrefix(model);
 			const augmentation = this._computeAugmentation(suggestCompletionEdit, reader);
 
@@ -219,29 +220,37 @@ export class InlineCompletionsModel extends Disposable {
 			if (!isSuggestionPreviewEnabled && !augmentation) { return undefined; }
 
 			const fullEdit = augmentation?.edit ?? suggestCompletionEdit;
+			console.log('fullEdit : ', fullEdit);
 			const fullEditPreviewLength = augmentation ? augmentation.edit.text.length - suggestCompletionEdit.text.length : 0;
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [fullEdit, ...this._getSecondaryEdits(this.textModel, positions, fullEdit)];
+			const edits = [fullEdit, ...getSecondaryEdits(this.textModel, positions, fullEdit)];
+			console.log('edits : ', edits);
 			const ghostTexts = edits
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], fullEditPreviewLength))
 				.filter(isDefined);
 			const primaryGhostText = ghostTexts[0] ?? new GhostText(fullEdit.range.endLineNumber, []);
+			console.log('primaryGhostText : ', primaryGhostText);
+			console.log('ghostTexts : ', ghostTexts);
 			return { edits, primaryGhostText, ghostTexts, inlineCompletion: augmentation?.completion, suggestItem };
 		} else {
+			console.log('second else statement');
 			if (!this._isActive.read(reader)) { return undefined; }
 			const inlineCompletion = this.selectedInlineCompletion.read(reader);
+			console.log('inlineCompletion : ', inlineCompletion);
 			if (!inlineCompletion) { return undefined; }
 
 			const replacement = inlineCompletion.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [replacement, ...this._getSecondaryEdits(this.textModel, positions, replacement)];
+			const edits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
 			const ghostTexts = edits
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], 0))
 				.filter(isDefined);
 			if (!ghostTexts[0]) { return undefined; }
+			console.log('primaryGhostText : ', ghostTexts[0]);
+			console.log('ghostTexts : ', ghostTexts);
 			return { edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
 		}
 	});
@@ -402,6 +411,7 @@ export class InlineCompletionsModel extends Disposable {
 			return;
 		}
 		const ghostText = state.primaryGhostText;
+		console.log('ghostText : ', ghostText);
 		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
@@ -413,13 +423,16 @@ export class InlineCompletionsModel extends Disposable {
 		const firstPart = ghostText.parts[0];
 		const ghostTextPos = new Position(ghostText.lineNumber, firstPart.column);
 		const ghostTextVal = firstPart.text;
+		console.log('ghostTextPos : ', ghostTextPos);
+		console.log('ghostTextVal : ', ghostTextVal);
 		const acceptUntilIndexExclusive = getAcceptUntilIndex(ghostTextPos, ghostTextVal);
+		console.log('acceptUntilIndexExclusive : ', acceptUntilIndexExclusive);
 		if (acceptUntilIndexExclusive === ghostTextVal.length && ghostText.parts.length === 1) {
 			this.accept(editor);
 			return;
 		}
 		const partialGhostTextVal = ghostTextVal.substring(0, acceptUntilIndexExclusive);
-
+		console.log('partialGhostTextVal : ', partialGhostTextVal);
 		const positions = this._positions.get();
 		const cursorPosition = positions[0];
 
@@ -430,9 +443,12 @@ export class InlineCompletionsModel extends Disposable {
 			try {
 				editor.pushUndoStop();
 				const replaceRange = Range.fromPositions(cursorPosition, ghostTextPos);
+				console.log('replaceRange : ', replaceRange);
 				const newText = editor.getModel()!.getValueInRange(replaceRange) + partialGhostTextVal;
+				console.log('newText : ', newText);
 				const primaryEdit = new SingleTextEdit(replaceRange, newText);
-				const edits = [primaryEdit, ...this._getSecondaryEdits(this.textModel, positions, primaryEdit)];
+				console.log('primaryEdit : ', primaryEdit);
+				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
@@ -455,23 +471,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	private _getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
-		const primaryPosition = positions[0];
-		const secondaryPositions = positions.slice(1);
-		const replacedTextAfterPrimaryCursor = textModel
-			.getLineContent(primaryPosition.lineNumber)
-			.substring(primaryPosition.column - 1, primaryEdit.range.endColumn - 1);
-		const secondaryEditText = primaryEdit.text.substring(primaryPosition.column - primaryEdit.range.startColumn);
-		return secondaryPositions.map(pos => {
-			const textAfterSecondaryCursor = this.textModel
-				.getLineContent(pos.lineNumber)
-				.substring(pos.column - 1);
-			const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-			const range = Range.fromPositions(pos, pos.delta(0, l));
-			return new SingleTextEdit(range, secondaryEditText);
-		});
-	}
-
 	public handleSuggestAccepted(item: SuggestItemInfo) {
 		const itemEdit = item.toSingleTextEdit().removeCommonPrefix(this.textModel);
 		const augmentedCompletion = this._computeAugmentation(itemEdit, undefined);
@@ -492,3 +491,69 @@ function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Positio
 	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
 	return newRanges.map(range => range.getEndPosition());
 }
+
+export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
+	const primaryPosition = positions[0];
+	const secondaryPositions = positions.slice(1);
+	console.log('positions : ', JSON.stringify(positions));
+	// replaced text is not calculated correctly
+	// only works if primary edit line number
+	// Need to take all the that is replaced in the primary edit range
+
+	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(Range.fromPositions(primaryPosition, primaryEdit.range.getEndPosition()));
+	console.log('replacedTextAfterPrimaryCursor : ', JSON.stringify(replacedTextAfterPrimaryCursor));
+	console.log('primaryEdit : ', JSON.stringify(primaryEdit));
+
+	// There is an error below too, the secondary edit text is the text after the cursor to the right of it, that needs to be added
+	// in the test case we would want to add ') {\n\treturn 0;\n}' because we already have fib( written.
+	// Before it worked because we would have the cursor at the end of function fib(, now the cursor is on the line below it
+	// Or at the very least, we should insert 'return 0;\n}' because this is to the right of the cursor at the primary cursor position
+	// So need to find the primary position within the edit, and find all the text to the right of it. The primary position will not necessarily be on the first
+	// line of the edit text.
+	// We suppose that the primaryEdit.range always touches the primaryPosition in some manner
+
+	// could find the offset of primary position, the offset of the primary edit start and find thus the secondary edit text
+	// const _offsetPrimaryPosition = textModel.getOffsetAt(primaryPosition);
+	// const _offsetPrimaryEditStart = textModel.getOffsetAt(primaryEdit.range.getStartPosition());
+	// console.log('_offsetPrimaryPosition : ', _offsetPrimaryPosition);
+	// console.log('_offsetPrimaryEditStart : ', _offsetPrimaryEditStart);
+
+	// Find offset in a different way
+	// Split the lines of the text, place it in the context of the whole text
+	// Find the position in the text where the initial position would be, exactly as is, find the offset, and take the substring
+
+	const newCol = primaryPosition.lineNumber - primaryEdit.range.startLineNumber;
+	const newLine = newCol === 0 ? primaryPosition.column - primaryEdit.range.startColumn : primaryPosition.column;
+
+	let text = '';
+	const _splitLines = splitLines(primaryEdit.text);
+	for (let i = newLine; i < _splitLines.length; i++) {
+		if (i === newLine) {
+			text += _splitLines[i].substring(newCol) + '\n';
+		} else {
+			text += _splitLines[i] + '\n';
+		}
+	}
+	console.log('text : ', text);
+
+	const secondaryEditText = text;
+	// primaryEdit.text.substring(primaryPosition.column - primaryEdit.range.startColumn);
+	// console.log('secondaryEditText : ', JSON.stringify(secondaryEditText));
+	return secondaryPositions.map(pos => {
+		console.log('pos : ', JSON.stringify(pos));
+		// Maybe taking the substring on the line content specifically is not enough, so we need to actually take it until the range end, because that is the text we would replace
+		// the range end is not necessarily on the end of that line either
+		// const textAfterSecondaryCursor = textModel
+		// 	.getLineContent(pos.lineNumber)
+		// 	.substring(pos.column - 1);
+
+		const textAfterSecondaryCursor = textModel.getValueInRange(Range.fromPositions(pos, primaryEdit.range.getEndPosition()));
+		console.log('textAfterSecondaryCursor : ', textAfterSecondaryCursor);
+		const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+		console.log('l : ', l);
+		const range = Range.fromPositions(pos, pos.delta(0, l));
+		console.log('range : ', JSON.stringify(range));
+		return new SingleTextEdit(range, secondaryEditText);
+	});
+}
+
