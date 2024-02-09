@@ -475,6 +475,12 @@ export class StartVoiceChatAction extends Action2 {
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
+			},
+			{
+				id: MenuId.TerminalChat,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
+				group: 'main',
+				order: -1
 			}]
 		});
 	}

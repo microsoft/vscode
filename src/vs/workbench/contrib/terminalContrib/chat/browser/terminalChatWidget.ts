@@ -11,10 +11,11 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDetachedTerminalInstance, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_FEEDBACK } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 
 export class TerminalChatWidget extends Disposable {
 	private _scopedInstantiationService: IInstantiationService;
@@ -28,10 +29,10 @@ export class TerminalChatWidget extends Disposable {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _instance: ITerminalInstance,
+		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
+
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
-	) {
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
 		super();
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -61,9 +62,7 @@ export class TerminalChatWidget extends Disposable {
 		const fakeParentEditor = this._scopedInstantiationService.createInstance(
 			CodeEditorWidget,
 			fakeParentEditorElement,
-			{
-
-			},
+			{},
 			{ isSimpleWidget: true }
 		);
 
@@ -71,15 +70,14 @@ export class TerminalChatWidget extends Disposable {
 			InlineChatWidget,
 			fakeParentEditor,
 			{
-				menuId: MENU_CELL_CHAT_INPUT,
+				menuId: MenuId.TerminalChat,
 				widgetMenuId: MENU_CELL_CHAT_WIDGET,
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 				feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
 			}
 		);
 		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
-		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
-
+		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		this._widgetContainer.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._widgetContainer));
