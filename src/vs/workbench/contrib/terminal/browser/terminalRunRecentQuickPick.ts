@@ -28,6 +28,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { PosixShellType } from 'vs/platform/terminal/common/terminal';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -46,7 +47,11 @@ export async function showRunRecentQuickPick(
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
 	const accessibleViewService = accessor.get(IAccessibleViewService);
-
+	// let temp = PosixShellType.Python;
+	// let runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
+	// if (instance.title === 'Python') {
+	// 	runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${PosixShellType.Python}`;
+	// }
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
 	type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };

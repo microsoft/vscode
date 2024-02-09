@@ -1357,6 +1357,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.Title:
 					this._setTitle(value ?? '', TitleEventSource.Process);
+					// if (value === 'Python' || value === 'zsh') {
+					// 	this.setShellType(PosixShellType.Python);
+					// }
 					break;
 				case ProcessPropertyType.OverrideDimensions:
 					this.setOverrideDimensions(value, true);
@@ -1857,6 +1860,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	setShellType(shellType: TerminalShellType | undefined) {
+		// Manually override for Python
+		if (shellType === undefined && this._title === 'Python') {
+			shellType = PosixShellType.Python;
+		}
 		this._shellType = shellType;
 		if (shellType) {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
