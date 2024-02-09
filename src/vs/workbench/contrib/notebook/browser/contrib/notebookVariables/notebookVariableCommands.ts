@@ -18,7 +18,7 @@ registerAction2(class extends Action2 {
 			id: COPY_NOTEBOOK_VARIABLE_VALUE_ID,
 			title: COPY_NOTEBOOK_VARIABLE_VALUE_LABEL,
 			f1: false,
-			precondition: ContextKeyExpr.has('value')
+			precondition: ContextKeyExpr.has('value'),
 		});
 	}
 
