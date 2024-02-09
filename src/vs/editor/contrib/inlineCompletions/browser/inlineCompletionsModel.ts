@@ -212,7 +212,6 @@ export class InlineCompletionsModel extends Disposable {
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
-			console.log('first if statement');
 			const suggestCompletionEdit = suggestItem.toSingleTextEdit().removeCommonPrefix(model);
 			const augmentation = this._computeAugmentation(suggestCompletionEdit, reader);
 
@@ -220,25 +219,19 @@ export class InlineCompletionsModel extends Disposable {
 			if (!isSuggestionPreviewEnabled && !augmentation) { return undefined; }
 
 			const fullEdit = augmentation?.edit ?? suggestCompletionEdit;
-			console.log('fullEdit : ', fullEdit);
 			const fullEditPreviewLength = augmentation ? augmentation.edit.text.length - suggestCompletionEdit.text.length : 0;
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
 			const edits = [fullEdit, ...getSecondaryEdits(this.textModel, positions, fullEdit)];
-			console.log('edits : ', edits);
 			const ghostTexts = edits
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], fullEditPreviewLength))
 				.filter(isDefined);
 			const primaryGhostText = ghostTexts[0] ?? new GhostText(fullEdit.range.endLineNumber, []);
-			console.log('primaryGhostText : ', primaryGhostText);
-			console.log('ghostTexts : ', ghostTexts);
 			return { edits, primaryGhostText, ghostTexts, inlineCompletion: augmentation?.completion, suggestItem };
 		} else {
-			console.log('second else statement');
 			if (!this._isActive.read(reader)) { return undefined; }
 			const inlineCompletion = this.selectedInlineCompletion.read(reader);
-			console.log('inlineCompletion : ', inlineCompletion);
 			if (!inlineCompletion) { return undefined; }
 
 			const replacement = inlineCompletion.toSingleTextEdit(reader);
@@ -249,8 +242,6 @@ export class InlineCompletionsModel extends Disposable {
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], 0))
 				.filter(isDefined);
 			if (!ghostTexts[0]) { return undefined; }
-			console.log('primaryGhostText : ', ghostTexts[0]);
-			console.log('ghostTexts : ', ghostTexts);
 			return { edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
 		}
 	});
@@ -411,7 +402,6 @@ export class InlineCompletionsModel extends Disposable {
 			return;
 		}
 		const ghostText = state.primaryGhostText;
-		console.log('ghostText : ', ghostText);
 		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
@@ -423,16 +413,13 @@ export class InlineCompletionsModel extends Disposable {
 		const firstPart = ghostText.parts[0];
 		const ghostTextPos = new Position(ghostText.lineNumber, firstPart.column);
 		const ghostTextVal = firstPart.text;
-		console.log('ghostTextPos : ', ghostTextPos);
-		console.log('ghostTextVal : ', ghostTextVal);
 		const acceptUntilIndexExclusive = getAcceptUntilIndex(ghostTextPos, ghostTextVal);
-		console.log('acceptUntilIndexExclusive : ', acceptUntilIndexExclusive);
 		if (acceptUntilIndexExclusive === ghostTextVal.length && ghostText.parts.length === 1) {
 			this.accept(editor);
 			return;
 		}
 		const partialGhostTextVal = ghostTextVal.substring(0, acceptUntilIndexExclusive);
-		console.log('partialGhostTextVal : ', partialGhostTextVal);
+
 		const positions = this._positions.get();
 		const cursorPosition = positions[0];
 
@@ -443,11 +430,8 @@ export class InlineCompletionsModel extends Disposable {
 			try {
 				editor.pushUndoStop();
 				const replaceRange = Range.fromPositions(cursorPosition, ghostTextPos);
-				console.log('replaceRange : ', replaceRange);
 				const newText = editor.getModel()!.getValueInRange(replaceRange) + partialGhostTextVal;
-				console.log('newText : ', newText);
 				const primaryEdit = new SingleTextEdit(replaceRange, newText);
-				console.log('primaryEdit : ', primaryEdit);
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
