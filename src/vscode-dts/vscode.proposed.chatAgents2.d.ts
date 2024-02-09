@@ -86,9 +86,10 @@ declare module 'vscode' {
 		 */
 		errorDetails?: ChatAgentErrorDetails;
 
-		// TODO@API
-		// add CATCH-all signature [name:string]: string|boolean|number instead of `T extends...`
-		// readonly metadata: { readonly [key: string]: any };
+		/**
+		 * Arbitrary metadata for this result. Can be anything but must be JSON-stringifyable.
+		 */
+		readonly metadata?: { readonly [key: string]: any };
 	}
 
 	/**

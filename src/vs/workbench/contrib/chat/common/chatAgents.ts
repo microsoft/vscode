@@ -89,13 +89,13 @@ export interface IChatAgentRequest {
 }
 
 export interface IChatAgentResult {
-	// delete, keep while people are still using the previous API
-	followUp?: IChatFollowup[];
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
 		firstProgress?: number;
 		totalElapsed: number;
 	};
+	/** Extra properties that the agent can use to identify a result */
+	readonly metadata?: { readonly [key: string]: any };
 }
 
 export const IChatAgentService = createDecorator<IChatAgentService>('chatAgentService');

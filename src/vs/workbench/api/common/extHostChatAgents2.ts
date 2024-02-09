@@ -221,7 +221,16 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					}
 					sessionResults.set(request.requestId, result);
 
-					return { errorDetails: result.errorDetails, timings: stream.timings };
+					if (result.metadata) {
+						try {
+							JSON.stringify(result.metadata);
+						} catch (err) {
+							const msg = `result.metadata MUST be JSON.stringify-able. Got error: ${err.message}`;
+							this._logService.error(msg, agent.extension);
+							return { errorDetails: { message: msg }, timings: stream.timings };
+						}
+					}
+					return { errorDetails: result.errorDetails, timings: stream.timings, metadata: result.metadata };
 				} else {
 					this._previousResultMap.delete(request.sessionId);
 				}
@@ -281,16 +290,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideFollowups(result, token);
 	}
 
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
+	$acceptFeedback(handle: number, result: IChatAgentResult, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
-		const result = this._resultsBySessionAndRequestId.get(sessionId)?.get(requestId);
-		if (!result) {
-			return;
-		}
 
+		const ehResult = typeConvert.ChatAgentResult.to(result);
 		let kind: extHostTypes.ChatAgentResultFeedbackKind;
 		switch (vote) {
 			case InteractiveSessionVoteDirection.Down:
@@ -300,7 +306,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				kind = extHostTypes.ChatAgentResultFeedbackKind.Helpful;
 				break;
 		}
-		agent.acceptFeedback(reportIssue ? Object.freeze({ result, kind, reportIssue }) : Object.freeze({ result, kind }));
+		agent.acceptFeedback(reportIssue ?
+			Object.freeze({ result: ehResult, kind, reportIssue }) :
+			Object.freeze({ result: ehResult, kind }));
 	}
 
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void {

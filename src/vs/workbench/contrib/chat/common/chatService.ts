@@ -12,7 +12,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Command, Location, ProviderResult } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -38,15 +38,6 @@ export interface IChatResponseErrorDetails {
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
-}
-
-export interface IChatResponse {
-	session: IChat;
-	errorDetails?: IChatResponseErrorDetails;
-	timings?: {
-		firstProgress?: number;
-		totalElapsed: number;
-	};
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -234,6 +225,7 @@ export interface IChatUserActionEvent {
 	agentId: string | undefined;
 	sessionId: string;
 	requestId: string;
+	result: IChatAgentResult | undefined;
 }
 
 export interface IChatDynamicRequest {
@@ -250,7 +242,7 @@ export interface IChatDynamicRequest {
 
 export interface IChatCompleteResponse {
 	message: string | ReadonlyArray<IChatProgress>;
-	errorDetails?: IChatResponseErrorDetails;
+	result?: IChatAgentResult;
 	followups?: IChatFollowup[];
 }
 
