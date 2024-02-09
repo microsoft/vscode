@@ -2381,7 +2381,7 @@ export namespace ChatResponseFilesPart {
 		};
 	}
 	export function from(part: Dto<IChatTreeData>): vscode.ChatResponseFileTreePart {
-		const { treeData } = revive<IChatTreeData>(part.treeData);
+		const treeData = revive<extHostProtocol.IChatResponseProgressFileTreeData>(part.treeData);
 		function convert(items: extHostProtocol.IChatResponseProgressFileTreeData[]): vscode.ChatResponseFileTree[] {
 			return items.map(item => {
 				return {

@@ -19,7 +19,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -107,22 +107,13 @@ export async function getCurrentAuthenticationSessionInfo(
 	return undefined;
 }
 
-export interface AllowedExtension {
+interface AllowedExtension {
 	id: string;
 	name: string;
 	allowed?: boolean;
-}
-
-function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
-	let trustedExtensions: AllowedExtension[] = [];
-	try {
-		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.APPLICATION);
-		if (trustedExtensionSrc) {
-			trustedExtensions = JSON.parse(trustedExtensionSrc);
-		}
-	} catch (err) { }
-
-	return trustedExtensions;
+	lastUsed?: number;
+	// If true, this comes from the product.json
+	trusted?: boolean;
 }
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
@@ -439,24 +430,26 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	 * if they haven't made a choice yet
 	 */
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const extensionData = allowList.find(extension => extension.id === extensionId);
-		if (extensionData) {
-			// This property didn't exist on this data previously, inclusion in the list at all indicates allowance
-			return extensionData.allowed !== undefined
-				? extensionData.allowed
-				: true;
-		}
-
-		if (this.productService.trustedExtensionAuthAccess?.includes(extensionId)) {
+		const trustedExtensionAuthAccess = this.productService.trustedExtensionAuthAccess;
+		if (Array.isArray(trustedExtensionAuthAccess)) {
+			return trustedExtensionAuthAccess.includes(extensionId) ?? undefined;
+		} else if (trustedExtensionAuthAccess?.[providerId]?.includes(extensionId)) {
 			return true;
 		}
 
-		return undefined;
+		const allowList = this.readAllowedExtensions(providerId, accountName);
+		const extensionData = allowList.find(extension => extension.id === extensionId);
+		if (!extensionData) {
+			return undefined;
+		}
+		// This property didn't exist on this data previously, inclusion in the list at all indicates allowance
+		return extensionData.allowed !== undefined
+			? extensionData.allowed
+			: true;
 	}
 
 	updateAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): void {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
+		const allowList = this.readAllowedExtensions(providerId, accountName);
 		const index = allowList.findIndex(extension => extension.id === extensionId);
 		if (index === -1) {
 			allowList.push({ id: extensionId, name: extensionName, allowed: isAllowed });
@@ -823,67 +816,149 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
+	private readAllowedExtensions(providerId: string, accountName: string): AllowedExtension[] {
+		let trustedExtensions: AllowedExtension[] = [];
+		try {
+			const trustedExtensionSrc = this.storageService.get(`${providerId}-${accountName}`, StorageScope.APPLICATION);
+			if (trustedExtensionSrc) {
+				trustedExtensions = JSON.parse(trustedExtensionSrc);
+			}
+		} catch (err) { }
+
+		return trustedExtensions;
+	}
+
+	// TODO: pull this out into an Action in a contribution
 	async manageTrustedExtensionsForAccount(id: string, accountName: string): Promise<void> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (!authProvider) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
-		const allowedExtensions = readAllowedExtensions(this.storageService, authProvider.id, accountName);
+
+		const allowedExtensions = this.readAllowedExtensions(authProvider.id, accountName);
+		const trustedExtensionAuthAccess = this.productService.trustedExtensionAuthAccess;
+		const trustedExtensionIds =
+			// Case 1: trustedExtensionAuthAccess is an array
+			Array.isArray(trustedExtensionAuthAccess)
+				? trustedExtensionAuthAccess
+				// Case 2: trustedExtensionAuthAccess is an object
+				: typeof trustedExtensionAuthAccess === 'object'
+					? trustedExtensionAuthAccess[authProvider.id] ?? []
+					: [];
+		for (const extensionId of trustedExtensionIds) {
+			const allowedExtension = allowedExtensions.find(ext => ext.id === extensionId);
+			if (!allowedExtension) {
+				// Add the extension to the allowedExtensions list
+				const extension = await this.extensionService.getExtension(extensionId);
+				if (extension) {
+					allowedExtensions.push({
+						id: extensionId,
+						name: extension.displayName || extension.name,
+						allowed: true,
+						trusted: true
+					});
+				}
+			} else {
+				// Update the extension to be allowed
+				allowedExtension.allowed = true;
+				allowedExtension.trusted = true;
+			}
+		}
 
 		if (!allowedExtensions.length) {
 			this.dialogService.info(nls.localize('noTrustedExtensions', "This account has not been used by any extensions."));
 			return;
 		}
 
-		type TrustedExtensionsQuickPickItem = {
-			label: string;
-			description: string;
+		interface TrustedExtensionsQuickPickItem extends IQuickPickItem {
 			extension: AllowedExtension;
-		};
-		const quickPick = this.quickInputService.createQuickPick<TrustedExtensionsQuickPickItem>();
+			lastUsed?: number;
+		}
+
+		const disposableStore = new DisposableStore();
+		const quickPick = disposableStore.add(this.quickInputService.createQuickPick<TrustedExtensionsQuickPickItem>());
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = nls.localize('manageTrustedExtensions.cancel', 'Cancel');
 		const usages = readAccountUsages(this.storageService, authProvider.id, accountName);
-		const items = allowedExtensions.map(extension => {
+		const trustedExtensions = [];
+		const otherExtensions = [];
+		for (const extension of allowedExtensions) {
 			const usage = usages.find(usage => extension.id === usage.extensionId);
+			extension.lastUsed = usage?.lastUsed;
+			if (extension.trusted) {
+				trustedExtensions.push(extension);
+			} else {
+				otherExtensions.push(extension);
+			}
+		}
+
+		const sortByLastUsed = (a: AllowedExtension, b: AllowedExtension) => (b.lastUsed || 0) - (a.lastUsed || 0);
+		const toQuickPickItem = function (extension: AllowedExtension) {
+			const lastUsed = extension.lastUsed;
+			const description = lastUsed
+				? nls.localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "Last used this account {0}", fromNow(lastUsed, true))
+				: nls.localize('notUsed', "Has not used this account");
+			let tooltip: string | undefined;
+			if (extension.trusted) {
+				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and has access to this account");
+			}
 			return {
 				label: extension.name,
-				description: usage
-					? nls.localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "Last used this account {0}", fromNow(usage.lastUsed, true))
-					: nls.localize('notUsed', "Has not used this account"),
-				extension
+				extension,
+				description,
+				tooltip
 			};
-		});
+		};
+		const items: Array<TrustedExtensionsQuickPickItem | IQuickPickSeparator> = [
+			...otherExtensions.sort(sortByLastUsed).map(toQuickPickItem),
+			{ type: 'separator', label: nls.localize('trustedExtensions', "Trusted by Microsoft") },
+			...trustedExtensions.sort(sortByLastUsed).map(toQuickPickItem)
+		];
 
 		quickPick.items = items;
-		quickPick.selectedItems = items.filter(item => item.extension.allowed === undefined || item.extension.allowed);
+		quickPick.selectedItems = items.filter((item): item is TrustedExtensionsQuickPickItem => item.type !== 'separator' && (item.extension.allowed === undefined || item.extension.allowed));
 		quickPick.title = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
 		quickPick.placeholder = nls.localize('manageExtensions', "Choose which extensions can access this account");
 
-		quickPick.onDidAccept(() => {
-			const updatedAllowedList = quickPick.items.map(i => (i as TrustedExtensionsQuickPickItem).extension);
+		disposableStore.add(quickPick.onDidAccept(() => {
+			const updatedAllowedList = quickPick.items
+				.filter((item): item is TrustedExtensionsQuickPickItem => item.type !== 'separator')
+				.map(i => i.extension);
 			this.storageService.store(`${authProvider.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.APPLICATION, StorageTarget.USER);
-			quickPick.dispose();
-		});
+			quickPick.hide();
+		}));
 
-		quickPick.onDidChangeSelection((changed) => {
+		disposableStore.add(quickPick.onDidChangeSelection((changed) => {
+			const trustedItems = new Set<TrustedExtensionsQuickPickItem>();
 			quickPick.items.forEach(item => {
-				if ((item as TrustedExtensionsQuickPickItem).extension) {
-					(item as TrustedExtensionsQuickPickItem).extension.allowed = false;
+				const trustItem = item as TrustedExtensionsQuickPickItem;
+				if (trustItem.extension) {
+					if (trustItem.extension.trusted) {
+						trustedItems.add(trustItem);
+					} else {
+						trustItem.extension.allowed = false;
+					}
 				}
 			});
+			changed.forEach((item) => {
+				item.extension.allowed = true;
+				trustedItems.delete(item);
+			});
 
-			changed.forEach((item) => item.extension.allowed = true);
-		});
+			// reselect trusted items if a user tried to unselect one since quick pick doesn't support forcing selection
+			if (trustedItems.size) {
+				quickPick.selectedItems = [...changed, ...trustedItems];
+			}
+		}));
 
-		quickPick.onDidHide(() => {
-			quickPick.dispose();
-		});
+		disposableStore.add(quickPick.onDidHide(() => {
+			disposableStore.dispose();
+		}));
 
-		quickPick.onDidCustom(() => {
+		disposableStore.add(quickPick.onDidCustom(() => {
 			quickPick.hide();
-		});
+		}));
 
 		quickPick.show();
 	}

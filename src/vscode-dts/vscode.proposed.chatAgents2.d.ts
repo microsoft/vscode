@@ -33,6 +33,8 @@ declare module 'vscode' {
 	// 	 */
 	// 	response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
 
+	// agentId: string
+
 	// 	/**
 	// 	 * The result that was received from the chat agent.
 	// 	 */
@@ -44,6 +46,8 @@ declare module 'vscode' {
 		 * All of the chat messages so far in the current chat session.
 		 */
 		history: ChatAgentHistoryEntry[];
+
+		// location:
 
 		// TODO@API have "turns"
 		// history2: (ChatAgentRequest | ChatAgentResponse)[];
@@ -153,6 +157,7 @@ declare module 'vscode' {
 		readonly followupPlaceholder?: string;
 	}
 
+	// TODO@API NAME: w/o Sub just `ChatAgentCommand` etc pp
 	export interface ChatAgentSubCommandProvider {
 
 		/**
@@ -242,8 +247,10 @@ declare module 'vscode' {
 		followupProvider?: ChatAgentFollowupProvider<TResult>;
 
 
-		// TODO@
+		// TODO@API
 		// notify(request: ChatResponsePart, reference: string): boolean;
+		// BETTER
+		// requestResponseStream(callback: (stream: ChatAgentResponseStream) => void, why?: string): void;
 
 		// TODO@API
 		// clear NEVER happens
@@ -552,6 +559,8 @@ declare module 'vscode' {
 		documents: ChatAgentDocumentContext[];
 	}
 
+	// TODO@API Remove a different type of `request` so that they can
+	// evolve at their own pace
 	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
@@ -577,6 +586,7 @@ declare module 'vscode' {
 	/**
 	 * The detail level of this chat variable value.
 	 */
+	// TODO@API maybe for round2
 	export enum ChatVariableLevel {
 		Short = 1,
 		Medium = 2,
