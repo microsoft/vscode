@@ -25,7 +25,9 @@ import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/out
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { WorkbenchHoverDelegate } from 'vs/workbench/browser/hover';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -124,18 +126,9 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		this._hoverDelegate = {
-			delay: 500,
-			showHover: (options: IHoverOptions) => {
-				return hoverService.showHover({
-					...options,
-					persistence: {
-						hideOnHover: true
-					}
-				});
-			}
-		};
+		this._hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate);
 	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {

@@ -45,7 +45,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { WorkbenchHoverDelegate } from 'vs/workbench/browser/hover';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -138,7 +138,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService private readonly hostService: IHostService,
-		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(themeService);
 
@@ -452,17 +451,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected getHoverDelegate(): IHoverDelegate {
-		return {
-			delay: 500,
-			showHover: options => {
-				return this.hoverService.showHover({
-					...options,
-					persistence: {
-						hideOnHover: true
-					}
-				});
-			}
-		};
+		return this.instantiationService.createInstance(WorkbenchHoverDelegate);
 	}
 
 	protected updateTabHeight(): void {
