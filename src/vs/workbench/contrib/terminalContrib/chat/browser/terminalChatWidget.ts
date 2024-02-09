@@ -45,9 +45,7 @@ export class TerminalChatWidget extends Disposable {
 			}));
 		this._widget.render(this._widgetContainer);
 		this._container.appendChild(this._widgetContainer);
-		this._register(this._widget.onDidFocus(() => {
-			this._chatWidgetFocused.set(true);
-		}));
+		this._register(this._widget.onDidFocus(() => this._chatWidgetFocused.set(true)));
 		this._widget.setVisible(true);
 		this._chatWidgetVisible.set(true);
 		this._widget.setInput('@terminal');

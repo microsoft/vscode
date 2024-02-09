@@ -39,7 +39,7 @@ export class TerminalChatContribution extends Disposable implements ITerminalCon
 		processManager: ITerminalProcessManager | ITerminalProcessInfo,
 		widgetManager: TerminalWidgetManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super();
 	}
@@ -78,7 +78,7 @@ registerActiveXtermAction({
 	title: localize2('workbench.action.terminal.focusChat', 'Terminal: Focus Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-		when: ContextKeyExpr.or(TerminalContextKeys.chatFocused, TerminalContextKeys.focusInAny),
+		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused.negate(), TerminalContextKeys.focusInAny),
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	f1: true,
