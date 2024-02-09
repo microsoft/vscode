@@ -226,7 +226,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 							JSON.stringify(result.metadata);
 						} catch (err) {
 							const msg = `result.metadata MUST be JSON.stringify-able. Got error: ${err.message}`;
-							this._logService.error(msg, agent.extension);
+							this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] ${msg}`, agent.extension);
 							return { errorDetails: { message: msg }, timings: stream.timings };
 						}
 					}

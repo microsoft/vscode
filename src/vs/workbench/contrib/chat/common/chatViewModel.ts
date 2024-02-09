@@ -339,6 +339,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.result;
 	}
 
+	get errorDetails(): IChatResponseErrorDetails | undefined {
+		return this.result?.errorDetails;
+	}
+
 	get vote() {
 		return this._model.vote;
 	}
