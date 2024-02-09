@@ -25,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { CONTEXT_VARIABLE_LANGUAGE, CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_VARIABLE_EXTENSIONID, CONTEXT_VARIABLE_LANGUAGE, CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE } from 'vs/workbench/contrib/debug/common/debug';
 import { INotebookScope, INotebookVariableElement, NotebookVariableDataSource } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 import { NotebookVariableAccessibilityProvider, NotebookVariableRenderer, NotebookVariablesDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -34,7 +34,7 @@ import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebook
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export type contextMenuArg = { source?: string; type?: string; value?: string; language?: string };
+export type contextMenuArg = { source?: string; type?: string; value?: string; language?: string; extensionId?: string };
 
 export class NotebookVariablesView extends ViewPane {
 
@@ -110,7 +110,8 @@ export class NotebookVariablesView extends ViewPane {
 			source: element.notebook.uri.toString(),
 			value: element.value,
 			type: element.type,
-			language: element.language
+			language: element.language,
+			extensionId: element.extensionId
 		};
 		const actions: IAction[] = [];
 
@@ -118,7 +119,8 @@ export class NotebookVariablesView extends ViewPane {
 			[CONTEXT_VARIABLE_NAME.key, element.name],
 			[CONTEXT_VARIABLE_VALUE.key, element.value],
 			[CONTEXT_VARIABLE_TYPE.key, element.type],
-			[CONTEXT_VARIABLE_LANGUAGE.key, element.language]
+			[CONTEXT_VARIABLE_LANGUAGE.key, element.language],
+			[CONTEXT_VARIABLE_EXTENSIONID.key, element.extensionId]
 		]);
 		const menu = this.menuService.createMenu(MenuId.NotebookVariablesContext, overlayedContext);
 		createAndFillInContextMenuActions(menu, { arg, shouldForwardArgs: true }, actions);
