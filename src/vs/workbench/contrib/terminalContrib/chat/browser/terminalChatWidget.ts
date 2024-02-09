@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { IDetachedTerminalInstance, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -29,7 +29,7 @@ export class TerminalChatWidget extends Disposable {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
+		private readonly _instance: ITerminalInstance,
 
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
