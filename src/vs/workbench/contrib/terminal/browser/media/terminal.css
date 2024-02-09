@@ -565,3 +565,14 @@
 .monaco-workbench .xterm.terminal.hide {
 	visibility: hidden;
 }
+
+.monaco-workbench .terminal-chat-widget {
+	z-index: 33 !important;
+	position: absolute;
+	bottom: 30px;
+	left: 10px;
+}
+
+.monaco-workbench .terminal-chat-widget.hide {
+	visibility: hidden;
+}

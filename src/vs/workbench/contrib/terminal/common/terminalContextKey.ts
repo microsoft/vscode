@@ -39,6 +39,10 @@ export const enum TerminalContextKeyStrings {
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
 	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
+	ChatFocus = 'terminalChatFocus',
+	ChatVisible = 'terminalChatVisible',
+	ChatSessionInProgress = 'terminalChatSessionInProgress',
+	ChatInputHasText = 'terminalChatInputHasText',
 }
 
 export namespace TerminalContextKeys {
@@ -158,4 +162,17 @@ export namespace TerminalContextKeys {
 			ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 		)
 	);
+
+
+	/** Whether the chat widget is focused */
+	export const chatFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatFocus, false, localize('chatFocusedContextKey', "Whether the chat view is focused."));
+
+	/** Whether the chat widget is visible */
+	export const chatVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatVisible, false, localize('chatVisibleContextKey', "Whether the chat view is visible."));
+
+	/** Whether a chat session is in progress */
+	export const chatSessionInProgress = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatSessionInProgress, false, localize('chatSessionInProgressContextKey', "Whether a chat session is in progress."));
+
+	/** Whether the chat input has text */
+	export const chatInputHasText = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatInputHasText, false, localize('chatInputHasTextContextKey', "Whether the chat input has text."));
 }
