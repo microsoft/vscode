@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFocusTracker, trackFocus } from 'vs/base/browser/dom';
+import 'vs/css!./media/terminalChatWidget';
+import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 import { IDetachedTerminalInstance, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export class TerminalChatWidget extends Disposable {
-	private _widget!: ChatWidget;
 	private _scopedInstantiationService: IInstantiationService;
 	private _widgetContainer: HTMLElement;
 	private _chatWidgetFocused: IContextKey<boolean>;
@@ -81,6 +80,8 @@ export class TerminalChatWidget extends Disposable {
 		this._focusTracker = this._register(trackFocus(this._widgetContainer));
 	}
 	reveal(): void {
+		this._inlineChatWidget.layout(new Dimension(400, 150));
+
 		this._widgetContainer.classList.remove('hide');
 		// this._widget.setVisible(true);
 		this._chatWidgetFocused.set(true);
@@ -97,13 +98,13 @@ export class TerminalChatWidget extends Disposable {
 		this._instance.focus();
 	}
 	cancel(): void {
-		this._widget?.clear();
+		// this._widget?.clear();
 	}
 	acceptInput(): void {
-		this._widget?.acceptInput();
+		// this._widget?.acceptInput();
 	}
 	layout(width: number): void {
-		this._widget?.layout(100, width < 300 ? 300 : width);
+		// this._widget?.layout(100, width < 300 ? 300 : width);
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
