@@ -14,6 +14,7 @@ import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inline
 import { MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 import { IDetachedTerminalInstance, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { localize } from 'vs/nls';
 
 export class TerminalChatWidget extends Disposable {
 	private _scopedInstantiationService: IInstantiationService;
@@ -74,6 +75,8 @@ export class TerminalChatWidget extends Disposable {
 				feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
 			}
 		);
+		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
+		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 
 		this._widgetContainer.appendChild(this._inlineChatWidget.domNode);
 
