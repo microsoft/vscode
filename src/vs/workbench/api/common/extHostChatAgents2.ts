@@ -160,7 +160,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	private readonly _agents = new Map<number, ExtHostChatAgent<any>>();
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
-	private readonly _previousResultMap: Map<string, vscode.ChatAgentResult2> = new Map();
 	private readonly _resultsBySessionAndRequestId: Map<string, Map<string, vscode.ChatAgentResult2>> = new Map();
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = new DisposableMap();
 
@@ -183,10 +182,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	}
 
 	async $invokeAgent(handle: number, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
-		// Clear the previous result so that $acceptFeedback or $acceptAction during a request will be ignored.
-		// We may want to support sending those during a request.
-		this._previousResultMap.delete(request.sessionId);
-
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -213,7 +208,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 			return await raceCancellation(Promise.resolve(task).then((result) => {
 				if (result) {
-					this._previousResultMap.set(request.sessionId, result);
 					let sessionResults = this._resultsBySessionAndRequestId.get(request.sessionId);
 					if (!sessionResults) {
 						sessionResults = new Map();
@@ -231,8 +225,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 						}
 					}
 					return { errorDetails: result.errorDetails, timings: stream.timings, metadata: result.metadata };
-				} else {
-					this._previousResultMap.delete(request.sessionId);
 				}
 
 				return undefined;
@@ -262,7 +254,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	}
 
 	$releaseSession(sessionId: string): void {
-		this._previousResultMap.delete(sessionId);
 		this._resultsBySessionAndRequestId.delete(sessionId);
 		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
@@ -276,18 +267,14 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideSlashCommands(token);
 	}
 
-	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]> {
+	$provideFollowups(handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return Promise.resolve([]);
 		}
 
-		const result = this._previousResultMap.get(sessionId);
-		if (!result) {
-			return Promise.resolve([]);
-		}
-
-		return agent.provideFollowups(result, token);
+		const ehResult = typeConvert.ChatAgentResult.to(result);
+		return agent.provideFollowups(ehResult, token);
 	}
 
 	$acceptFeedback(handle: number, result: IChatAgentResult, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
