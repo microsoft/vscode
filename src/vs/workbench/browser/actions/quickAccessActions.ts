@@ -15,6 +15,7 @@ import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler 
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { Codicon } from 'vs/base/common/codicons';
+import { QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
 
 //#region Quick access management commands and keys
 
@@ -39,7 +40,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.acceptSelectedQuickOpenItem',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: inQuickPickContext,
-	primary: 0,
+	primary: KeyCode.RightArrow,
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
 		return quickInputService.accept();
@@ -72,10 +73,10 @@ const quickAccessNavigateNextInFilePickerId = 'workbench.action.quickOpenNavigat
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateNextInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigateNextInFilePickerId, true),
+	handler: getQuickNavigateHandler(quickAccessNavigateNextInFilePickerId, QuickInputListFocus.Next),
 	when: defaultQuickAccessContext,
 	primary: globalQuickAccessKeybinding.primary,
-	secondary: globalQuickAccessKeybinding.secondary,
+	secondary: [...globalQuickAccessKeybinding.secondary, KeyCode.DownArrow],
 	mac: globalQuickAccessKeybinding.mac
 });
 
@@ -83,14 +84,50 @@ const quickAccessNavigatePreviousInFilePickerId = 'workbench.action.quickOpenNav
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigatePreviousInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInFilePickerId, false),
+	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInFilePickerId, QuickInputListFocus.Previous),
 	when: defaultQuickAccessContext,
 	primary: globalQuickAccessKeybinding.primary | KeyMod.Shift,
-	secondary: [globalQuickAccessKeybinding.secondary[0] | KeyMod.Shift],
+	secondary: [globalQuickAccessKeybinding.secondary[0] | KeyMod.Shift, KeyCode.UpArrow],
 	mac: {
 		primary: globalQuickAccessKeybinding.mac.primary | KeyMod.Shift,
 		secondary: undefined
 	}
+});
+
+const quickAccessNavigateFirstInFilePickerId = 'workbench.action.quickOpenNavigateFirstInFilePicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickAccessNavigateFirstInFilePickerId,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	handler: getQuickNavigateHandler(quickAccessNavigateFirstInFilePickerId, QuickInputListFocus.First),
+	when: defaultQuickAccessContext,
+	primary: KeyCode.Home,
+});
+
+const quickAccessNavigateLastInFilePickerId = 'workbench.action.quickOpenNavigateLastInFilePicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickAccessNavigateLastInFilePickerId,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	handler: getQuickNavigateHandler(quickAccessNavigateLastInFilePickerId, QuickInputListFocus.Last),
+	when: defaultQuickAccessContext,
+	primary: KeyCode.End,
+});
+
+const quickAccessNavigateNextPageInFilePickerId = 'workbench.action.quickOpenNavigateNextPageInFilePicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickAccessNavigateNextPageInFilePickerId,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	handler: getQuickNavigateHandler(quickAccessNavigateNextPageInFilePickerId, QuickInputListFocus.NextPage),
+	when: defaultQuickAccessContext,
+	primary: KeyCode.Home,
+});
+
+const quickAccessNavigatePreviousPageInFilePickerId = 'workbench.action.quickOpenNavigatePreviousPageInFilePicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickAccessNavigatePreviousPageInFilePickerId,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	handler: getQuickNavigateHandler(quickAccessNavigatePreviousPageInFilePickerId, QuickInputListFocus.PreviousPage),
+	when: defaultQuickAccessContext,
+	primary: KeyCode.Home,
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -202,7 +239,7 @@ class BaseQuickAccessNavigateAction extends Action2 {
 		const keys = keybindingService.lookupKeybindings(this.id);
 		const quickNavigate = this.quickNavigate ? { keybindings: keys } : undefined;
 
-		quickInputService.navigate(this.next, quickNavigate);
+		quickInputService.navigate(this.next ? QuickInputListFocus.Next : QuickInputListFocus.Previous, quickNavigate);
 	}
 }
 

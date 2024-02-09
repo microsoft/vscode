@@ -654,9 +654,9 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
+	navigate(focusType: QuickInputListFocus, quickNavigate?: IQuickNavigateConfiguration) {
 		if (this.isVisible() && this.getUI().list.isDisplayed()) {
-			this.getUI().list.focus(next ? QuickInputListFocus.Next : QuickInputListFocus.Previous);
+			this.getUI().list.focus(focusType);
 			if (quickNavigate && this.controller instanceof QuickPick) {
 				this.controller.quickNavigate = quickNavigate;
 			}
@@ -763,4 +763,3 @@ export class QuickInputController extends Disposable {
 	}
 }
 export interface IQuickInputControllerHost extends ILayoutService { }
-

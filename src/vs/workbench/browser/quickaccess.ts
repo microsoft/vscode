@@ -40,7 +40,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 	};
 }
 
-export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHandler {
+export function getQuickNavigateHandler(id: string, focusType: QuickInputListFocus): ICommandHandler {
 	return accessor => {
 		const keybindingService = accessor.get(IKeybindingService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -48,7 +48,7 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 		const keys = keybindingService.lookupKeybindings(id);
 		const quickNavigate = { keybindings: keys };
 
-		quickInputService.navigate(!!next, quickNavigate);
+		quickInputService.navigate(focusType, quickNavigate);
 	};
 }
 export class EditorViewState {
