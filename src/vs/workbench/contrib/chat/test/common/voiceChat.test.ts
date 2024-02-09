@@ -178,6 +178,19 @@ suite('VoiceChat', () => {
 		// Slash Command
 		createSession();
 
+		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'Slash fix' });
+		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+		assert.strictEqual(event?.text, '/fix');
+		assert.strictEqual(event?.waitingForInput, true);
+
+		emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'Slash fix' });
+		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+		assert.strictEqual(event?.text, '/fix');
+		assert.strictEqual(event?.waitingForInput, true);
+
+		// Agent + Slash Command
+		createSession();
+
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At code slash search help' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
 		assert.strictEqual(event?.text, '@vscode /search help');
@@ -188,7 +201,7 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.text, '@vscode /search help');
 		assert.strictEqual(event?.waitingForInput, false);
 
-		// Slash Command with punctuation
+		// Agent + Slash Command with punctuation
 		createSession();
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At code, slash search, help' });

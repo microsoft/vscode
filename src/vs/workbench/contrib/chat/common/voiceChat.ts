@@ -87,9 +87,13 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 			if (agent.lastSlashCommands) {
 				for (const slashCommand of agent.lastSlashCommands) {
-					const slashCommandPhrase = `${agentPhrase} ${VoiceChatService.PHRASES[VoiceChatService.COMMAND_PREFIX]}${slashCommand.name}`.toLowerCase();
-					const slashCommandResult = `${agentResult} ${VoiceChatService.COMMAND_PREFIX}${slashCommand.name}`;
+					const slashCommandPhrase = `${VoiceChatService.PHRASES[VoiceChatService.COMMAND_PREFIX]}${slashCommand.name}`.toLowerCase();
+					const slashCommandResult = `${VoiceChatService.COMMAND_PREFIX}${slashCommand.name}`;
 					phrases.set(slashCommandPhrase, slashCommandResult);
+
+					const agentSlashCommandPhrase = `${agentPhrase} ${slashCommandPhrase}`.toLowerCase();
+					const agentSlashCommandResult = `${agentResult} ${slashCommandResult}`;
+					phrases.set(agentSlashCommandPhrase, agentSlashCommandResult);
 				}
 			}
 		}
@@ -109,51 +113,66 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 			switch (e.status) {
 				case SpeechToTextStatus.Recognizing:
 				case SpeechToTextStatus.Recognized:
-					if (
-						e.text &&
-						startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX].trim())
-					) {
-						const originalWords = e.text.split(' ');
-						let transformedWords: string[] | undefined;
+					if (e.text) {
+						const startsWithAgent = startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX].trim());
+						const startsWithSlashCommand = startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.COMMAND_PREFIX].trim());
+						if (startsWithAgent || startsWithSlashCommand) {
+							const originalWords = e.text.split(' ');
+							let transformedWords: string[] | undefined;
 
-						let waitingForInput = false;
+							let waitingForInput = false;
 
-						// Check for slash command
-						if (!detectedSlashCommand && originalWords.length >= 4) {
-							const slashCommandResult = this.phrases.get(originalWords.slice(0, 4).map(word => this.normalizeWord(word)).join(' '));
-							if (slashCommandResult) {
-								transformedWords = [slashCommandResult, ...originalWords.slice(4)];
+							// Check for agent + slash command
+							if (startsWithAgent && !detectedAgent && !detectedSlashCommand && originalWords.length >= 4) {
+								const slashCommandResult = this.phrases.get(originalWords.slice(0, 4).map(word => this.normalizeWord(word)).join(' '));
+								if (slashCommandResult) {
+									transformedWords = [slashCommandResult, ...originalWords.slice(4)];
 
-								waitingForInput = originalWords.length === 4;
+									waitingForInput = originalWords.length === 4;
 
-								if (e.status === SpeechToTextStatus.Recognized) {
-									detectedAgent = true;
-									detectedSlashCommand = true;
+									if (e.status === SpeechToTextStatus.Recognized) {
+										detectedAgent = true;
+										detectedSlashCommand = true;
+									}
 								}
 							}
-						}
 
-						// Check for agent (if not done already)
-						if (!detectedAgent && !transformedWords && originalWords.length >= 2) {
-							const agentResult = this.phrases.get(originalWords.slice(0, 2).map(word => this.normalizeWord(word)).join(' '));
-							if (agentResult) {
-								transformedWords = [agentResult, ...originalWords.slice(2)];
+							// Check for agent (if not done already)
+							if (startsWithAgent && !detectedAgent && !transformedWords && originalWords.length >= 2) {
+								const agentResult = this.phrases.get(originalWords.slice(0, 2).map(word => this.normalizeWord(word)).join(' '));
+								if (agentResult) {
+									transformedWords = [agentResult, ...originalWords.slice(2)];
 
-								waitingForInput = originalWords.length === 2;
+									waitingForInput = originalWords.length === 2;
 
-								if (e.status === SpeechToTextStatus.Recognized) {
-									detectedAgent = true;
+									if (e.status === SpeechToTextStatus.Recognized) {
+										detectedAgent = true;
+									}
 								}
 							}
+
+							// Check for slash command (if not done already)
+							if (startsWithSlashCommand && !detectedSlashCommand && !transformedWords && originalWords.length >= 2) {
+								const slashCommandResult = this.phrases.get(originalWords.slice(0, 2).map(word => this.normalizeWord(word)).join(' '));
+								if (slashCommandResult) {
+									transformedWords = [slashCommandResult, ...originalWords.slice(2)];
+
+									waitingForInput = originalWords.length === 2;
+
+									if (e.status === SpeechToTextStatus.Recognized) {
+										detectedSlashCommand = true;
+									}
+								}
+							}
+
+							emitter.fire({
+								status: e.status,
+								text: (transformedWords ?? originalWords).join(' '),
+								waitingForInput
+							});
+
+							break;
 						}
-
-						emitter.fire({
-							status: e.status,
-							text: (transformedWords ?? originalWords).join(' '),
-							waitingForInput
-						});
-
-						break;
 					}
 				default:
 					emitter.fire(e);
