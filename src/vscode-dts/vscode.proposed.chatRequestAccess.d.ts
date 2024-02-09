@@ -49,7 +49,7 @@ declare module 'vscode' {
 		 * @param messages
 		 * @param options
 		 */
-		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
+		makeChatRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
 	}
 
 	export interface LanguageModelAccessOptions {
@@ -79,10 +79,14 @@ declare module 'vscode' {
 		/**
 		 * Request access to a language model.
 		 *
-		 * *Note* that this function will throw an error when the user didn't grant access
+		 * - *Note 1:* This function will throw an error when the user didn't grant access or when the
+		 * requested language model is not available.
 		 *
-		 * @param id The id of the language model, e.g `copilot`
-		 * @returns A thenable that resolves to a language model access object, rejects is access wasn't granted
+		 * - *Note 2:* It is OK to hold on to the returned access object and use it later, but extensions
+		 * should check {@link LanguageModelAccess.isRevoked} before using it.
+		 *
+		 * @param id The id of the language model, see {@link languageModels} for valid values.
+		 * @returns A thenable that resolves to a language model access object, rejects if access wasn't granted
 		 */
 		export function requestLanguageModelAccess(id: string, options?: LanguageModelAccessOptions): Thenable<LanguageModelAccess>;
 
@@ -94,7 +98,6 @@ declare module 'vscode' {
 		/**
 		 * An event that is fired when the set of available language models changes.
 		 */
-		//@API is this really needed?
 		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
 	}
 }

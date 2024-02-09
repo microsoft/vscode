@@ -219,7 +219,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				const onDidRemoveLM = Event.filter(that._onDidChangeProviders.event, e => e.removed.includes(languageModelId));
 				return Event.signal(Event.any(onDidChangeAccess, onDidRemoveLM));
 			},
-			makeRequest(messages, options, token) {
+			makeChatRequest(messages, options, token) {
 				if (!that._accesslist.get(from)) {
 					throw new Error('Access to chat has been revoked');
 				}
