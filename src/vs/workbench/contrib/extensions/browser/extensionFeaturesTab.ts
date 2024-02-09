@@ -29,7 +29,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import Severity from 'vs/base/common/severity';
 import { errorIcon, infoIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { OS } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
@@ -38,6 +37,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Codicon } from 'vs/base/common/codicons';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { fromNow } from 'vs/base/common/date';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
 class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
 
@@ -372,7 +372,6 @@ class ExtensionFeatureView extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -470,36 +469,24 @@ class ExtensionFeatureView extends Disposable {
 								if (typeof rowData === 'string') {
 									return $('td', undefined, rowData);
 								}
-								if (isMarkdownString(rowData)) {
-									const element = $('td', undefined);
-									this.renderMarkdown(rowData, element);
-									return element;
-								}
-								const data = Array.isArray(rowData.data) ? rowData.data : [rowData.data];
-								if (rowData.type === 'code') {
-									return $('td', undefined, ...data.map(c => $('code', undefined, c)));
-								} else if (rowData.type === 'keybinding') {
-									return $('td', undefined, ...data.map(keybinding => {
+								const data = Array.isArray(rowData) ? rowData : [rowData];
+								return $('td', undefined, ...data.map(item => {
+									const result: Node[] = [];
+									if (isMarkdownString(rowData)) {
+										const element = $('td', undefined);
+										this.renderMarkdown(rowData, element);
+										result.push(element);
+									} else if (item instanceof ResolvedKeybinding) {
 										const element = $('');
 										const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
-										kbl.set(this.keybindingService.resolveUserBinding(keybinding)[0]);
-										return element;
-									}));
-								} else if (rowData.type === 'color') {
-									return $('td', undefined, ...data.map(colorReference => {
-										const result: Node[] = [];
-										if (colorReference && colorReference[0] === '#') {
-											const color = Color.fromHex(colorReference);
-											if (color) {
-												result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
-											}
-										}
-										result.push($('code', undefined, colorReference));
-										return result;
-									}).flat());
-								} else {
-									return $('td', undefined, rowData.data[0]);
-								}
+										kbl.set(item);
+										result.push(element);
+									} else if (item instanceof Color) {
+										result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(item) }, ''));
+										result.push($('code', undefined, Color.Format.CSS.formatHex(item)));
+									}
+									return result;
+								}).flat());
 							})
 						);
 					})));

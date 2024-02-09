@@ -12,6 +12,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import Severity from 'vs/base/common/severity';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { Color } from 'vs/base/common/color';
 
 export namespace Extensions {
 	export const ExtensionFeaturesRegistry = 'workbench.registry.extensionFeatures';
@@ -33,7 +35,7 @@ export interface IExtensionFeatureMarkdownRenderer extends IExtensionFeatureRend
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString>;
 }
 
-export type IRowData = string | IMarkdownString | { readonly data: string | string[]; readonly type: 'code' | 'keybinding' | 'color' };
+export type IRowData = string | IMarkdownString | ResolvedKeybinding | Color | ReadonlyArray<ResolvedKeybinding | IMarkdownString | Color>;
 
 export interface ITableData {
 	headers: string[];

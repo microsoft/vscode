@@ -11,6 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 enum CodeActionExtensionPointFields {
 	languages = 'languages',
@@ -100,9 +101,9 @@ class CodeActionsTableRenderer extends Disposable implements IExtensionFeatureTa
 			.map(action => {
 				return [
 					action.title,
-					{ data: action.kind, type: 'code' },
+					new MarkdownString().appendMarkdown(`\`${action.kind}\``),
 					action.description ?? '',
-					{ data: [...action.languages], type: 'code' },
+					new MarkdownString().appendMarkdown(`${action.languages.map(lang => `\`${lang}\``).join('&nbsp;')}`),
 				];
 			});
 
