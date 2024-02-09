@@ -18,6 +18,12 @@ export interface IVoiceChatService {
 
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Similar to `ISpeechService.createSpeechToTextSession`, but with
+	 * support for agent prefixes and command prefixes. For example,
+	 * if the user says "at workspace slash fix this problem", the result
+	 * will be "@workspace /fix this problem".
+	 */
 	createVoiceChatSession(token: CancellationToken): IVoiceChatSession;
 }
 
@@ -49,30 +55,42 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 	private static readonly CHAT_AGENT_ALIAS = new Map<string, string>([['vscode', 'code']]);
 
+	private phrases = this.createPhrases();
+
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
+
+		this.registerListeners();
 	}
 
-	createVoiceChatSession(token: CancellationToken): IVoiceChatSession {
+	private registerListeners(): void {
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.phrases = this.createPhrases()));
+	}
+
+	private createPhrases(): Map<string, string> {
 		const phrases = new Map<string, string>();
 
 		for (const agent of this.chatAgentService.getAgents()) {
 			const agentPhrase = `${VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX]}${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
 			const agentResult = `${VoiceChatService.AGENT_PREFIX}${agent.id}`;
-			phrases.set(agentPhrase, agentResult);
+			this.phrases.set(agentPhrase, agentResult);
 
 			if (agent.lastSlashCommands) {
 				for (const slashCommand of agent.lastSlashCommands) {
 					const slashCommandPhrase = `${agentPhrase} ${VoiceChatService.PHRASES[VoiceChatService.COMMAND_PREFIX]}${slashCommand.name}`.toLowerCase();
 					const slashCommandResult = `${agentResult} ${VoiceChatService.COMMAND_PREFIX}${slashCommand.name}`;
-					phrases.set(slashCommandPhrase, slashCommandResult);
+					this.phrases.set(slashCommandPhrase, slashCommandResult);
 				}
 			}
 		}
 
+		return phrases;
+	}
+
+	createVoiceChatSession(token: CancellationToken): IVoiceChatSession {
 		const session = this.speechService.createSpeechToTextSession(token);
 
 		const disposables = new DisposableStore();
@@ -90,7 +108,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 						// Check for slash command
 						if (originalWords.length >= 4) {
-							const slashCommandResult = phrases.get(originalWords.slice(0, 4).join(' ').toLowerCase());
+							const slashCommandResult = this.phrases.get(originalWords.slice(0, 4).join(' ').toLowerCase());
 							if (slashCommandResult) {
 								transformedWords = [slashCommandResult, ...originalWords.slice(4)];
 
@@ -100,7 +118,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 						// Check for agent
 						if (!transformedWords && originalWords.length >= 2) {
-							const agentResult = phrases.get(originalWords.slice(0, 2).join(' ').toLowerCase());
+							const agentResult = this.phrases.get(originalWords.slice(0, 2).join(' ').toLowerCase());
 							if (agentResult) {
 								transformedWords = [agentResult, ...originalWords.slice(2)];
 
