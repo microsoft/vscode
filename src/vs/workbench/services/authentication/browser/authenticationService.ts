@@ -898,7 +898,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				: nls.localize('notUsed', "Has not used this account");
 			let tooltip: string | undefined;
 			if (extension.trusted) {
-				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and has access to this account");
+				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and\nalways has access to this account");
 			}
 			return {
 				label: extension.name,
