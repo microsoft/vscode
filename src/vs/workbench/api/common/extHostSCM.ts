@@ -416,7 +416,6 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		private _sourceControlHandle: number,
 		private _id: string,
 		private _label: string,
-		// The following appears to be adding multi diff editor support
 		public readonly multiDiffEditorEnableViewChanges: boolean,
 		private readonly _extension: IExtensionDescription,
 	) { }

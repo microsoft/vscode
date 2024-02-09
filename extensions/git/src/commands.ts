@@ -3780,7 +3780,6 @@ export class CommandCenter {
 			resources.push(toMultiFileDiffEditorUris(change, stashFirstParentCommit, modifiedUriRef));
 		}
 
-		// Command which is executed in order to open the multi diff editor, uring the passed in URI, the given title and the resources which are the modified resource and the original resource
 		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
