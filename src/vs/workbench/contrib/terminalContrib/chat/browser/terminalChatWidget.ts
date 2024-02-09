@@ -92,6 +92,7 @@ export class TerminalChatWidget extends Disposable {
 		// this._widget.setInput('@terminal');
 		// this._widget.setInputPlaceholder('Request a terminal command');
 		// this._widget.focusInput();
+		this._inlineChatWidget.focus();
 	}
 	hide(): void {
 		this._widgetContainer.classList.add('hide');

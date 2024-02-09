@@ -572,6 +572,6 @@
 	top: 10px;
 }
 
-.monaco-workbench .terminal-chat-widget.hide {
+.monaco-workbench .terminal-inline-chat.hide {
 	visibility: hidden;
 }
