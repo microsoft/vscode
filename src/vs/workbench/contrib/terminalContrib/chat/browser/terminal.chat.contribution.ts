@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/chat';
 import { IDimension } from 'vs/base/browser/dom';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
