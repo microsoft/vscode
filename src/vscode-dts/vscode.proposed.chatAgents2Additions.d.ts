@@ -17,28 +17,28 @@ declare module 'vscode' {
 		responseIsRedacted?: boolean;
 	}
 
-	/**
-	 * This is temporary until inline references are fully supported and adopted
-	 */
+	/** @deprecated */
 	export interface ChatAgentMarkdownContent {
 		markdownContent: MarkdownString;
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
 		command?: ChatAgentSubCommand;
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentVulnerability {
 		title: string;
 		description: string;
 		// id: string; // Later we will need to be able to link these across multiple content chunks.
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentContent {
 		vulnerabilities?: ChatAgentVulnerability[];
 	}
-
 
 	/**
 	 * @deprecated use ChatAgentResponseStream instead
@@ -62,16 +62,13 @@ declare module 'vscode' {
 	 */
 	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
 
-	/**
-	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
-	 */
+	/** @deprecated */
 	export interface ChatAgentProgressMessage {
 		message: string;
 	}
 
-	/**
-	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.
-	 */
+	/** @deprecated */
+
 	export interface ChatAgentContentReference {
 		/**
 		 * The resource that was referenced.
@@ -111,44 +108,19 @@ declare module 'vscode' {
 		content: string;
 	}
 
-	/**
-	 * Represents a tree, such as a file and directory structure, rendered in the chat response.
-	 */
+	/** @deprecated */
 	export interface ChatAgentFileTree {
-		/**
-		 * The root node of the tree.
-		 */
 		treeData: ChatAgentFileTreeData;
 	}
 
-	/**
-	 * Represents a node in a chat response tree.
-	 */
+	/** @deprecated */
 	export interface ChatAgentFileTreeData {
-		/**
-		 * A human-readable string describing this node.
-		 */
 		label: string;
-
-		/**
-		 * A Uri for this node, opened when it's clicked.
-		 */
-		// TODO@API why label and uri. Can the former be derived from the latter?
-		// TODO@API don't use uri but just names? This API allows to to build nonsense trees where the data structure doesn't match the uris
-		// path-structure.
 		uri: Uri;
-
-		/**
-		 * The type of this node. Defaults to {@link FileType.Directory} if it has {@link ChatAgentFileTreeData.children children}.
-		 */
-		// TODO@API cross API usage
 		type?: FileType;
-
-		/**
-		 * The children of this node.
-		 */
 		children?: ChatAgentFileTreeData[];
 	}
+
 
 	export interface ChatAgentDocumentContext {
 		uri: Uri;
@@ -156,9 +128,7 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
-	/**
-	 * Document references that should be used by the MappedEditsProvider.
-	 */
+	// TODO@API fit this into the stream
 	export interface ChatAgentUsedContext {
 		documents: ChatAgentDocumentContext[];
 	}
@@ -170,6 +140,7 @@ declare module 'vscode' {
 		report(value: ChatAgentProgress): void;
 	}
 
+	/** @deprecated */
 	export type ChatAgentExtendedProgress = ChatAgentProgress
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
