@@ -39,6 +39,137 @@ declare module 'vscode' {
 		vulnerabilities?: ChatAgentVulnerability[];
 	}
 
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentContentProgress =
+		| ChatAgentContent
+		| ChatAgentFileTree
+		| ChatAgentInlineContentReference
+		| ChatAgentCommandButton;
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentMetadataProgress =
+		| ChatAgentUsedContext
+		| ChatAgentContentReference
+		| ChatAgentProgressMessage;
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
+
+	/**
+	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
+	 */
+	export interface ChatAgentProgressMessage {
+		message: string;
+	}
+
+	/**
+	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.
+	 */
+	export interface ChatAgentContentReference {
+		/**
+		 * The resource that was referenced.
+		 */
+		reference: Uri | Location;
+	}
+
+	/**
+	 * A reference to a piece of content that will be rendered inline with the markdown content.
+	 */
+	export interface ChatAgentInlineContentReference {
+		/**
+		 * The resource being referenced.
+		 */
+		inlineReference: Uri | Location;
+
+		/**
+		 * An alternate title for the resource.
+		 */
+		title?: string;
+	}
+
+	/**
+	 * Displays a {@link Command command} as a button in the chat response.
+	 */
+	export interface ChatAgentCommandButton {
+		command: Command;
+	}
+
+	/**
+	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
+	 */
+	export interface ChatAgentContent {
+		/**
+		 * The content as a string of markdown source.
+		 */
+		content: string;
+	}
+
+	/**
+	 * Represents a tree, such as a file and directory structure, rendered in the chat response.
+	 */
+	export interface ChatAgentFileTree {
+		/**
+		 * The root node of the tree.
+		 */
+		treeData: ChatAgentFileTreeData;
+	}
+
+	/**
+	 * Represents a node in a chat response tree.
+	 */
+	export interface ChatAgentFileTreeData {
+		/**
+		 * A human-readable string describing this node.
+		 */
+		label: string;
+
+		/**
+		 * A Uri for this node, opened when it's clicked.
+		 */
+		// TODO@API why label and uri. Can the former be derived from the latter?
+		// TODO@API don't use uri but just names? This API allows to to build nonsense trees where the data structure doesn't match the uris
+		// path-structure.
+		uri: Uri;
+
+		/**
+		 * The type of this node. Defaults to {@link FileType.Directory} if it has {@link ChatAgentFileTreeData.children children}.
+		 */
+		// TODO@API cross API usage
+		type?: FileType;
+
+		/**
+		 * The children of this node.
+		 */
+		children?: ChatAgentFileTreeData[];
+	}
+
+	export interface ChatAgentDocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	/**
+	 * Document references that should be used by the MappedEditsProvider.
+	 */
+	export interface ChatAgentUsedContext {
+		documents: ChatAgentDocumentContext[];
+	}
+
+	export interface ChatAgentResponseStream {
+		/**
+		 * @deprecated use above methods instread
+		 */
+		report(value: ChatAgentProgress): void;
+	}
+
 	export type ChatAgentExtendedProgress = ChatAgentProgress
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
