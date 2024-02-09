@@ -186,6 +186,21 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
+	public getTopOfElement(index: number): number {
+		console.log('index : ', index);
+		const viewItems = this._viewItems.get();
+		console.log('viewItems : ', viewItems);
+		let top = 0;
+		for (let i = 0; i < index - 1; i++) {
+			top += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
+		}
+		return top;
+	}
+
+	public viewItems(): readonly VirtualizedViewItem[] {
+		return this._viewItems.get();
+	}
+
 	public getViewState(): IMultiDiffEditorViewState {
 		return {
 			scrollState: {
@@ -277,9 +292,10 @@ export interface IMultiDiffEditorViewState {
 interface IMultiDiffDocState {
 	collapsed: boolean;
 	selections?: ISelection[];
+	uri?: URI;
 }
 
-class VirtualizedViewItem extends Disposable {
+export class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
 
 	public readonly contentHeight = derived(this, reader =>
@@ -336,6 +352,7 @@ class VirtualizedViewItem extends Disposable {
 		return {
 			collapsed: this.viewModel.collapsed.get(),
 			selections: this.viewModel.lastTemplateData.get().selections,
+			uri: this.viewModel.originalUri
 		};
 	}
 

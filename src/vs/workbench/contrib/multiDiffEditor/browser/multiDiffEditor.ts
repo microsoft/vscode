@@ -24,7 +24,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
-import { IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, VirtualizedViewItem } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 
@@ -70,6 +70,18 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();
 		}));
+	}
+
+	public setScrollState(scrollState: { top?: number; left?: number }): void {
+		this._multiDiffEditorWidget?.setScrollState(scrollState);
+	}
+
+	public getTopOfElement(index: number): number | undefined {
+		return this._multiDiffEditorWidget?.getTopOfElement(index);
+	}
+
+	public viewItems(): readonly VirtualizedViewItem[] | undefined {
+		return this._multiDiffEditorWidget?.viewItems();
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

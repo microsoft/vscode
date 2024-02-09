@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -38,6 +38,7 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 
 const enum State {
 	Data = 'data',
@@ -68,7 +69,8 @@ export class BulkEditPane extends ViewPane {
 	private _currentResolve?: (edit?: ResourceEdit[]) => void;
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
-
+	private _multiDiffEditor?: MultiDiffEditor;
+	private _fileOperations?: BulkFileOperation[];
 
 	constructor(
 		options: IViewletViewOptions,
@@ -317,9 +319,9 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	// Issues with current implementation
-	// 1. Each time, this creates a new multi diff editor, we want it to reshow the same multi diff editor if there is one
-	// 2. The file naming does not look correct in the multi diff editor, there is a bug somewhere
 	// 3. Currently I am accessing the parent of the file element and showing all of the files, but we want to jump to the correct location when clicking on the multi diff editor
+	// Maybe we should somehow return the file operations directly instead of iterating upwards, the way that we currently do
+	// 4. Should jump instead to the part of the multi diff editor of interest, so no need to show it again, and can just scroll
 	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 
 		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
@@ -347,6 +349,22 @@ export class BulkEditPane extends ViewPane {
 			currentParent = currentParent.parent;
 		}
 		const fileOperations = bulkFileOperations.fileOperations;
+
+		if (this._fileOperations === fileOperations) {
+			// Multi diff editor already open
+			const viewItems = this._multiDiffEditor?.viewItems();
+			if (viewItems) {
+				const item = viewItems?.find(item => item.viewModel.originalUri?.toString() === fileElement.edit.uri.toString());
+				if (item) {
+					const index = viewItems.indexOf(item);
+					const top = this._multiDiffEditor?.getTopOfElement(index);
+					console.log('top : ', top);
+					this._multiDiffEditor?.setScrollState({ top });
+				}
+			}
+			return;
+		}
+		this._fileOperations = fileOperations;
 
 		const resources = [];
 		for (const operation of fileOperations) {
@@ -393,13 +411,13 @@ export class BulkEditPane extends ViewPane {
 		console.log('label : ', label);
 		console.log('description : ', description);
 
-		this._editorService.openEditor({
+		this._multiDiffEditor = await this._editorService.openEditor({
 			multiDiffSource: multiDiffSource ? URI.revive(multiDiffSource) : undefined,
 			resources: resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } })),
 			label: label,
 			description: description,
 			options: options,
-		});
+		}) as MultiDiffEditor;
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
