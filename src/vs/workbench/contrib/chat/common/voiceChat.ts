@@ -55,7 +55,14 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 	private static readonly CHAT_AGENT_ALIAS = new Map<string, string>([['vscode', 'code']]);
 
-	private phrases = this.createPhrases();
+	private _phrases: Map<string, string> | undefined = undefined;
+	private get phrases(): Map<string, string> {
+		if (!this._phrases) {
+			this._phrases = this.createPhrases();
+		}
+
+		return this._phrases;
+	}
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
@@ -67,7 +74,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	}
 
 	private registerListeners(): void {
-		this._register(this.chatAgentService.onDidChangeAgents(() => this.phrases = this.createPhrases()));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this._phrases = undefined));
 	}
 
 	private createPhrases(): Map<string, string> {
