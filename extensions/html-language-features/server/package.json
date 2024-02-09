@@ -9,10 +9,10 @@
   },
   "main": "./out/node/htmlServerMain",
   "dependencies": {
-    "@volar/language-server": "~2.0.2",
+    "@volar/language-server": "~2.0.3",
     "@vscode/l10n": "^0.0.18",
-    "volar-service-css": "0.0.28",
-    "volar-service-html": "0.0.28",
+    "volar-service-css": "0.0.29",
+    "volar-service-html": "0.0.29",
     "vscode-html-languageservice": "^5.1.2"
   },
   "devDependencies": {
