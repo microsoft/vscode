@@ -229,5 +229,43 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	});
 
+	test('fixes #204805', async () => {
+		harness.flush();
+		harness.pushDiff({
+			op: TestDiffOpType.Remove,
+			itemId: 'ctrlId',
+		}, {
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: new TestTestItem(new TestId(['ctrlId']), 'ctrl').toTestItem() },
+		}, {
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: new TestTestItem(new TestId(['ctrlId', 'a']), 'a').toTestItem() },
+		});
+
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'a' }
+		]);
+
+		harness.pushDiff({
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: new TestTestItem(new TestId(['ctrlId', 'a', 'b']), 'b').toTestItem() },
+		});
+		harness.flush();
+		harness.tree.expandAll();
+		assert.deepStrictEqual(harness.tree.getRendered(), [
+			{ e: 'a', children: [{ e: 'b' }] }
+		]);
+
+		harness.pushDiff({
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: new TestTestItem(new TestId(['ctrlId', 'a', 'b', 'c']), 'c').toTestItem() },
+		});
+		harness.flush();
+		harness.tree.expandAll();
+		assert.deepStrictEqual(harness.tree.getRendered(), [
+			{ e: 'a', children: [{ e: 'b', children: [{ e: 'c' }] }] }
+		]);
+	});
+
 });
 
