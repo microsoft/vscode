@@ -274,7 +274,7 @@ class VoiceChatSessions {
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const speechToTextSession = session.disposables.add(this.voiceChatService.createSpeechToTextSession(cts.token));
+		const voiceChatSession = session.disposables.add(this.voiceChatService.createVoiceChatSession(cts.token));
 
 		let inputValue = controller.getInput();
 
@@ -284,7 +284,7 @@ class VoiceChatSessions {
 		}
 
 		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), voiceChatTimeout));
-		session.disposables.add(speechToTextSession.onDidChange(({ status, text }) => {
+		session.disposables.add(voiceChatSession.onDidChange(({ status, text, waitingForInput }) => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -305,7 +305,7 @@ class VoiceChatSessions {
 					if (text) {
 						inputValue = [inputValue, text].join(' ');
 						session.controller.updateInput(inputValue);
-						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true) {
+						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !waitingForInput) {
 							acceptTranscriptionScheduler.schedule();
 						}
 					}

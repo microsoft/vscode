@@ -240,7 +240,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 
 		let message: string | undefined;
 		let preview: string | undefined;
-		const session = this._voiceChatService.createSpeechToTextSession(cts.token);
+		const session = this._voiceChatService.createVoiceChatSession(cts.token);
 		const listener = session.onDidChange(e => {
 
 			if (cts.token.isCancellationRequested) {
