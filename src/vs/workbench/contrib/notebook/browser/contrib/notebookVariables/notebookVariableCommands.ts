@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { contextMenuArg } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesView';
 
@@ -18,7 +17,6 @@ registerAction2(class extends Action2 {
 			id: COPY_NOTEBOOK_VARIABLE_VALUE_ID,
 			title: COPY_NOTEBOOK_VARIABLE_VALUE_LABEL,
 			f1: false,
-			precondition: ContextKeyExpr.has('value'),
 		});
 	}
 
