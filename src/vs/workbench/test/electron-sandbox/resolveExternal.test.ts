@@ -12,9 +12,14 @@ type PortMap = Record<number, number>;
 
 class TunnelMock {
 	private assignedPorts: PortMap = {};
+	private expectedDispose = false;
 
 	reset(ports: PortMap) {
 		this.assignedPorts = ports;
+	}
+
+	expectDispose() {
+		this.expectedDispose = true;
 	}
 
 	openTunnel(_address: string, port: number): Promise<RemoteTunnel | string | undefined> {
@@ -27,6 +32,8 @@ class TunnelMock {
 			tunnelRemotePort: this.assignedPorts[port],
 			privacy: '',
 			dispose: () => {
+				assert(this.expectedDispose, 'Unexpected dispose');
+				this.expectedDispose = false;
 				return Promise.resolve();
 			}
 		};
@@ -35,7 +42,12 @@ class TunnelMock {
 	}
 
 	validate() {
-		assert(Object.keys(this.assignedPorts).length === 0, 'Expected tunnel to be used');
+		try {
+			assert(Object.keys(this.assignedPorts).length === 0, 'Expected tunnel to be used');
+			assert(!this.expectedDispose, 'Expected dispose to be called');
+		} finally {
+			this.expectedDispose = false;
+		}
 	}
 }
 
@@ -67,5 +79,23 @@ suite('NativeWindow:resolveExternal', () => {
 	});
 	test('changed port', async () => {
 		await doTest('http://localhost:1234/path', { 1234: 1235 }, 'http://localhost:1235/path');
+	});
+	test('query', async () => {
+		await doTest('http://foo.bar/path?a=b&c=http%3a%2f%2flocalhost%3a4455', { 4455: 4455 }, 'http://foo.bar/path?a=b&c=http%3a%2f%2flocalhost%3a4455');
+	});
+	test('query with different port', async () => {
+		tunnelMock.expectDispose();
+		await doTest('http://foo.bar/path?a=b&c=http%3a%2f%2flocalhost%3a4455', { 4455: 4567 });
+	});
+	test('both url and query', async () => {
+		await doTest('http://localhost:1234/path?a=b&c=http%3a%2f%2flocalhost%3a4455',
+			{ 1234: 4321, 4455: 4455 },
+			'http://localhost:4321/path?a=b&c=http%3a%2f%2flocalhost%3a4455');
+	});
+	test('both url and query, query rejected', async () => {
+		tunnelMock.expectDispose();
+		await doTest('http://localhost:1234/path?a=b&c=http%3a%2f%2flocalhost%3a4455',
+			{ 1234: 4321, 4455: 5544 },
+			'http://localhost:4321/path?a=b&c=http%3a%2f%2flocalhost%3a4455');
 	});
 });

@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
+import {
+	extractLocalHostUriMetaDataForPortMapping,
+	extractQueryLocalHostUriMetaDataForPortMapping
+} from 'vs/platform/tunnel/common/tunnel';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
@@ -12,16 +15,21 @@ suite('Tunnel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function portMappingDoTest(uri: string,
+		func: (uri: URI) => { address: string; port: number } | undefined,
 		expectedAddress?: string,
 		expectedPort?: number) {
-		const res = extractLocalHostUriMetaDataForPortMapping(URI.parse(uri));
+		const res = func(URI.parse(uri));
 		assert.strictEqual(!expectedAddress, !res);
 		assert.strictEqual(res?.address, expectedAddress);
 		assert.strictEqual(res?.port, expectedPort);
 	}
 
 	function portMappingTest(uri: string, expectedAddress?: string, expectedPort?: number) {
-		portMappingDoTest(uri, expectedAddress, expectedPort);
+		portMappingDoTest(uri, extractLocalHostUriMetaDataForPortMapping, expectedAddress, expectedPort);
+	}
+
+	function portMappingTestQuery(uri: string, expectedAddress?: string, expectedPort?: number) {
+		portMappingDoTest(uri, extractQueryLocalHostUriMetaDataForPortMapping, expectedAddress, expectedPort);
 	}
 
 	test('portMapping', () => {
@@ -33,5 +41,8 @@ suite('Tunnel', () => {
 		portMappingTest('http://0.0.0.0:7654', '0.0.0.0', 7654);
 		portMappingTest('http://localhost:8080/path?foo=bar', 'localhost', 8080);
 		portMappingTest('http://localhost:8080/path?foo=http%3A%2F%2Flocalhost%3A8081', 'localhost', 8080);
+		portMappingTestQuery('http://foo.bar/path?url=http%3A%2F%2Flocalhost%3A8081', 'localhost', 8081);
+		portMappingTestQuery('http://foo.bar/path?url=http%3A%2F%2Flocalhost%3A8081&url2=http%3A%2F%2Flocalhost%3A8082', 'localhost', 8081);
+		portMappingTestQuery('http://foo.bar/path?url=http%3A%2F%2Fmicrosoft.com%2Fbad&url2=http%3A%2F%2Flocalhost%3A8081', 'localhost', 8081);
 	});
 });

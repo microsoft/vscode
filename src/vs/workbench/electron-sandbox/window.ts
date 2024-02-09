@@ -46,7 +46,7 @@ import { IOpenerService, IResolvedExternalUri, OpenOptions } from 'vs/platform/o
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { posix } from 'vs/base/common/path';
-import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
+import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -799,8 +799,29 @@ export class NativeWindow extends BaseWindow {
 	}
 
 	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
+		let queryTunnel: RemoteTunnel | string | undefined;
 		if (options?.allowTunneling) {
 			const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+			const queryPortMapping = extractQueryLocalHostUriMetaDataForPortMapping(uri);
+			if (queryPortMapping) {
+				queryTunnel = await this.openTunnel(queryPortMapping.address, queryPortMapping.port);
+				if (queryTunnel && (typeof queryTunnel !== 'string')) {
+					// If the tunnel was mapped to a different port, dispose it, because some services
+					// validate the port number in the query string.
+					if (queryTunnel.tunnelRemotePort !== queryPortMapping.port) {
+						queryTunnel.dispose();
+						queryTunnel = undefined;
+					} else {
+						if (!portMappingRequest) {
+							const tunnel = queryTunnel;
+							return {
+								resolved: uri,
+								dispose: () => tunnel.dispose()
+							};
+						}
+					}
+				}
+			}
 			if (portMappingRequest) {
 				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
 				if (tunnel && (typeof tunnel !== 'string')) {
@@ -808,7 +829,12 @@ export class NativeWindow extends BaseWindow {
 					const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 					return {
 						resolved,
-						dispose: () => tunnel.dispose(),
+						dispose() {
+							tunnel.dispose();
+							if (queryTunnel && (typeof queryTunnel !== 'string')) {
+								queryTunnel.dispose();
+							}
+						}
 					};
 				}
 			}
