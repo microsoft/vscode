@@ -50,6 +50,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -249,7 +250,7 @@ class VoiceChatSessions {
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ISpeechService private readonly speechService: ISpeechService,
+		@IVoiceChatService private readonly voiceChatService: IVoiceChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
@@ -273,7 +274,7 @@ class VoiceChatSessions {
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession(cts.token));
+		const speechToTextSession = session.disposables.add(this.voiceChatService.createSpeechToTextSession(cts.token));
 
 		let inputValue = controller.getInput();
 
