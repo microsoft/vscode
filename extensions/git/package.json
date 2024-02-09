@@ -28,6 +28,7 @@
     "scmHistoryProvider",
     "scmMultiDiffEditor",
     "scmSelectedProvider",
+    "scmTextDocument",
     "scmValidation",
     "tabInputTextMerge",
     "timeline"

@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n, languages, DiagnosticCollection, TextDocumentChangeEvent, Diagnostic, Range, DiagnosticSeverity } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
@@ -655,6 +655,54 @@ class ResourceCommandResolver {
 	}
 }
 
+class InputBoxValidator {
+
+	private readonly diagnostics: DiagnosticCollection;
+	private readonly severity = DiagnosticSeverity.Warning;
+	private readonly disposables: Disposable[] = [];
+
+	constructor(private readonly repository: Repository) {
+		this.diagnostics = languages.createDiagnosticCollection();
+		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
+	}
+
+	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
+		if (e.document !== this.repository.inputBox.document) {
+			return;
+		}
+
+		this.diagnostics.clear();
+		const diagnostics: Diagnostic[] = [];
+
+		if (/^\s+$/.test(e.document.getText())) {
+			const documentRange = new Range(e.document.lineAt(0).range.start, e.document.lineAt(e.document.lineCount - 1).range.end);
+			diagnostics.push(new Diagnostic(documentRange, l10n.t('Current commit message only contains whitespace characters'), this.severity));
+			this.diagnostics.set(e.document.uri, diagnostics);
+
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const inputValidationLength = config.get<number>('inputValidationLength', 50);
+		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
+
+		for (let index = 0; index < e.document.lineCount; index++) {
+			const line = e.document.lineAt(index);
+			const threshold = index === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
+
+			if (line.text.length > threshold) {
+				diagnostics.push(new Diagnostic(line.range, l10n.t('{0} characters over {1} in current line', line.text.length - threshold, threshold), this.severity));
+			}
+		}
+
+		this.diagnostics.set(e.document.uri, diagnostics);
+	}
+
+	dispose() {
+		dispose(this.disposables);
+	}
+}
+
 interface ModifiedOrOriginal {
 	modified?: Uri | undefined;
 	original?: Uri | undefined;
@@ -876,6 +924,7 @@ export class Repository implements Disposable {
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
+		this.disposables.push(new InputBoxValidator(this));
 
 		this.disposables.push(this._sourceControl);
 
