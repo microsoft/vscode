@@ -184,7 +184,7 @@ declare module 'vscode' {
 		 */
 		prompt: string;
 
-		/**K
+		/**
 		 * By default, the followup goes to the same agent/subCommand. But these properties can be set to override that.
 		 */
 		agentId?: string;
