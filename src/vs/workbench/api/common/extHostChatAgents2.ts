@@ -338,7 +338,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 class ExtHostChatAgent {
 
-	private _subCommandProvider: vscode.ChatAgentSubCommandProvider | undefined;
+	private _commandProvider: vscode.ChatAgentCommandProvider | undefined;
 	private _followupProvider: vscode.ChatAgentFollowupProvider | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
@@ -379,10 +379,10 @@ class ExtHostChatAgent {
 	}
 
 	async provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]> {
-		if (!this._subCommandProvider) {
+		if (!this._commandProvider) {
 			return [];
 		}
-		const result = await this._subCommandProvider.provideSubCommands(token);
+		const result = await this._commandProvider.provideCommands(token);
 		if (!result) {
 			return [];
 		}
@@ -462,7 +462,7 @@ class ExtHostChatAgent {
 						'dark' in this._iconPath ? this._iconPath.dark :
 							undefined,
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
-					hasSlashCommands: this._subCommandProvider !== undefined,
+					hasSlashCommands: this._commandProvider !== undefined,
 					hasFollowups: this._followupProvider !== undefined,
 					isDefault: this._isDefault,
 					isSecondary: this._isSecondary,
@@ -501,11 +501,11 @@ class ExtHostChatAgent {
 				that._iconPath = v;
 				updateMetadataSoon();
 			},
-			get subCommandProvider() {
-				return that._subCommandProvider;
+			get commandProvider() {
+				return that._commandProvider;
 			},
-			set subCommandProvider(v) {
-				that._subCommandProvider = v;
+			set commandProvider(v) {
+				that._commandProvider = v;
 				updateMetadataSoon();
 			},
 			get followupProvider() {
@@ -606,7 +606,7 @@ class ExtHostChatAgent {
 			,
 			dispose() {
 				disposed = true;
-				that._subCommandProvider = undefined;
+				that._commandProvider = undefined;
 				that._followupProvider = undefined;
 				that._onDidReceiveFeedback.dispose();
 				that._proxy.$unregisterAgent(that._handle);
