@@ -158,6 +158,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidUnregisterProvider = this._register(new Emitter<{ providerId: string }>());
 	public readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 
+	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -463,7 +465,16 @@ export class ChatService extends Disposable implements IChatService {
 		return { responseCompletePromise: this._sendRequestAsync(model, sessionId, provider, request) };
 	}
 
+	private refreshFollowupsCancellationToken(sessionId: string): CancellationToken {
+		this._sessionFollowupCancelTokens.get(sessionId)?.cancel();
+		const newTokenSource = new CancellationTokenSource();
+		this._sessionFollowupCancelTokens.set(sessionId, newTokenSource);
+
+		return newTokenSource.token;
+	}
+
 	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, message: string): Promise<void> {
+		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
 
 		let request: ChatRequestModel;
@@ -555,7 +566,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
-					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, agentResult, CancellationToken.None);
+					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, agentResult, followupsCancelToken);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest, { message, variables: {} });
 					// contributed slash commands
@@ -603,14 +614,11 @@ export class ChatService extends Disposable implements IChatService {
 					model.setResponse(request, rawResult);
 					this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
 
-					// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
+					model.completeResponse(request);
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
-							model.completeResponse(request);
 						});
-					} else {
-						model.completeResponse(request);
 					}
 				}
 			} finally {
