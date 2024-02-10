@@ -404,7 +404,9 @@ class ExtHostChatAgent {
 		}
 		return followups
 			// Filter out "command followups" from older providers
-			.filter(f => !(f && 'commandId' in f));
+			.filter(f => !(f && 'commandId' in f))
+			// Filter out followups from older providers before 'message' changed to 'prompt'
+			.filter(f => !(f && 'message' in f));
 	}
 
 	async provideWelcomeMessage(token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
