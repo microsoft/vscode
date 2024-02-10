@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -25,6 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { CONTEXT_VARIABLE_LANGUAGE, CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE } from 'vs/workbench/contrib/debug/common/debug';
 import { INotebookScope, INotebookVariableElement, NotebookVariableDataSource } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 import { NotebookVariableAccessibilityProvider, NotebookVariableRenderer, NotebookVariablesDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -33,7 +34,7 @@ import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebook
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export type contextMenuArg = { source?: string; type?: string; value?: string };
+export type contextMenuArg = { source?: string; type?: string; value?: string; language?: string };
 
 export class NotebookVariablesView extends ViewPane {
 
@@ -42,7 +43,6 @@ export class NotebookVariablesView extends ViewPane {
 
 	private tree: WorkbenchAsyncDataTree<INotebookScope, INotebookVariableElement> | undefined;
 	private activeNotebook: NotebookTextModel | undefined;
-	private readonly menu: IMenu;
 	private readonly dataSource: NotebookVariableDataSource;
 
 	private updateScheduler: RunOnceScheduler;
@@ -63,7 +63,7 @@ export class NotebookVariablesView extends ViewPane {
 		@ICommandService protected commandService: ICommandService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -73,7 +73,6 @@ export class NotebookVariablesView extends ViewPane {
 
 		this.setActiveNotebook();
 
-		this.menu = menuService.createMenu(MenuId.NotebookVariablesContext, contextKeyService);
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
 	}
@@ -102,22 +101,31 @@ export class NotebookVariablesView extends ViewPane {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<INotebookVariableElement>): any {
+		if (!e.element) {
+			return;
+		}
 		const element = e.element;
 
-		const context = {
-			type: element?.type
-		};
 		const arg: contextMenuArg = {
-			source: element?.notebook.uri.toString(),
-			value: element?.value,
-			...context
+			source: element.notebook.uri.toString(),
+			value: element.value,
+			type: element.type,
+			language: element.language
 		};
 		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(this.menu, { arg, shouldForwardArgs: true }, actions);
+
+		const overlayedContext = this.contextKeyService.createOverlay([
+			[CONTEXT_VARIABLE_NAME.key, element.name],
+			[CONTEXT_VARIABLE_VALUE.key, element.value],
+			[CONTEXT_VARIABLE_TYPE.key, element.type],
+			[CONTEXT_VARIABLE_LANGUAGE.key, element.language]
+		]);
+		const menu = this.menuService.createMenu(MenuId.NotebookVariablesContext, overlayedContext);
+		createAndFillInContextMenuActions(menu, { arg, shouldForwardArgs: true }, actions);
+		menu.dispose();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
-			getActionsContext: () => context,
+			getActions: () => actions
 		});
 	}
 

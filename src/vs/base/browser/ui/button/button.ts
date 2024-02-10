@@ -78,6 +78,9 @@ export class Button extends Disposable implements IButton {
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
 
+	private _onDidEscape = this._register(new Emitter<Event>());
+	get onDidEscape(): BaseEvent<Event> { return this._onDidEscape.event; }
+
 	private focusTracker: IFocusTracker;
 
 	constructor(container: HTMLElement, options: IButtonOptions) {
@@ -134,6 +137,7 @@ export class Button extends Disposable implements IButton {
 				this._onDidClick.fire(e);
 				eventHandled = true;
 			} else if (event.equals(KeyCode.Escape)) {
+				this._onDidEscape.fire(e);
 				this._element.blur();
 				eventHandled = true;
 			}

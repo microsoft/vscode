@@ -30,7 +30,7 @@ import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -298,7 +298,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private async renderFollowups(items: IChatReplyFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
+	private async renderFollowups(items: IChatFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
 		this.inputPart.renderFollowups(items, response);
 
 		if (this.bodyDimension) {
@@ -458,7 +458,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				providerId: this.viewModel.providerId,
 				sessionId: this.viewModel.sessionId,
 				requestId: e.response.requestId,
-				agentId: e.response?.agent?.id,
+				agentId: e.response.agent?.id,
+				result: e.response.result,
 				action: {
 					kind: 'followUp',
 					followup: e.followup

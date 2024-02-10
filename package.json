@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.87.0",
-  "distro": "0a14a7cde028e801c7aea8415afac7ddf3c9a0bd",
+  "distro": "848d09154925ef27343af358097ed5435450160e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -135,7 +135,7 @@
     "@vscode/gulp-electron": "^1.36.0",
     "@vscode/l10n-dev": "0.0.30",
     "@vscode/telemetry-extractor": "^1.10.2",
-    "@vscode/test-cli": "^0.0.3",
+    "@vscode/test-cli": "^0.0.6",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/test-web": "^0.0.50",
     "@vscode/v8-heap-parser": "^0.1.0",

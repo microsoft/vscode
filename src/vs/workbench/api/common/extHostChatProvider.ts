@@ -11,9 +11,12 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
+import { localize } from 'vs/nls';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 
 type LanguageModelData = {
 	readonly extension: ExtensionIdentifier;
@@ -22,24 +25,20 @@ type LanguageModelData = {
 
 class LanguageModelResponseStream {
 
-	readonly apiObj: vscode.LanguageModelResponseStream;
 	readonly stream = new AsyncIterableSource<string>();
 
-	constructor(option: number, stream?: AsyncIterableSource<string>) {
+	constructor(
+		readonly option: number,
+		stream?: AsyncIterableSource<string>
+	) {
 		this.stream = stream ?? new AsyncIterableSource<string>();
-		const that = this;
-		this.apiObj = {
-			option: option,
-			response: that.stream.asyncIterable
-		};
 	}
 }
 
 class LanguageModelRequest {
 
-	readonly apiObject: vscode.LanguageModelRequest;
+	readonly apiObject: vscode.LanguageModelResponse;
 
-	private readonly _onDidStart = new Emitter<vscode.LanguageModelResponseStream>();
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
 	private readonly _defaultStream = new AsyncIterableSource<string>();
 	private _isDone: boolean = false;
@@ -51,9 +50,8 @@ class LanguageModelRequest {
 		const that = this;
 		this.apiObject = {
 			result: promise,
-			response: that._defaultStream.asyncIterable,
-			onDidStartResponseStream: that._onDidStart.event,
-			cancel() { cts.cancel(); },
+			stream: that._defaultStream.asyncIterable,
+			// responses: AsyncIterable<string>[] // FUTURE responses per N
 		};
 
 		promise.finally(() => {
@@ -81,7 +79,6 @@ class LanguageModelRequest {
 				res = new LanguageModelResponseStream(fragment.index);
 			}
 			this._responseStreams.set(fragment.index, res);
-			this._onDidStart.fire(res.apiObj);
 		}
 		res.stream.emitOne(fragment.part);
 	}
@@ -106,6 +103,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	constructor(
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
+		private readonly _extHostAuthentication: ExtHostAuthentication,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatProvider);
 	}
@@ -127,7 +125,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		});
 	}
 
-	async $provideLanguageModelResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any> {
+	async $provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any> {
 		const data = this._languageModels.get(handle);
 		if (!data) {
 			return;
@@ -140,13 +138,10 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
 		});
 
-		return data.provider.provideChatResponse(messages.map(typeConvert.ChatMessage.to), options, progress, token);
+		return data.provider.provideLanguageModelResponse(messages.map(typeConvert.ChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
 	}
 
 	//#region --- making request
-
-
-
 
 	$updateLanguageModels(data: { added?: string[] | undefined; removed?: string[] | undefined }): void {
 		const added: string[] = [];
@@ -195,13 +190,15 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		this._onDidChangeAccess.fire(updated);
 	}
 
-	async requestLanguageModelAccess(from: ExtensionIdentifier, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
+	async requestLanguageModelAccess(extension: Readonly<IRelaxedExtensionDescription>, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
+		const from = extension.identifier;
 		// check if the extension is in the access list and allowed to make chat requests
 		if (this._accesslist.get(from) === false) {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
-		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options?.justification);
+		const justification = options?.justification;
+		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, justification);
 
 		if (!metadata) {
 			if (!this._accesslist.get(from)) {
@@ -209,6 +206,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			}
 			throw new Error(`Language model '${languageModelId}' NOT found`);
 		}
+		await this._checkAuthAccess(extension, languageModelId, justification);
 
 		const that = this;
 
@@ -224,7 +222,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				const onDidRemoveLM = Event.filter(that._onDidChangeProviders.event, e => e.removed.includes(languageModelId));
 				return Event.signal(Event.any(onDidChangeAccess, onDidRemoveLM));
 			},
-			makeRequest(messages, options, token) {
+			makeChatRequest(messages, options, token) {
 				if (!that._accesslist.get(from)) {
 					throw new Error('Access to chat has been revoked');
 				}
@@ -251,6 +249,24 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		const data = this._pendingRequest.get(requestId);//.report(chunk);
 		if (data) {
 			data.res.handleFragment(chunk);
+		}
+	}
+
+	// BIG HACK: Using AuthenticationProviders to check access to Language Models
+	private async _checkAuthAccess(from: Readonly<IRelaxedExtensionDescription>, languageModelId: string, detail?: string): Promise<void> {
+		// This needs to be done in both MainThread & ExtHost ChatProvider
+		const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + languageModelId;
+		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true });
+		if (!session) {
+			try {
+				await this._extHostAuthentication.getSession(from, providerId, [], {
+					forceNewSession: {
+						detail: detail ?? localize('chatAccess', "To allow access to the '{0}' language model", languageModelId),
+					}
+				});
+			} catch (err) {
+				throw new Error('Access to language model has not been granted');
+			}
 		}
 	}
 }

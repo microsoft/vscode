@@ -40,6 +40,8 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -108,7 +110,8 @@ class FileItem extends BreadcrumbsItem {
 		readonly model: BreadcrumbsModel,
 		readonly element: FileElement,
 		readonly options: IBreadcrumbsControlOptions,
-		private readonly _labels: ResourceLabels
+		private readonly _labels: ResourceLabels,
+		private readonly _hoverDelegate: IHoverDelegate
 	) {
 		super();
 	}
@@ -129,7 +132,7 @@ class FileItem extends BreadcrumbsItem {
 
 	render(container: HTMLElement): void {
 		// file/folder
-		const label = this._labels.create(container);
+		const label = this._labels.create(container, { hoverDelegate: this._hoverDelegate });
 		label.setFile(this.element.uri, {
 			hidePath: true,
 			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
@@ -186,6 +189,8 @@ export class BreadcrumbsControl {
 	private _breadcrumbsPickerShowing = false;
 	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
+	private readonly _hoverDelegate: IHoverDelegate;
+
 	private readonly _onDidVisibilityChange = this._disposables.add(new Emitter<void>());
 	get onDidVisibilityChange() { return this._onDidVisibilityChange.event; }
 
@@ -202,6 +207,7 @@ export class BreadcrumbsControl {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('breadcrumbs-control');
@@ -223,6 +229,18 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
+
+		this._hoverDelegate = {
+			delay: 500,
+			showHover: (options: IHoverOptions) => {
+				return this.hoverService.showHover({
+					...options,
+					persistence: {
+						hideOnHover: true
+					}
+				});
+			}
+		};
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 		this.hide();
@@ -321,7 +339,7 @@ export class BreadcrumbsControl {
 				showFileIcons: this._options.showFileIcons && showIcons,
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._labels) : new OutlineItem(model, element, options));
+			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._labels, this._hoverDelegate) : new OutlineItem(model, element, options));
 			if (items.length === 0) {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {

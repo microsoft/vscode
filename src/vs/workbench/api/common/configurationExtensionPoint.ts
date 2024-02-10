@@ -415,9 +415,9 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 		const rows: IRowData[][] = contrib.sort((a, b) => a.localeCompare(b))
 			.map(key => {
 				return [
-					{ data: key, type: 'code' },
+					new MarkdownString().appendMarkdown(`\`${key}\``),
 					properties[key].markdownDescription ? new MarkdownString(properties[key].markdownDescription, false) : properties[key].description ?? '',
-					{ data: `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : JSON.stringify(properties[key].default)}`, type: 'code' }
+					new MarkdownString().appendCodeblock('json', JSON.stringify(isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default, null, 2)),
 				];
 			});
 

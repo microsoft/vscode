@@ -63,7 +63,7 @@ import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents'
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatProgressMessage, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -117,8 +117,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly renderer: MarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
 
-	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatReplyFollowup>());
-	readonly onDidClickFollowup: Event<IChatReplyFollowup> = this._onDidClickFollowup.event;
+	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
+	readonly onDidClickFollowup: Event<IChatFollowup> = this._onDidClickFollowup.event;
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
@@ -141,13 +141,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
@@ -366,7 +365,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 			this.basicRenderElement(renderableResponse, element, index, templateData);
 		} else if (isRequestVM(element)) {
-			const markdown = 'kind' in element.message ?
+			const markdown = 'message' in element.message ?
 				element.message.message :
 				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
 			this.basicRenderElement([{ content: new MarkdownString(markdown), kind: 'markdownContent' }], element, index, templateData);
@@ -468,8 +467,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
-					: onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false)
-						: undefined;
+					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
+						: data.kind === 'command' ? this.renderCommandButton(element, data)
+							: undefined;
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
@@ -481,28 +481,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(icon)));
 			const renderedError = templateData.elementDisposables.add(this.renderer.render(new MarkdownString(element.errorDetails.message)));
 			errorDetails.appendChild($('span', undefined, renderedError.element));
-		}
-
-		if (isResponseVM(element) && element.commandFollowups?.length) {
-			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			templateData.elementDisposables.add(new ChatFollowups(
-				followupsContainer,
-				element.commandFollowups,
-				defaultButtonStyles,
-				followup => {
-					this.chatService.notifyUserAction({
-						providerId: element.providerId,
-						agentId: element.agent?.id,
-						sessionId: element.sessionId,
-						requestId: element.requestId,
-						action: {
-							kind: 'command',
-							command: followup,
-						}
-					});
-					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
-				},
-				templateData.contextKeyService));
 		}
 
 		const newHeight = templateData.rowContainer.offsetHeight;
@@ -581,6 +559,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							isAtEndOfResponse: onlyProgressMessagesAfterI(renderableResponse, index),
 							isLast: index === renderableResponse.length - 1,
 						} satisfies IChatProgressMessageRenderData;
+					} else if (part.kind === 'command') {
+						partsToRender[index] = part;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
 						if (wordCountResult !== undefined) {
@@ -596,7 +576,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				// Did this part's content change?
-				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart) && !isProgressMessageRenderData(renderedPart)) {
+				else if ((part.kind === 'markdownContent' || part.kind === 'progressMessage') && isMarkdownRenderData(renderedPart)) { // TODO
 					const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), renderedPart);
 					// Check if there are any new words to render
 					if (wordCountResult !== undefined && renderedPart.renderedWordCount !== wordCountResult?.actualWordCount) {
@@ -652,6 +632,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						} else {
 							result = null;
 						}
+					} else if (isCommandButtonRenderData(partToRender)) {
+						result = this.renderCommandButton(element, partToRender);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -851,6 +833,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return result;
 	}
 
+	private renderCommandButton(element: ChatTreeItem, commandButton: IChatCommandButton): IMarkdownRenderResult {
+		const container = $('.chat-command-button');
+		const disposables = new DisposableStore();
+		const button = disposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: true, title: commandButton.command.tooltip }));
+		button.label = commandButton.command.title;
+		button.enabled = !isResponseVM(element) || !element.isStale;
+
+		// TODO still need telemetry for command buttons
+		disposables.add(button.onDidClick(() => this.commandService.executeCommand(commandButton.command.id, ...(commandButton.command.arguments ?? []))));
+		return {
+			dispose() {
+				disposables.dispose();
+			},
+			element: container
+		};
+	}
+
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
@@ -1029,17 +1028,6 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
 		let label: string = '';
-		let commandFollowUpInfo;
-		const commandFollowupLength = element.commandFollowups?.length ?? 0;
-		switch (commandFollowupLength) {
-			case 0:
-				break;
-			case 1:
-				commandFollowUpInfo = localize('commandFollowUpInfo', "Command: {0}", element.commandFollowups![0].title);
-				break;
-			default:
-				commandFollowUpInfo = localize('commandFollowUpInfoMany', "Commands: {0}", element.commandFollowups!.map(followup => followup.title).join(', '));
-		}
 		const fileTreeCount = element.response.value.filter((v) => !('value' in v))?.length ?? 0;
 		let fileTreeCountHint = '';
 		switch (fileTreeCount) {
@@ -1064,7 +1052,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0} {1} code blocks: {2}", fileTreeCountHint, codeBlockCount, element.response.asString(), accessibleViewHint) : localize('multiCodeBlock', "{0} {1} code blocks", fileTreeCountHint, codeBlockCount, element.response.asString());
 				break;
 		}
-		return commandFollowUpInfo ? commandFollowUpInfo + ', ' + label : label;
+		return label;
 	}
 }
 
@@ -1412,6 +1400,14 @@ function isProgressMessage(item: any): item is IChatProgressMessage {
 
 function isProgressMessageRenderData(item: IChatRenderData): item is IChatProgressMessageRenderData {
 	return item && 'isAtEndOfResponse' in item;
+}
+
+function isCommandButtonRenderData(item: IChatRenderData): item is IChatCommandButton {
+	return item && 'kind' in item && item.kind === 'command';
+}
+
+function isMarkdownRenderData(item: IChatRenderData): item is IChatResponseMarkdownRenderData {
+	return item && 'renderedWordCount' in item;
 }
 
 function onlyProgressMessagesAfterI(items: ReadonlyArray<IChatProgressRenderableResponseContent>, i: number): boolean {

@@ -9,10 +9,10 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Location, ProviderResult } from 'vs/editor/common/languages';
+import { Command, Location, ProviderResult } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -38,15 +38,6 @@ export interface IChatResponseErrorDetails {
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
-}
-
-export interface IChatResponse {
-	session: IChat;
-	errorDetails?: IChatResponseErrorDetails;
-	timings?: {
-		firstProgress?: number;
-		totalElapsed: number;
-	};
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -142,6 +133,11 @@ export interface IChatAgentMarkdownContentWithVulnerability {
 	kind: 'markdownVuln';
 }
 
+export interface IChatCommandButton {
+	command: Command;
+	kind: 'command';
+}
+
 export type IChatProgress =
 	| IChatContent
 	| IChatMarkdownContent
@@ -152,29 +148,20 @@ export type IChatProgress =
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatAgentDetection
-	| IChatProgressMessage;
+	| IChatProgressMessage
+	| IChatCommandButton;
 
 export interface IChatProvider {
 	readonly id: string;
 	prepareSession(token: CancellationToken): ProviderResult<IChat | undefined>;
 }
 
-export interface IChatReplyFollowup {
+export interface IChatFollowup {
 	kind: 'reply';
 	message: string;
 	title?: string;
 	tooltip?: string;
 }
-
-export interface IChatResponseCommandFollowup {
-	kind: 'command';
-	commandId: string;
-	args?: any[];
-	title: string; // supports codicon strings
-	when?: string;
-}
-
-export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
 
 // Name has to match the one in vscode.d.ts for some reason
 export enum InteractiveSessionVoteDirection {
@@ -218,12 +205,12 @@ export interface IChatTerminalAction {
 
 export interface IChatCommandAction {
 	kind: 'command';
-	command: IChatResponseCommandFollowup;
+	commandButton: IChatCommandButton;
 }
 
 export interface IChatFollowupAction {
 	kind: 'followUp';
-	followup: IChatReplyFollowup;
+	followup: IChatFollowup;
 }
 
 export interface IChatBugReportAction {
@@ -238,6 +225,7 @@ export interface IChatUserActionEvent {
 	agentId: string | undefined;
 	sessionId: string;
 	requestId: string;
+	result: IChatAgentResult | undefined;
 }
 
 export interface IChatDynamicRequest {
@@ -254,7 +242,7 @@ export interface IChatDynamicRequest {
 
 export interface IChatCompleteResponse {
 	message: string | ReadonlyArray<IChatProgress>;
-	errorDetails?: IChatResponseErrorDetails;
+	result?: IChatAgentResult;
 	followups?: IChatFollowup[];
 }
 
@@ -316,4 +304,3 @@ export interface IChatService {
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
-export const CHAT_FEATURE_ID = 'chat';
