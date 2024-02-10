@@ -9,7 +9,7 @@ import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource, combinedDisposable } from './util';
-import { GitErrorCodes, Status } from './api/git';
+import { Change, GitErrorCodes, Status } from './api/git';
 
 class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
@@ -166,63 +166,76 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 		repository.historyProvider.onDidChangeCurrentHistoryItemGroupBase(this.onDidChangeCurrentHistoryItemGroupBase, this, this.disposables);
 	}
 
-	private onDidChangeCurrentHistoryItemGroupBase(): void {
+	private async onDidChangeCurrentHistoryItemGroupBase(): Promise<void> {
 		const newDecorations = new Map<string, FileDecoration>();
-		this.collectIncomingChangesFileDecorations(newDecorations);
+		await this.collectIncomingChangesFileDecorations(newDecorations);
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 
 		this.decorations = newDecorations;
 		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
 
-	private collectIncomingChangesFileDecorations(bucket: Map<string, FileDecoration>): void {
-		for (const historyItemChange of this.repository.historyProvider.incomingChanges) {
-			const decoration: FileDecoration = {
-				badge: '↓~',
-				color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
-				tooltip: l10n.t('Incoming Changes'),
-			};
+	private async collectIncomingChangesFileDecorations(bucket: Map<string, FileDecoration>): Promise<void> {
+		for (const change of await this.getIncomingChanges()) {
+			switch (change.status) {
+				case Status.INDEX_ADDED:
+					bucket.set(change.uri.toString(), {
+						badge: '↓A',
+						color: new ThemeColor('gitDecoration.incomingAddedForegroundColor'),
+						tooltip: l10n.t('Incoming Changes (added)'),
+					});
+					break;
+				case Status.DELETED:
+					bucket.set(change.uri.toString(), {
+						badge: '↓D',
+						color: new ThemeColor('gitDecoration.incomingDeletedForegroundColor'),
+						tooltip: l10n.t('Incoming Changes (deleted)'),
+					});
+					break;
+				case Status.INDEX_RENAMED:
+					bucket.set(change.originalUri.toString(), {
+						badge: '↓R',
+						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+						tooltip: l10n.t('Incoming Changes (renamed)'),
+					});
+					break;
+				case Status.MODIFIED:
+					bucket.set(change.uri.toString(), {
+						badge: '↓M',
+						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+						tooltip: l10n.t('Incoming Changes (modified)'),
+					});
+					break;
+				default: {
+					bucket.set(change.uri.toString(), {
+						badge: '↓~',
+						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+						tooltip: l10n.t('Incoming Changes'),
+					});
+					break;
+				}
+			}
+		}
+	}
 
-			// switch (change.status) {
-			// 	case Status.INDEX_ADDED:
-			// 		decoration = {
-			// 			badge: '↓A',
-			// 			color: new ThemeColor('gitDecoration.incomingAddedForegroundColor'),
-			// 			tooltip: l10n.t('Incoming Changes (added)'),
-			// 		};
-			// 		break;
-			// 	case Status.MODIFIED:
-			// 		decoration = {
-			// 			badge: '↓M',
-			// 			color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
-			// 			tooltip: l10n.t('Incoming Changes (modified)'),
-			// 		};
-			// 		break;
-			// 	case Status.DELETED:
-			// 		decoration = {
-			// 			badge: '↓D',
-			// 			color: new ThemeColor('gitDecoration.incomingDeletedForegroundColor'),
-			// 			tooltip: l10n.t('Incoming Changes (deleted)'),
-			// 		};
-			// 		break;
-			// 	case Status.INDEX_RENAMED:
-			// 		decoration = {
-			// 			badge: '↓R',
-			// 			color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
-			// 			tooltip: l10n.t('Incoming Changes (renamed)'),
-			// 		};
-			// 		break;
-			// 	default: {
-			// 		decoration = {
-			// 			badge: '↓~',
-			// 			color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
-			// 			tooltip: l10n.t('Incoming Changes'),
-			// 		};
-			// 		break;
-			// 	}
-			// }
+	private async getIncomingChanges(): Promise<Change[]> {
+		try {
+			const historyProvider = this.repository.historyProvider;
+			const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup;
 
-			bucket.set(historyItemChange.uri.with({ query: '' }).toString(), decoration);
+			if (!currentHistoryItemGroup?.base) {
+				return [];
+			}
+
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base.id);
+			if (!ancestor) {
+				return [];
+			}
+
+			const changes = await this.repository.diffBetween(ancestor.id, currentHistoryItemGroup.base.id);
+			return changes;
+		} catch (err) {
+			return [];
 		}
 	}
 

@@ -33,13 +33,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup:', JSON.stringify(value));
 	}
 
-	private _incomingChanges: SourceControlHistoryItemChange[] = [];
-	get incomingChanges(): SourceControlHistoryItemChange[] { return this._incomingChanges; }
-	set incomingChanges(value: SourceControlHistoryItemChange[]) {
-		this._incomingChanges = value;
-		this._onDidChangeCurrentHistoryItemGroupBase.fire();
-	}
-
 	private historyItemDecorations = new Map<string, FileDecoration>();
 
 	private disposables: Disposable[] = [];
@@ -71,8 +64,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD does not support incoming/outgoing');
 
 			this.currentHistoryItemGroup = undefined;
-			this.incomingChanges = [];
-
 			this._HEAD = this.repository.HEAD;
 			return;
 		}
@@ -93,7 +84,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote ||
 			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
 			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - Upstream has changed');
-			this.incomingChanges = await this.provideIncomingHistoryItemChanges();
+			this._onDidChangeCurrentHistoryItemGroupBase.fire();
 		}
 
 		this._HEAD = this.repository.HEAD;
@@ -235,24 +226,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		return undefined;
-	}
-
-	private async provideIncomingHistoryItemChanges(): Promise<SourceControlHistoryItemChange[]> {
-		try {
-			if (!this.currentHistoryItemGroup?.base) {
-				return [];
-			}
-
-			const ancestor = await this.resolveHistoryItemGroupCommonAncestor(this.currentHistoryItemGroup.id, this.currentHistoryItemGroup.base.id);
-			if (!ancestor) {
-				return [];
-			}
-
-			const historyItemChanges = await this.provideHistoryItemChanges(this.currentHistoryItemGroup.base.id, ancestor.id);
-			return historyItemChanges;
-		} catch (err) {
-			return [];
-		}
 	}
 
 	dispose(): void {
