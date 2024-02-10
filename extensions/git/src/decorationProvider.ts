@@ -195,7 +195,7 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				case Status.INDEX_RENAMED:
 					bucket.set(change.originalUri.toString(), {
 						badge: '↓R',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+						color: new ThemeColor('gitDecoration.incomingRenamedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (renamed)'),
 					});
 					break;
