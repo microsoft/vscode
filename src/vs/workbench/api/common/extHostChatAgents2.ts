@@ -353,7 +353,7 @@ class ExtHostChatAgent {
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatAgentWelcomeMessageProvider | undefined;
-	private _repopulate?: vscode.ChatAgent2<TResult>['repopulate'];
+	private _repopulate?: vscode.ChatAgent2['repopulate'];
 
 	constructor(
 		public readonly extension: IExtensionDescription,
