@@ -5,8 +5,10 @@
 
 import * as assert from 'assert';
 import { removeAccents } from 'vs/base/common/normalization';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Normalization', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('removeAccents', function () {
 		assert.strictEqual(removeAccents('joào'), 'joao');

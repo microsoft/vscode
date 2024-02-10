@@ -22,7 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/window/common/window';
+import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 
@@ -85,7 +85,7 @@ export class Menubar {
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
 
-		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+		if (isMacintosh || hasNativeTitlebar(configurationService)) {
 			this.restoreCachedMenubarData();
 		}
 
@@ -379,6 +379,13 @@ export class Menubar {
 		// Setting the application menu sets it to all opened windows,
 		// but we currently do not support a menu in auxiliary windows,
 		// so we need to unset it there.
+		//
+		// This is a bit ugly but `setApplicationMenu()` has some nice
+		// behaviour we want:
+		// - on macOS it is required because menus are application set
+		// - we use `getApplicationMenu()` to access the current state
+		// - new windows immediately get the same menu when opening
+		//   reducing overall flicker for these
 
 		Menu.setApplicationMenu(menu);
 
@@ -469,7 +476,7 @@ export class Menubar {
 
 	private shouldDrawMenu(menuId: string): boolean {
 		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
+		if (!isMacintosh && !hasNativeTitlebar(this.configurationService)) {
 			return false;
 		}
 

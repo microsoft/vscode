@@ -11,11 +11,14 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import 'vs/css!./media/stickyScroll';
+import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -23,8 +26,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
+import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -34,6 +38,10 @@ const enum OverlayState {
 
 const enum CssClasses {
 	Visible = 'visible'
+}
+
+const enum Constants {
+	StickyScrollPercentageCap = 0.4
 }
 
 export class TerminalStickyScrollOverlay extends Disposable {
@@ -51,7 +59,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _refreshListeners = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
-	private _maxLineCount: number = 5;
+	private _rawMaxLineCount: number = 5;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -62,6 +70,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -77,9 +86,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// React to configuration changes
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollMaxLineCount)) {
-				this._maxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
+				this._rawMaxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
 			}
 		}));
+
+		// React to terminal location changes
+		this._register(this._instance.onDidChangeTarget(() => this._syncOptions()));
 
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
@@ -242,10 +254,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// partial line can be drawn on the top.
 		const isPartialCommand = !('getOutput' in command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
-		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount) - rowOffset;
+		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
+		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
-		if (buffer.viewportY === stickyScrollLineStart) {
+		if (buffer.viewportY <= stickyScrollLineStart) {
 			this._setVisible(false);
 			return;
 		}
@@ -273,11 +286,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 		});
 
+		// If a partial command's sticky scroll would show nothing, just hide it. This is another
+		// edge case when using a pager or interactive editor.
+		if (isPartialCommand && removeAnsiEscapeCodes(content).length === 0) {
+			this._setVisible(false);
+			return;
+		}
+
 		// Write content if it differs
 		if (content && this._currentContent !== content) {
-			if (this._stickyScrollOverlay.rows !== stickyScrollLineCount) {
-				this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
-			}
+			this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
 			this._currentContent = content;
@@ -296,7 +314,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				const termBox = xterm.element.getBoundingClientRect();
 				const rowHeight = termBox.height / xterm.rows;
 				const overlayHeight = stickyScrollLineCount * rowHeight;
-				this._element.style.bottom = `${termBox.height - overlayHeight}px`;
+				this._element.style.bottom = `${termBox.height - overlayHeight + 1}px`;
 			}
 		} else {
 			this._setVisible(false);
@@ -317,11 +335,28 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		const overlay = this._stickyScrollOverlay;
 
-		this._element = $('.terminal-sticky-scroll');
 		const hoverOverlay = $('.hover-overlay');
-		this._element.append(hoverOverlay);
+		this._element = $('.terminal-sticky-scroll', undefined, hoverOverlay);
 		this._xterm.raw.element.parentElement.append(this._element);
 		this._register(toDisposable(() => this._element?.remove()));
+
+		// Fill tooltip
+		let hoverTitle = localize('stickyScrollHoverTitle', 'Navigate to Command');
+		const scrollToPreviousCommandKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ScrollToPreviousCommand);
+		if (scrollToPreviousCommandKeybinding) {
+			const label = scrollToPreviousCommandKeybinding.getLabel();
+			if (label) {
+				hoverTitle += '\n' + localize('labelWithKeybinding', "{0} ({1})", terminalStrings.scrollToPreviousCommand.value, label);
+			}
+		}
+		const scrollToNextCommandKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ScrollToNextCommand);
+		if (scrollToNextCommandKeybinding) {
+			const label = scrollToNextCommandKeybinding.getLabel();
+			if (label) {
+				hoverTitle += '\n' + localize('labelWithKeybinding', "{0} ({1})", terminalStrings.scrollToNextCommand.value, label);
+			}
+		}
+		hoverOverlay.title = hoverTitle;
 
 		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
@@ -374,15 +409,17 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const overlay = this._stickyScrollOverlay;
 
 		// The Webgl renderer isn't used here as there are a limited number of webgl contexts
-		// available within a given page. This is a single row that isn't rendered to often so the
+		// available within a given page. This is a single row that isn't rendered too often so the
 		// performance isn't as important
 		if (this._xterm.isGpuAccelerated) {
 			if (!this._canvasAddon.value && !this._pendingCanvasAddon) {
 				this._pendingCanvasAddon = createCancelablePromise(async token => {
 					const CanvasAddon = await this._getCanvasAddonConstructor();
-					if (!token.isCancellationRequested) {
+					if (!token.isCancellationRequested && !this._store.isDisposed) {
 						this._canvasAddon.value = new CanvasAddon();
-						overlay.loadAddon(this._canvasAddon.value);
+						if (this._canvasAddon.value) { // The MutableDisposable could be disposed
+							overlay.loadAddon(this._canvasAddon.value);
+						}
 					}
 					this._pendingCanvasAddon = undefined;
 				});
@@ -422,7 +459,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			...this._xterm.getXtermTheme(),
 			background: isHovering
 				? theme.getColor(terminalStickyScrollHoverBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString()
-				: this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
+				: theme.getColor(terminalStickyScrollBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};

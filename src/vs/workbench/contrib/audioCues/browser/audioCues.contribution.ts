@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
+import { ShowAccessibilityAlertHelp, ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -97,6 +97,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.terminalBell': {
+			'description': localize('audioCues.terminalBell', "Plays a sound when the terminal bell is ringing."),
+			...audioCueFeatureBase,
+			default: 'on'
+		},
 		'audioCues.diffLineInserted': {
 			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 			...audioCueFeatureBase,
@@ -133,7 +138,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'off'
 		},
 		'audioCues.clear': {
-			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, debug console, or output channel). When this is disabled, an aria alert will announce 'Cleared'."),
+			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
 			...audioCueFeatureBase,
 			default: 'off'
 		},
@@ -165,3 +170,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerAction2(ShowAudioCueHelp);
+registerAction2(ShowAccessibilityAlertHelp);

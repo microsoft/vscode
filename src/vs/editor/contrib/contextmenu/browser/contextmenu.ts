@@ -229,7 +229,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
 
-			getAnchor: () => anchor!,
+			getAnchor: () => anchor,
 
 			getActions: () => actions,
 

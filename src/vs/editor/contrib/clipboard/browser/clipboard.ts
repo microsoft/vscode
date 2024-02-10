@@ -14,6 +14,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -107,11 +108,11 @@ export const CopyAction = supportsCopy ? registerCommand(new MultiCommand({
 	}]
 })) : undefined;
 
-MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, { submenu: MenuId.MenubarCopy, title: { value: nls.localize('copy as', "Copy As"), original: 'Copy As', }, group: '2_ccp', order: 3 });
-MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextCopy, title: { value: nls.localize('copy as', "Copy As"), original: 'Copy As', }, group: CLIPBOARD_CONTEXT_MENU_GROUP, order: 3 });
-MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextShare, title: { value: nls.localize('share', "Share"), original: 'Share', }, group: '11_share', order: -1, when: ContextKeyExpr.and(ContextKeyExpr.notEquals('resourceScheme', 'output'), EditorContextKeys.editorTextFocus) });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { submenu: MenuId.EditorTitleContextShare, title: { value: nls.localize('share', "Share"), original: 'Share', }, group: '11_share', order: -1 });
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, { submenu: MenuId.ExplorerContextShare, title: { value: nls.localize('share', "Share"), original: 'Share', }, group: '11_share', order: -1 });
+MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, { submenu: MenuId.MenubarCopy, title: nls.localize2('copy as', "Copy As"), group: '2_ccp', order: 3 });
+MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextCopy, title: nls.localize2('copy as', "Copy As"), group: CLIPBOARD_CONTEXT_MENU_GROUP, order: 3 });
+MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1, when: ContextKeyExpr.and(ContextKeyExpr.notEquals('resourceScheme', 'output'), EditorContextKeys.editorTextFocus) });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { submenu: MenuId.EditorTitleContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1 });
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, { submenu: MenuId.ExplorerContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1 });
 
 export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 	id: 'editor.action.clipboardPasteAction',
@@ -227,8 +228,10 @@ if (PasteAction) {
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			const result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-			// Use the clipboard service if document.execCommand('paste') was not successful
-			if (!result && platform.isWeb) {
+			if (result) {
+				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+			} else if (platform.isWeb) {
+				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {

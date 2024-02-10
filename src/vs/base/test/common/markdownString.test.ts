@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('MarkdownString', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Escape leading whitespace', function () {
 		const mds = new MarkdownString();
@@ -60,6 +63,51 @@ suite('MarkdownString', () => {
 			'foo)', 'hello]', 'title"',
 			'[hello\\]](foo\\) "title\\"")'
 		);
+	});
+
+	suite('appendCodeBlock', () => {
+		function assertCodeBlock(lang: string, code: string, result: string) {
+			const mds = new MarkdownString();
+			mds.appendCodeblock(lang, code);
+			assert.strictEqual(mds.value, result);
+		}
+
+		test('common cases', () => {
+			// no backticks
+			assertCodeBlock('ts', 'const a = 1;', `\n${[
+				'```ts',
+				'const a = 1;',
+				'```'
+			].join('\n')}\n`);
+			// backticks
+			assertCodeBlock('ts', 'const a = `1`;', `\n${[
+				'```ts',
+				'const a = `1`;',
+				'```'
+			].join('\n')}\n`);
+		});
+
+		// @see https://github.com/microsoft/vscode/issues/193746
+		test('escape fence', () => {
+			// fence in the first line
+			assertCodeBlock('md', '```\n```', `\n${[
+				'````md',
+				'```\n```',
+				'````'
+			].join('\n')}\n`);
+			// fence in the middle of code
+			assertCodeBlock('md', '\n\n```\n```', `\n${[
+				'````md',
+				'\n\n```\n```',
+				'````'
+			].join('\n')}\n`);
+			// longer fence at the end of code
+			assertCodeBlock('md', '```\n```\n````\n````', `\n${[
+				'`````md',
+				'```\n```\n````\n````',
+				'`````'
+			].join('\n')}\n`);
+		});
 	});
 
 	suite('ThemeIcons', () => {

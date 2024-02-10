@@ -9,7 +9,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -25,13 +25,16 @@ import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import * as nls from 'vs/nls';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { VariablesRenderer, openContextMenuForVariableTreeElement } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
@@ -96,10 +99,17 @@ export class DebugHoverWidget implements IContentWidget {
 	private expressionToRender: IExpression | undefined;
 	private isUpdatingTree = false;
 
+	public get isShowingComplexValue() {
+		return this.complexValueContainer?.hidden === false;
+	}
+
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		this.toDispose = [];
 
@@ -143,6 +153,8 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode.style.border = `1px solid ${asCssVariable(editorHoverBorder)}`;
 		this.domNode.style.color = asCssVariable(editorHoverForeground);
 
+		this.toDispose.push(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
+
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => {
 			if (!this.isUpdatingTree) {
 				// Don't do a layout in the middle of the async setInput
@@ -158,6 +170,15 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
+	}
+
+	private async onContextMenu(e: ITreeContextMenuEvent<IExpression>): Promise<void> {
+		const variable = e.element;
+		if (!(variable instanceof Variable) || !variable.value) {
+			return;
+		}
+
+		return openContextMenuForVariableTreeElement(this.contextKeyService, this.menuService, this.contextMenuService, MenuId.DebugHoverContext, e);
 	}
 
 	private registerListeners(): void {
@@ -298,7 +319,16 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private layoutTree(): void {
 		const scrollBarHeight = 10;
-		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
+		let maxHeightToAvoidCursorOverlay = Infinity;
+		if (this.showAtPosition) {
+			const editorTop = this.editor.getDomNode()?.offsetTop || 0;
+			const containerTop = this.treeContainer.offsetTop + editorTop;
+			const hoveredCharTop = this.editor.getTopForLineNumber(this.showAtPosition.lineNumber, true) - this.editor.getScrollTop();
+			if (containerTop < hoveredCharTop) {
+				maxHeightToAvoidCursorOverlay = hoveredCharTop + editorTop - 22; // 22 is monaco top padding https://github.com/microsoft/vscode/blob/a1df2d7319382d42f66ad7f411af01e4cc49c80a/src/vs/editor/browser/viewParts/contentWidgets/contentWidgets.ts#L364
+			}
+		}
+		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight, maxHeightToAvoidCursorOverlay);
 
 		const realTreeWidth = this.tree.contentWidth;
 		const treeWidth = clamp(realTreeWidth, 400, 550);

@@ -10,11 +10,11 @@ import { Markers } from 'vs/workbench/contrib/markers/common/markers';
 import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { ITaskEvent, TaskEventKind, ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskEvent, TaskEventKind, ITaskIdentifier, Task } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
@@ -200,7 +200,8 @@ export class DebugTaskRunner {
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 		let taskStarted = false;
-		const taskKey = task.getMapKey();
+		const getTaskKey = (t: Task) => t.getKey() ?? t.getMapKey();
+		const taskKey = getTaskKey(task);
 		const inactivePromise: Promise<ITaskSummary | null> = new Promise((c) => once(e => {
 			// When a task isBackground it will go inactive when it is safe to launch.
 			// But when a background task is terminated by the user, it will also fire an inactive event.
@@ -208,24 +209,24 @@ export class DebugTaskRunner {
 			// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
 			return (e.kind === TaskEventKind.Inactive
 				|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
-				&& e.__task?.getMapKey() === taskKey;
+				&& getTaskKey(e.__task) === taskKey;
 		}, this.taskService.onDidStateChange)(e => {
 			taskStarted = true;
 			c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
 		}));
 
 		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
-			if (tasks.find(t => t.getMapKey() === taskKey)) {
+			if (tasks.find(t => getTaskKey(t) === taskKey)) {
 				// Check that the task isn't busy and if it is, wait for it
 				const busyTasks = await this.taskService.getBusyTasks();
-				if (busyTasks.find(t => t.getMapKey() === taskKey)) {
+				if (busyTasks.find(t => getTaskKey(t) === taskKey)) {
 					taskStarted = true;
 					return inactivePromise;
 				}
 				// task is already running and isn't busy - nothing to do.
 				return Promise.resolve(null);
 			}
-			once(e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStarted)) && e.__task?.getMapKey() === taskKey, this.taskService.onDidStateChange)(() => {
+			once(e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStarted)) && getTaskKey(e.__task) === taskKey, this.taskService.onDidStateChange)(() => {
 				// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
 				// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
 				taskStarted = true;
@@ -239,7 +240,7 @@ export class DebugTaskRunner {
 		});
 
 		return new Promise((c, e) => {
-			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.__task?.getMapKey() === taskKey, this.taskService.onDidStateChange)(() => {
+			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && getTaskKey(e.__task) === taskKey, this.taskService.onDidStateChange)(() => {
 				resolve();
 			}));
 

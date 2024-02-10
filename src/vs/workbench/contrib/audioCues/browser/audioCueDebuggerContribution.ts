@@ -21,7 +21,7 @@ export class AudioCueLineDebuggerContribution
 
 		const isEnabled = observableFromEvent(
 			audioCueService.onEnabledChanged(AudioCue.onDebugBreak),
-			() => audioCueService.isEnabled(AudioCue.onDebugBreak)
+			() => audioCueService.isCueEnabled(AudioCue.onDebugBreak)
 		);
 		this._register(autorunWithStore((reader, store) => {
 			/** @description subscribe to debug sessions */
@@ -41,7 +41,7 @@ export class AudioCueLineDebuggerContribution
 				)
 			);
 
-			store.add(debugService.onDidEndSession(session => {
+			store.add(debugService.onDidEndSession(({ session }) => {
 				sessionDisposables.get(session)?.dispose();
 				sessionDisposables.delete(session);
 			}));

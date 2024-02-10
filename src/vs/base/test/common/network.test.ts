@@ -8,8 +8,11 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('network', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	(isWeb ? test.skip : test)('FileAccess: URI (native)', () => {
 

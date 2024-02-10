@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export interface IChatVariableData {
@@ -20,7 +20,8 @@ export interface IChatVariableData {
 
 export interface IChatRequestVariableValue {
 	level: 'short' | 'medium' | 'full';
-	value: string;
+	kind?: string;
+	value: string | URI;
 	description?: string;
 }
 
@@ -36,21 +37,15 @@ export interface IChatVariablesService {
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
 	hasVariable(name: string): boolean;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
-	getDynamicReferences(sessionId: string): ReadonlyArray<IDynamicReference>; // should be its own service?
+	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
 
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
+	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData>;
 }
 
-export interface IChatVariableResolveResult {
-	variables: Record<string, IChatRequestVariableValue[]>;
-	prompt: string;
-}
-
-export interface IDynamicReference {
+export interface IDynamicVariable {
 	range: IRange;
-	// data: any; // File details for a file, something else for a different type of thing, is it typed?
-	data: URI;
+	data: IChatRequestVariableValue[];
 }

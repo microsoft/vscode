@@ -102,7 +102,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isBefore(result!)) {
+			if (p.isBefore(result)) {
 				result = p;
 			}
 		}
@@ -116,7 +116,7 @@ export class Position {
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
 			const p = positions[i];
-			if (p.isAfter(result!)) {
+			if (p.isAfter(result)) {
 				result = p;
 			}
 		}
@@ -862,11 +862,11 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	set(uri: URI, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
-	set(uri: URI, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void;
+	set(uri: URI, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void;
 	set(uri: URI, edits: readonly NotebookEdit[]): void;
-	set(uri: URI, edits: ReadonlyArray<[NotebookEdit, vscode.WorkspaceEditEntryMetadata]>): void;
+	set(uri: URI, edits: ReadonlyArray<[NotebookEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void;
 
-	set(uri: URI, edits: null | undefined | ReadonlyArray<TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata]>): void {
+	set(uri: URI, edits: null | undefined | ReadonlyArray<TextEdit | SnippetTextEdit | NotebookEdit | [NotebookEdit, vscode.WorkspaceEditEntryMetadata | undefined] | [TextEdit | SnippetTextEdit, vscode.WorkspaceEditEntryMetadata | undefined]>): void {
 		if (!edits) {
 			// remove all text, snippet, or notebook edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -1007,7 +1007,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
+		const value = values.map(s => s.replaceAll(/[|\\,]/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -1223,6 +1223,25 @@ export class DocumentHighlight {
 		return {
 			range: this.range,
 			kind: DocumentHighlightKind[this.kind]
+		};
+	}
+}
+
+@es5ClassCompat
+export class MultiDocumentHighlight {
+
+	uri: URI;
+	highlights: DocumentHighlight[];
+
+	constructor(uri: URI, highlights: DocumentHighlight[]) {
+		this.uri = uri;
+		this.highlights = highlights;
+	}
+
+	toJSON(): any {
+		return {
+			uri: this.uri,
+			highlights: this.highlights.map(h => h.toJSON())
 		};
 	}
 }
@@ -1802,7 +1821,8 @@ export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: st
 export enum TextEditorLineNumbersStyle {
 	Off = 0,
 	On = 1,
-	Relative = 2
+	Relative = 2,
+	Interval = 3
 }
 
 export enum TextDocumentSaveReason {
@@ -3429,6 +3449,13 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+export class DebugVisualization {
+	iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+	visualization?: vscode.Command | vscode.TreeDataProvider<unknown>;
+
+	constructor(public name: string) { }
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -3798,6 +3825,11 @@ export class NotebookKernelSourceAction {
 	) { }
 }
 
+export enum NotebookVariablesRequestKind {
+	Named = 1,
+	Indexed = 2
+}
+
 //#endregion
 
 //#region Timeline
@@ -3923,30 +3955,35 @@ export class TestTag implements vscode.TestTag {
 //#endregion
 
 //#region Test Coverage
-@es5ClassCompat
 export class CoveredCount implements vscode.CoveredCount {
-	constructor(public covered: number, public total: number) { }
+	constructor(public covered: number, public total: number) {
+	}
 }
 
-@es5ClassCompat
+const validateCC = (cc?: vscode.CoveredCount) => {
+	if (cc && cc.covered > cc.total) {
+		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
+	}
+};
+
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
 		const branches = new CoveredCount(0, 0);
-		const fn = new CoveredCount(0, 0);
+		const decl = new CoveredCount(0, 0);
 
 		for (const detail of details) {
 			if ('branches' in detail) {
 				statements.total += 1;
-				statements.covered += detail.executionCount > 0 ? 1 : 0;
+				statements.covered += detail.executed ? 1 : 0;
 
 				for (const branch of detail.branches) {
 					branches.total += 1;
-					branches.covered += branch.executionCount > 0 ? 1 : 0;
+					branches.covered += branch.executed ? 1 : 0;
 				}
 			} else {
-				fn.total += 1;
-				fn.covered += detail.executionCount > 0 ? 1 : 0;
+				decl.total += 1;
+				decl.covered += detail.executed ? 1 : 0;
 			}
 		}
 
@@ -3954,7 +3991,7 @@ export class FileCoverage implements vscode.FileCoverage {
 			uri,
 			statements,
 			branches.total > 0 ? branches : undefined,
-			fn.total > 0 ? fn : undefined,
+			decl.total > 0 ? decl : undefined,
 		);
 
 		coverage.detailedCoverage = details;
@@ -3968,31 +4005,46 @@ export class FileCoverage implements vscode.FileCoverage {
 		public readonly uri: vscode.Uri,
 		public statementCoverage: vscode.CoveredCount,
 		public branchCoverage?: vscode.CoveredCount,
-		public functionCoverage?: vscode.CoveredCount,
-	) { }
+		public declarationCoverage?: vscode.CoveredCount,
+	) {
+		validateCC(statementCoverage);
+		validateCC(branchCoverage);
+		validateCC(declarationCoverage);
+	}
 }
 
-@es5ClassCompat
 export class StatementCoverage implements vscode.StatementCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
 		public branches: vscode.BranchCoverage[] = [],
 	) { }
 }
 
-@es5ClassCompat
 export class BranchCoverage implements vscode.BranchCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public executed: number | boolean,
 		public location: Position | Range,
+		public label?: string,
 	) { }
 }
 
-@es5ClassCompat
-export class FunctionCoverage implements vscode.FunctionCoverage {
+export class DeclarationCoverage implements vscode.DeclarationCoverage {
+	// back compat until finalization:
+	get executionCount() { return +this.executed; }
+	set executionCount(n: number) { this.executed = n; }
+
 	constructor(
-		public executionCount: number,
+		public readonly name: string,
+		public executed: number | boolean,
 		public location: Position | Range,
 	) { }
 }
@@ -4084,16 +4136,35 @@ export class ChatEditorTabInput {
 }
 //#endregion
 
-//#region Interactive session
+//#region Chat
 
 export enum InteractiveSessionVoteDirection {
 	Down = 0,
 	Up = 1
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	Action = 1,
 	Toolbar = 2
+}
+
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
+}
+
+export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
+	label: string | CompletionItemLabel;
+	insertText?: string;
+	values: vscode.ChatVariableValue[];
+	detail?: string;
+	documentation?: string | MarkdownString;
+
+	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+		this.label = label;
+		this.values = values;
+	}
 }
 
 //#endregion
@@ -4112,13 +4183,6 @@ export enum ChatMessageRole {
 	System = 0,
 	User = 1,
 	Assistant = 2,
-	Function = 3,
-}
-
-export enum ChatVariableLevel {
-	Short = 1,
-	Medium = 2,
-	Full = 3
 }
 
 export class ChatMessage implements vscode.ChatMessage {
@@ -4137,6 +4201,61 @@ export enum ChatAgentResultFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 }
+
+
+export class ChatResponseTextPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseMarkdownPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+export class ChatResponseFileTreePart {
+	value: vscode.ChatResponseFileTree[];
+	baseUri: vscode.Uri;
+	constructor(value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri) {
+		this.value = value;
+		this.baseUri = baseUri;
+	}
+}
+
+export class ChatResponseAnchorPart {
+	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	title?: string;
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
+export class ChatResponseProgressPart {
+	value: string;
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseCommandButtonPart {
+	value: vscode.Command;
+	constructor(value: vscode.Command) {
+		this.value = value;
+	}
+}
+
+export class ChatResponseReferencePart {
+	value: vscode.Uri | vscode.Location;
+	constructor(value: vscode.Uri | vscode.Location) {
+		this.value = value;
+	}
+}
+
 
 //#endregion
 
@@ -4158,6 +4277,11 @@ export enum SpeechToTextStatus {
 	Recognizing = 2,
 	Recognized = 3,
 	Stopped = 4
+}
+
+export enum KeywordRecognitionStatus {
+	Recognized = 1,
+	Stopped = 2
 }
 
 //#endregion

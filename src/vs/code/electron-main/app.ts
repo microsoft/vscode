@@ -301,6 +301,24 @@ export class CodeApplication extends Disposable {
 
 		//#endregion
 
+		//#region Allow CORS for the PRSS CDN
+
+		// https://github.com/microsoft/vscode-remote-release/issues/9246
+		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+			if (details.url.startsWith('https://vscode.download.prss.microsoft.com/')) {
+				const responseHeaders = details.responseHeaders ?? Object.create(null);
+
+				if (responseHeaders['Access-Control-Allow-Origin'] === undefined) {
+					responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+					return callback({ cancel: false, responseHeaders });
+				}
+			}
+
+			return callback({ cancel: false });
+		});
+
+		//#endregion
+
 		//#region Code Cache
 
 		type SessionWithCodeCachePathSupport = Session & {
@@ -389,23 +407,23 @@ export class CodeApplication extends Disposable {
 
 			// All Windows: only allow about:blank auxiliary windows to open
 			// For all other URLs, delegate to the OS.
-			contents.setWindowOpenHandler(handler => {
+			contents.setWindowOpenHandler(details => {
 
 				// about:blank windows can open as window witho our default options
-				if (handler.url === 'about:blank') {
+				if (details.url === 'about:blank') {
 					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow()
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow(details)
 					};
 				}
 
 				// Any other URL: delegate to OS
 				else {
-					this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${handler.url}}`);
+					this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${details.url}}`);
 
-					this.nativeHostMainService?.openExternal(undefined, handler.url);
+					this.nativeHostMainService?.openExternal(undefined, details.url);
 
 					return { action: 'deny' };
 				}
@@ -497,6 +515,13 @@ export class CodeApplication extends Disposable {
 		validatedIpcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
+
+		validatedIpcMain.handle('vscode:notifyZoomLevel', async (event, zoomLevel: number | undefined) => {
+			const window = this.windowsMainService?.getWindowById(event.sender.id);
+			if (window) {
+				window.notifyZoomLevel(zoomLevel);
+			}
+		});
 
 		//#endregion
 	}

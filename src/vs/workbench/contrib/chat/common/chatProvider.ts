@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -13,7 +14,6 @@ export const enum ChatMessageRole {
 	System,
 	User,
 	Assistant,
-	Function,
 }
 
 export interface IChatMessage {
@@ -29,13 +29,13 @@ export interface IChatResponseFragment {
 
 export interface IChatResponseProviderMetadata {
 	readonly extension: ExtensionIdentifier;
-	readonly displayName: string;
+	readonly model: string;
 	readonly description?: string;
 }
 
 export interface IChatResponseProvider {
 	metadata: IChatResponseProviderMetadata;
-	provideChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	provideChatResponse(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
 export const IChatProviderService = createDecorator<IChatProviderService>('chatProviderService');
@@ -44,9 +44,15 @@ export interface IChatProviderService {
 
 	readonly _serviceBrand: undefined;
 
+	onDidChangeProviders: Event<{ added?: string[]; removed?: string[] }>;
+
+	getProviders(): string[];
+
+	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined;
+
 	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable;
 
-	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	fetchChatResponse(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
 export class ChatProviderService implements IChatProviderService {
@@ -54,20 +60,40 @@ export class ChatProviderService implements IChatProviderService {
 
 	private readonly _providers: Map<string, IChatResponseProvider> = new Map();
 
+	private readonly _onDidChangeProviders = new Emitter<{ added?: string[]; removed?: string[] }>();
+	readonly onDidChangeProviders: Event<{ added?: string[]; removed?: string[] }> = this._onDidChangeProviders.event;
+
+	dispose() {
+		this._onDidChangeProviders.dispose();
+		this._providers.clear();
+	}
+
+	getProviders(): string[] {
+		return Array.from(this._providers.keys());
+	}
+
+	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined {
+		return this._providers.get(identifier)?.metadata;
+	}
 
 	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable {
 		if (this._providers.has(identifier)) {
 			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
 		}
 		this._providers.set(identifier, provider);
-		return toDisposable(() => this._providers.delete(identifier));
+		this._onDidChangeProviders.fire({ added: [identifier] });
+		return toDisposable(() => {
+			if (this._providers.delete(identifier)) {
+				this._onDidChangeProviders.fire({ removed: [identifier] });
+			}
+		});
 	}
 
-	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
+	fetchChatResponse(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
 		const provider = this._providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
 		}
-		return provider.provideChatResponse(messages, options, progress, token);
+		return provider.provideChatResponse(messages, from, options, progress, token);
 	}
 }

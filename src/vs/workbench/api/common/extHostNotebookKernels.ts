@@ -18,13 +18,14 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2 } from 'vs/workbench/api/common/extHostTypes';
+import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
 import { INotebookKernelSourceAction, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as vscode from 'vscode';
+import { variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier;
@@ -125,6 +126,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		//
 		let _executeHandler = handler ?? _defaultExecutHandler;
 		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | Thenable<void>) | undefined;
+		let _variableProvider: vscode.NotebookVariableProvider | undefined;
 
 		this._proxy.$addKernel(handle, data).catch(err => {
 			// this can happen when a kernel with that ID is already registered
@@ -206,6 +208,16 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_interruptHandler = value;
 				data.supportsInterrupt = Boolean(value);
 				_update();
+			},
+			set variableProvider(value) {
+				checkProposedApiEnabled(extension, 'notebookVariableProvider');
+				_variableProvider = value;
+				data.hasVariableProvider = !!value;
+				value?.onDidChangeVariables(e => that._proxy.$variablesUpdated(e.uri));
+				_update();
+			},
+			get variableProvider() {
+				return _variableProvider;
 			},
 			createNotebookCellExecution(cell) {
 				if (isDisposed) {
@@ -400,6 +412,59 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			const items = this._activeNotebookExecutions.get(document.uri);
 			if (handles.length && Array.isArray(items) && items.length) {
 				items.forEach(d => d.dispose());
+			}
+		}
+	}
+
+	private id = 0;
+	private variableStore: Record<string, vscode.Variable> = {};
+
+	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
+		const obj = this._kernelData.get(handle);
+		if (!obj) {
+			return;
+		}
+
+		const document = this._extHostNotebook.getNotebookDocument(URI.revive(notebookUri));
+		const variableProvider = obj.controller.variableProvider;
+		if (!variableProvider) {
+			return;
+		}
+
+		let parent: vscode.Variable | undefined = undefined;
+		if (parentId !== undefined) {
+			parent = this.variableStore[parentId];
+			if (!parent) {
+				// request for unknown parent
+				return;
+			}
+		} else {
+			// root request, clear store
+			this.variableStore = {};
+		}
+
+
+		const requestKind = kind === 'named' ? NotebookVariablesRequestKind.Named : NotebookVariablesRequestKind.Indexed;
+		const variableResults = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
+
+		let resultCount = 0;
+		for await (const result of variableResults) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const variable = {
+				id: this.id++,
+				name: result.variable.name,
+				value: result.variable.value,
+				type: result.variable.type,
+				hasNamedChildren: result.hasNamedChildren,
+				indexedChildrenCount: result.indexedChildrenCount
+			};
+			this.variableStore[variable.id] = result.variable;
+			this._proxy.$receiveVariable(requestId, variable);
+
+			if (resultCount++ >= variablePageSize) {
+				return;
 			}
 		}
 	}

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
+import { fromNow } from 'vs/base/common/date';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable, isDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import * as nls from 'vs/nls';
@@ -14,15 +14,19 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IAuthenticationCreateSessionOptions, AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationCreateSessionOptions, AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, AllowedExtension } from 'vs/workbench/services/authentication/common/authentication';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -34,7 +38,9 @@ interface IAccountUsage {
 	lastUsed: number;
 }
 
-export function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
+// TODO: make this account usage stuff a service
+
+function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
 	const accountKey = `${providerId}-${accountName}-usages`;
 	const storedUsages = storageService.get(accountKey, StorageScope.APPLICATION);
 	let usages: IAccountUsage[] = [];
@@ -49,7 +55,7 @@ export function readAccountUsages(storageService: IStorageService, providerId: s
 	return usages;
 }
 
-export function removeAccountUsage(storageService: IStorageService, providerId: string, accountName: string): void {
+function removeAccountUsage(storageService: IStorageService, providerId: string, accountName: string): void {
 	const accountKey = `${providerId}-${accountName}-usages`;
 	storageService.remove(accountKey, StorageScope.APPLICATION);
 }
@@ -101,24 +107,6 @@ export async function getCurrentAuthenticationSessionInfo(
 	return undefined;
 }
 
-export interface AllowedExtension {
-	id: string;
-	name: string;
-	allowed?: boolean;
-}
-
-export function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
-	let trustedExtensions: AllowedExtension[] = [];
-	try {
-		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.APPLICATION);
-		if (trustedExtensionSrc) {
-			trustedExtensions = JSON.parse(trustedExtensionSrc);
-		}
-	} catch (err) { }
-
-	return trustedExtensions;
-}
-
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';
 
@@ -167,6 +155,53 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 	}
 });
 
+class AuthenticationDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.authentication;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const authentication = manifest.contributes?.authentication || [];
+		if (!authentication.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('authenticationlabel', "Label"),
+			nls.localize('authenticationid', "ID"),
+		];
+
+		const rows: IRowData[][] = authentication
+			.sort((a, b) => a.label.localeCompare(b.label))
+			.map(auth => {
+				return [
+					auth.label,
+					auth.id,
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'authentication',
+	label: nls.localize('authentication', "Authentication"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(AuthenticationDataRenderer),
+});
+
 let placeholderMenuItem: IDisposable | undefined = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 	command: {
 		id: 'noAuthenticationProviders',
@@ -182,6 +217,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _accountBadgeDisposable = this._register(new MutableDisposable());
 
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
+	private _authenticationProviderDisposables: DisposableMap<string, IDisposable> = this._register(new DisposableMap<string, IDisposable>());
 
 	/**
 	 * All providers that have been statically declared by extensions. These may not be registered.
@@ -200,6 +236,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _onDidChangeDeclaredProviders: Emitter<AuthenticationProviderInformation[]> = this._register(new Emitter<AuthenticationProviderInformation[]>());
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]> = this._onDidChangeDeclaredProviders.event;
 
+	private _onDidChangeExtensionSessionAccess: Emitter<{ providerId: string; accountName: string }> = this._register(new Emitter<{ providerId: string; accountName: string }>());
+	readonly onDidChangeExtensionSessionAccess: Event<{ providerId: string; accountName: string }> = this._onDidChangeExtensionSessionAccess.event;
+
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -207,9 +246,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IProductService private readonly productService: IProductService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
+		environmentService.options?.authenticationProviders?.forEach(provider => this.registerAuthenticationProvider(provider.id, provider));
 		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
 			added.forEach(point => {
 				for (const provider of point.value) {
@@ -231,7 +272,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				}
 			});
 
-			const removedExtPoints = flatten(removed.map(r => r.value));
+			const removedExtPoints = removed.flatMap(r => r.value);
 			removedExtPoints.forEach(point => {
 				const index = this.declaredProviders.findIndex(provider => provider.id === point.id);
 				if (index > -1) {
@@ -257,6 +298,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	registerAuthenticationProvider(id: string, authenticationProvider: IAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
+		const disposableStore = new DisposableStore();
+		disposableStore.add(authenticationProvider.onDidChangeSessions(e => this.sessionsUpdate(authenticationProvider, e)));
+		if (isDisposable(authenticationProvider)) {
+			disposableStore.add(authenticationProvider);
+		}
+		this._authenticationProviderDisposables.set(id, disposableStore);
 		this._onDidRegisterAuthenticationProvider.fire({ id, label: authenticationProvider.label });
 
 		if (placeholderMenuItem) {
@@ -268,7 +315,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	unregisterAuthenticationProvider(id: string): void {
 		const provider = this._authenticationProviders.get(id);
 		if (provider) {
-			provider.dispose();
 			this._authenticationProviders.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 
@@ -277,6 +323,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				this.removeAccessRequest(id, extensionId);
 			});
 		}
+		this._authenticationProviderDisposables.deleteAndDispose(id);
 
 		if (!this._authenticationProviders.size) {
 			placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
@@ -289,21 +336,15 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async sessionsUpdate(id: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
-		const provider = this._authenticationProviders.get(id);
-		if (provider) {
-			this._onDidChangeSessions.fire({ providerId: id, label: provider.label, event: event });
-
-			if (event.added) {
-				await this.updateNewSessionRequests(provider, event.added);
-			}
-
-			if (event.removed) {
-				await this.updateAccessRequests(id, event.removed);
-			}
-
-			this.updateBadgeCount();
+	private async sessionsUpdate(provider: IAuthenticationProvider, event: AuthenticationSessionsChangeEvent): Promise<void> {
+		this._onDidChangeSessions.fire({ providerId: provider.id, label: provider.label, event });
+		if (event.added?.length) {
+			await this.updateNewSessionRequests(provider, event.added);
 		}
+		if (event.removed?.length) {
+			await this.updateAccessRequests(provider.id, event.removed);
+		}
+		this.updateBadgeCount();
 	}
 
 	private async updateNewSessionRequests(provider: IAuthenticationProvider, addedSessions: readonly AuthenticationSession[]): Promise<void> {
@@ -383,24 +424,28 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	 * if they haven't made a choice yet
 	 */
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const extensionData = allowList.find(extension => extension.id === extensionId);
-		if (extensionData) {
-			// This property didn't exist on this data previously, inclusion in the list at all indicates allowance
-			return extensionData.allowed !== undefined
-				? extensionData.allowed
-				: true;
-		}
-
-		if (this.productService.trustedExtensionAuthAccess?.includes(extensionId)) {
+		const trustedExtensionAuthAccess = this.productService.trustedExtensionAuthAccess;
+		if (Array.isArray(trustedExtensionAuthAccess)) {
+			if (trustedExtensionAuthAccess.includes(extensionId)) {
+				return true;
+			}
+		} else if (trustedExtensionAuthAccess?.[providerId]?.includes(extensionId)) {
 			return true;
 		}
 
-		return undefined;
+		const allowList = this.readAllowedExtensions(providerId, accountName);
+		const extensionData = allowList.find(extension => extension.id === extensionId);
+		if (!extensionData) {
+			return undefined;
+		}
+		// This property didn't exist on this data previously, inclusion in the list at all indicates allowance
+		return extensionData.allowed !== undefined
+			? extensionData.allowed
+			: true;
 	}
 
 	updateAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): void {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
+		const allowList = this.readAllowedExtensions(providerId, accountName);
 		const index = allowList.findIndex(extension => extension.id === extensionId);
 		if (index === -1) {
 			allowList.push({ id: extensionId, name: extensionName, allowed: isAllowed });
@@ -767,21 +812,176 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
+	// TODO: pull this stuff out into its own service
+	readAllowedExtensions(providerId: string, accountName: string): AllowedExtension[] {
+		let trustedExtensions: AllowedExtension[] = [];
+		try {
+			const trustedExtensionSrc = this.storageService.get(`${providerId}-${accountName}`, StorageScope.APPLICATION);
+			if (trustedExtensionSrc) {
+				trustedExtensions = JSON.parse(trustedExtensionSrc);
+			}
+		} catch (err) { }
+
+		return trustedExtensions;
+	}
+
+	// TODO: pull this out into an Action in a contribution
 	async manageTrustedExtensionsForAccount(id: string, accountName: string): Promise<void> {
 		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.manageTrustedExtensions(accountName);
-		} else {
+		if (!authProvider) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
+
+		const allowedExtensions = this.readAllowedExtensions(authProvider.id, accountName);
+		const trustedExtensionAuthAccess = this.productService.trustedExtensionAuthAccess;
+		const trustedExtensionIds =
+			// Case 1: trustedExtensionAuthAccess is an array
+			Array.isArray(trustedExtensionAuthAccess)
+				? trustedExtensionAuthAccess
+				// Case 2: trustedExtensionAuthAccess is an object
+				: typeof trustedExtensionAuthAccess === 'object'
+					? trustedExtensionAuthAccess[authProvider.id] ?? []
+					: [];
+		for (const extensionId of trustedExtensionIds) {
+			const allowedExtension = allowedExtensions.find(ext => ext.id === extensionId);
+			if (!allowedExtension) {
+				// Add the extension to the allowedExtensions list
+				const extension = await this.extensionService.getExtension(extensionId);
+				if (extension) {
+					allowedExtensions.push({
+						id: extensionId,
+						name: extension.displayName || extension.name,
+						allowed: true,
+						trusted: true
+					});
+				}
+			} else {
+				// Update the extension to be allowed
+				allowedExtension.allowed = true;
+				allowedExtension.trusted = true;
+			}
+		}
+
+		if (!allowedExtensions.length) {
+			this.dialogService.info(nls.localize('noTrustedExtensions', "This account has not been used by any extensions."));
+			return;
+		}
+
+		interface TrustedExtensionsQuickPickItem extends IQuickPickItem {
+			extension: AllowedExtension;
+			lastUsed?: number;
+		}
+
+		const disposableStore = new DisposableStore();
+		const quickPick = disposableStore.add(this.quickInputService.createQuickPick<TrustedExtensionsQuickPickItem>());
+		quickPick.canSelectMany = true;
+		quickPick.customButton = true;
+		quickPick.customLabel = nls.localize('manageTrustedExtensions.cancel', 'Cancel');
+		const usages = readAccountUsages(this.storageService, authProvider.id, accountName);
+		const trustedExtensions = [];
+		const otherExtensions = [];
+		for (const extension of allowedExtensions) {
+			const usage = usages.find(usage => extension.id === usage.extensionId);
+			extension.lastUsed = usage?.lastUsed;
+			if (extension.trusted) {
+				trustedExtensions.push(extension);
+			} else {
+				otherExtensions.push(extension);
+			}
+		}
+
+		const sortByLastUsed = (a: AllowedExtension, b: AllowedExtension) => (b.lastUsed || 0) - (a.lastUsed || 0);
+		const toQuickPickItem = function (extension: AllowedExtension) {
+			const lastUsed = extension.lastUsed;
+			const description = lastUsed
+				? nls.localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "Last used this account {0}", fromNow(lastUsed, true))
+				: nls.localize('notUsed', "Has not used this account");
+			let tooltip: string | undefined;
+			if (extension.trusted) {
+				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and\nalways has access to this account");
+			}
+			return {
+				label: extension.name,
+				extension,
+				description,
+				tooltip
+			};
+		};
+		const items: Array<TrustedExtensionsQuickPickItem | IQuickPickSeparator> = [
+			...otherExtensions.sort(sortByLastUsed).map(toQuickPickItem),
+			{ type: 'separator', label: nls.localize('trustedExtensions', "Trusted by Microsoft") },
+			...trustedExtensions.sort(sortByLastUsed).map(toQuickPickItem)
+		];
+
+		quickPick.items = items;
+		quickPick.selectedItems = items.filter((item): item is TrustedExtensionsQuickPickItem => item.type !== 'separator' && (item.extension.allowed === undefined || item.extension.allowed));
+		quickPick.title = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
+		quickPick.placeholder = nls.localize('manageExtensions', "Choose which extensions can access this account");
+
+		disposableStore.add(quickPick.onDidAccept(() => {
+			const updatedAllowedList = quickPick.items
+				.filter((item): item is TrustedExtensionsQuickPickItem => item.type !== 'separator')
+				.map(i => i.extension);
+			this.storageService.store(`${authProvider.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.APPLICATION, StorageTarget.USER);
+			this._onDidChangeExtensionSessionAccess.fire({ providerId: authProvider.id, accountName });
+			quickPick.hide();
+		}));
+
+		disposableStore.add(quickPick.onDidChangeSelection((changed) => {
+			const trustedItems = new Set<TrustedExtensionsQuickPickItem>();
+			quickPick.items.forEach(item => {
+				const trustItem = item as TrustedExtensionsQuickPickItem;
+				if (trustItem.extension) {
+					if (trustItem.extension.trusted) {
+						trustedItems.add(trustItem);
+					} else {
+						trustItem.extension.allowed = false;
+					}
+				}
+			});
+			changed.forEach((item) => {
+				item.extension.allowed = true;
+				trustedItems.delete(item);
+			});
+
+			// reselect trusted items if a user tried to unselect one since quick pick doesn't support forcing selection
+			if (trustedItems.size) {
+				quickPick.selectedItems = [...changed, ...trustedItems];
+			}
+		}));
+
+		disposableStore.add(quickPick.onDidHide(() => {
+			disposableStore.dispose();
+		}));
+
+		disposableStore.add(quickPick.onDidCustom(() => {
+			quickPick.hide();
+		}));
+
+		quickPick.show();
 	}
 
 	async removeAccountSessions(id: string, accountName: string, sessions: AuthenticationSession[]): Promise<void> {
 		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.removeAccountSessions(accountName, sessions);
-		} else {
+		if (!authProvider) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
+		}
+
+		const accountUsages = readAccountUsages(this.storageService, authProvider.id, accountName);
+
+		const { confirmed } = await this.dialogService.confirm({
+			type: Severity.Info,
+			message: accountUsages.length
+				? nls.localize('signOutMessage', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
+				: nls.localize('signOutMessageSimple', "Sign out of '{0}'?", accountName),
+			primaryButton: nls.localize({ key: 'signOut', comment: ['&& denotes a mnemonic'] }, "&&Sign Out")
+		});
+
+		if (confirmed) {
+			const removeSessionPromises = sessions.map(session => authProvider.removeSession(session.id));
+			await Promise.all(removeSessionPromises);
+			removeAccountUsage(this.storageService, authProvider.id, accountName);
+			this.storageService.remove(`${authProvider.id}-${accountName}`, StorageScope.APPLICATION);
 		}
 	}
 }

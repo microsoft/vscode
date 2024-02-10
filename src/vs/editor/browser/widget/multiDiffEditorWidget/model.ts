@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
+import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 
-export interface IMultiDocumentDiffEditorModel {
-	readonly diffs: LazyPromise<IDiffEntry>[];
+export interface IMultiDiffEditorModel {
+	readonly documents: readonly LazyPromise<IDocumentDiffItem>[];
 	readonly onDidChange: Event<void>;
+	readonly contextKeys?: Record<string, ContextKeyValue>;
 }
 
 export interface LazyPromise<T> {
@@ -33,8 +36,16 @@ export class ConstLazyPromise<T> implements LazyPromise<T> {
 	}
 }
 
-export interface IDiffEntry {
-	readonly title: string;
-	readonly original: ITextModel | undefined; // undefined if the file was created.
-	readonly modified: ITextModel | undefined; // undefined if the file was deleted.
+export interface IDocumentDiffItem {
+	/**
+	 * undefined if the file was created.
+	 */
+	readonly original: ITextModel | undefined;
+
+	/**
+	 * undefined if the file was deleted.
+	 */
+	readonly modified: ITextModel | undefined;
+	readonly options?: IDiffEditorOptions;
+	readonly onOptionsDidChange?: Event<void>;
 }

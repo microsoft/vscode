@@ -1532,7 +1532,7 @@ suite('EditorGroupModel', () => {
 
 		// Close Left
 		assert.strictEqual(group.activeEditor, input3);
-		closeEditors(group, group.activeEditor!, CloseDirection.LEFT);
+		closeEditors(group, group.activeEditor, CloseDirection.LEFT);
 		assert.strictEqual(group.activeEditor, input3);
 		assert.strictEqual(group.count, 3);
 		assert.strictEqual(group.getEditors(EditorsOrder.SEQUENTIAL)[0], input3);
@@ -1549,7 +1549,7 @@ suite('EditorGroupModel', () => {
 
 		// Close Right
 		assert.strictEqual(group.activeEditor, input3);
-		closeEditors(group, group.activeEditor!, CloseDirection.RIGHT);
+		closeEditors(group, group.activeEditor, CloseDirection.RIGHT);
 		assert.strictEqual(group.activeEditor, input3);
 		assert.strictEqual(group.count, 3);
 		assert.strictEqual(group.getEditors(EditorsOrder.SEQUENTIAL)[0], input1);

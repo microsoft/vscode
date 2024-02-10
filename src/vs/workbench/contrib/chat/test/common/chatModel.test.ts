@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
@@ -17,7 +17,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -112,7 +111,7 @@ suite('ChatModel', () => {
 		model.startInitialize();
 		model.initialize({} as any, undefined);
 		const text = 'hello';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] });
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { message: text, variables: {} });
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1);
 
@@ -122,6 +121,8 @@ suite('ChatModel', () => {
 });
 
 suite('Response', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('content, markdown', async () => {
 		const response = new Response([]);
 		response.updateContent({ content: 'text', kind: 'content' });
@@ -137,20 +138,6 @@ suite('Response', () => {
 		response.updateContent({ content: 'text', kind: 'content' });
 		await assertSnapshot(response.value);
 	});
-
-	test('async content', async () => {
-		const response = new Response([]);
-		const deferred = new DeferredPromise<string>();
-		const deferred2 = new DeferredPromise<IChatTreeData>();
-		response.updateContent({ resolvedContent: deferred.p, content: 'text', kind: 'asyncContent' });
-		response.updateContent({ resolvedContent: deferred2.p, content: 'text2', kind: 'asyncContent' });
-		await assertSnapshot(response.value);
-
-		await deferred2.complete({ kind: 'treeData', treeData: { label: 'label', uri: URI.parse('https://microsoft.com') } });
-		await deferred.complete('resolved');
-		await assertSnapshot(response.value);
-	});
-
 
 	test('inline reference', async () => {
 		const response = new Response([]);

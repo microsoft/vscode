@@ -10,15 +10,21 @@ declare module 'vscode' {
 		part: string;
 	}
 
+	// @API extension ship a d.ts files for their options
+
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	 */
 	export interface ChatResponseProvider {
-		provideChatResponse(messages: ChatMessage[], options: { [name: string]: any }, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse(messages: ChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 	}
 
 	export interface ChatResponseProviderMetadata {
-		// TODO: add way to compute token count
+		/**
+		 * The name of the model that is used for this chat access. It is expected that the model name can
+		 * be used to lookup properties like token limits and ChatML support
+		 */
+		// TODO@API rename to model
 		name: string;
 	}
 

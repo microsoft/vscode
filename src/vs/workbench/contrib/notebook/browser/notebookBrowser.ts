@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CodeWindow } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -158,6 +159,7 @@ export interface IFocusNotebookCellOptions {
 	readonly revealBehavior?: ScrollToRevealBehavior | undefined;
 	readonly outputId?: string;
 	readonly altOutputId?: string;
+	readonly outputWebviewFocused?: boolean;
 }
 
 //#endregion
@@ -171,6 +173,7 @@ export enum CellLayoutState {
 
 export interface CodeCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
+	readonly chatHeight: number;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly estimatedHasHorizontalScrolling: boolean;
@@ -189,6 +192,7 @@ export interface CodeCellLayoutInfo {
 
 export interface CodeCellLayoutChangeEvent {
 	readonly source?: string;
+	readonly chatHeight?: boolean;
 	readonly editorHeight?: boolean;
 	readonly commentHeight?: boolean;
 	readonly outputHeight?: boolean;
@@ -200,6 +204,7 @@ export interface CodeCellLayoutChangeEvent {
 
 export interface MarkupCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
+	readonly chatHeight: number;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
 	readonly statusBarHeight: number;
@@ -232,7 +237,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; editorHeight: number; statusBarHeight: number };
+	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; editorHeight: number; statusBarHeight: number; chatHeight: number };
 	readonly onDidChangeLayout: Event<ICommonCellViewModelLayoutChangeInfo>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>;
@@ -249,7 +254,9 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly mime: string;
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
+	chatHeight: number;
 	focusMode: CellFocusMode;
+	focusedOutputId?: string | undefined;
 	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;
@@ -372,6 +379,7 @@ export interface INotebookEditorCreationOptions {
 		cellExecutePrimary?: MenuId;
 	};
 	readonly options?: NotebookOptions;
+	readonly codeWindow?: CodeWindow;
 }
 
 export interface INotebookWebviewMessage {
@@ -408,6 +416,21 @@ export interface IModelDecorationsChangeAccessor {
 	deltaDecorations(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[];
 }
 
+export interface INotebookViewZone {
+	/**
+	 * Use 0 to place a view zone before the first cell
+	 */
+	afterModelPosition: number;
+	domNode: HTMLElement;
+
+	heightInPx: number;
+}
+
+export interface INotebookViewZoneChangeAccessor {
+	addZone(zone: INotebookViewZone): string;
+	removeZone(id: string): void;
+	layoutZone(id: string): void;
+}
 
 export type NotebookViewCellsSplice = [
 	number /* start */,
@@ -588,7 +611,7 @@ export interface INotebookEditor {
 	/**
 	 * Reveal cell into viewport.
 	 */
-	revealInView(cell: ICellViewModel): void;
+	revealInView(cell: ICellViewModel): Promise<void>;
 
 	/**
 	 * Reveal cell into the top of viewport.
@@ -603,7 +626,7 @@ export interface INotebookEditor {
 	/**
 	 * Reveal cell into viewport center if cell is currently out of the viewport.
 	 */
-	revealInCenterIfOutsideViewport(cell: ICellViewModel): void;
+	revealInCenterIfOutsideViewport(cell: ICellViewModel): Promise<void>;
 
 	/**
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.
@@ -669,6 +692,8 @@ export interface INotebookEditor {
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
+
+	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
 
 	/**
 	 * Get a contribution of this editor.
@@ -798,7 +823,8 @@ export enum CellEditState {
 export enum CellFocusMode {
 	Container,
 	Editor,
-	Output
+	Output,
+	ChatInput
 }
 
 export enum CursorAtBoundary {

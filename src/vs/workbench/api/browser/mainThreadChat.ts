@@ -28,12 +28,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
-
-		this._register(this._chatService.onDidPerformUserAction(e => {
-			if (!e.agentId) {
-				this._proxy.$onDidPerformUserAction(e);
-			}
-		}));
 	}
 
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void {
@@ -55,7 +49,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 		const unreg = this._chatService.registerProvider({
 			id,
-			displayName: registration.label,
 			prepareSession: async (token) => {
 				const session = await this._proxy.$prepareChat(handle, token);
 				if (!session) {
@@ -80,12 +73,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 						this._proxy.$releaseSession(session.id);
 					}
 				};
-			},
-			provideWelcomeMessage: (token) => {
-				return this._proxy.$provideWelcomeMessage(handle, token);
-			},
-			provideSampleQuestions: (token) => {
-				return this._proxy.$provideSampleQuestions(handle, token);
 			},
 		});
 

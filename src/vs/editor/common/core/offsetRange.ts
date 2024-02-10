@@ -112,6 +112,12 @@ export class OffsetRange implements IOffsetRange {
 		return undefined;
 	}
 
+	public intersects(other: OffsetRange): boolean {
+		const start = Math.max(this.start, other.start);
+		const end = Math.min(this.endExclusive, other.endExclusive);
+		return start < end;
+	}
+
 	public intersectsOrTouches(other: OffsetRange): boolean {
 		const start = Math.max(this.start, other.start);
 		const end = Math.min(this.endExclusive, other.endExclusive);
@@ -128,6 +134,10 @@ export class OffsetRange implements IOffsetRange {
 
 	public slice<T>(arr: T[]): T[] {
 		return arr.slice(this.start, this.endExclusive);
+	}
+
+	public substring(str: string): string {
+		return str.substring(this.start, this.endExclusive);
 	}
 
 	/**

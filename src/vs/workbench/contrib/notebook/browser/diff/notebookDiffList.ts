@@ -26,7 +26,7 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -35,10 +35,11 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Di
 	private readonly lineHeight: number;
 
 	constructor(
+		targetWindow: Window,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
 	}
 
 	getHeight(element: DiffElementViewModelBase): number {
@@ -443,11 +444,11 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
-		if (styles.listDropBackground) {
+		if (styles.listDropOverBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropOverBackground} !important; color: inherit !important; }
 			`);
 		}
 

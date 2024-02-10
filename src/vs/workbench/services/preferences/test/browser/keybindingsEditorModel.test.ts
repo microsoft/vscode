@@ -41,9 +41,9 @@ suite('KeybindingsEditorModel', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
-			get extensions() { return extensions; }
+			get extensions() { return extensions as IExtensionDescription[]; }
 		});
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OS));
 
@@ -140,7 +140,6 @@ suite('KeybindingsEditorModel', () => {
 		);
 
 		registerCommandWithTitle(keybindings[1].command!, 'Same Title');
-		registerCommandWithTitle(keybindings[3].command!, 'Same Title');
 		const expected = [keybindings[3], keybindings[1], keybindings[0], keybindings[2]];
 
 		await testObject.resolve(new Map<string, string>());
@@ -728,7 +727,7 @@ suite('KeybindingsEditorModel', () => {
 		assert.strictEqual(actual.command, expected.command);
 		if (actual.when) {
 			assert.ok(!!expected.when);
-			assert.strictEqual(actual.when.serialize(), expected.when!.serialize());
+			assert.strictEqual(actual.when.serialize(), expected.when.serialize());
 		} else {
 			assert.ok(!expected.when);
 		}
@@ -736,7 +735,7 @@ suite('KeybindingsEditorModel', () => {
 
 		if (actual.resolvedKeybinding) {
 			assert.ok(!!expected.resolvedKeybinding);
-			assert.strictEqual(actual.resolvedKeybinding.getLabel(), expected.resolvedKeybinding!.getLabel());
+			assert.strictEqual(actual.resolvedKeybinding.getLabel(), expected.resolvedKeybinding.getLabel());
 		} else {
 			assert.ok(!expected.resolvedKeybinding);
 		}

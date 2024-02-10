@@ -17,7 +17,6 @@ const task = require('./lib/task');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const dependenciesGenerator = require('./linux/dependencies-generator');
-const sysrootInstaller = require('./linux/debian/install-sysroot');
 const debianRecommendedDependencies = require('./linux/debian/dep-lists').recommendedDeps;
 const path = require('path');
 const root = path.dirname(__dirname);
@@ -82,8 +81,7 @@ function prepareDebPackage(arch) {
 			function (f) { size += f.isDirectory() ? 4096 : f.contents.length; },
 			async function () {
 				const that = this;
-				const sysroot = await sysrootInstaller.getSysroot(debArch);
-				const dependencies = dependenciesGenerator.getDependencies('deb', binaryDir, product.applicationName, debArch, sysroot);
+				const dependencies = await dependenciesGenerator.getDependencies('deb', binaryDir, product.applicationName, debArch);
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
 					.pipe(replace('@@VERSION@@', packageJson.version + '-' + linuxPackageRevision))
@@ -186,19 +184,24 @@ function prepareRpmPackage(arch) {
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
-		const dependencies = dependenciesGenerator.getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
-		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
-			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@NAME_LONG@@', product.nameLong))
-			.pipe(replace('@@ICON@@', product.linuxIconName))
-			.pipe(replace('@@VERSION@@', packageJson.version))
-			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
-			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
-			.pipe(replace('@@LICENSE@@', product.licenseName))
-			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
-			.pipe(replace('@@DEPENDENCIES@@', dependencies.join(', ')))
-			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
+		const spec = code.pipe(es.through(
+			async function () {
+				const that = this;
+				const dependencies = await dependenciesGenerator.getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
+				gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
+					.pipe(replace('@@NAME@@', product.applicationName))
+					.pipe(replace('@@NAME_LONG@@', product.nameLong))
+					.pipe(replace('@@ICON@@', product.linuxIconName))
+					.pipe(replace('@@VERSION@@', packageJson.version))
+					.pipe(replace('@@RELEASE@@', linuxPackageRevision))
+					.pipe(replace('@@ARCHITECTURE@@', rpmArch))
+					.pipe(replace('@@LICENSE@@', product.licenseName))
+					.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+					.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
+					.pipe(replace('@@DEPENDENCIES@@', dependencies.join(', ')))
+					.pipe(rename('SPECS/' + product.applicationName + '.spec'))
+					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
+			}));
 
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));

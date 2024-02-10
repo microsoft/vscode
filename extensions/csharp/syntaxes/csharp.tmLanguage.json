@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/6666eb1d5e6fb565a4110d6db645cc534fb3c6d2",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/7a7482ffc72a6677a87eb1ed76005593a4f7f131",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -165,6 +165,9 @@
 					"include": "#comment"
 				},
 				{
+					"include": "#storage-modifier"
+				},
+				{
 					"include": "#property-declaration"
 				},
 				{
@@ -175,6 +178,9 @@
 				},
 				{
 					"include": "#method-declaration"
+				},
+				{
+					"include": "#operator-declaration"
 				},
 				{
 					"include": "#attribute-section"
@@ -232,7 +238,7 @@
 					"include": "#try-statement"
 				},
 				{
-					"include": "#checked-unchecked-statement"
+					"include": "#expression-operator-expression"
 				},
 				{
 					"include": "#context-control-statement"
@@ -1049,6 +1055,18 @@
 				{
 					"name": "storage.type.struct.cs",
 					"match": "\\bstruct\\b"
+				},
+				{
+					"name": "keyword.other.constraint.default.cs",
+					"match": "\\bdefault\\b"
+				},
+				{
+					"name": "keyword.other.constraint.notnull.cs",
+					"match": "\\bnotnull\\b"
+				},
+				{
+					"name": "keyword.other.constraint.unmanaged.cs",
+					"match": "\\bunmanaged\\b"
 				},
 				{
 					"match": "(new)\\s*(\\()\\s*(\\))",
@@ -2632,7 +2650,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "(?=[^;\\)])",
 							"end": "(?=;|\\))",
 							"patterns": [
 								{
@@ -2695,22 +2713,25 @@
 							"include": "#intrusive"
 						},
 						{
-							"match": "(?x)\n(?:\n  (\\bvar\\b)|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s+\n\\b(in)\\b",
+							"match": "(?x)\n(?:\n  (?:(\\bref)\\s+)?(\\bvar\\b)| # ref local\n  (?<type_name>\n    (?:\n      (?:ref\\s+)?   # ref local\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s+\n\\b(in)\\b",
 							"captures": {
 								"1": {
-									"name": "storage.type.var.cs"
+									"name": "storage.modifier.ref.cs"
 								},
 								"2": {
+									"name": "storage.type.var.cs"
+								},
+								"3": {
 									"patterns": [
 										{
 											"include": "#type"
 										}
 									]
 								},
-								"7": {
+								"8": {
 									"name": "entity.name.variable.local.cs"
 								},
-								"8": {
+								"9": {
 									"name": "keyword.control.loop.in.cs"
 								}
 							}
@@ -3824,7 +3845,7 @@
 		},
 		"char-character-escape": {
 			"name": "constant.character.escape.cs",
-			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})"
+			"match": "\\\\(x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4}|.)"
 		},
 		"string-literal": {
 			"name": "string.quoted.double.cs",
@@ -3851,7 +3872,7 @@
 		},
 		"string-character-escape": {
 			"name": "constant.character.escape.cs",
-			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4})"
+			"match": "\\\\(x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4}|.)"
 		},
 		"verbatim-string-literal": {
 			"name": "string.quoted.double.cs",

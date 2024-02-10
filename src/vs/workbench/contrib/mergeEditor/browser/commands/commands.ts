@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { basename } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -81,7 +81,7 @@ export class OpenMergeEditor extends Action2 {
 	constructor() {
 		super({
 			id: '_open.mergeEditor',
-			title: { value: localize('title', "Open Merge Editor"), original: 'Open Merge Editor' },
+			title: localize2('title', 'Open Merge Editor'),
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
@@ -172,10 +172,7 @@ export class SetMixedLayout extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.mixedLayout',
-			title: {
-				value: localize('layout.mixed', 'Mixed Layout'),
-				original: 'Mixed Layout',
-			},
+			title: localize2('layout.mixed', "Mixed Layout"),
 			toggled: ctxMergeEditorLayout.isEqualTo('mixed'),
 			menu: [
 				{
@@ -201,7 +198,7 @@ export class SetColumnLayout extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.columnLayout',
-			title: { value: localize('layout.column', "Column Layout"), original: 'Column Layout' },
+			title: localize2('layout.column', 'Column Layout'),
 			toggled: ctxMergeEditorLayout.isEqualTo('columns'),
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -225,10 +222,7 @@ export class ShowNonConflictingChanges extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.showNonConflictingChanges',
-			title: {
-				value: localize('showNonConflictingChanges', 'Show Non-Conflicting Changes'),
-				original: 'Show Non-Conflicting Changes',
-			},
+			title: localize2('showNonConflictingChanges', "Show Non-Conflicting Changes"),
 			toggled: ctxMergeEditorShowNonConflictingChanges.isEqualTo(true),
 			menu: [
 				{
@@ -254,10 +248,7 @@ export class ShowHideBase extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.showBase',
-			title: {
-				value: localize('layout.showBase', 'Show Base'),
-				original: 'Show Base',
-			},
+			title: localize2('layout.showBase', "Show Base"),
 			toggled: ctxMergeEditorShowBase.isEqualTo(true),
 			menu: [
 				{
@@ -282,10 +273,7 @@ export class ShowHideTopBase extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.showBaseTop',
-			title: {
-				value: localize('layout.showBaseTop', 'Show Base Top'),
-				original: 'Show Base Top',
-			},
+			title: localize2('layout.showBaseTop', "Show Base Top"),
 			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop),
 			menu: [
 				{
@@ -310,10 +298,7 @@ export class ShowHideCenterBase extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.showBaseCenter',
-			title: {
-				value: localize('layout.showBaseCenter', 'Show Base Center'),
-				original: 'Show Base Center',
-			},
+			title: localize2('layout.showBaseCenter', "Show Base Center"),
 			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop.negate()),
 			menu: [
 				{
@@ -334,20 +319,14 @@ export class ShowHideCenterBase extends Action2 {
 	}
 }
 
-const mergeEditorCategory: ILocalizedString = {
-	value: localize('mergeEditor', 'Merge Editor'),
-	original: 'Merge Editor',
-};
+const mergeEditorCategory: ILocalizedString = localize2('mergeEditor', "Merge Editor");
 
 export class OpenResultResource extends MergeEditorAction {
 	constructor() {
 		super({
 			id: 'merge.openResult',
 			icon: Codicon.goToFile,
-			title: {
-				value: localize('openfile', 'Open File'),
-				original: 'Open File',
-			},
+			title: localize2('openfile', "Open File"),
 			category: mergeEditorCategory,
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -370,10 +349,7 @@ export class GoToNextUnhandledConflict extends MergeEditorAction {
 		super({
 			id: 'merge.goToNextUnhandledConflict',
 			category: mergeEditorCategory,
-			title: {
-				value: localize('merge.goToNextUnhandledConflict', 'Go to Next Unhandled Conflict'),
-				original: 'Go to Next Unhandled Conflict',
-			},
+			title: localize2('merge.goToNextUnhandledConflict', "Go to Next Unhandled Conflict"),
 			icon: Codicon.arrowDown,
 			menu: [
 				{
@@ -399,13 +375,7 @@ export class GoToPreviousUnhandledConflict extends MergeEditorAction {
 		super({
 			id: 'merge.goToPreviousUnhandledConflict',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'merge.goToPreviousUnhandledConflict',
-					'Go to Previous Unhandled Conflict'
-				),
-				original: 'Go to Previous Unhandled Conflict',
-			},
+			title: localize2('merge.goToPreviousUnhandledConflict', "Go to Previous Unhandled Conflict"),
 			icon: Codicon.arrowUp,
 			menu: [
 				{
@@ -431,13 +401,7 @@ export class ToggleActiveConflictInput1 extends MergeEditorAction {
 		super({
 			id: 'merge.toggleActiveConflictInput1',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'merge.toggleCurrentConflictFromLeft',
-					'Toggle Current Conflict from Left'
-				),
-				original: 'Toggle Current Conflict from Left',
-			},
+			title: localize2('merge.toggleCurrentConflictFromLeft', "Toggle Current Conflict from Left"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -453,13 +417,7 @@ export class ToggleActiveConflictInput2 extends MergeEditorAction {
 		super({
 			id: 'merge.toggleActiveConflictInput2',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'merge.toggleCurrentConflictFromRight',
-					'Toggle Current Conflict from Right'
-				),
-				original: 'Toggle Current Conflict from Right',
-			},
+			title: localize2('merge.toggleCurrentConflictFromRight', "Toggle Current Conflict from Right"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -475,17 +433,12 @@ export class CompareInput1WithBaseCommand extends MergeEditorAction {
 		super({
 			id: 'mergeEditor.compareInput1WithBase',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'mergeEditor.compareInput1WithBase',
-					'Compare Input 1 With Base'
-				),
-				original: 'Compare Input 1 With Base',
-			},
+			title: localize2('mergeEditor.compareInput1WithBase', "Compare Input 1 With Base"),
 			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInput1Toolbar }
+			menu: { id: MenuId.MergeInput1Toolbar, group: 'primary' },
+			icon: Codicon.compareChanges,
 		});
 	}
 
@@ -500,17 +453,12 @@ export class CompareInput2WithBaseCommand extends MergeEditorAction {
 		super({
 			id: 'mergeEditor.compareInput2WithBase',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'mergeEditor.compareInput2WithBase',
-					'Compare Input 2 With Base'
-				),
-				original: 'Compare Input 2 With Base',
-			},
+			title: localize2('mergeEditor.compareInput2WithBase', "Compare Input 2 With Base"),
 			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInput2Toolbar }
+			menu: { id: MenuId.MergeInput2Toolbar, group: 'primary' },
+			icon: Codicon.compareChanges,
 		});
 	}
 
@@ -548,10 +496,7 @@ export class OpenBaseFile extends MergeEditorAction {
 		super({
 			id: 'merge.openBaseEditor',
 			category: mergeEditorCategory,
-			title: {
-				value: localize('merge.openBaseEditor', 'Open Base File'),
-				original: 'Open Base File',
-			},
+			title: localize2('merge.openBaseEditor', "Open Base File"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
 		});
@@ -568,18 +513,11 @@ export class AcceptAllInput1 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput1',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'merge.acceptAllInput1',
-					'Accept All Changes from Left'
-				),
-				original: 'Accept All Changes from Left',
-			},
+			title: localize2('merge.acceptAllInput1', "Accept All Changes from Left"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: [
-				{ id: MenuId.MergeInput1Toolbar, }
-			]
+			menu: { id: MenuId.MergeInput1Toolbar, group: 'primary' },
+			icon: Codicon.checkAll,
 		});
 	}
 
@@ -593,18 +531,11 @@ export class AcceptAllInput2 extends MergeEditorAction {
 		super({
 			id: 'merge.acceptAllInput2',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'merge.acceptAllInput2',
-					'Accept All Changes from Right'
-				),
-				original: 'Accept All Changes from Right',
-			},
+			title: localize2('merge.acceptAllInput2', "Accept All Changes from Right"),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: [
-				{ id: MenuId.MergeInput2Toolbar, }
-			]
+			menu: { id: MenuId.MergeInput2Toolbar, group: 'primary' },
+			icon: Codicon.checkAll,
 		});
 	}
 
@@ -618,17 +549,12 @@ export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
 		super({
 			id: 'mergeEditor.resetResultToBaseAndAutoMerge',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'mergeEditor.resetResultToBaseAndAutoMerge',
-					'Reset Result'
-				),
-				original: 'Reset Result',
-			},
+			title: localize2('mergeEditor.resetResultToBaseAndAutoMerge', "Reset Result"),
 			shortTitle: localize('mergeEditor.resetResultToBaseAndAutoMerge.short', 'Reset'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInputResultToolbar }
+			menu: { id: MenuId.MergeInputResultToolbar, group: 'primary' },
+			icon: Codicon.discard,
 		});
 	}
 
@@ -642,13 +568,7 @@ export class ResetCloseWithConflictsChoice extends Action2 {
 		super({
 			id: 'mergeEditor.resetCloseWithConflictsChoice',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'mergeEditor.resetChoice',
-					'Reset Choice for \'Close with Conflicts\''
-				),
-				original: 'Reset Choice for \'Close with Conflicts\'',
-			},
+			title: localize2('mergeEditor.resetChoice', "Reset Choice for \'Close with Conflicts\'"),
 			f1: true,
 		});
 	}
@@ -663,13 +583,7 @@ export class AcceptMerge extends MergeEditorAction2 {
 		super({
 			id: 'mergeEditor.acceptMerge',
 			category: mergeEditorCategory,
-			title: {
-				value: localize(
-					'mergeEditor.acceptMerge',
-					'Complete Merge'
-				),
-				original: 'Complete Merge',
-			},
+			title: localize2('mergeEditor.acceptMerge', "Complete Merge"),
 			f1: false,
 			precondition: ctxIsMergeEditor
 		});

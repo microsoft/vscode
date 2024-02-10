@@ -23,7 +23,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: COPY_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.copyOutput', "Copy Output"),
+			title: localize('notebookActions.copyOutput', "Copy Cell Output"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
 				when: NOTEBOOK_CELL_HAS_OUTPUTS
@@ -33,7 +33,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel }): Promise<void> {
+	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
@@ -42,10 +42,26 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		}
 
 		let outputViewModel: ICellOutputViewModel | undefined;
-		if ('outputId' in outputContext && typeof outputContext.outputId === 'string') {
+		if (outputContext && 'outputId' in outputContext && typeof outputContext.outputId === 'string') {
 			outputViewModel = getOutputViewModelFromId(outputContext.outputId, notebookEditor);
-		} else {
+		} else if (outputContext && 'outputViewModel' in outputContext) {
 			outputViewModel = outputContext.outputViewModel;
+		}
+
+		if (!outputViewModel) {
+			// not able to find the output from the provided context, use the active cell
+			const activeCell = notebookEditor.getActiveCell();
+			if (!activeCell) {
+				return;
+			}
+
+			if (activeCell.focusedOutputId !== undefined) {
+				outputViewModel = activeCell.outputsViewModels.find(output => {
+					return output.model.outputId === activeCell.focusedOutputId;
+				});
+			} else {
+				outputViewModel = activeCell.outputsViewModels.find(output => output.pickedMimeType?.isTrusted);
+			}
 		}
 
 		if (!outputViewModel) {

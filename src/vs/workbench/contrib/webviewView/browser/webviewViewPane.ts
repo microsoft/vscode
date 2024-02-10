@@ -22,7 +22,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewBadge, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewBadge, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
@@ -198,7 +199,7 @@ export class WebviewViewPane extends ViewPane {
 
 		// Re-dispatch all drag events back to the drop target to support view drag drop
 		for (const event of [EventType.DRAG, EventType.DRAG_END, EventType.DRAG_ENTER, EventType.DRAG_LEAVE, EventType.DRAG_START]) {
-			this._webviewDisposables.add(addDisposableListener(this._webview.value.container!, event, e => {
+			this._webviewDisposables.add(addDisposableListener(this._webview.value.container, event, e => {
 				e.preventDefault();
 				e.stopImmediatePropagation();
 				this.dropTargetElement.dispatchEvent(new DragEvent(e.type, e));

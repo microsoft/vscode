@@ -12,6 +12,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IEditorCloseHandler {
 
@@ -36,6 +37,23 @@ export interface IEditorCloseHandler {
 	 * to show a combined dialog.
 	 */
 	confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+}
+
+export interface IUntypedEditorOptions {
+
+	/**
+	 * Implementations should try to preserve as much
+	 * view state as possible from the typed input based
+	 * on the group the editor is opened.
+	 */
+	readonly preserveViewState?: GroupIdentifier;
+
+	/**
+	 * Implementations should preserve the original
+	 * resource of the typed input and not alter
+	 * it.
+	 */
+	readonly preserveResource?: boolean;
 }
 
 /**
@@ -161,6 +179,14 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	getAriaLabel(): string {
 		return this.getTitle(Verbosity.SHORT);
+	}
+
+	/**
+	 * Returns the icon which represents this editor input.
+	 * If undefined, the default icon will be used.
+	 */
+	getIcon(): ThemeIcon | undefined {
+		return undefined;
 	}
 
 	/**
@@ -301,13 +327,8 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * editor input into a form that it can be restored.
 	 *
 	 * May return `undefined` if an untyped representation is not supported.
-	 *
-	 * @param options additional configuration for the expected return type.
-	 * When `preserveViewState` is provided, implementations should try to
-	 * preserve as much view state as possible from the typed input based on
-	 * the group the editor is opened.
 	 */
-	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined {
+	toUntyped(options?: IUntypedEditorOptions): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 

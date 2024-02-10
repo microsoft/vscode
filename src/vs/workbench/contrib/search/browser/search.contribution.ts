@@ -7,7 +7,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -16,8 +15,7 @@ import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/pl
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
@@ -28,9 +26,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
@@ -85,22 +81,6 @@ const viewDescriptor: IViewDescriptor = {
 // Register search default location to sidebar
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
 
-// Migrate search location setting to new model
-class RegisterSearchViewContribution implements IWorkbenchContribution {
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
-	) {
-		const data = configurationService.inspect('search.location');
-		if (data.value === 'panel') {
-			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel, 'search.location');
-		}
-		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
-			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
-	}
-}
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
-
 // Register Quick Access Handler
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
 
@@ -121,7 +101,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: SymbolsQuickAccessProvider.PREFIX,
 	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
 	contextKey: 'inWorkspaceSymbolsPicker',
-	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.ShowAllSymbolsActionId }]
+	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.SearchCommandIds.ShowAllSymbolsActionId }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
@@ -132,7 +112,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	helpEntries: [
 		{
 			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
-			commandId: Constants.QuickTextSearchActionId,
+			commandId: Constants.SearchCommandIds.QuickTextSearchActionId,
 			commandCenterOrder: 65,
 		}
 	]

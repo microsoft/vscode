@@ -15,6 +15,11 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export interface IBaseWindow extends IDisposable {
 
+	readonly onDidMaximize: Event<void>;
+	readonly onDidUnmaximize: Event<void>;
+	readonly onDidTriggerSystemContextMenu: Event<{ readonly x: number; readonly y: number }>;
+	readonly onDidEnterFullScreen: Event<void>;
+	readonly onDidLeaveFullScreen: Event<void>;
 	readonly onDidClose: Event<void>;
 
 	readonly id: number;
@@ -29,15 +34,18 @@ export interface IBaseWindow extends IDisposable {
 	setDocumentEdited(edited: boolean): void;
 	isDocumentEdited(): boolean;
 
+	handleTitleDoubleClick(): void;
+
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export interface ICodeWindow extends IBaseWindow {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
-	readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }>;
 	readonly onDidDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
@@ -71,13 +79,11 @@ export interface ICodeWindow extends IBaseWindow {
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
 
-	handleTitleDoubleClick(): void;
-
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
-	serializeWindowState(): IWindowState;
+	notifyZoomLevel(zoomLevel: number | undefined): void;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
+	serializeWindowState(): IWindowState;
 }
 
 export const enum LoadReason {
@@ -127,6 +133,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	zoomLevel?: number;
 	readonly display?: number;
 }
 

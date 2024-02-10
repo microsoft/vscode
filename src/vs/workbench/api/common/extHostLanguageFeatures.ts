@@ -34,7 +34,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { localize } from 'vs/nls';
 import { IAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 
@@ -104,15 +104,16 @@ class DocumentSymbolAdapter {
 
 class CodeLensAdapter {
 
-	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
-
 	private readonly _cache = new Cache<vscode.CodeLens>('CodeLens');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
-		private readonly _provider: vscode.CodeLensProvider
+		private readonly _provider: vscode.CodeLensProvider,
+		private readonly _extension: IExtensionDescription,
+		private readonly _extTelemetry: ExtHostTelemetry,
+		private readonly _logService: ILogService,
 	) { }
 
 	async provideCodeLenses(resource: URI, token: CancellationToken): Promise<extHostProtocol.ICodeLensListDto | undefined> {
@@ -164,7 +165,15 @@ class CodeLensAdapter {
 			// disposed in the meantime
 			return undefined;
 		}
-		symbol.command = this._commands.toInternal(resolvedLens.command ?? CodeLensAdapter._badCmd, disposables);
+
+		if (!resolvedLens.command) {
+			const error = new Error('INVALID code lens resolved, lacks command: ' + this._extension.identifier.value);
+			this._extTelemetry.onExtensionError(this._extension.identifier, error);
+			this._logService.error(error);
+			return undefined;
+		}
+
+		symbol.command = this._commands.toInternal(resolvedLens.command, disposables);
 		return symbol;
 	}
 
@@ -327,6 +336,27 @@ class DocumentHighlightAdapter {
 	}
 }
 
+class MultiDocumentHighlightAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.MultiDocumentHighlightProvider
+	) { }
+
+	async provideMultiDocumentHighlights(resource: URI, position: IPosition, otherResources: URI[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const otherDocuments = otherResources.map(r => this._documents.getDocument(r));
+		const pos = typeConvert.Position.to(position);
+
+		const value = await this._provider.provideMultiDocumentHighlights(doc, pos, otherDocuments, token);
+		if (Array.isArray(value)) {
+			return value.map(typeConvert.MultiDocumentHighlight.from);
+		}
+		return undefined;
+	}
+}
+
 class LinkedEditingRangeAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -444,6 +474,9 @@ class CodeActionAdapter {
 					}
 				}
 
+				// Ensures that this is either a Range[] or an empty array so we don't get Array<Range | undefined>
+				const range = candidate.ranges ?? [];
+
 				// new school: convert code action
 				actions.push({
 					cacheId: [cacheId, i],
@@ -454,6 +487,7 @@ class CodeActionAdapter {
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
+					ranges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? coalesce(range.map(typeConvert.Range.from)) : undefined,
 					disabled: candidate.disabled?.reason
 				});
 			}
@@ -782,6 +816,44 @@ class RenameAdapter {
 	}
 }
 
+class NewSymbolNamesAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.NewSymbolNamesProvider,
+		private readonly _logService: ILogService
+	) { }
+
+	async provideNewSymbolNames(resource: URI, range: IRange, token: CancellationToken): Promise<string[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Range.to(range);
+
+		try {
+			const value = await this._provider.provideNewSymbolNames(doc, pos, token);
+			if (!value) {
+				return undefined;
+			}
+			return value;
+
+		} catch (err: unknown) {
+			this._logService.error(NewSymbolNamesAdapter._asMessage(err) ?? JSON.stringify(err, null, '\t') /* @ulugbekna: assuming `err` doesn't have circular references that could result in an exception when converting to JSON */);
+			return undefined;
+		}
+	}
+
+	// @ulugbekna: this method is also defined in RenameAdapter but seems OK to be duplicated
+	private static _asMessage(err: any): string | undefined {
+		if (typeof err === 'string') {
+			return err;
+		} else if (err instanceof Error && typeof err.message === 'string') {
+			return err.message;
+		} else {
+			return undefined;
+		}
+	}
+}
+
 class SemanticTokensPreviousResult {
 	constructor(
 		readonly resultId: string | undefined,
@@ -1037,7 +1109,7 @@ class CompletionsAdapter {
 
 		const dto1 = this._convertCompletionItem(item, id);
 
-		const resolvedItem = await this._provider.resolveCompletionItem!(item, token);
+		const resolvedItem = await this._provider.resolveCompletionItem(item, token);
 
 		if (!resolvedItem) {
 			return undefined;
@@ -1364,7 +1436,7 @@ class InlayHintsAdapter {
 		const hints = await this._provider.provideInlayHints(doc, range, token);
 		if (!Array.isArray(hints) || hints.length === 0) {
 			// bad result
-			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for ${ran}`);
+			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for range ${JSON.stringify(ran)}`);
 			return undefined;
 		}
 		if (token.isCancellationRequested) {
@@ -1380,7 +1452,7 @@ class InlayHintsAdapter {
 				result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
 			}
 		}
-		this._logService.trace(`[InlayHints] ${result.hints.length} inlay hints from '${this._extension.identifier.value}' for ${ran}`);
+		this._logService.trace(`[InlayHints] ${result.hints.length} inlay hints from '${this._extension.identifier.value}' for range ${JSON.stringify(ran)}`);
 		return result;
 	}
 
@@ -1392,7 +1464,7 @@ class InlayHintsAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const hint = await this._provider.resolveInlayHint!(item, token);
+		const hint = await this._provider.resolveInlayHint(item, token);
 		if (!hint) {
 			return undefined;
 		}
@@ -1441,17 +1513,26 @@ class InlayHintsAdapter {
 		if (typeof hint.label === 'string') {
 			result.label = hint.label;
 		} else {
-			result.label = hint.label.map(part => {
-				const result: languages.InlayHintLabelPart = { label: part.value };
-				result.tooltip = typeConvert.MarkdownString.fromStrict(part.tooltip);
+			const parts: languages.InlayHintLabelPart[] = [];
+			result.label = parts;
+
+			for (const part of hint.label) {
+				if (!part.value) {
+					console.warn('INVALID inlay hint, empty label part', this._extension.identifier.value);
+					continue;
+				}
+				const part2: languages.InlayHintLabelPart = {
+					label: part.value,
+					tooltip: typeConvert.MarkdownString.fromStrict(part.tooltip)
+				};
 				if (Location.isLocation(part.location)) {
-					result.location = typeConvert.location.from(part.location);
+					part2.location = typeConvert.location.from(part.location);
 				}
 				if (part.command) {
-					result.command = this._commands.toInternal(part.command, disposables);
+					part2.command = this._commands.toInternal(part.command, disposables);
 				}
-				return result;
-			});
+				parts.push(part2);
+			}
 		}
 		return result;
 	}
@@ -1517,7 +1598,7 @@ class LinkProviderAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const link = await this._provider.resolveDocumentLink!(item, token);
+		const link = await this._provider.resolveDocumentLink(item, token);
 		if (!link || !LinkProviderAdapter._validateLink(link)) {
 			return undefined;
 		}
@@ -1853,15 +1934,16 @@ class MappedEditsAdapter {
 }
 
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
-	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentPasteEditProvider | DocumentFormattingAdapter
-	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
+	| DocumentHighlightAdapter | MultiDocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter
+	| DocumentPasteEditProvider | DocumentFormattingAdapter | RangeFormattingAdapter
+	| OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| CompletionsAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentOnDropEditAdapter | MappedEditsAdapter;
+	| DocumentOnDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter;
 
 class AdapterData {
 	constructor(
@@ -1889,6 +1971,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
 	}
+
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
@@ -1974,7 +2057,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const handle = this._nextHandle();
 		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider), extension));
+		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider, extension, this._extensionTelemetry, this._logService), extension));
 		this._proxy.$registerCodeLensSupport(handle, this._transformDocumentSelector(selector, extension), eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -2093,8 +2176,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
+	registerMultiDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.MultiDocumentHighlightProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new MultiDocumentHighlightAdapter(this._documents, provider), extension);
+		this._proxy.$registerMultiDocumentHighlightProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> {
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined, token);
+	}
+
+	$provideMultiDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, otherModels: UriComponents[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+		return this._withAdapter(handle, MultiDocumentHighlightAdapter, adapter => adapter.provideMultiDocumentHighlights(URI.revive(resource), position, otherModels.map(model => URI.revive(model)), token), undefined, token);
 	}
 
 	// --- linked editing
@@ -2230,6 +2323,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$resolveRenameLocation(handle: number, resource: URI, position: IPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined, token);
+	}
+
+	registerNewSymbolNamesProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.NewSymbolNamesProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new NewSymbolNamesAdapter(this._documents, provider, this._logService), extension);
+		this._proxy.$registerNewSymbolNamesProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<string[] | undefined> {
+		return this._withAdapter(handle, NewSymbolNamesAdapter, adapter => adapter.provideNewSymbolNames(URI.revive(resource), range, token), undefined, token);
 	}
 
 	//#region semantic coloring

@@ -37,7 +37,7 @@ export function getRemoteServerRootPath(product: { quality?: string; commit?: st
 export function parseAuthorityWithPort(authority: string): { host: string; port: number } {
 	const { host, port } = parseAuthority(authority);
 	if (typeof port === 'undefined') {
-		throw new Error(`Remote authority doesn't contain a port!`);
+		throw new Error(`Invalid remote authority: ${authority}. It must either be a remote of form <remoteName>+<arg> or a remote host of form <host>:<port>.`);
 	}
 	return { host, port };
 }

@@ -74,7 +74,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -89,7 +90,7 @@ const USE_SLOW_PICKER = 'task.quickOpen.showAll';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
-	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
+	export const TEXT = nls.localize2('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
 export type TaskQuickPickEntryType = (IQuickPickItem & { task: Task }) | (IQuickPickItem & { folder: IWorkspaceFolder }) | (IQuickPickItem & { settingType: string });
@@ -230,6 +231,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
 	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
 	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
+	private _onDidChangeTaskConfig: Emitter<void> = new Emitter();
+	public onDidChangeTaskConfig: Event<void> = this._onDidChangeTaskConfig.event;
 	public get isReconnected(): boolean { return this._tasksReconnected; }
 
 	constructor(
@@ -288,7 +291,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._updateSetup(folderSetup);
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+		this._register(this._configurationService.onDidChangeConfiguration(async (e) => {
 			if (!e.affectsConfiguration('tasks') || (!this._taskSystem && !this._workspaceTasksPromise)) {
 				return;
 			}
@@ -305,7 +308,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			this._setTaskLRUCacheLimit();
-			return this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			await this._updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
+			this._onDidChangeTaskConfig.fire();
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
@@ -1027,11 +1031,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		for (const entry of storedTasks.entries()) {
-			const key = entry[0];
-			const task = JSON.parse(entry[1]);
-			const folderInfo = this._getFolderFromTaskKey(key);
-			this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
-			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			try {
+				const key = entry[0];
+				const task = JSON.parse(entry[1]);
+				const folderInfo = this._getFolderFromTaskKey(key);
+				this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
+				addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			} catch (error) {
+				this._log(nls.localize('taskService.getSavedTasks.error', 'Fetching a task from task storage failed: {0}.', error), true);
+			}
 		}
 
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();
@@ -2309,7 +2317,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await ProblemMatcherRegistry.onReady();
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
 		const problemReporter = new ProblemReporter(this._outputChannel);
-		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
+		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
 			hasErrors = true;
@@ -2555,7 +2563,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const thisCapture: AbstractTaskService = this;
 		return new class extends Action {
 			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, () => { thisCapture._runConfigureTasks(); return Promise.resolve(undefined); });
+				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT.value, undefined, true, () => { thisCapture._runConfigureTasks(); return Promise.resolve(undefined); });
 			}
 		};
 	}
@@ -2568,7 +2576,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
 				this._notificationService.prompt(buildError.severity, buildError.message, [{
-					label: needsConfig ? ConfigureTaskAction.TEXT : nls.localize('TerminateAction.label', "Terminate Task"),
+					label: needsConfig ? ConfigureTaskAction.TEXT.value : nls.localize('TerminateAction.label', "Terminate Task"),
 					run: () => {
 						if (needsConfig) {
 							this._runConfigureTasks();

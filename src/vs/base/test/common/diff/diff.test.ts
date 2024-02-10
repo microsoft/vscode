@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { IDiffChange, LcsDiff, StringDiffSequence } from 'vs/base/common/diff/diff';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function createArray<T>(length: number, value: T): T[] {
 	const r: T[] = [];
@@ -79,6 +80,8 @@ function lcsTest(originalStr: string, modifiedStr: string, answerStr: string) {
 }
 
 suite('Diff', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('LcsDiff - different strings tests', function () {
 		this.timeout(10000);
 		lcsTest('heLLo world', 'hello orlando', 'heo orld');
@@ -97,6 +100,8 @@ suite('Diff', () => {
 });
 
 suite('Diff - Ported from VS', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('using continue processing predicate to quit early', function () {
 		const left = 'abcdef';
 		const right = 'abxxcyyydzzzzezzzzzzzzzzzzzzzzzzzzf';
