@@ -46,6 +46,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private lastActiveEditor: IEditorIdentifier | undefined = undefined;
 
 	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
+	public shouldIgnoreActiveEditorChange: boolean = false; // can be set to temporarily ignore messages from onDidActiveEditorChange
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -77,10 +78,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.registerMouseNavigationListener();
 
 		// Editor changes
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
+		this._register(this.editorService.onDidActiveEditorChange((e) => {
+			if (!this.shouldIgnoreActiveEditorChange) {
+				this.onDidActiveEditorChange();
+			}
+		}));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
-		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
+		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => {
+			if (!this.shouldIgnoreActiveEditorChange) {
+				this.handleEditorEventInRecentEditorsStack();
+			}
+		}));
 
 		// Editor group changes
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e)));

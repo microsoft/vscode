@@ -30,6 +30,7 @@ import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench
 import { Event } from 'vs/base/common/event';
 import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -80,7 +81,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHistoryService private readonly _historyService: IHistoryService
 	) {
 		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
@@ -116,10 +118,15 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			if (item?.match) {
 				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
 				this.editorViewState.set();
-				// open it
+
+				// disable and re-enable history service so that we can ignore this history entry
+				this._historyService.shouldIgnoreActiveEditorChange = true;
+				// TODO: see why this doesn't work
 				this._editorService.openEditor({
 					resource: item.match.parent().resource,
 					options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: item.match.range() }
+				}).finally(() => {
+					this._historyService.shouldIgnoreActiveEditorChange = false;
 				});
 			}
 		}));
