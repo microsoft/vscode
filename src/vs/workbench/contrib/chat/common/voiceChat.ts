@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { rtrim } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -63,9 +63,14 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	private static readonly AGENT_PREFIX = chatAgentLeader;
 	private static readonly COMMAND_PREFIX = chatSubcommandLeader;
 
-	private static readonly PHRASES = {
+	private static readonly PHRASES_LOWER = {
 		[VoiceChatService.AGENT_PREFIX]: 'at',
 		[VoiceChatService.COMMAND_PREFIX]: 'slash'
+	};
+
+	private static readonly PHRASES_UPPER = {
+		[VoiceChatService.AGENT_PREFIX]: 'At',
+		[VoiceChatService.COMMAND_PREFIX]: 'Slash'
 	};
 
 	private static readonly CHAT_AGENT_ALIAS = new Map<string, string>([['vscode', 'code']]);
@@ -96,12 +101,12 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		const phrases = new Map<string, IPhraseValue>();
 
 		for (const agent of this.chatAgentService.getAgents()) {
-			const agentPhrase = `${VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX]} ${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
+			const agentPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]} ${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
 			phrases.set(agentPhrase, { agent: agent.id });
 
 			if (agent.lastSlashCommands) {
 				for (const slashCommand of agent.lastSlashCommands) {
-					const slashCommandPhrase = `${VoiceChatService.PHRASES[VoiceChatService.COMMAND_PREFIX]} ${slashCommand.name}`.toLowerCase();
+					const slashCommandPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]} ${slashCommand.name}`.toLowerCase();
 					phrases.set(slashCommandPhrase, { agent: agent.id, command: slashCommand.name });
 
 					const agentSlashCommandPhrase = `${agentPhrase} ${slashCommandPhrase}`.toLowerCase();
@@ -141,8 +146,8 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 				case SpeechToTextStatus.Recognizing:
 				case SpeechToTextStatus.Recognized:
 					if (e.text) {
-						const startsWithAgent = startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.AGENT_PREFIX]);
-						const startsWithSlashCommand = startsWithIgnoreCase(e.text, VoiceChatService.PHRASES[VoiceChatService.COMMAND_PREFIX]);
+						const startsWithAgent = e.text.startsWith(VoiceChatService.PHRASES_UPPER[VoiceChatService.AGENT_PREFIX]) || e.text.startsWith(VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]);
+						const startsWithSlashCommand = e.text.startsWith(VoiceChatService.PHRASES_UPPER[VoiceChatService.COMMAND_PREFIX]) || e.text.startsWith(VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]);
 						if (startsWithAgent || startsWithSlashCommand) {
 							const originalWords = e.text.split(' ');
 							let transformedWords: string[] | undefined;
