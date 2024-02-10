@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, QuickDiffProvider, CancellationToken, l10n, ThemeColor } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, dispose, filterEvent } from './util';
 import { toGitUri } from './uri';
-import { Branch, Change, RefType, Status, UpstreamRef } from './api/git';
+import { Branch, RefType, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Operation } from './operation';
-import { File } from 'buffer';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
@@ -26,13 +25,19 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private _HEAD: Branch | undefined;
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
-
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
 	set currentHistoryItemGroup(value: SourceControlHistoryItemGroup | undefined) {
 		this._currentHistoryItemGroup = value;
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 
 		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup:', JSON.stringify(value));
+	}
+
+	private _incomingChanges: SourceControlHistoryItemChange[] = [];
+	get incomingChanges(): SourceControlHistoryItemChange[] { return this._incomingChanges; }
+	set incomingChanges(value: SourceControlHistoryItemChange[]) {
+		this._incomingChanges = value;
+		this._onDidChangeCurrentHistoryItemGroupBase.fire();
 	}
 
 	private historyItemDecorations = new Map<string, FileDecoration>();
@@ -61,35 +66,37 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return;
 		}
 
-		// Check if Upstream has changed
-		const upstreamChanged =
-			this._HEAD?.upstream?.name !== this.repository.HEAD?.upstream?.name ||
-			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote ||
-			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit;
-
-		this._HEAD = this.repository.HEAD;
-
 		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
-		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
+		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit || this.repository.HEAD.type === RefType.Tag) {
 			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD does not support incoming/outgoing');
+
 			this.currentHistoryItemGroup = undefined;
+			this.incomingChanges = [];
+
+			this._HEAD = this.repository.HEAD;
 			return;
 		}
 
 		this.currentHistoryItemGroup = {
-			id: `refs/heads/${this._HEAD.name ?? ''}`,
-			label: this._HEAD.name ?? '',
-			base: this._HEAD.upstream ?
+			id: `refs/heads/${this.repository.HEAD.name ?? ''}`,
+			label: this.repository.HEAD.name ?? '',
+			base: this.repository.HEAD.upstream ?
 				{
-					id: `refs/remotes/${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
-					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
+					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+					label: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				} : undefined
 		};
 
-		if (upstreamChanged) {
+		// Check if Upstream has changed
+		if (force ||
+			this._HEAD?.upstream?.name !== this.repository.HEAD?.upstream?.name ||
+			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote ||
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
 			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - Upstream has changed');
-			this._onDidChangeCurrentHistoryItemGroupBase.fire();
+			this.incomingChanges = await this.provideIncomingHistoryItemChanges();
 		}
+
+		this._HEAD = this.repository.HEAD;
 	}
 
 	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
@@ -230,128 +237,22 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return undefined;
 	}
 
-	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
-	}
-}
-
-export class GitIncomingChangesProvider implements FileDecorationProvider, QuickDiffProvider, IDisposable {
-
-	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
-	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
-
-	private decorations = new Map<string, FileDecoration>();
-	private readonly disposables: IDisposable[] = [];
-
-	constructor(private readonly repository: Repository) {
-		this.disposables.push(window.registerFileDecorationProvider(this));
-		this.disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git Incoming Changes')));
-
-		repository.historyProvider.onDidChangeCurrentHistoryItemGroupBase(this.onDidChangeCurrentHistoryItemGroupBase, this, this.disposables);
-	}
-
-	private async onDidChangeCurrentHistoryItemGroupBase(): Promise<void> {
-		const newDecorations = new Map<string, FileDecoration>();
-
-		const changes = await this.getIncomingChanges();
-		this.collectIncomingChangesFileDecorations(changes, newDecorations);
-		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
-
-		this.decorations = newDecorations;
-		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
-	}
-
-	private async getIncomingChanges(): Promise<Change[]> {
+	private async provideIncomingHistoryItemChanges(): Promise<SourceControlHistoryItemChange[]> {
 		try {
-			const historyProvider = this.repository.historyProvider;
-			const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup;
-
-			if (!currentHistoryItemGroup?.base) {
+			if (!this.currentHistoryItemGroup?.base) {
 				return [];
 			}
 
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base.id);
+			const ancestor = await this.resolveHistoryItemGroupCommonAncestor(this.currentHistoryItemGroup.id, this.currentHistoryItemGroup.base.id);
 			if (!ancestor) {
 				return [];
 			}
 
-			const changes = await this.repository.diffBetween(ancestor.id, currentHistoryItemGroup.base.id);
-			return changes;
+			const historyItemChanges = await this.provideHistoryItemChanges(this.currentHistoryItemGroup.base.id, ancestor.id);
+			return historyItemChanges;
 		} catch (err) {
 			return [];
 		}
-	}
-
-	private collectIncomingChangesFileDecorations(changes: Change[], bucket: Map<string, FileDecoration>): void {
-		for (const change of changes) {
-			let decoration: FileDecoration | undefined;
-
-			switch (change.status) {
-				case Status.INDEX_ADDED:
-					decoration = {
-						badge: '↓A',
-						color: new ThemeColor('gitDecoration.incomingAddedForegroundColor'),
-						tooltip: l10n.t('Incoming Changes (added)'),
-					};
-					break;
-				case Status.MODIFIED:
-					decoration = {
-						badge: '↓M',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
-						tooltip: l10n.t('Incoming Changes (modified)'),
-					};
-					break;
-				case Status.DELETED:
-					decoration = {
-						badge: '↓D',
-						color: new ThemeColor('gitDecoration.incomingDeletedForegroundColor'),
-						tooltip: l10n.t('Incoming Changes (deleted)'),
-					};
-					break;
-				case Status.INDEX_RENAMED:
-					decoration = {
-						badge: '↓R',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
-						tooltip: l10n.t('Incoming Changes (renamed)'),
-					};
-					break;
-				default: {
-					decoration = {
-						badge: '↓~',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
-						tooltip: l10n.t('Incoming Changes'),
-					};
-					break;
-				}
-			}
-
-			bucket.set(change.uri.toString(), decoration!);
-		}
-	}
-
-	provideOriginalResource(uri: Uri, token: CancellationToken): Uri | undefined {
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		if (!this.decorations.has(uri.toString())) {
-			return undefined;
-		}
-
-		if (!this.repository.historyProvider.currentHistoryItemGroup?.base?.id) {
-			return undefined;
-		}
-
-		return toGitUri(uri, this.repository.historyProvider.currentHistoryItemGroup.base.id);
-	}
-
-	provideFileDecoration(uri: Uri, token: CancellationToken): FileDecoration | undefined {
-		console.log('provideFileDecoration: ', uri.toString());
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		return this.decorations.get(uri.toString());
 	}
 
 	dispose(): void {
