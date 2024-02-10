@@ -1692,6 +1692,7 @@ ${entryLabels.join('\n')}
 	}
 
 	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent | GroupIdentifier): void {
+		const previousStackSize = this.stack.length;
 
 		// Remove all stack entries that match `arg1`
 		this.stack = this.stack.filter(entry => {
@@ -1704,6 +1705,10 @@ ${entryLabels.join('\n')}
 
 			return !matches;
 		});
+
+		if (previousStackSize === this.stack.length) {
+			return; // nothing removed
+		}
 
 		// Given we just removed entries, we need to make sure
 		// to remove entries that are now identical and next
