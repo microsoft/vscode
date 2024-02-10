@@ -11,11 +11,15 @@ import { toGitUri } from './uri';
 import { Branch, Change, RefType, Status, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Operation } from './operation';
+import { File } from 'buffer';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
 	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup: Event<void> = this._onDidChangeCurrentHistoryItemGroup.event;
+
+	private readonly _onDidChangeCurrentHistoryItemGroupBase = new EventEmitter<void>();
+	readonly onDidChangeCurrentHistoryItemGroupBase: Event<void> = this._onDidChangeCurrentHistoryItemGroupBase.event;
 
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
@@ -27,6 +31,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	set currentHistoryItemGroup(value: SourceControlHistoryItemGroup | undefined) {
 		this._currentHistoryItemGroup = value;
 		this._onDidChangeCurrentHistoryItemGroup.fire();
+
+		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup:', JSON.stringify(value));
 	}
 
 	private historyItemDecorations = new Map<string, FileDecoration>();
@@ -55,12 +61,18 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return;
 		}
 
+		// Check if Upstream has changed
+		const upstreamChanged =
+			this._HEAD?.upstream?.name !== this.repository.HEAD?.upstream?.name ||
+			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote ||
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit;
+
 		this._HEAD = this.repository.HEAD;
 
 		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
 		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
-			this.currentHistoryItemGroup = undefined;
 			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD does not support incoming/outgoing');
+			this.currentHistoryItemGroup = undefined;
 			return;
 		}
 
@@ -74,7 +86,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				} : undefined
 		};
 
-		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup:', JSON.stringify(this.currentHistoryItemGroup));
+		if (upstreamChanged) {
+			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - Upstream has changed');
+			this._onDidChangeCurrentHistoryItemGroupBase.fire();
+		}
 	}
 
 	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
@@ -225,34 +240,49 @@ export class GitIncomingChangesProvider implements FileDecorationProvider, Quick
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
-	private HEAD: Branch | undefined = undefined;
-	private readonly incomingChanges = new Map<string, FileDecoration>();
-
+	private decorations = new Map<string, FileDecoration>();
 	private readonly disposables: IDisposable[] = [];
 
 	constructor(private readonly repository: Repository) {
 		this.disposables.push(window.registerFileDecorationProvider(this));
 		this.disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git Incoming Changes')));
 
-		repository.historyProvider.onDidChangeCurrentHistoryItemGroup(this.onDidChangeCurrentHistoryItemGroup, this, this.disposables);
+		repository.historyProvider.onDidChangeCurrentHistoryItemGroupBase(this.onDidChangeCurrentHistoryItemGroupBase, this, this.disposables);
 	}
 
-	private async onDidChangeCurrentHistoryItemGroup(): Promise<void> {
-		// Check for incoming changes
-		if (this.HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit &&
-			this.HEAD?.behind === this.repository.HEAD?.behind) {
-			return;
-		}
+	private async onDidChangeCurrentHistoryItemGroupBase(): Promise<void> {
+		const newDecorations = new Map<string, FileDecoration>();
 
-		this.HEAD = this.repository.HEAD;
-
-		// Clear previous file decorations
-		const oldDecorations = [...this.incomingChanges.keys()];
-		this.incomingChanges.clear();
-		this._onDidChangeDecorations.fire(oldDecorations.map(uri => Uri.parse(uri)));
-
-		// Incoming changes
 		const changes = await this.getIncomingChanges();
+		this.collectIncomingChangesFileDecorations(changes, newDecorations);
+		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
+
+		this.decorations = newDecorations;
+		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
+	}
+
+	private async getIncomingChanges(): Promise<Change[]> {
+		try {
+			const historyProvider = this.repository.historyProvider;
+			const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup;
+
+			if (!currentHistoryItemGroup?.base) {
+				return [];
+			}
+
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base.id);
+			if (!ancestor) {
+				return [];
+			}
+
+			const changes = await this.repository.diffBetween(ancestor.id, currentHistoryItemGroup.base.id);
+			return changes;
+		} catch (err) {
+			return [];
+		}
+	}
+
+	private collectIncomingChangesFileDecorations(changes: Change[], bucket: Map<string, FileDecoration>): void {
 		for (const change of changes) {
 			let decoration: FileDecoration | undefined;
 
@@ -295,30 +325,7 @@ export class GitIncomingChangesProvider implements FileDecorationProvider, Quick
 				}
 			}
 
-			this.incomingChanges.set(change.uri.toString(), decoration!);
-		}
-
-		this._onDidChangeDecorations.fire(Array.from(this.incomingChanges.keys()).map(uri => Uri.parse(uri)));
-	}
-
-	private async getIncomingChanges(): Promise<Change[]> {
-		try {
-			const historyProvider = this.repository.historyProvider;
-			const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup;
-
-			if (!currentHistoryItemGroup?.base) {
-				return [];
-			}
-
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base.id);
-			if (!ancestor) {
-				return [];
-			}
-
-			const changes = await this.repository.diffBetween(ancestor.id, currentHistoryItemGroup.base.id);
-			return changes;
-		} catch (err) {
-			return [];
+			bucket.set(change.uri.toString(), decoration!);
 		}
 	}
 
@@ -327,7 +334,7 @@ export class GitIncomingChangesProvider implements FileDecorationProvider, Quick
 			return;
 		}
 
-		if (!this.incomingChanges.has(uri.toString())) {
+		if (!this.decorations.has(uri.toString())) {
 			return undefined;
 		}
 
@@ -344,7 +351,7 @@ export class GitIncomingChangesProvider implements FileDecorationProvider, Quick
 			return;
 		}
 
-		return this.incomingChanges.get(uri.toString());
+		return this.decorations.get(uri.toString());
 	}
 
 	dispose(): void {
