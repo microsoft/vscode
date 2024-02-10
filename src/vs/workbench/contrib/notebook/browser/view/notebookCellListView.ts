@@ -49,6 +49,15 @@ export class NotebookCellsLayout implements IRangeMap {
 		this._size = this._paddingTop;
 	}
 
+	getWhitespaces(): IWhitespace[] {
+		return this._whitespace;
+	}
+
+	restoreWhitespace(items: IWhitespace[]) {
+		this._whitespace = items;
+		this._size = this._paddingTop + this._items.reduce((total, item) => total + item.size, 0) + this._whitespace.reduce((total, ws) => total + ws.size, 0);
+	}
+
 	/**
 	 */
 	splice(index: number, deleteCount: number, items?: IItem[] | undefined): void {
@@ -240,7 +249,15 @@ export class NotebookCellListView<T> extends ListView<T> {
 	}
 
 	protected override createRangeMap(paddingTop: number): IRangeMap {
-		return new NotebookCellsLayout(paddingTop);
+		const existingMap = this.rangeMap as NotebookCellsLayout | undefined;
+		if (existingMap) {
+			const layout = new NotebookCellsLayout(paddingTop);
+			layout.restoreWhitespace(existingMap.getWhitespaces());
+			return layout;
+		} else {
+			return new NotebookCellsLayout(paddingTop);
+		}
+
 	}
 
 	insertWhitespace(afterPosition: number, size: number): string {

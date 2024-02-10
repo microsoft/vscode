@@ -14,7 +14,8 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -87,7 +88,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -106,7 +107,7 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		await NotebookChatController.get(context.notebookEditor)?.focusNext();
 	}
 });
@@ -171,7 +172,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -187,12 +188,12 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.cancelCurrentRequest(false);
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -207,7 +208,7 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.dismiss();
 	}
 });
@@ -237,12 +238,12 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.acceptSession();
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -262,12 +263,12 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.discard();
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: 'notebook.cell.feedbackHelpful',
@@ -282,12 +283,12 @@ registerAction2(class extends NotebookCellAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Helpful);
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: 'notebook.cell.feedbackUnhelpful',
@@ -302,12 +303,12 @@ registerAction2(class extends NotebookCellAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Unhelpful);
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: 'notebook.cell.reportIssueForBug',
@@ -322,7 +323,7 @@ registerAction2(class extends NotebookCellAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Bug);
 	}
 });

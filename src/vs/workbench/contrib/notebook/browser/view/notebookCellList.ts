@@ -592,6 +592,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return modelIndex;
 		}
 
+		if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+			// it's already after the last hidden range
+			return this.hiddenRangesPrefixSum.getTotalSum();
+		}
+
 		return this.hiddenRangesPrefixSum.getIndexOf(modelIndex).index;
 	}
 
