@@ -34,7 +34,7 @@ import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
-import { IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -2624,6 +2624,15 @@ export namespace ChatAgentCompletionItem {
 			insertText: item.insertText,
 			detail: item.detail,
 			documentation: item.documentation,
+		};
+	}
+}
+
+export namespace ChatAgentResult {
+	export function to(result: IChatAgentResult): vscode.ChatAgentResult2 {
+		return {
+			errorDetails: result.errorDetails,
+			metadata: result.metadata,
 		};
 	}
 }

@@ -86,9 +86,10 @@ declare module 'vscode' {
 		 */
 		errorDetails?: ChatAgentErrorDetails;
 
-		// TODO@API
-		// add CATCH-all signature [name:string]: string|boolean|number instead of `T extends...`
-		// readonly metadata: { readonly [key: string]: any };
+		/**
+		 * Arbitrary metadata for this result. Can be anything but must be JSON-stringifyable.
+		 */
+		readonly metadata?: { readonly [key: string]: any };
 	}
 
 	/**
@@ -109,12 +110,12 @@ declare module 'vscode' {
 	/**
 	 * Represents user feedback for a result.
 	 */
-	export interface ChatAgentResult2Feedback<TResult extends ChatAgentResult2> {
+	export interface ChatAgentResult2Feedback {
 		/**
 		 * This instance of ChatAgentResult2 is the same instance that was returned from the chat agent,
 		 * and it can be extended with arbitrary properties if needed.
 		 */
-		readonly result: TResult;
+		readonly result: ChatAgentResult2;
 
 		/**
 		 * The kind of feedback that was received.
@@ -196,16 +197,16 @@ declare module 'vscode' {
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
 	 */
-	export interface ChatAgentFollowupProvider<TResult extends ChatAgentResult2> {
+	export interface ChatAgentFollowupProvider {
 		/**
 		 *
 		 * @param result The same instance of the result object that was returned by the chat agent, and it can be extended with arbitrary properties if needed.
 		 * @param token A cancellation token.
 		 */
-		provideFollowups(result: TResult, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
+		provideFollowups(result: ChatAgentResult2, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
 	}
 
-	export interface ChatAgent2<TResult extends ChatAgentResult2> {
+	export interface ChatAgent2 {
 
 		/**
 		 * The short name by which this agent is referred to in the UI, e.g `workspace`.
@@ -244,7 +245,7 @@ declare module 'vscode' {
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
-		followupProvider?: ChatAgentFollowupProvider<TResult>;
+		followupProvider?: ChatAgentFollowupProvider;
 
 
 		// TODO@API
@@ -268,7 +269,7 @@ declare module 'vscode' {
 		 * The passed {@link ChatAgentResult2Feedback.result result} is guaranteed to be the same instance that was
 		 * previously returned from this chat agent.
 		 */
-		onDidReceiveFeedback: Event<ChatAgentResult2Feedback<TResult>>;
+		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
 
 		/**
 		 * Dispose this agent and free resources
@@ -452,7 +453,7 @@ declare module 'vscode' {
 		 * @param handler The reply-handler of the agent.
 		 * @returns A new chat agent
 		 */
-		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentHandler): ChatAgent2<TResult>;
+		export function createChatAgent(name: string, handler: ChatAgentHandler): ChatAgent2;
 
 		/**
 		 * Register a variable which can be used in a chat request to any agent.

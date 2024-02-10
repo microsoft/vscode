@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference, IChatProgressMessage, IChatFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, IChatCommandButton } from 'vs/workbench/contrib/chat/common/chatService';
@@ -122,6 +122,7 @@ export interface IChatResponseViewModel {
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
+	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
 	agentAvatarHasBeenRendered?: boolean;
@@ -203,7 +204,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				if (typeof responseIdx === 'number' && responseIdx >= 0) {
 					const items = this._items.splice(responseIdx, 1);
 					const item = items[0];
-					if (isResponseVM(item)) {
+					if (item instanceof ChatResponseViewModel) {
 						item.dispose();
 					}
 				}
@@ -334,8 +335,12 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.followups?.filter((f): f is IChatFollowup => f.kind === 'reply');
 	}
 
-	get errorDetails() {
-		return this._model.errorDetails;
+	get result() {
+		return this._model.result;
+	}
+
+	get errorDetails(): IChatResponseErrorDetails | undefined {
+		return this.result?.errorDetails;
 	}
 
 	get vote() {

@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgent2<TResult extends ChatAgentResult2> {
+	export interface ChatAgent2 {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
 		supportIssueReporting?: boolean;
 	}
@@ -152,7 +152,7 @@ declare module 'vscode' {
 		report(value: ChatAgentExtendedProgress): void;
 	};
 
-	export interface ChatAgent2<TResult extends ChatAgentResult2> {
+	export interface ChatAgent2 {
 		/**
 		 * Provide a set of variables that can only be used with this agent.
 		 */
@@ -179,7 +179,7 @@ declare module 'vscode' {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentExtendedHandler): ChatAgent2<TResult>;
+		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
 	}
 
 	/*
