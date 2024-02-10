@@ -555,7 +555,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
-					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, agentResult, CancellationToken.None);
+					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, CancellationToken.None);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest, { message, variables: {} });
 					// contributed slash commands

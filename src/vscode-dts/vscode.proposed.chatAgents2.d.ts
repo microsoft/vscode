@@ -180,8 +180,16 @@ declare module 'vscode' {
 	export interface ChatAgentFollowup {
 		/**
 		 * The message to send to the chat.
+		 * TODO@API is it ok for variables to resolved from the text of this prompt, using the `#` syntax?
 		 */
-		message: string;
+		prompt: string;
+
+		/**K
+		 * By default, the followup goes to the same agent/subCommand. But these properties can be set to override that.
+		 */
+		agentId?: string;
+
+		subCommand?: string;
 
 		/**
 		 * A tooltip to show when hovering over the followup.
