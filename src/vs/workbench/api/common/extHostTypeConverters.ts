@@ -2610,7 +2610,7 @@ export namespace ChatAgentRequest {
 		return {
 			prompt: request.message,
 			variables: ChatVariable.objectTo(request.variables),
-			subCommand: request.command,
+			command: request.command,
 			agentId: request.agentId,
 		};
 	}

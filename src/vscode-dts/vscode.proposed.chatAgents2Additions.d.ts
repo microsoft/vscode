@@ -25,7 +25,7 @@ declare module 'vscode' {
 	// TODO@API fit this into the stream
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSubCommand;
+		command?: ChatAgentCommand;
 	}
 
 	// TODO@API fit this into the stream
