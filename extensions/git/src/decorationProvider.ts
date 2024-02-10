@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, workspace, Uri, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, ThemeColor } from 'vscode';
+import { window, workspace, Uri, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, ThemeColor, l10n } from 'vscode';
 import * as path from 'path';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
-import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource } from './util';
+import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource, combinedDisposable } from './util';
 import { GitErrorCodes, Status } from './api/git';
 
 class GitIgnoreDecorationProvider implements FileDecorationProvider {
@@ -153,6 +153,87 @@ class GitDecorationProvider implements FileDecorationProvider {
 	}
 }
 
+class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider {
+
+	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
+	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
+
+	private decorations = new Map<string, FileDecoration>();
+	private readonly disposables: Disposable[] = [];
+
+	constructor(private readonly repository: Repository) {
+		this.disposables.push(window.registerFileDecorationProvider(this));
+		repository.historyProvider.onDidChangeCurrentHistoryItemGroupBase(this.onDidChangeCurrentHistoryItemGroupBase, this, this.disposables);
+	}
+
+	private onDidChangeCurrentHistoryItemGroupBase(): void {
+		const newDecorations = new Map<string, FileDecoration>();
+		this.collectIncomingChangesFileDecorations(newDecorations);
+		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
+
+		this.decorations = newDecorations;
+		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
+	}
+
+	private collectIncomingChangesFileDecorations(bucket: Map<string, FileDecoration>): void {
+		for (const historyItemChange of this.repository.historyProvider.incomingChanges) {
+			const decoration: FileDecoration = {
+				badge: '↓~',
+				color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+				tooltip: l10n.t('Incoming Changes'),
+			};
+
+			// switch (change.status) {
+			// 	case Status.INDEX_ADDED:
+			// 		decoration = {
+			// 			badge: '↓A',
+			// 			color: new ThemeColor('gitDecoration.incomingAddedForegroundColor'),
+			// 			tooltip: l10n.t('Incoming Changes (added)'),
+			// 		};
+			// 		break;
+			// 	case Status.MODIFIED:
+			// 		decoration = {
+			// 			badge: '↓M',
+			// 			color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+			// 			tooltip: l10n.t('Incoming Changes (modified)'),
+			// 		};
+			// 		break;
+			// 	case Status.DELETED:
+			// 		decoration = {
+			// 			badge: '↓D',
+			// 			color: new ThemeColor('gitDecoration.incomingDeletedForegroundColor'),
+			// 			tooltip: l10n.t('Incoming Changes (deleted)'),
+			// 		};
+			// 		break;
+			// 	case Status.INDEX_RENAMED:
+			// 		decoration = {
+			// 			badge: '↓R',
+			// 			color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+			// 			tooltip: l10n.t('Incoming Changes (renamed)'),
+			// 		};
+			// 		break;
+			// 	default: {
+			// 		decoration = {
+			// 			badge: '↓~',
+			// 			color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
+			// 			tooltip: l10n.t('Incoming Changes'),
+			// 		};
+			// 		break;
+			// 	}
+			// }
+
+			bucket.set(historyItemChange.uri.with({ query: '' }).toString(), decoration);
+		}
+	}
+
+	provideFileDecoration(uri: Uri): FileDecoration | undefined {
+		return this.decorations.get(uri.toString());
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+	}
+}
 
 export class GitDecorations {
 
@@ -191,8 +272,12 @@ export class GitDecorations {
 	}
 
 	private onDidOpenRepository(repository: Repository): void {
-		const provider = new GitDecorationProvider(repository);
-		this.providers.set(repository, provider);
+		const providers = combinedDisposable([
+			new GitDecorationProvider(repository),
+			new GitIncomingChangesFileDecorationProvider(repository)
+		]);
+
+		this.providers.set(repository, providers);
 	}
 
 	private onDidCloseRepository(repository: Repository): void {
