@@ -274,6 +274,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 					if (this._widget) {
 						this._widget.inlineChatWidget.placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 						this._widget.inlineChatWidget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+						this._widget.inlineChatWidget.updateSlashCommands(this._activeSession?.session.slashCommands ?? []);
 						this._widget.focus();
 					}
 
@@ -304,6 +305,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		this._ctxHasActiveRequest.set(true);
+		this._widget.inlineChatWidget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._widget?.inlineChatWidget.updateProgress(true);
 
 		const request: IInlineChatRequest = {
