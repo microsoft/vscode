@@ -8,6 +8,7 @@ import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContext, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -95,6 +96,10 @@ suite('AbstractKeybindingService', () => {
 		public registerSchemaContribution() {
 			// noop
 		}
+
+		public enableKeybindingHoldMode() {
+			return undefined;
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
@@ -103,6 +108,18 @@ suite('AbstractKeybindingService', () => {
 	let showMessageCalls: { sev: Severity; message: any }[] = null!;
 	let statusMessageCalls: string[] | null = null;
 	let statusMessageCallsDisposed: string[] | null = null;
+
+
+	teardown(() => {
+		currentContextValue = null;
+		executeCommandCalls = null!;
+		showMessageCalls = null!;
+		createTestKeybindingService = null!;
+		statusMessageCalls = null;
+		statusMessageCallsDisposed = null;
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		executeCommandCalls = [];
@@ -190,15 +207,6 @@ suite('AbstractKeybindingService', () => {
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService);
 		};
-	});
-
-	teardown(() => {
-		currentContextValue = null;
-		executeCommandCalls = null!;
-		showMessageCalls = null!;
-		createTestKeybindingService = null!;
-		statusMessageCalls = null;
-		statusMessageCallsDisposed = null;
 	});
 
 	function kbItem(keybinding: number | number[], command: string | null, when?: ContextKeyExpression): ResolvedKeybindingItem {

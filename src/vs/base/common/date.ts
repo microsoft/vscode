@@ -199,6 +199,37 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 }
 
+/**
+ * Gets a readable duration with intelligent/lossy precision. For example "40ms" or "3.040s")
+ * @param ms The duration to get in milliseconds.
+ * @param useFullTimeWords Whether to use full words (eg. seconds) instead of
+ * shortened (eg. secs).
+ */
+export function getDurationString(ms: number, useFullTimeWords?: boolean) {
+	const seconds = Math.abs(ms / 1000);
+	if (seconds < 1) {
+		return useFullTimeWords
+			? localize('duration.ms.full', '{0} milliseconds', ms)
+			: localize('duration.ms', '{0}ms', ms);
+	}
+	if (seconds < minute) {
+		return useFullTimeWords
+			? localize('duration.s.full', '{0} seconds', Math.round(ms) / 1000)
+			: localize('duration.s', '{0}s', Math.round(ms) / 1000);
+	}
+	if (seconds < hour) {
+		return useFullTimeWords
+			? localize('duration.m.full', '{0} minutes', Math.round(ms / (1000 * minute)))
+			: localize('duration.m', '{0} mins', Math.round(ms / (1000 * minute)));
+	}
+	if (seconds < day) {
+		return useFullTimeWords
+			? localize('duration.h.full', '{0} hours', Math.round(ms / (1000 * hour)))
+			: localize('duration.h', '{0} hrs', Math.round(ms / (1000 * hour)));
+	}
+	return localize('duration.d', '{0} days', Math.round(ms / (1000 * day)));
+}
+
 export function toLocalISOString(date: Date): string {
 	return date.getFullYear() +
 		'-' + String(date.getMonth() + 1).padStart(2, '0') +

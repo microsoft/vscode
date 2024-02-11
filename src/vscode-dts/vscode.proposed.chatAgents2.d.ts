@@ -5,11 +5,52 @@
 
 declare module 'vscode' {
 
+	/**
+	 * One request/response pair in chat history.
+	 */
+	export interface ChatAgentHistoryEntry {
+		/**
+		 * The request that was sent to the chat agent.
+		 */
+		// TODO@API make this optional? Allow for response without request?
+		request: ChatAgentRequest;
+
+		/**
+		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
+		 */
+		response: (ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart)[];
+
+		/**
+		 * The result that was received from the chat agent.
+		 */
+		result: ChatAgentResult2;
+	}
+
+	// TODO@API class
+	// export interface ChatAgentResponse {
+	// 	/**
+	// 	 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
+	// 	 */
+	// 	response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
+
+	// agentId: string
+
+	// 	/**
+	// 	 * The result that was received from the chat agent.
+	// 	 */
+	// 	result: ChatAgentResult2;
+	// }
+
 	export interface ChatAgentContext {
 		/**
 		 * All of the chat messages so far in the current chat session.
 		 */
-		history: ChatMessage[];
+		history: ChatAgentHistoryEntry[];
+
+		// location:
+
+		// TODO@API have "turns"
+		// history2: (ChatAgentRequest | ChatAgentResponse)[];
 	}
 
 	/**
@@ -44,6 +85,11 @@ declare module 'vscode' {
 		 * If the request resulted in an error, this property defines the error details.
 		 */
 		errorDetails?: ChatAgentErrorDetails;
+
+		/**
+		 * Arbitrary metadata for this result. Can be anything but must be JSON-stringifyable.
+		 */
+		readonly metadata?: { readonly [key: string]: any };
 	}
 
 	/**
@@ -77,12 +123,12 @@ declare module 'vscode' {
 		readonly kind: ChatAgentResultFeedbackKind;
 	}
 
-	export interface ChatAgentSlashCommand {
+	export interface ChatAgentCommand {
 		/**
 		 * A short name by which this command is referred to in the UI, e.g. `fix` or
 		 * `explain` for commands that fix an issue or explain code.
 		 *
-		 * **Note**: The name should be unique among the slash commands provided by this agent.
+		 * **Note**: The name should be unique among the commands provided by this agent.
 		 */
 		readonly name: string;
 
@@ -92,54 +138,45 @@ declare module 'vscode' {
 		readonly description: string;
 
 		/**
-		 * When the user clicks this slash command in `/help`, this text will be submitted to this slash command
+		 * When the user clicks this command in `/help`, this text will be submitted to this command
 		 */
 		readonly sampleRequest?: string;
 
 		/**
 		 * Whether executing the command puts the
 		 * chat into a persistent mode, where the
-		 * slash command is prepended to the chat input.
+		 * command is prepended to the chat input.
 		 */
 		readonly shouldRepopulate?: boolean;
 
 		/**
 		 * Placeholder text to render in the chat input
-		 * when the slash command has been repopulated.
+		 * when the command has been repopulated.
 		 * Has no effect if `shouldRepopulate` is `false`.
 		 */
 		// TODO@API merge this with shouldRepopulate? so that invalid state cannot be represented?
 		readonly followupPlaceholder?: string;
 	}
 
-	export interface ChatAgentSlashCommandProvider {
+	export interface ChatAgentCommandProvider {
 
 		/**
-		 * Returns a list of slash commands that its agent is capable of handling. A slash command
+		 * Returns a list of commands that its agent is capable of handling. A command
 		 * can be selected by the user and will then be passed to the {@link ChatAgentHandler handler}
-		 * via the {@link ChatAgentRequest.slashCommand slashCommand} property.
+		 * via the {@link ChatAgentRequest.command command} property.
 		 *
 		 *
 		 * @param token A cancellation token.
-		 * @returns A list of slash commands. The lack of a result can be signaled by returning `undefined`, `null`, or
+		 * @returns A list of commands. The lack of a result can be signaled by returning `undefined`, `null`, or
 		 * an empty array.
 		 */
-		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
-	}
-
-	// TODO@API This should become a progress type, and use vscode.Command
-	// TODO@API what's the when-property for? how about not returning it in the first place?
-	export interface ChatAgentCommandFollowup {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
+		provideCommands(token: CancellationToken): ProviderResult<ChatAgentCommand[]>;
 	}
 
 	/**
 	 * A followup question suggested by the model.
 	 */
-	export interface ChatAgentReplyFollowup {
+	export interface ChatAgentFollowup {
 		/**
 		 * The message to send to the chat.
 		 */
@@ -156,12 +193,10 @@ declare module 'vscode' {
 		title?: string;
 	}
 
-	export type ChatAgentFollowup = ChatAgentCommandFollowup | ChatAgentReplyFollowup;
-
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
 	 */
-	export interface FollowupProvider {
+	export interface ChatAgentFollowupProvider {
 		/**
 		 *
 		 * @param result The same instance of the result object that was returned by the chat agent, and it can be extended with arbitrary properties if needed.
@@ -202,17 +237,27 @@ declare module 'vscode' {
 		} | ThemeIcon;
 
 		/**
-		 * This provider will be called to retrieve the agent's slash commands.
+		 * This provider will be called to retrieve the agent's commands.
 		 */
-		slashCommandProvider?: ChatAgentSlashCommandProvider;
+		commandProvider?: ChatAgentCommandProvider;
 
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
-		followupProvider?: FollowupProvider;
+		followupProvider?: ChatAgentFollowupProvider;
+
+
+		// TODO@API
+		// notify(request: ChatResponsePart, reference: string): boolean;
+		// BETTER
+		// requestResponseStream(callback: (stream: ChatAgentResponseStream) => void, why?: string): void;
+
+		// TODO@API
+		// clear NEVER happens
+		// onDidClearResult(value: TResult): void;
 
 		/**
-		 * When the user clicks this agent in `/help`, this text will be submitted to this slash command
+		 * When the user clicks this agent in `/help`, this text will be submitted to this command
 		 */
 		sampleRequest?: string;
 
@@ -234,145 +279,169 @@ declare module 'vscode' {
 	export interface ChatAgentRequest {
 
 		/**
-		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentSlashCommand.name slash command}
+		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentCommand.name command}
 		 * are not part of the prompt.
 		 *
-		 * @see {@link ChatAgentRequest.slashCommand}
+		 * @see {@link ChatAgentRequest.command}
 		 */
 		prompt: string;
 
 		/**
-		 * The {@link ChatAgentSlashCommand slash command} that was selected for this request. It is guaranteed that the passed slash
-		 * command is an instance that was previously returned from the {@link ChatAgentSlashCommandProvider.provideSlashCommands slash command provider}.
+		 * The ID of the chat agent to which this request was directed.
 		 */
-		slashCommand?: ChatAgentSlashCommand;
+		agentId: string;
+
+		/**
+		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
+		 */
+		command?: string;
 
 		variables: Record<string, ChatVariableValue[]>;
+
+		// TODO@API argumented prompt, reverse order!
+		// variables2: { start:number, length:number,  values: ChatVariableValue[]}[]
 	}
 
-	// TODO@API we need to arrive at a state where we can put things into buckets-by-name of (1) rendered data, (2) metadata, etc pp
-	export type ChatAgentProgress =
-		| ChatAgentContent
-		| ChatAgentTask
-		| ChatAgentFileTree
-		| ChatAgentUsedContext
-		| ChatAgentContentReference
-		| ChatAgentInlineContentReference
-		| ChatAgentProgressMessage;
+	export interface ChatAgentResponseStream {
 
-	/**
-	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
-	 */
-	export interface ChatAgentProgressMessage {
-		message: string;
+		/**
+		 * Push a text part to this stream. Short-hand for
+		 * `push(new ChatResponseTextPart(value))`.
+		 *
+		 * @see {@link ChatAgentResponseStream.push}
+		 * @param value A plain text value.
+		 * @returns This stream.
+		 */
+		text(value: string): ChatAgentResponseStream;
+
+		/**
+		 * Push a markdown part to this stream. Short-hand for
+		 * `push(new ChatResponseMarkdownPart(value))`.
+		 *
+		 * @see {@link ChatAgentResponseStream.push}
+		 * @param value A markdown string or a string that should be interpreted as markdown.
+		 * @returns This stream.
+		 */
+		markdown(value: string | MarkdownString): ChatAgentResponseStream;
+
+		/**
+		 * Push an anchor part to this stream. Short-hand for
+		 * `push(new ChatResponseAnchorPart(value, title))`.
+		 *
+		 * @param value A uri or location
+		 * @param title An optional title that is rendered with value
+		 * @returns This stream.
+		 */
+		anchor(value: Uri | Location, title?: string): ChatAgentResponseStream;
+
+		/**
+		 * Push a command button part to this stream. Short-hand for
+		 * `push(new ChatResponseCommandButtonPart(value, title))`.
+		 *
+		 * @param command A Command that will be executed when the button is clicked.
+		 * @returns This stream.
+		 */
+		button(command: Command): ChatAgentResponseStream;
+
+		/**
+		 * Push a filetree part to this stream. Short-hand for
+		 * `push(new ChatResponseFileTreePart(value))`.
+		 *
+		 * @param value File tree data.
+		 * @param baseUri The base uri to which this file tree is relative to.
+		 * @returns This stream.
+		 */
+		filetree(value: ChatResponseFileTree[], baseUri: Uri): ChatAgentResponseStream;
+
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		 *
+		 * @param value
+		 * @returns This stream.
+		 */
+		// TODO@API is this always inline or not
+		// TODO@API is this markdown or string?
+		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
+		progress(value: string): ChatAgentResponseStream;
+
+		/**
+		 * Push a reference to this stream. Short-hand for
+		 * `push(new ChatResponseReferencePart(value))`.
+		 *
+		 * *Note* that the reference is not rendered inline with the response.
+		 *
+		 * @param value A uri or location
+		 * @returns This stream.
+		 */
+		// TODO@API support non-file uris, like http://example.com
+		// TODO@API support mapped edits
+		reference(value: Uri | Location): ChatAgentResponseStream;
+
+		/**
+		 * Pushes a part to this stream.
+		 *
+		 * @param part A response part, rendered or metadata
+		 */
+		push(part: ChatResponsePart): ChatAgentResponseStream;
 	}
 
-	/**
-	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.
-	 */
-	export interface ChatAgentContentReference {
-		/**
-		 * The resource that was referenced.
-		 */
-		reference: Uri | Location;
+	// TODO@API
+	// support ChatResponseCommandPart
+	// support ChatResponseTextEditPart
+	// support ChatResponseCodeReferencePart
+
+	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
+	// and metadata like XYZItem
+	export class ChatResponseTextPart {
+		value: string;
+		constructor(value: string);
 	}
 
-	/**
-	 * A reference to a piece of content that will be rendered inline with the markdown content.
-	 */
-	export interface ChatAgentInlineContentReference {
-		/**
-		 * The resource being referenced.
-		 */
-		inlineReference: Uri | Location;
+	export class ChatResponseMarkdownPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
 
-		/**
-		 * An alternate title for the resource.
-		 */
+	export interface ChatResponseFileTree {
+		name: string;
+		children?: ChatResponseFileTree[];
+	}
+
+	export class ChatResponseFileTreePart {
+		value: ChatResponseFileTree[];
+		baseUri: Uri;
+		constructor(value: ChatResponseFileTree[], baseUri: Uri);
+	}
+
+	export class ChatResponseAnchorPart {
+		value: Uri | Location | SymbolInformation;
 		title?: string;
+		constructor(value: Uri | Location | SymbolInformation, title?: string);
 	}
 
-	/**
-	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
-	 */
-	export interface ChatAgentContent {
-		/**
-		 * The content as a string of markdown source.
-		 */
-		content: string;
+	export class ChatResponseProgressPart {
+		value: string;
+		constructor(value: string);
 	}
 
-	/**
-	 * Represents a piece of the chat response's content that is resolved asynchronously. It is rendered immediately with a placeholder,
-	 * which is replaced once the full content is available.
-	 */
-	export interface ChatAgentTask {
-		/**
-		 * The markdown string to be rendered immediately.
-		 */
-		placeholder: string;
-
-		/**
-		 * A Thenable resolving to the real content. The placeholder will be replaced with this content once it's available.
-		 */
-		// TODO@API Should this be an async iterable or progress instance instead
-		// TODO@API Should this include more inline-renderable items like `ChatAgentInlineContentReference`
-		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
+	export class ChatResponseReferencePart {
+		value: Uri | Location;
+		constructor(value: Uri | Location);
 	}
 
-	/**
-	 * Represents a tree, such as a file and directory structure, rendered in the chat response.
-	 */
-	export interface ChatAgentFileTree {
-		/**
-		 * The root node of the tree.
-		 */
-		treeData: ChatAgentFileTreeData;
+	export class ChatResponseCommandButtonPart {
+		value: Command;
+		constructor(value: Command);
 	}
 
-	/**
-	 * Represents a node in a chat response tree.
-	 */
-	export interface ChatAgentFileTreeData {
-		/**
-		 * A human-readable string describing this node.
-		 */
-		label: string;
+	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
 
-		/**
-		 * A Uri for this node, opened when it's clicked.
-		 */
-		// TODO@API why label and uri. Can the former be derived from the latter?
-		// TODO@API don't use uri but just names? This API allows to to build nonsense trees where the data structure doesn't match the uris
-		// path-structure.
-		uri: Uri;
 
-		/**
-		 * The type of this node. Defaults to {@link FileType.Directory} if it has {@link ChatAgentFileTreeData.children children}.
-		 */
-		// TODO@API cross API usage
-		type?: FileType;
-
-		/**
-		 * The children of this node.
-		 */
-		children?: ChatAgentFileTreeData[];
-	}
-
-	export interface ChatAgentDocumentContext {
-		uri: Uri;
-		version: number;
-		ranges: Range[];
-	}
-
-	/**
-	 * Document references that should be used by the MappedEditsProvider.
-	 */
-	export interface ChatAgentUsedContext {
-		documents: ChatAgentDocumentContext[];
-	}
-
-	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	// TODO@API Remove a different type of `request` so that they can
+	// evolve at their own pace
+	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 
@@ -397,6 +466,7 @@ declare module 'vscode' {
 	/**
 	 * The detail level of this chat variable value.
 	 */
+	// TODO@API maybe for round2
 	export enum ChatVariableLevel {
 		Short = 1,
 		Medium = 2,
@@ -414,6 +484,9 @@ declare module 'vscode' {
 		 */
 		value: string | Uri;
 
+		/**
+		 * A description of this value, which could be provided to the LLM as a hint.
+		 */
 		description?: string;
 	}
 

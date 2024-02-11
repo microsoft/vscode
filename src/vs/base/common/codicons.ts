@@ -588,6 +588,12 @@ export const Codicon = {
 	diffSingle: register('diff-single', 0xec22),
 	diffMultiple: register('diff-multiple', 0xec23),
 	surroundWith: register('surround-with', 0xec24),
+	gitStash: register('git-stash', 0xec26),
+	gitStashApply: register('git-stash-apply', 0xec27),
+	gitStashPop: register('git-stash-pop', 0xec28),
+	coverage: register('coverage', 0xec2e),
+	runAllCoverage: register('run-all-coverage', 0xec2d),
+	runCoverage: register('run-all-coverage', 0xec2c),
 
 	// derived icons, that could become separate icons
 

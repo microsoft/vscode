@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -28,10 +28,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markHelpful',
-				title: {
-					value: localize('interactive.helpful.label', "Helpful"),
-					original: 'Helpful'
-				},
+				title: localize2('interactive.helpful.label', "Helpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
@@ -57,6 +54,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Up,
@@ -70,10 +68,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markUnhelpful',
-				title: {
-					value: localize('interactive.unhelpful.label', "Unhelpful"),
-					original: 'Unhelpful'
-				},
+				title: localize2('interactive.unhelpful.label', "Unhelpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
@@ -99,6 +94,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Down,
@@ -112,10 +108,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.reportIssueForBug',
-				title: {
-					value: localize('interactive.reportIssueForBug.label', "Report Issue"),
-					original: 'Report Issue'
-				},
+				title: localize2('interactive.reportIssueForBug.label', "Report Issue"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.report,
@@ -140,6 +133,7 @@ export function registerChatTitleActions() {
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'bug'
 				}
@@ -151,10 +145,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNotebook',
-				title: {
-					value: localize('interactive.insertIntoNotebook.label', "Insert into Notebook"),
-					original: 'Insert into Notebook'
-				},
+				title: localize2('interactive.insertIntoNotebook.label', "Insert into Notebook"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -227,10 +218,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.remove',
-				title: {
-					value: localize('chat.remove.label', "Remove Request and Response"),
-					original: 'Remove Request and Response'
-				},
+				title: localize2('chat.remove.label', "Remove Request and Response"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,

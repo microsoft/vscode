@@ -71,6 +71,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for code blocks in chat. */
+	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
+	/** Scheme used for the chat input editor. */
 	export const vscodeChatSesssion = 'vscode-chat-editor';
 
 	/**

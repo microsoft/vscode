@@ -409,15 +409,17 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const overlay = this._stickyScrollOverlay;
 
 		// The Webgl renderer isn't used here as there are a limited number of webgl contexts
-		// available within a given page. This is a single row that isn't rendered to often so the
+		// available within a given page. This is a single row that isn't rendered too often so the
 		// performance isn't as important
 		if (this._xterm.isGpuAccelerated) {
 			if (!this._canvasAddon.value && !this._pendingCanvasAddon) {
 				this._pendingCanvasAddon = createCancelablePromise(async token => {
 					const CanvasAddon = await this._getCanvasAddonConstructor();
-					if (!token.isCancellationRequested) {
+					if (!token.isCancellationRequested && !this._store.isDisposed) {
 						this._canvasAddon.value = new CanvasAddon();
-						overlay.loadAddon(this._canvasAddon.value);
+						if (this._canvasAddon.value) { // The MutableDisposable could be disposed
+							overlay.loadAddon(this._canvasAddon.value);
+						}
 					}
 					this._pendingCanvasAddon = undefined;
 				});

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -57,6 +58,8 @@ suite('SnippetSession', function () {
 		model.dispose();
 		editor.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('normalize whitespace', function () {
 

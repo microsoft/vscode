@@ -161,7 +161,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			return this.hoverService.showHover({
 				...options,
 				persistence: {
-					hideOnKeyDown: true
+					hideOnKeyDown: true,
+					sticky: focus
 				}
 			}, focus);
 		}

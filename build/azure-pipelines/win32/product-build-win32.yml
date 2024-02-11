@@ -90,32 +90,16 @@ steps:
     displayName: Setup NPM Authentication
 
   - powershell: |
-      mkdir -Force .build/node-gyp
-    displayName: Create custom node-gyp directory
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - powershell: |
-      . ../../build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      # TODO: Should be replaced with upstream URL once https://github.com/nodejs/node-gyp/pull/2825
-      # gets merged.
-      exec { git config --global user.email "vscode@microsoft.com" } "git config user.email failed"
-      exec { git config --global user.name "VSCode" } "git config user.name failed"
-      exec { git clone https://github.com/nodejs/node-gyp.git . } "Cloning nodejs/node-gyp failed"
-      exec { git checkout v9.4.0 } "Checking out v9.4.0 failed"
-      exec { git am --3way --whitespace=fix ../../build/npm/gyp/patches/gyp_spectre_mitigation_support.patch } "Apply spectre patch failed"
-      exec { npm install } "Building node-gyp failed"
-      exec { python3 -m pip install setuptools } "Installing setuptools failed"
-    displayName: Install custom node-gyp
-    workingDirectory: .build/node-gyp
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      $env:npm_config_node_gyp="$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
-      $env:npm_config_arch="$(VSCODE_ARCH)"
+      # TODO: remove custom node-gyp when updating to Node v20,
+      # refs https://github.com/npm/cli/releases/tag/v10.2.3 which is available with Node >= 20.10.0
+      $nodeGypDir = "$(Agent.TempDirectory)/custom-packages"
+      mkdir "$nodeGypDir"
+      npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
+      $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
+      $env:npm_config_arch = "$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:
