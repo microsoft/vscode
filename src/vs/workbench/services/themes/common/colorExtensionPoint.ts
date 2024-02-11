@@ -12,6 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 interface IColorExtensionPoint {
 	id: string;
@@ -175,14 +176,17 @@ class ColorDataRenderer extends Disposable implements IExtensionFeatureTableRend
 			nls.localize('defaultLight', "Light Default"),
 			nls.localize('defaultHC', "High Contrast Default"),
 		];
+
+		const toColor = (colorReference: string): Color | undefined => colorReference[0] === '#' ? Color.fromHex(colorReference) : undefined;
+
 		const rows: IRowData[][] = colors.sort((a, b) => a.id.localeCompare(b.id))
 			.map(color => {
 				return [
-					{ data: color.id, type: 'code' },
+					new MarkdownString().appendMarkdown(`\`${color.id}\``),
 					color.description,
-					{ data: color.defaults.dark, type: 'color' },
-					{ data: color.defaults.light, type: 'color' },
-					{ data: color.defaults.highContrast, type: 'color' },
+					toColor(color.defaults.dark) ?? new MarkdownString().appendMarkdown(`\`${color.defaults.dark}\``),
+					toColor(color.defaults.light) ?? new MarkdownString().appendMarkdown(`\`${color.defaults.light}\``),
+					toColor(color.defaults.highContrast) ?? new MarkdownString().appendMarkdown(`\`${color.defaults.highContrast}\``),
 				];
 			});
 

@@ -208,6 +208,13 @@ class RenameController implements IEditorContribution {
 		// part 2 - do rename at location
 		const cts2 = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range, this._cts.token);
 
+		const model = this.editor.getModel(); // @ulugbekna: assumes editor still has a model, otherwise, cts1 should've been cancelled
+		const newNameCandidates = Promise.all(
+			this._languageFeaturesService.newSymbolNamesProvider
+				.all(model)
+				.map(provider => provider.provideNewSymbolNames(model, loc.range, cts2.token)) // TODO@ulugbekna: make sure this works regardless if the result is then-able
+		).then((candidates) => candidates.filter((c): c is string[] => !!c).flat());
+
 		const selection = this.editor.getSelection();
 		let selectionStart = 0;
 		let selectionEnd = loc.text.length;
@@ -218,7 +225,7 @@ class RenameController implements IEditorContribution {
 		}
 
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, cts2.token);
+		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newNameCandidates, cts2.token);
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
