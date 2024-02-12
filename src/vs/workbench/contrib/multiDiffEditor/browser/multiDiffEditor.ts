@@ -96,6 +96,16 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		return this._multiDiffEditorWidget!.getActiveControl();
 	}
 
+	override focus(): void {
+		super.focus();
+
+		this._multiDiffEditorWidget?.getActiveControl()?.focus();
+	}
+
+	override hasFocus(): boolean {
+		return this._multiDiffEditorWidget?.getActiveControl()?.hasTextFocus() || super.hasFocus();
+	}
+
 	protected override computeEditorViewState(resource: URI): IMultiDiffEditorViewState | undefined {
 		return this._multiDiffEditorWidget!.getViewState();
 	}

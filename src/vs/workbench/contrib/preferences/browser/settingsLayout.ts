@@ -232,6 +232,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['accessibility.signals.*']
 				},
 				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signals.*']
+				},
+				{
 					id: 'features/mergeEditor',
 					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']

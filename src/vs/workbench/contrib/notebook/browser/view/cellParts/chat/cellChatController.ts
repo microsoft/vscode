@@ -270,7 +270,7 @@ export class NotebookCellChatController extends Disposable {
 
 		const session = await this._inlineChatSessionService.createSession(
 			editor,
-			{ editMode: EditMode.LivePreview },
+			{ editMode: EditMode.Live },
 			token
 		);
 

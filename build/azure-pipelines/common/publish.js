@@ -41,6 +41,9 @@ class Temp {
         }
     }
 }
+function isCreateProvisionedFilesErrorResponse(response) {
+    return response?.ErrorDetails?.Code !== undefined;
+}
 class ProvisionService {
     log;
     accessToken;
@@ -63,6 +66,10 @@ class ProvisionService {
         });
         this.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
         const res = await (0, retry_1.retry)(() => this.request('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body }));
+        if (isCreateProvisionedFilesErrorResponse(res) && res.ErrorDetails.Code === 'FriendlyFileNameAlreadyProvisioned') {
+            this.log(`File already provisioned (most likley due to a re-run), skipping: ${fileName}`);
+            return;
+        }
         if (!res.IsSuccess) {
             throw new Error(`Failed to submit provisioning request: ${JSON.stringify(res.ErrorDetails)}`);
         }
@@ -78,8 +85,10 @@ class ProvisionService {
             }
         };
         const res = await fetch(`https://dsprovisionapi.microsoft.com${url}`, opts);
-        if (!res.ok || res.status < 200 || res.status >= 500) {
-            throw new Error(`Unexpected status code: ${res.status}`);
+        // 400 normally means the request is bad or something is already provisioned, so we will return as retries are useless
+        // Otherwise log the text body and headers. We do text because some responses are not JSON.
+        if ((!res.ok || res.status < 200 || res.status >= 500) && res.status !== 400) {
+            throw new Error(`Unexpected status code: ${res.status}\nResponse Headers: ${JSON.stringify(res.headers)}\nBody Text: ${await res.text()}`);
         }
         return await res.json();
     }

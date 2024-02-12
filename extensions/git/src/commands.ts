@@ -23,7 +23,7 @@ import { RemoteSourceAction } from './api/git-base';
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
 	get description(): string { return ''; }
-	get alwaysShow(): boolean { return false; }
+	get alwaysShow(): boolean { return true; }
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
@@ -2461,9 +2461,10 @@ export class CommandCenter {
 		const createBranchFrom = new CreateBranchFromItem();
 		const checkoutDetached = new CheckoutDetachedItem();
 		const picks: QuickPickItem[] = [];
+		const commands: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
-			picks.push(createBranch, createBranchFrom, checkoutDetached);
+			commands.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
 		const disposables: Disposable[] = [];
@@ -2477,7 +2478,7 @@ export class CommandCenter {
 		quickPick.show();
 
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = picks;
+		quickPick.items = [...commands, ...picks];
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
@@ -2492,6 +2493,22 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
+			disposables.push(quickPick.onDidChangeValue(value => {
+				switch (true) {
+					case value === '':
+						quickPick.items = [...commands, ...picks];
+						break;
+					case commands.length === 0:
+						quickPick.items = picks;
+						break;
+					case picks.length === 0:
+						quickPick.items = commands;
+						break;
+					default:
+						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+						break;
+				}
+			}));
 		});
 
 		dispose(disposables);

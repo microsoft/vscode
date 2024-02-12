@@ -313,16 +313,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.creationOptions?.codeWindow ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, this._readOnly);
 		this._register(this._notebookOptions);
+		const eventDispatcher = this._register(new NotebookEventDispatcher());
 		this._viewContext = new ViewContext(
 			this._notebookOptions,
-			new NotebookEventDispatcher(),
+			eventDispatcher,
 			language => this.getBaseCellEditorOptions(language));
 		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
 			this._onDidChangeCellState.fire(e);
 		}));
 
 		this._overlayContainer = document.createElement('div');
-		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
 		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
 		this._register(_notebookService.onDidChangeOutputRenderers(() => {

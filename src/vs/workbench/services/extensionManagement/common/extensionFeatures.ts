@@ -12,6 +12,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import Severity from 'vs/base/common/severity';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { Color } from 'vs/base/common/color';
 
 export namespace Extensions {
 	export const ExtensionFeaturesRegistry = 'workbench.registry.extensionFeatures';
@@ -33,7 +35,7 @@ export interface IExtensionFeatureMarkdownRenderer extends IExtensionFeatureRend
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString>;
 }
 
-export type IRowData = string | IMarkdownString | { readonly data: string | string[]; readonly type: 'code' | 'keybinding' | 'color' };
+export type IRowData = string | IMarkdownString | ResolvedKeybinding | Color | ReadonlyArray<ResolvedKeybinding | IMarkdownString | Color>;
 
 export interface ITableData {
 	headers: string[];
@@ -54,12 +56,12 @@ export interface IExtensionFeatureDescriptor {
 		readonly requireUserConsent?: boolean;
 		readonly extensionsList?: IStringDictionary<boolean>;
 	};
-	readonly renderer: SyncDescriptor<IExtensionFeatureRenderer>;
+	readonly renderer?: SyncDescriptor<IExtensionFeatureRenderer>;
 }
 
 export interface IExtensionFeaturesRegistry {
 
-	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): void;
+	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): IDisposable;
 	getExtensionFeature(id: string): IExtensionFeatureDescriptor | undefined;
 	getExtensionFeatures(): ReadonlyArray<IExtensionFeatureDescriptor>;
 }
@@ -93,11 +95,14 @@ class ExtensionFeaturesRegistry implements IExtensionFeaturesRegistry {
 
 	private readonly extensionFeatures = new Map<string, IExtensionFeatureDescriptor>();
 
-	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): void {
+	registerExtensionFeature(descriptor: IExtensionFeatureDescriptor): IDisposable {
 		if (this.extensionFeatures.has(descriptor.id)) {
 			throw new Error(`Extension feature with id '${descriptor.id}' already exists`);
 		}
 		this.extensionFeatures.set(descriptor.id, descriptor);
+		return {
+			dispose: () => this.extensionFeatures.delete(descriptor.id)
+		};
 	}
 
 	getExtensionFeature(id: string): IExtensionFeatureDescriptor | undefined {

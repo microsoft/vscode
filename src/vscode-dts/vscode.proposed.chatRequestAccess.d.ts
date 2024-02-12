@@ -5,57 +5,16 @@
 
 declare module 'vscode' {
 
-	export interface LanguageModelResponseStream {
-
-		/**
-		 * The response stream.
-		 */
-		readonly response: AsyncIterable<string>;
-
-		/**
-		 * The variant of multiple responses. This is used to disambiguate between multiple
-		 * response streams when having asked for multiple response options
-		 */
-		readonly option: number;
-	}
-
-	// TODO@API NAME: LanguageModelResponse (depends on having cancel or not)
-	export interface LanguageModelRequest {
+	export interface LanguageModelResponse {
 
 		/**
 		 * The overall result of the request which represents failure or success
 		 * but _not_ the actual response or responses
 		 */
 		// TODO@API define this type!
-		result: Thenable<any>;
+		result: Thenable<unknown>;
 
-		/**
-		 * The _default response_ stream. This is the stream of the first response option
-		 * receiving data.
-		 *
-		 * Usually there is only one response option and this stream is more convienient to use
-		 * than the {@link onDidStartResponseStream `onDidStartResponseStream`} event.
-		 */
-		// TODO@API NAME: responseStream
-		response: AsyncIterable<string>;
-
-		/**
-		 * An event that fires whenever a new response option is available. The response
-		 * itself is a stream of the actual response.
-		 *
-		 * *Note* that the first time this event fires, the {@link LanguageModelResponseStream.response response stream}
-		 * is the same as the {@link response `default response stream`}.
-		 *
-		 * *Note* that unless requested there is only one response option, so this event will only fire
-		 * once.
-		 */
-		onDidStartResponseStream: Event<LanguageModelResponseStream>;
-
-		/**
-		 * Cancel this request.
-		 */
-		// TODO@API remove this? We pass a token to makeRequest call already
-		cancel(): void;
+		stream: AsyncIterable<string>;
 	}
 
 	/**
@@ -90,7 +49,7 @@ declare module 'vscode' {
 		 * @param messages
 		 * @param options
 		 */
-		makeRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelRequest;
+		makeChatRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
 	}
 
 	export interface LanguageModelAccessOptions {
@@ -120,10 +79,14 @@ declare module 'vscode' {
 		/**
 		 * Request access to a language model.
 		 *
-		 * *Note* that this function will throw an error when the user didn't grant access
+		 * - *Note 1:* This function will throw an error when the user didn't grant access or when the
+		 * requested language model is not available.
 		 *
-		 * @param id The id of the language model, e.g `copilot`
-		 * @returns A thenable that resolves to a language model access object, rejects is access wasn't granted
+		 * - *Note 2:* It is OK to hold on to the returned access object and use it later, but extensions
+		 * should check {@link LanguageModelAccess.isRevoked} before using it.
+		 *
+		 * @param id The id of the language model, see {@link languageModels} for valid values.
+		 * @returns A thenable that resolves to a language model access object, rejects if access wasn't granted
 		 */
 		export function requestLanguageModelAccess(id: string, options?: LanguageModelAccessOptions): Thenable<LanguageModelAccess>;
 
@@ -135,7 +98,6 @@ declare module 'vscode' {
 		/**
 		 * An event that is fired when the set of available language models changes.
 		 */
-		//@API is this really needed?
 		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
 	}
 }
