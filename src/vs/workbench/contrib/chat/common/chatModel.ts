@@ -12,7 +12,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -26,6 +26,11 @@ export interface IChatRequestVariableData {
 	message: string;
 
 	variables: Record<string, IChatRequestVariableValue[]>;
+}
+
+export interface IChatRequestVariableData2 {
+	message: string;
+	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
 }
 
 export interface IChatRequestModel {

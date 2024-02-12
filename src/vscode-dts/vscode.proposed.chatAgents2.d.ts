@@ -276,6 +276,12 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	export interface ChatAgentResolvedVariable {
+		name: string;
+		range: [start: number, end: number];
+		values: ChatVariableValue[];
+	}
+
 	export interface ChatAgentRequest {
 
 		/**
@@ -287,6 +293,16 @@ declare module 'vscode' {
 		prompt: string;
 
 		/**
+		 * The prompt as entered by the user.
+		 *
+		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables2}.
+		 *
+		 * *Note* that the {@link ChatAgent2.name name} of the agent and the {@link ChatAgentCommand.name command}
+		 * are not part of the prompt.
+		 */
+		prompt2: string;
+
+		/**
 		 * The ID of the chat agent to which this request was directed.
 		 */
 		agentId: string;
@@ -296,10 +312,13 @@ declare module 'vscode' {
 		 */
 		command?: string;
 
+		/** @deprecated */
 		variables: Record<string, ChatVariableValue[]>;
 
-		// TODO@API argumented prompt, reverse order!
-		// variables2: { start:number, length:number,  values: ChatVariableValue[]}[]
+		/**
+		 *
+		 */
+		variables2: ChatAgentResolvedVariable[];
 	}
 
 	export interface ChatAgentResponseStream {
