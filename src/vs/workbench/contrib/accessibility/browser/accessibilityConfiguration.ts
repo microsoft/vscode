@@ -13,7 +13,7 @@ import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
-import { audioCueFeatureBase } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
+import { soundFeatureBase } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -106,8 +106,8 @@ export const announcementFeatureBase: IConfigurationPropertySchema = {
 	'enum': ['auto', 'off'],
 	'default': 'auto',
 	'enumDescriptions': [
-		localize('audioCues.enabled.auto', "Enable announcement, will only play when in screen reader optimized mode."),
-		localize('audioCues.enabled.off', "Disable announcement.")
+		localize('announcement.enabled.auto', "Enable announcement, will only play when in screen reader optimized mode."),
+		localize('announcement.enabled.off', "Disable announcement.")
 	],
 	tags: ['accessibility'],
 };
@@ -117,7 +117,7 @@ const defaultNoAnnouncement: IConfigurationPropertySchema = {
 	'tags': ['accessibility'],
 	additionalProperties: true,
 	'default': {
-		'audioCue': 'auto',
+		'sound': 'auto',
 	}
 };
 
@@ -284,9 +284,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.lineHasBreakpoint', "Plays a signal when the active line has a breakpoint."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.lineHasBreakpoint.audioCue', "Plays an audio cue when the active line has a breakpoint."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.lineHasBreakpoint.sound', "Plays a sound when the active line has a breakpoint."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.lineHasBreakpoint.alert', "Indicates when the active line has a breakpoint."),
@@ -299,9 +299,9 @@ const configuration: IConfigurationNode = {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.lineHasInlineSuggestion', "Indicates when the active line has an inline suggestion."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.lineHasInlineSuggestion.audioCue', "Plays an audio cue when the active line has an inline suggestion."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.lineHasInlineSuggestion.sound', "Plays a sound when the active line has an inline suggestion."),
+					...soundFeatureBase
 				}
 			}
 		},
@@ -309,9 +309,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.lineHasError', "Indicates when the active line has an error."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.lineHasError.audioCue', "Plays an audio cue when the active line has an error."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.lineHasError.sound', "Plays a sound when the active line has an error."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.lineHasError.alert', "Indicates when the active line has an error."),
@@ -324,9 +324,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.lineHasFoldedArea', "Indicates when the active line has a folded area that can be unfolded."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.lineHasFoldedArea.audioCue', "Plays an audio cue when the active line has a folded area that can be unfolded."),
-					...audioCueFeatureBase,
+				'sound': {
+					'description': localize('accessibility.signals.lineHasFoldedArea.sound', "Plays a sound when the active line has a folded area that can be unfolded."),
+					...soundFeatureBase,
 					default: 'off'
 				},
 				'announcement': {
@@ -339,9 +339,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.lineHasWarning', "Plays a signal when the active line has a warning."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.lineHasWarning.audioCue', "Plays an audio cue when the active line has a warning."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.lineHasWarning.sound', "Plays a sound when the active line has a warning."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.lineHasWarning.alert', "Indicates when the active line has a warning."),
@@ -354,9 +354,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.onDebugBreak', "Plays a signal when the debugger stopped on a breakpoint."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.onDebugBreak.audioCue', "Plays an audio cue when the debugger stopped on a breakpoint."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.onDebugBreak.sound', "Plays a sound when the debugger stopped on a breakpoint."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.onDebugBreak.alert', "Indicates when the debugger stopped on a breakpoint."),
@@ -368,9 +368,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.noInlayHints', "Plays a signal when trying to read a line with inlay hints that has no inlay hints."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.noInlayHints.audioCue', "Plays an audio cue when trying to read a line with inlay hints that has no inlay hints."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.noInlayHints.sound', "Plays a sound when trying to read a line with inlay hints that has no inlay hints."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.noInlayHints.alert', "Indicates when trying to read a line with inlay hints that has no inlay hints."),
@@ -382,9 +382,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.taskCompleted', "Plays a signal when a task is completed."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.taskCompleted.audioCue', "Plays an audio cue when a task is completed."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.taskCompleted.sound', "Plays a sound when a task is completed."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.taskCompleted.alert', "Indicates when a task is completed."),
@@ -396,9 +396,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.taskFailed', "Plays a signal when a task fails (non-zero exit code)."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.taskFailed.audioCue', "Plays an audio cue when a task fails (non-zero exit code)."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.taskFailed.sound', "Plays a sound when a task fails (non-zero exit code)."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.taskFailed.alert', "Indicates when a task fails (non-zero exit code)."),
@@ -410,9 +410,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.terminalCommandFailed', "Plays a signal when a terminal command fails (non-zero exit code)."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.terminalCommandFailed.audioCue', "Plays an audio cue when a terminal command fails (non-zero exit code)."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.terminalCommandFailed.sound', "Plays a sound when a terminal command fails (non-zero exit code)."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.terminalCommandFailed.alert', "Indicates when a terminal command fails (non-zero exit code)."),
@@ -424,9 +424,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.terminalQuickFix', "Plays a signal when terminal Quick Fixes are available."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.terminalQuickFix.audioCue', "Plays an audio cue when terminal Quick Fixes are available."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.terminalQuickFix.sound', "Plays a sound when terminal Quick Fixes are available."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.terminalQuickFix.alert', "Indicates when terminal Quick Fixes are available."),
@@ -438,9 +438,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.terminalBell', "Plays a signal when the terminal bell is ringing."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.terminalBell.audioCue', "Plays an audio cue when the terminal bell is ringing."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.terminalBell.sound', "Plays a sound when the terminal bell is ringing."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.terminalBell.alert', "Indicates when the terminal bell is ringing."),
@@ -452,9 +452,9 @@ const configuration: IConfigurationNode = {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.diffLineInserted', "Indicates when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.audioCue', "Plays an audio cue when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.sound', "Plays a sound when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
+					...soundFeatureBase
 				}
 			}
 		},
@@ -462,9 +462,9 @@ const configuration: IConfigurationNode = {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.diffLineModified', "Indicates when the focus moves to an modified line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.diffLineModified.audioCue', "Plays an audio cue when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.diffLineModified.sound', "Plays a sound when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
+					...soundFeatureBase
 				}
 			}
 		},
@@ -472,9 +472,9 @@ const configuration: IConfigurationNode = {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.diffLineDeleted', "Indicates when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.diffLineDeleted.audioCue', "Plays an audio cue when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.diffLineDeleted.sound', "Plays a sound when the focus moves to an deleted line in Accessible Diff Viewer mode or to the next/previous change."),
+					...soundFeatureBase
 				}
 			}
 		},
@@ -482,9 +482,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.notebookCellCompleted', "Plays a signal when a notebook cell execution is successfully completed."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.notebookCellCompleted.audioCue', "Plays an audio cue when a notebook cell execution is successfully completed."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.notebookCellCompleted.sound', "Plays a sound when a notebook cell execution is successfully completed."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.notebookCellCompleted.alert', "Indicates when a notebook cell execution is successfully completed."),
@@ -496,9 +496,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.notebookCellFailed', "Plays a signal when a notebook cell execution fails."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.notebookCellFailed.audioCue', "Plays an audio cue when a notebook cell execution fails."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.notebookCellFailed.sound', "Plays a sound when a notebook cell execution fails."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.notebookCellFailed.alert', "Indicates when a notebook cell execution fails."),
@@ -510,9 +510,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal when a chat request is made."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.chatRequestSent.audioCue', "Plays an audio cue when a chat request is made."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.chatRequestSent.sound', "Plays a sound when a chat request is made."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.chatRequestSent.alert', "Indicates when a chat request is made."),
@@ -524,9 +524,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.chatResponsePending', "Plays a signal on loop while the response is pending."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.chatResponsePending.audioCue', "Plays an audio cue on loop while the response is pending."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.chatResponsePending.sound', "Plays a sound on loop while the response is pending."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.chatResponsePending.alert', "Alerts on loop while the response is pending."),
@@ -539,9 +539,9 @@ const configuration: IConfigurationNode = {
 			additionalProperties: false,
 			'description': localize('accessibility.signals.chatResponseReceived', "Indicates when the response has been received."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.chatResponseReceived.audioCue', "Plays an audio cue on loop while the response has been received."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on loop while the response has been received."),
+					...soundFeatureBase
 				},
 			}
 		},
@@ -549,9 +549,9 @@ const configuration: IConfigurationNode = {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.clear.audioCue', "Plays an audio cue when a feature is cleared."),
-					...audioCueFeatureBase
+				'sound': {
+					'description': localize('accessibility.signals.clear.sound', "Plays a sound when a feature is cleared."),
+					...soundFeatureBase
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.clear.alert', "Indicates when a feature is cleared."),
@@ -565,15 +565,15 @@ const configuration: IConfigurationNode = {
 			additionalProperties: true,
 			'markdownDescription': localize('accessibility.signals.save', "Plays a signal when a file is saved."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.save.audioCue', "Plays an audio cue when a file is saved."),
+				'sound': {
+					'description': localize('accessibility.signals.save.sound', "Plays a sound when a file is saved."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.signals.save.audioCue.userGesture', "Plays the audio cue when a user explicitly saves a file."),
-						localize('accessibility.signals.save.audioCue.always', "Plays the audio cue whenever a file is saved, including auto save."),
-						localize('accessibility.signals.save.audioCue.never', "Never plays the audio cue.")
+						localize('accessibility.signals.save.sound.userGesture', "Plays the audio cue when a user explicitly saves a file."),
+						localize('accessibility.signals.save.sound.always', "Plays the audio cue whenever a file is saved, including auto save."),
+						localize('accessibility.signals.save.sound.never', "Never plays the audio cue.")
 					],
 				},
 				'announcement': {
@@ -589,7 +589,7 @@ const configuration: IConfigurationNode = {
 				},
 			},
 			default: {
-				'audioCue': 'never',
+				'sound': 'never',
 				'announcement': 'never'
 			}
 		},
@@ -599,8 +599,8 @@ const configuration: IConfigurationNode = {
 			additionalProperties: true,
 			'markdownDescription': localize('accessibility.signals.format', "Plays a signal when a file or notebook is formatted."),
 			'properties': {
-				'audioCue': {
-					'description': localize('accessibility.signals.format.audioCue', "Plays an audio cue when a file or notebook is formatted."),
+				'sound': {
+					'description': localize('accessibility.signals.format.sound', "Plays a sound when a file or notebook is formatted."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
