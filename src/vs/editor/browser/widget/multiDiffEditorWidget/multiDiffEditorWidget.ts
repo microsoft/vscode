@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
-import { IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl, VirtualizedViewItem } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
@@ -44,16 +44,8 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
-	public setScrollState(scrollState: { top?: number; left?: number }): void {
-		this._widgetImpl.get().setScrollState(scrollState);
-	}
-
-	public getTopOfElement(index: number): number {
-		return this._widgetImpl.get().getTopOfElement(index);
-	}
-
-	public viewItems(): readonly VirtualizedViewItem[] {
-		return this._widgetImpl.get().viewItems();
+	public scrollTo(uri: URI): void {
+		this._widgetImpl.get().scrollTo(uri);
 	}
 
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {

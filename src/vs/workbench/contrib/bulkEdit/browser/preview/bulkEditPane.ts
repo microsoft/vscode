@@ -318,10 +318,6 @@ export class BulkEditPane extends ViewPane {
 		}
 	}
 
-	// Issues with current implementation
-	// 3. Currently I am accessing the parent of the file element and showing all of the files, but we want to jump to the correct location when clicking on the multi diff editor
-	// Maybe we should somehow return the file operations directly instead of iterating upwards, the way that we currently do
-	// 4. Should jump instead to the part of the multi diff editor of interest, so no need to show it again, and can just scroll
 	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 
 		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
@@ -352,16 +348,7 @@ export class BulkEditPane extends ViewPane {
 
 		if (this._fileOperations === fileOperations) {
 			// Multi diff editor already open
-			const viewItems = this._multiDiffEditor?.viewItems();
-			if (viewItems) {
-				const item = viewItems?.find(item => item.viewModel.originalUri?.toString() === fileElement.edit.uri.toString());
-				if (item) {
-					const index = viewItems.indexOf(item);
-					const top = this._multiDiffEditor?.getTopOfElement(index);
-					console.log('top : ', top);
-					this._multiDiffEditor?.setScrollState({ top });
-				}
-			}
+			this._multiDiffEditor?.scrollTo(fileElement.edit.uri);
 			return;
 		}
 		this._fileOperations = fileOperations;
@@ -381,9 +368,6 @@ export class BulkEditPane extends ViewPane {
 				originalUri: leftResource,
 				modifiedUri: rightResource
 			});
-
-			console.log('leftResource : ', JSON.stringify(leftResource));
-			console.log('rightResource : ', JSON.stringify(rightResource));
 		}
 
 		let typeLabel: string | undefined;
@@ -403,21 +387,16 @@ export class BulkEditPane extends ViewPane {
 		const multiDiffSource = URI.from({ scheme: 'refactor-preview', path: JSON.stringify(fileElement.edit.uri) });
 		const description = 'Refactor Preview';
 
-		console.log('options : ', JSON.stringify(options));
-		console.log('fileOperations : ', fileOperations);
-		console.log('fileElement.edit ; ', fileElement.edit);
-		console.log('multiDiffSource : ', multiDiffSource);
-		console.log('resources : ', resources);
-		console.log('label : ', label);
-		console.log('description : ', description);
-
-		this._multiDiffEditor = await this._editorService.openEditor({
+		console.log('before open editor');
+		this._multiDiffEditor = this._disposables.add(await this._editorService.openEditor({
 			multiDiffSource: multiDiffSource ? URI.revive(multiDiffSource) : undefined,
 			resources: resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } })),
 			label: label,
 			description: description,
 			options: options,
-		}) as MultiDiffEditor;
+		}) as MultiDiffEditor);
+
+
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
