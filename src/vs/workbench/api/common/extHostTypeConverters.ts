@@ -2228,17 +2228,13 @@ export namespace ChatInlineFollowup {
 
 export namespace ChatMessage {
 	export function to(message: chatProvider.IChatMessage): vscode.ChatMessage {
-		const res = new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
-		res.name = message.name;
-		return res;
+		return new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
 	}
-
 
 	export function from(message: vscode.ChatMessage): chatProvider.IChatMessage {
 		return {
 			role: ChatMessageRole.from(message.role),
 			content: message.content,
-			name: message.name
 		};
 	}
 }
