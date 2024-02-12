@@ -724,14 +724,14 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		migrateFn: (audioCue, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			const alertSettingsKey = item.alertSettingsKey;
-			let alert: string | undefined;
+			let announcement: string | undefined;
 			if (alertSettingsKey) {
-				alert = accessor(alertSettingsKey) ?? undefined;
-				if (typeof alert !== 'string') {
-					alert = alert ? 'auto' : 'off';
+				announcement = accessor(alertSettingsKey) ?? undefined;
+				if (typeof announcement !== 'string') {
+					announcement = announcement ? 'auto' : 'off';
 				}
 			}
-			configurationKeyValuePairs.push([`${item.signalSettingsKey}`, { value: alert ? { alert, audioCue } : { audioCue } }]);
+			configurationKeyValuePairs.push([`${item.signalSettingsKey}`, { value: announcement ? { announcement, audioCue } : { audioCue } }]);
 			return configurationKeyValuePairs;
 		}
 	})));
