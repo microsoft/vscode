@@ -18,6 +18,7 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
@@ -58,7 +59,7 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));
 
-	public getActiveControl(): any | undefined {
+	public getActiveControl(): DiffEditorWidget | undefined {
 		return this._activeControl.get();
 	}
 
