@@ -76,7 +76,7 @@ const baseVerbosityProperty: IConfigurationPropertySchema = {
 	default: true,
 	tags: ['accessibility']
 };
-const markdownDeprecationMessage = localize('accessibility.alert.deprecationMessage', "This setting is deprecated. Use the `signals` settings instead.");
+const markdownDeprecationMessage = localize('accessibility.announcement.deprecationMessage', "This setting is deprecated. Use the `signals` settings instead.");
 const baseAlertProperty: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,
@@ -96,7 +96,7 @@ const signalFeatureBase: IConfigurationPropertySchema = {
 	'tags': ['accessibility'],
 	additionalProperties: false,
 	default: {
-		audioCue: 'auto',
+		sound: 'auto',
 		announcement: 'auto'
 	}
 };
@@ -289,9 +289,8 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.lineHasBreakpoint.alert', "Indicates when the active line has a breakpoint."),
-					...announcementFeatureBase,
-					default: 'off'
+					'description': localize('accessibility.signals.lineHasBreakpoint.announcement', "Indicates when the active line has a breakpoint."),
+					...announcementFeatureBase
 				},
 			},
 		},
@@ -301,7 +300,8 @@ const configuration: IConfigurationNode = {
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.lineHasInlineSuggestion.sound', "Plays a sound when the active line has an inline suggestion."),
-					...soundFeatureBase
+					...soundFeatureBase,
+					'default': 'off'
 				}
 			}
 		},
@@ -314,7 +314,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.lineHasError.alert', "Indicates when the active line has an error."),
+					'description': localize('accessibility.signals.lineHasError.announcement', "Indicates when the active line has an error."),
 					...announcementFeatureBase,
 					default: 'off'
 				},
@@ -330,7 +330,7 @@ const configuration: IConfigurationNode = {
 					default: 'off'
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.lineHasFoldedArea.alert', "Indicates when the active line has a folded area that can be unfolded."),
+					'description': localize('accessibility.signals.lineHasFoldedArea.announcement', "Indicates when the active line has a folded area that can be unfolded."),
 					...announcementFeatureBase
 				},
 			}
@@ -344,7 +344,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.lineHasWarning.alert', "Indicates when the active line has a warning."),
+					'description': localize('accessibility.signals.lineHasWarning.announcement', "Indicates when the active line has a warning."),
 					...announcementFeatureBase,
 					default: 'off'
 				},
@@ -359,7 +359,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.onDebugBreak.alert', "Indicates when the debugger stopped on a breakpoint."),
+					'description': localize('accessibility.signals.onDebugBreak.announcement', "Indicates when the debugger stopped on a breakpoint."),
 					...announcementFeatureBase
 				},
 			}
@@ -373,7 +373,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.noInlayHints.alert', "Indicates when trying to read a line with inlay hints that has no inlay hints."),
+					'description': localize('accessibility.signals.noInlayHints.announcement', "Indicates when trying to read a line with inlay hints that has no inlay hints."),
 					...announcementFeatureBase
 				},
 			}
@@ -387,7 +387,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.taskCompleted.alert', "Indicates when a task is completed."),
+					'description': localize('accessibility.signals.taskCompleted.announcement', "Indicates when a task is completed."),
 					...announcementFeatureBase
 				},
 			}
@@ -401,7 +401,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.taskFailed.alert', "Indicates when a task fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.taskFailed.announcement', "Indicates when a task fails (non-zero exit code)."),
 					...announcementFeatureBase
 				},
 			}
@@ -415,7 +415,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.terminalCommandFailed.alert', "Indicates when a terminal command fails (non-zero exit code)."),
+					'description': localize('accessibility.signals.terminalCommandFailed.announcement', "Indicates when a terminal command fails (non-zero exit code)."),
 					...announcementFeatureBase
 				},
 			}
@@ -429,7 +429,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.terminalQuickFix.alert', "Indicates when terminal Quick Fixes are available."),
+					'description': localize('accessibility.signals.terminalQuickFix.announcement', "Indicates when terminal Quick Fixes are available."),
 					...announcementFeatureBase
 				},
 			}
@@ -443,7 +443,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.terminalBell.alert', "Indicates when the terminal bell is ringing."),
+					'description': localize('accessibility.signals.terminalBell.announcement', "Indicates when the terminal bell is ringing."),
 					...announcementFeatureBase
 				},
 			}
@@ -487,7 +487,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.notebookCellCompleted.alert', "Indicates when a notebook cell execution is successfully completed."),
+					'description': localize('accessibility.signals.notebookCellCompleted.announcement', "Indicates when a notebook cell execution is successfully completed."),
 					...announcementFeatureBase
 				},
 			}
@@ -501,7 +501,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.notebookCellFailed.alert', "Indicates when a notebook cell execution fails."),
+					'description': localize('accessibility.signals.notebookCellFailed.announcement', "Indicates when a notebook cell execution fails."),
 					...announcementFeatureBase
 				},
 			}
@@ -515,7 +515,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.chatRequestSent.alert', "Indicates when a chat request is made."),
+					'description': localize('accessibility.signals.chatRequestSent.announcement', "Indicates when a chat request is made."),
 					...announcementFeatureBase
 				},
 			}
@@ -529,7 +529,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.chatResponsePending.alert', "Alerts on loop while the response is pending."),
+					'description': localize('accessibility.signals.chatResponsePending.announcement', "Alerts on loop while the response is pending."),
 					...announcementFeatureBase
 				},
 			},
@@ -554,7 +554,7 @@ const configuration: IConfigurationNode = {
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.clear.alert', "Indicates when a feature is cleared."),
+					'description': localize('accessibility.signals.clear.announcement', "Indicates when a feature is cleared."),
 					...announcementFeatureBase
 				},
 			},
@@ -577,14 +577,14 @@ const configuration: IConfigurationNode = {
 					],
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.save.alert', "Indicates when a file is saved."),
+					'description': localize('accessibility.signals.save.announcement', "Indicates when a file is saved."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.signals.save.alert.userGesture', "Plays the alert when a user explicitly saves a file."),
-						localize('accessibility.signals.save.alert.always', "Plays the alert whenever a file is saved, including auto save."),
-						localize('accessibility.signals.save.alert.never', "Never plays the audio cue.")
+						localize('accessibility.signals.save.announcement.userGesture', "Announces when a user explicitly saves a file."),
+						localize('accessibility.signals.save.announcement.always', "Announces whenever a file is saved, including auto save."),
+						localize('accessibility.signals.save.announcement.never', "Never plays the audio cue.")
 					],
 				},
 			},
@@ -611,14 +611,14 @@ const configuration: IConfigurationNode = {
 					],
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.format.alert', "Indicates when a file or notebook is formatted."),
+					'description': localize('accessibility.signals.format.announcement', "Indicates when a file or notebook is formatted."),
 					'type': 'string',
 					'enum': ['userGesture', 'always', 'never'],
 					'default': 'never',
 					'enumDescriptions': [
-						localize('accessibility.signals.format.alert.userGesture', "Plays the alertwhen a user explicitly formats a file."),
-						localize('accessibility.signals.format.alert.always', "Plays the alert whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
-						localize('accessibility.signals.format.alert.never', "Never plays the alert.")
+						localize('accessibility.signals.format.announcement.userGesture', "Announceswhen a user explicitly formats a file."),
+						localize('accessibility.signals.format.announcement.always', "Announces whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
+						localize('accessibility.signals.format.announcement.never', "Never announces.")
 					],
 				},
 			}
@@ -720,18 +720,29 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.map(item => ({
-		key: item.settingsKey,
-		migrateFn: (audioCue, accessor) => {
+		key: item.legacySoundSettingsKey,
+		migrateFn: (sound, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			const alertSettingsKey = item.alertSettingsKey;
+			const legacyAnnouncementSettingsKey = item.legacyAnnouncementSettingsKey;
 			let announcement: string | undefined;
-			if (alertSettingsKey) {
-				announcement = accessor(alertSettingsKey) ?? undefined;
-				if (typeof announcement !== 'string') {
+			if (legacyAnnouncementSettingsKey) {
+				announcement = accessor(legacyAnnouncementSettingsKey) ?? undefined;
+				if (announcement !== undefined && typeof announcement !== 'string') {
 					announcement = announcement ? 'auto' : 'off';
 				}
 			}
-			configurationKeyValuePairs.push([`${item.signalSettingsKey}`, { value: announcement ? { announcement, audioCue } : { audioCue } }]);
+			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement ? { announcement, sound } : { sound } }]);
+			return configurationKeyValuePairs;
+		}
+	})));
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.announcementMessage).map(item => ({
+		key: item.legacyAnnouncementSettingsKey!,
+		migrateFn: (announcement, accessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			const sound = accessor(item.legacySoundSettingsKey);
+			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement ? { announcement, sound } : { sound } }]);
 			return configurationKeyValuePairs;
 		}
 	})));
