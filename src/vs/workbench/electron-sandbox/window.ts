@@ -1076,9 +1076,9 @@ export class NativeWindow extends BaseWindow {
 
 			let text: string | undefined = undefined;
 			if (currentZoomLevel < this.configuredWindowZoomLevel) {
-				text = localize('zoomedOut', "$(zoom-out)");
+				text = '$(zoom-out)';
 			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
-				text = localize('zoomedIn', "$(zoom-in)");
+				text = '$(zoom-in)';
 			}
 
 			entry.updateZoomEntry(text ?? false, targetWindowId);
