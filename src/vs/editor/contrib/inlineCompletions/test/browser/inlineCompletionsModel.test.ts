@@ -57,7 +57,6 @@ suite('inlineCompletionModel', () => {
 				'}'
 			].join('\n')
 		)]);
-		console.log('secondaryEdits : ', JSON.stringify(secondaryEdits));
 		textModel.dispose();
 	});
 
@@ -88,7 +87,6 @@ suite('inlineCompletionModel', () => {
 				'}'
 			].join('\n')
 		)]);
-		console.log('secondaryEdits : ', JSON.stringify(secondaryEdits));
 		textModel.dispose();
 	});
 });
