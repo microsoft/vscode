@@ -490,9 +490,9 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 
 function getTextFromPosition(text: string, pos: Position): string {
 	let subtext = '';
-	const { lines, separators } = splitLinesIncludeSeparators(text);
+	const lines = splitLinesIncludeSeparators(text);
 	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
-		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0) + (separators[i] ?? '');
+		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0);
 	}
 	return subtext;
 }

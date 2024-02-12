@@ -254,12 +254,13 @@ export function splitLines(str: string): string[] {
 	return str.split(/\r\n|\r|\n/);
 }
 
-export function splitLinesIncludeSeparators(str: string): { lines: string[]; separators: string[] } {
-	const lines: string[] = [];
-	const separators: string[] = [];
+export function splitLinesIncludeSeparators(str: string): string[] {
+	const linesWithSeparators: string[] = [];
 	const splitLinesAndSeparators = str.split(/(\r\n|\r|\n)/);
-	splitLinesAndSeparators.forEach((el, idx) => (idx % 2 === 0 ? lines : separators).push(el));
-	return { lines, separators };
+	for (let i = 0; i < Math.ceil(splitLinesAndSeparators.length / 2); i++) {
+		linesWithSeparators.push(splitLinesAndSeparators[2 * i] + (splitLinesAndSeparators[2 * i + 1] ?? ''));
+	}
+	return linesWithSeparators;
 }
 
 /**
