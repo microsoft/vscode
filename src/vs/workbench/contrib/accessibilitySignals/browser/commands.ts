@@ -41,28 +41,26 @@ export class ShowSignalSoundHelp extends Action2 {
 		}));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
-		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal));
+		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
 		qp.onDidAccept(() => {
-			const enabledCues = qp.selectedItems.map(i => i.signal);
-			const disabledCues = AccessibilitySignal.allAccessibilitySignals.filter(cue => !enabledCues.includes(cue));
-			for (const cue of enabledCues) {
-				if (!userGestureSignals.includes(cue)) {
-					let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(cue.settingsKey);
-					sound = accessibilityService.isScreenReaderOptimized() ? 'auto' : 'on';
-					if (announcement) {
-						configurationService.updateValue(cue.settingsKey, { sound, announcement });
-					} else {
-						configurationService.updateValue(cue.settingsKey, { sound });
-					}
+			const enabledSounds = qp.selectedItems.map(i => i.signal);
+			const disabledSounds = qp.items.map(i => (i as any).signal).filter(i => !enabledSounds.includes(i));
+			for (const signal of enabledSounds) {
+				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
+				sound = userGestureSignals.includes(signal) ? 'userGesture' : accessibilityService.isScreenReaderOptimized() ? 'auto' : 'on';
+				if (announcement) {
+					configurationService.updateValue(signal.settingsKey, { sound, announcement });
+				} else {
+					configurationService.updateValue(signal.settingsKey, { sound });
 				}
 			}
-			for (const cue of disabledCues) {
-				const announcement = cue.announcementMessage ? configurationService.getValue(cue.settingsKey + '.announcement') : undefined;
-				const sound = userGestureSignals.includes(cue) ? 'never' : 'off';
+			for (const signal of disabledSounds) {
+				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
+				sound = userGestureSignals.includes(signal) ? 'never' : 'off';
 				if (announcement) {
-					configurationService.updateValue(cue.settingsKey, { sound, announcement });
+					configurationService.updateValue(signal.settingsKey, { sound, announcement });
 				} else {
-					configurationService.updateValue(cue.settingsKey, { sound });
+					configurationService.updateValue(signal.settingsKey, { sound });
 				}
 			}
 			qp.hide();
@@ -104,23 +102,21 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 		}));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
-		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal));
+		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal) || configurationService.getValue(i.signal.settingsKey + '.announcement') !== 'never');
 		qp.onDidAccept(() => {
 			const enabledAnnouncements = qp.selectedItems.map(i => i.signal);
 			const disabledAnnouncements = AccessibilitySignal.allAccessibilitySignals.filter(cue => !enabledAnnouncements.includes(cue));
-			for (const cue of enabledAnnouncements) {
-				if (!userGestureSignals.includes(cue)) {
-					let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(cue.settingsKey);
-					announcement = cue.announcementMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
-					if (announcement) {
-						configurationService.updateValue(cue.settingsKey, { sound, announcement });
-					}
+			for (const signal of enabledAnnouncements) {
+				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
+				announcement = userGestureSignals.includes(signal) ? 'userGesture' : signal.announcementMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
+				if (announcement) {
+					configurationService.updateValue(signal.settingsKey, { sound, announcement });
 				}
 			}
-			for (const cue of disabledAnnouncements) {
-				const announcement = userGestureSignals.includes(cue) ? 'never' : 'off';
-				const sound = configurationService.getValue(cue.settingsKey + '.sound');
-				configurationService.updateValue(cue.settingsKey, { sound, announcement });
+			for (const signal of disabledAnnouncements) {
+				const announcement = userGestureSignals.includes(signal) ? 'never' : 'off';
+				const sound = configurationService.getValue(signal.settingsKey + '.sound');
+				configurationService.updateValue(signal.settingsKey, { sound, announcement });
 			}
 			qp.hide();
 		});

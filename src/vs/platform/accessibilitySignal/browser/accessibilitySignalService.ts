@@ -178,9 +178,9 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	private readonly isSoundEnabledCache = new Cache((event: { readonly signal: AccessibilitySignal; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-				e.affectsConfiguration(event.signal.settingsKey) || e.affectsConfiguration(event.signal.settingsKey)
+				e.affectsConfiguration(event.signal.legacySoundSettingsKey) || e.affectsConfiguration(event.signal.settingsKey)
 			),
-			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(event.signal.settingsKey + '.audioCue')
+			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(event.signal.settingsKey + '.sound')
 		);
 		return derived(reader => {
 			/** @description sound enabled */
@@ -211,7 +211,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 				e.affectsConfiguration(event.signal.legacyAnnouncementSettingsKey!) || e.affectsConfiguration(event.signal.settingsKey)
 			),
-			() => event.signal.announcementMessage ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(event.signal.settingsKey + '.announcement') : false
+			() => event.signal.announcementMessage ? this.configurationService.getValue<'auto' | 'off' | 'userGesture' | 'always' | 'never'>(event.signal.settingsKey + '.announcement') : false
 		);
 		return derived(reader => {
 			/** @description alert enabled */
@@ -221,23 +221,23 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			) {
 				return false;
 			}
-			return setting === true || setting === 'always' || setting === 'userGesture' && event.userGesture;
+			return setting === 'auto' || setting === 'always' || setting === 'userGesture' && event.userGesture;
 		});
 	}, JSON.stringify);
 
-	public isAnnouncementEnabled(cue: AccessibilitySignal, userGesture?: boolean): boolean {
-		if (!cue.announcementMessage) {
+	public isAnnouncementEnabled(signal: AccessibilitySignal, userGesture?: boolean): boolean {
+		if (!signal.announcementMessage) {
 			return false;
 		}
-		return this.isAnnouncementEnabledCache.get({ signal: cue, userGesture }).get() ?? false;
+		return this.isAnnouncementEnabledCache.get({ signal, userGesture }).get() ?? false;
 	}
 
-	public isSoundEnabled(cue: AccessibilitySignal, userGesture?: boolean): boolean {
-		return this.isSoundEnabledCache.get({ signal: cue, userGesture }).get() ?? false;
+	public isSoundEnabled(signal: AccessibilitySignal, userGesture?: boolean): boolean {
+		return this.isSoundEnabledCache.get({ signal, userGesture }).get() ?? false;
 	}
 
-	public onSoundEnabledChanged(cue: AccessibilitySignal): Event<void> {
-		return Event.fromObservableLight(this.isSoundEnabledCache.get({ signal: cue }));
+	public onSoundEnabledChanged(signal: AccessibilitySignal): Event<void> {
+		return Event.fromObservableLight(this.isSoundEnabledCache.get({ signal }));
 	}
 
 	public onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void> {
