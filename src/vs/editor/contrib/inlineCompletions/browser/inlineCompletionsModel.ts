@@ -7,7 +7,7 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
-import { commonPrefixLength } from 'vs/base/common/strings';
+import { commonPrefixLength, splitLinesIncludeSeparators } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -22,7 +22,7 @@ import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostT
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { Permutation, addPositions, getNewRanges, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { Permutation, addPositions, getNewRanges, lengthOfText, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -223,7 +223,7 @@ export class InlineCompletionsModel extends Disposable {
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [fullEdit, ...this._getSecondaryEdits(this.textModel, positions, fullEdit)];
+			const edits = [fullEdit, ...getSecondaryEdits(this.textModel, positions, fullEdit)];
 			const ghostTexts = edits
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], fullEditPreviewLength))
 				.filter(isDefined);
@@ -237,7 +237,7 @@ export class InlineCompletionsModel extends Disposable {
 			const replacement = inlineCompletion.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const positions = this._positions.read(reader);
-			const edits = [replacement, ...this._getSecondaryEdits(this.textModel, positions, replacement)];
+			const edits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
 			const ghostTexts = edits
 				.map((edit, idx) => edit.computeGhostText(model, mode, positions[idx], 0))
 				.filter(isDefined);
@@ -432,7 +432,7 @@ export class InlineCompletionsModel extends Disposable {
 				const replaceRange = Range.fromPositions(cursorPosition, ghostTextPos);
 				const newText = editor.getModel()!.getValueInRange(replaceRange) + partialGhostTextVal;
 				const primaryEdit = new SingleTextEdit(replaceRange, newText);
-				const edits = [primaryEdit, ...this._getSecondaryEdits(this.textModel, positions, primaryEdit)];
+				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)];
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replaceMove(edit.range, edit.text)));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
@@ -455,23 +455,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	private _getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
-		const primaryPosition = positions[0];
-		const secondaryPositions = positions.slice(1);
-		const replacedTextAfterPrimaryCursor = textModel
-			.getLineContent(primaryPosition.lineNumber)
-			.substring(primaryPosition.column - 1, primaryEdit.range.endColumn - 1);
-		const secondaryEditText = primaryEdit.text.substring(primaryPosition.column - primaryEdit.range.startColumn);
-		return secondaryPositions.map(pos => {
-			const textAfterSecondaryCursor = this.textModel
-				.getLineContent(pos.lineNumber)
-				.substring(pos.column - 1);
-			const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
-			const range = Range.fromPositions(pos, pos.delta(0, l));
-			return new SingleTextEdit(range, secondaryEditText);
-		});
-	}
-
 	public handleSuggestAccepted(item: SuggestItemInfo) {
 		const itemEdit = item.toSingleTextEdit().removeCommonPrefix(this.textModel);
 		const augmentedCompletion = this._computeAugmentation(itemEdit, undefined);
@@ -484,6 +467,34 @@ export class InlineCompletionsModel extends Disposable {
 			itemEdit.text.length,
 		);
 	}
+}
+
+export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
+	const primaryPosition = positions[0];
+	const secondaryPositions = positions.slice(1);
+	const primaryEditEndPosition = primaryEdit.range.getEndPosition();
+	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(
+		Range.fromPositions(primaryPosition, primaryEditEndPosition)
+	);
+	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEdit.range.getStartPosition());
+	const secondaryEditText = substringPos(primaryEdit.text, positionWithinTextEdit);
+	return secondaryPositions.map(pos => {
+		const textAfterSecondaryCursor = textModel.getValueInRange(
+			Range.fromPositions(pos, primaryEditEndPosition)
+		);
+		const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
+		const range = Range.fromPositions(pos, pos.delta(0, l));
+		return new SingleTextEdit(range, secondaryEditText);
+	});
+}
+
+function substringPos(text: string, pos: Position): string {
+	let subtext = '';
+	const lines = splitLinesIncludeSeparators(text);
+	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
+		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0);
+	}
+	return subtext;
 }
 
 function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {

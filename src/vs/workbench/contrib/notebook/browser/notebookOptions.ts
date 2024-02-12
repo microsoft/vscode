@@ -20,7 +20,7 @@ const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
 export const OutputInnerContainerTopPadding = 4;
 
-export interface NotebookDisplayOptions {
+export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more generic name, not display
 	showCellStatusBar: ShowCellStatusBarType;
 	cellToolbarLocation: string | { [key: string]: string };
 	cellToolbarInteraction: string;

@@ -4257,6 +4257,23 @@ export class ChatResponseReferencePart {
 }
 
 
+export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
+	constructor(
+		readonly prompt: string,
+		readonly agentId: string,
+		readonly command: string | undefined,
+		readonly variables: vscode.ChatAgentResolvedVariable[],
+	) { }
+}
+
+export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		readonly result: vscode.ChatAgentResult2,
+		readonly agentId: string,
+	) { }
+}
+
 //#endregion
 
 //#region ai

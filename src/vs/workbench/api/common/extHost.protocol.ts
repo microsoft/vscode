@@ -1121,6 +1121,7 @@ export interface VariablesResult {
 	value: string;
 	hasNamedChildren: boolean;
 	indexedChildrenCount: number;
+	extensionId: string;
 }
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {

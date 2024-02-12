@@ -147,6 +147,11 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.text, options.usesAgents ? '@workspace' : 'At workspace');
 		assert.strictEqual(event?.waitingForInput, options.usesAgents);
 
+		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'at workspace' });
+		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+		assert.strictEqual(event?.text, options.usesAgents ? '@workspace' : 'at workspace');
+		assert.strictEqual(event?.waitingForInput, options.usesAgents);
+
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace help' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
 		assert.strictEqual(event?.text, options.usesAgents ? '@workspace help' : 'At workspace help');

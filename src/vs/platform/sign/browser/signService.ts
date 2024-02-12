@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
-import { $window } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 import { memoize } from 'vs/base/common/decorators';
 import { FileAccess } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -70,7 +70,7 @@ export class SignService extends AbstractSignService implements ISignService {
 					if (typeof vsda_web !== 'undefined') {
 						resolve();
 					}
-				}, 50, $window);
+				}, 50, mainWindow);
 			}).finally(() => checkInterval.dispose()),
 		]);
 

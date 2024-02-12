@@ -198,9 +198,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter, sessionDisposables);
 		try {
 			const convertedHistory = await this.prepareHistory(request, context);
+			const convertedHistory2 = await this.prepareHistoryTurns(request, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
-				{ history: convertedHistory },
+				{ history: convertedHistory, history2: convertedHistory2 },
 				stream.apiObject,
 				token
 			);
@@ -241,6 +242,27 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					result,
 				} satisfies vscode.ChatAgentHistoryEntry;
 			})));
+	}
+
+	private async prepareHistoryTurns(request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatAgentRequestTurn | vscode.ChatAgentResponseTurn)[]> {
+
+		const res: (vscode.ChatAgentRequestTurn | vscode.ChatAgentResponseTurn)[] = [];
+
+		for (const h of context.history) {
+			const ehResult = typeConvert.ChatAgentResult.to(h.result);
+			const result: vscode.ChatAgentResult2 = request.agentId === h.request.agentId ?
+				ehResult :
+				{ ...ehResult, metadata: undefined };
+
+			// REQUEST turn
+			res.push(new extHostTypes.ChatAgentRequestTurn(h.request.message, h.request.agentId, h.request.command, h.request.variables2.variables.map(typeConvert.ChatAgentResolvedVariable.to)));
+
+			// RESPONSE turn
+			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter)));
+			res.push(new extHostTypes.ChatAgentResponseTurn(parts, result, h.request.agentId));
+		}
+
+		return res;
 	}
 
 	$releaseSession(sessionId: string): void {
@@ -336,7 +358,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 class ExtHostChatAgent {
 
-	private _subCommandProvider: vscode.ChatAgentSubCommandProvider | undefined;
+	private _commandProvider: vscode.ChatAgentCommandProvider | undefined;
 	private _followupProvider: vscode.ChatAgentFollowupProvider | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
@@ -377,10 +399,10 @@ class ExtHostChatAgent {
 	}
 
 	async provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]> {
-		if (!this._subCommandProvider) {
+		if (!this._commandProvider) {
 			return [];
 		}
-		const result = await this._subCommandProvider.provideSubCommands(token);
+		const result = await this._commandProvider.provideCommands(token);
 		if (!result) {
 			return [];
 		}
@@ -461,7 +483,7 @@ class ExtHostChatAgent {
 						'dark' in this._iconPath ? this._iconPath.dark :
 							undefined,
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
-					hasSlashCommands: this._subCommandProvider !== undefined,
+					hasSlashCommands: this._commandProvider !== undefined,
 					hasFollowups: this._followupProvider !== undefined,
 					isDefault: this._isDefault,
 					isSecondary: this._isSecondary,
@@ -500,11 +522,11 @@ class ExtHostChatAgent {
 				that._iconPath = v;
 				updateMetadataSoon();
 			},
-			get subCommandProvider() {
-				return that._subCommandProvider;
+			get commandProvider() {
+				return that._commandProvider;
 			},
-			set subCommandProvider(v) {
-				that._subCommandProvider = v;
+			set commandProvider(v) {
+				that._commandProvider = v;
 				updateMetadataSoon();
 			},
 			get followupProvider() {
@@ -605,7 +627,7 @@ class ExtHostChatAgent {
 			,
 			dispose() {
 				disposed = true;
-				that._subCommandProvider = undefined;
+				that._commandProvider = undefined;
 				that._followupProvider = undefined;
 				that._onDidReceiveFeedback.dispose();
 				that._proxy.$unregisterAgent(that._handle);

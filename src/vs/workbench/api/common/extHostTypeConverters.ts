@@ -52,6 +52,7 @@ import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { basename } from 'vs/base/common/resources';
+import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 
 export namespace Command {
 
@@ -2239,17 +2240,13 @@ export namespace ChatInlineFollowup {
 
 export namespace ChatMessage {
 	export function to(message: chatProvider.IChatMessage): vscode.ChatMessage {
-		const res = new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
-		res.name = message.name;
-		return res;
+		return new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
 	}
-
 
 	export function from(message: vscode.ChatMessage): chatProvider.IChatMessage {
 		return {
 			role: ChatMessageRole.from(message.role),
 			content: message.content,
-			name: message.name
 		};
 	}
 }
@@ -2490,7 +2487,7 @@ export namespace ChatResponsePart {
 
 	}
 
-	export function from(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart {
+	export function from(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart | undefined {
 		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
 			case 'inlineReference': return ChatResponseAnchorPart.from(part);
@@ -2499,7 +2496,7 @@ export namespace ChatResponsePart {
 			case 'treeData': return ChatResponseFilesPart.from(part);
 			case 'command': return ChatResponseCommandButtonPart.from(part, commandsConverter);
 		}
-		return new types.ChatResponseTextPart('');
+		return undefined;
 	}
 }
 
@@ -2551,8 +2548,6 @@ export namespace ChatResponseProgress {
 		} else if ('agentName' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
-		} else if ('treeData' in progress) {
-			return { treeData: progress.treeData, kind: 'treeData' };
 		} else if ('message' in progress) {
 			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
@@ -2603,8 +2598,6 @@ export namespace ChatResponseProgress {
 							Location.to(progress.inlineReference),
 					title: progress.name
 				};
-			case 'treeData':
-				return { treeData: revive(progress.treeData) };
 			case 'command':
 				// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
 				return {
@@ -2621,9 +2614,21 @@ export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
 		return {
 			prompt: request.message,
+			prompt2: request.variables2.message,
 			variables: ChatVariable.objectTo(request.variables),
-			subCommand: request.command,
+			command: request.command,
 			agentId: request.agentId,
+			variables2: request.variables2.variables.map(ChatAgentResolvedVariable.to)
+		};
+	}
+}
+
+export namespace ChatAgentResolvedVariable {
+	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatAgentResolvedVariable {
+		return {
+			name: request.name,
+			range: [request.range.start, request.range.endExclusive],
+			values: request.values.map(ChatVariable.to)
 		};
 	}
 }

@@ -22,8 +22,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableData2, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestVariablePart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatAgentCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -157,6 +157,8 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _onDidUnregisterProvider = this._register(new Emitter<{ providerId: string }>());
 	public readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
+
+	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -463,7 +465,16 @@ export class ChatService extends Disposable implements IChatService {
 		return { responseCompletePromise: this._sendRequestAsync(model, sessionId, provider, request) };
 	}
 
+	private refreshFollowupsCancellationToken(sessionId: string): CancellationToken {
+		this._sessionFollowupCancelTokens.get(sessionId)?.cancel();
+		const newTokenSource = new CancellationTokenSource();
+		this._sessionFollowupCancelTokens.set(sessionId, newTokenSource);
+
+		return newTokenSource.token;
+	}
+
 	private async _sendRequestAsync(model: ChatModel, sessionId: string, provider: IChatProvider, message: string): Promise<void> {
+		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
 
 		let request: ChatRequestModel;
@@ -534,7 +545,8 @@ export class ChatService extends Disposable implements IChatService {
 							agentId: request.response.agent?.id ?? '',
 							message: request.variableData.message,
 							variables: request.variableData.variables,
-							command: request.response.slashCommand?.name
+							command: request.response.slashCommand?.name,
+							variables2: asVariablesData2(request.message, request.variableData)
 						};
 						history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
 					}
@@ -551,11 +563,12 @@ export class ChatService extends Disposable implements IChatService {
 						message: variableData.message,
 						variables: variableData.variables,
 						command: agentSlashCommandPart?.command.name,
+						variables2: asVariablesData2(parsedRequest, variableData)
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
-					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, CancellationToken.None);
+					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, followupsCancelToken);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest, { message, variables: {} });
 					// contributed slash commands
@@ -603,14 +616,11 @@ export class ChatService extends Disposable implements IChatService {
 					model.setResponse(request, rawResult);
 					this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
 
-					// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
+					model.completeResponse(request);
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
-							model.completeResponse(request);
 						});
-					} else {
-						model.completeResponse(request);
 					}
 				}
 			} finally {
@@ -754,4 +764,24 @@ export class ChatService extends Disposable implements IChatService {
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
 	}
+}
+
+function asVariablesData2(parsedRequest: IParsedChatRequest, variableData: IChatRequestVariableData): IChatRequestVariableData2 {
+
+	const res: IChatRequestVariableData2 = {
+		message: getPromptText(parsedRequest.parts),
+		variables: []
+	};
+
+	for (const part of parsedRequest.parts) {
+		if (part instanceof ChatRequestVariablePart) {
+			const values = variableData.variables[part.variableName];
+			res.variables.push({ name: part.variableName, range: part.range, values });
+		}
+	}
+
+	// "reverse", high index first so that replacement is simple
+	res.variables.sort((a, b) => b.range.start - a.range.start);
+
+	return res;
 }

@@ -37,8 +37,8 @@ suite('chat', () => {
 			return null;
 		});
 		agent.isDefault = true;
-		agent.subCommandProvider = {
-			provideSubCommands: (_token) => {
+		agent.commandProvider = {
+			provideCommands: (_token) => {
 				return [{ name: 'hello', description: 'Hello' }];
 			}
 		};
@@ -50,7 +50,7 @@ suite('chat', () => {
 		const deferred = getDeferredForRequest();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
 		const request = await deferred.p;
-		assert.deepStrictEqual(request.subCommand, 'hello');
+		assert.deepStrictEqual(request.command, 'hello');
 		assert.strictEqual(request.prompt, 'friend');
 	});
 
@@ -83,8 +83,8 @@ suite('chat', () => {
 			return { metadata: { key: 'value' } };
 		});
 		agent.isDefault = true;
-		agent.subCommandProvider = {
-			provideSubCommands: (_token) => {
+		agent.commandProvider = {
+			provideCommands: (_token) => {
 				return [{ name: 'hello', description: 'Hello' }];
 			}
 		};

@@ -12,7 +12,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressResponseContent, IChatRequestVariableData2 } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -79,6 +79,7 @@ export interface IChatAgentMetadata {
 	supportIssueReporting?: boolean;
 }
 
+
 export interface IChatAgentRequest {
 	sessionId: string;
 	requestId: string;
@@ -86,6 +87,7 @@ export interface IChatAgentRequest {
 	command?: string;
 	message: string;
 	variables: Record<string, IChatRequestVariableValue[]>;
+	variables2: IChatRequestVariableData2;
 }
 
 export interface IChatAgentResult {
