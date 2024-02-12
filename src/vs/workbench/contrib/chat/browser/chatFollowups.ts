@@ -9,6 +9,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IInlineChatFollowup } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -21,7 +22,8 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 		followups: T[],
 		private readonly options: IButtonStyles | undefined,
 		private readonly clickHandler: (followup: T) => void,
-		private readonly contextService: IContextKeyService,
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -44,7 +46,7 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 		}
 		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
 		let prefix = '';
-		if ('agentId' in followup && followup.agentId) {
+		if ('agentId' in followup && followup.agentId && followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
 			prefix += `${chatAgentLeader}${followup.agentId} `;
 			if ('subCommand' in followup && followup.subCommand) {
 				prefix += `${chatSubcommandLeader}${followup.subCommand} `;
