@@ -577,11 +577,18 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 
 		const isHorizontal = (direction === Direction.Left || direction === Direction.Right);
+
+		// Left-positionned panels have inverted controls
+		// see https://github.com/microsoft/vscode/issues/140873
+		const shouldInvertHorizontalResize = (isHorizontal && this._panelPosition === Position.LEFT);
+
+		const resizeDirection = shouldInvertHorizontalResize ? direction === Direction.Left ? Direction.Right : Direction.Left : direction;
+
 		const font = this._terminalService.configHelper.getFont(getWindow(this._groupElement));
 		// TODO: Support letter spacing and line height
 		const charSize = (isHorizontal ? font.charWidth : font.charHeight);
 		if (charSize) {
-			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, charSize * Constants.ResizePartCellCount, getPartByLocation(this._terminalLocation));
+			this._splitPaneContainer.resizePane(this._activeInstanceIndex, resizeDirection, charSize * Constants.ResizePartCellCount, getPartByLocation(this._terminalLocation));
 		}
 	}
 
