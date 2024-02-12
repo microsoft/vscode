@@ -278,14 +278,15 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideSlashCommands(token);
 	}
 
-	$provideFollowups(handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
+	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return Promise.resolve([]);
 		}
 
 		const ehResult = typeConvert.ChatAgentResult.to(result);
-		return agent.provideFollowups(ehResult, token);
+		return (await agent.provideFollowups(ehResult, token))
+			.map(f => typeConvert.ChatFollowup.from(f, request));
 	}
 
 	$acceptFeedback(handle: number, result: IChatAgentResult, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
@@ -309,23 +310,19 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			Object.freeze({ result: ehResult, kind }));
 	}
 
-	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void {
+	$acceptAction(handle: number, result: IChatAgentResult, event: IChatUserActionEvent): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
-		if (action.action.kind === 'vote') {
+		if (event.action.kind === 'vote') {
 			// handled by $acceptFeedback
 			return;
 		}
 
-		const ehResult = typeConvert.ChatAgentResult.to(result);
-		if (action.action.kind === 'command') {
-			const commandAction: vscode.ChatAgentCommandAction = { kind: 'command', commandButton: typeConvert.ChatResponseProgress.toProgressContent(action.action.commandButton, this.commands.converter) as vscode.ChatAgentCommandButton };
-			agent.acceptAction(Object.freeze({ action: commandAction, result: ehResult }));
-			return;
-		} else {
-			agent.acceptAction(Object.freeze({ action: action.action, result: ehResult }));
+		const ehAction = typeConvert.ChatAgentUserActionEvent.to(result, event, this.commands.converter);
+		if (ehAction) {
+			agent.acceptAction(Object.freeze(ehAction));
 		}
 	}
 
@@ -354,7 +351,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			return;
 		}
 
-		return await agent.provideSampleQuestions(token);
+		return (await agent.provideSampleQuestions(token))
+			.map(f => typeConvert.ChatFollowup.from(f, undefined));
 	}
 }
 
@@ -418,7 +416,7 @@ class ExtHostChatAgent {
 			}));
 	}
 
-	async provideFollowups(result: vscode.ChatAgentResult2, token: CancellationToken): Promise<IChatFollowup[]> {
+	async provideFollowups(result: vscode.ChatAgentResult2, token: CancellationToken): Promise<vscode.ChatAgentFollowup[]> {
 		if (!this._followupProvider) {
 			return [];
 		}
@@ -429,7 +427,8 @@ class ExtHostChatAgent {
 		return followups
 			// Filter out "command followups" from older providers
 			.filter(f => !(f && 'commandId' in f))
-			.map(f => typeConvert.ChatFollowup.from(f));
+			// Filter out followups from older providers before 'message' changed to 'prompt'
+			.filter(f => !(f && 'message' in f));
 	}
 
 	async provideWelcomeMessage(token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {
@@ -449,7 +448,7 @@ class ExtHostChatAgent {
 		});
 	}
 
-	async provideSampleQuestions(token: CancellationToken): Promise<IChatFollowup[]> {
+	async provideSampleQuestions(token: CancellationToken): Promise<vscode.ChatAgentFollowup[]> {
 		if (!this._welcomeMessageProvider || !this._welcomeMessageProvider.provideSampleQuestions) {
 			return [];
 		}
@@ -458,7 +457,7 @@ class ExtHostChatAgent {
 			return [];
 		}
 
-		return content?.map(f => typeConvert.ChatFollowup.from(f));
+		return content;
 	}
 
 	get apiAgent(): vscode.ChatAgent2 {
