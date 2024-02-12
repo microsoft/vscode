@@ -16,6 +16,9 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_FEEDBACK } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TerminalChatWidget extends Disposable {
 	private _scopedInstantiationService: IInstantiationService;
@@ -27,12 +30,15 @@ export class TerminalChatWidget extends Disposable {
 
 	private readonly _focusTracker: IFocusTracker;
 
+	private _chatModel: ChatModel | undefined;
+
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatService private readonly _chatService: IChatService) {
 		super();
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -41,6 +47,7 @@ export class TerminalChatWidget extends Disposable {
 		this._widgetContainer = document.createElement('div');
 		this._widgetContainer.classList.add('terminal-inline-chat');
 		this._container.appendChild(this._widgetContainer);
+
 		// this._widget = this._register(this._scopedInstantiationService.createInstance(
 		// 	ChatWidget,
 		// 	{ viewId: 'terminal' },
@@ -108,6 +115,14 @@ export class TerminalChatWidget extends Disposable {
 	}
 	acceptInput(): void {
 		// this._widget?.acceptInput();
+		this._chatModel ??= this._chatService.startSession('terminal', CancellationToken.None);
+
+		// if (!this._model) {
+		// throw new Error('Could not start chat session');
+		// }
+		this._chatService?.sendRequest(this._chatModel?.sessionId!, this._inlineChatWidget.value);
+		this._inlineChatWidget.value = '';
+		// this.widget.setModel(this.model, { inputValue: this._currentQuery });
 	}
 	layout(width: number): void {
 		// this._widget?.layout(100, width < 300 ? 300 : width);

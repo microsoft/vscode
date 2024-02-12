@@ -149,11 +149,11 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.chatInputHasText
+		// TerminalContextKeys.chatInputHasText
 	),
 	icon: Codicon.send,
 	keybinding: {
-		when: TerminalContextKeys.chatSessionInProgress,
+		when: TerminalContextKeys.chatSessionInProgress.negate(),
 		// TODO:
 		// when: CTX_INLINE_CHAT_FOCUSED,
 		weight: KeybindingWeight.EditorCore + 7,
@@ -163,7 +163,7 @@ registerActiveXtermAction({
 		id: MenuId.TerminalChat,
 		group: 'main',
 		order: 1,
-		when: TerminalContextKeys.chatSessionInProgress.negate(),
+		// when: TerminalContextKeys.chatSessionInProgress.negate(),
 		// TODO:
 		// when: CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.isEqualTo(false)
 	},
