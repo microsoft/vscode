@@ -15,7 +15,6 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
