@@ -693,6 +693,7 @@
 		"--vscode-terminalOverviewRuler-findMatchForeground",
 		"--vscode-terminalStickyScroll-background",
 		"--vscode-terminalStickyScrollHover-background",
+		"--vscode-testing-coverage-lineHeight",
 		"--vscode-testing-coverCountBadgeBackground",
 		"--vscode-testing-coverCountBadgeForeground",
 		"--vscode-testing-coveredBackground",
