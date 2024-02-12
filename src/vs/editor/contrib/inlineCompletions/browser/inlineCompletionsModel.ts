@@ -477,7 +477,7 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 		Range.fromPositions(primaryPosition, primaryEditEndPosition)
 	);
 	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEdit.range.getStartPosition());
-	const secondaryEditText = getTextFromPosition(primaryEdit.text, positionWithinTextEdit);
+	const secondaryEditText = substringPos(primaryEdit.text, positionWithinTextEdit);
 	return secondaryPositions.map(pos => {
 		const textAfterSecondaryCursor = textModel.getValueInRange(
 			Range.fromPositions(pos, primaryEditEndPosition)
@@ -488,7 +488,7 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 	});
 }
 
-function getTextFromPosition(text: string, pos: Position): string {
+function substringPos(text: string, pos: Position): string {
 	let subtext = '';
 	const lines = splitLinesIncludeSeparators(text);
 	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
