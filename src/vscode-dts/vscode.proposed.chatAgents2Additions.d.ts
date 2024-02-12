@@ -208,7 +208,7 @@ declare module 'vscode' {
 		commandButton: ChatAgentCommandButton;
 	}
 
-	export interface ChatAgentSessionFollowupAction {
+	export interface ChatAgentFollowupAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'followUp';
 		followup: ChatAgentFollowup;
@@ -221,7 +221,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentUserActionEvent {
 		readonly result: ChatAgentResult2;
-		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentSessionFollowupAction | ChatAgentBugReportAction;
+		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentFollowupAction | ChatAgentBugReportAction;
 	}
 
 	export interface ChatVariableValue {
