@@ -434,6 +434,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							}
 							finalMatchedTargets.add(uri);
 						});
+					}).catch(_err => {
+						// temporary fix for https://github.com/microsoft/vscode/issues/205044: don't show notebook results for remotehub repos.
+						return {
+							limitHit: false,
+							messages: [],
+						};
 					});
 				}))
 			));
