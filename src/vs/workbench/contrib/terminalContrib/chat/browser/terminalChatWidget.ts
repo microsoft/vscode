@@ -16,8 +16,9 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_FEEDBACK } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TerminalChatWidget extends Disposable {
@@ -30,7 +31,6 @@ export class TerminalChatWidget extends Disposable {
 
 	private readonly _focusTracker: IFocusTracker;
 
-	private _chatModel: ChatModel | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -38,7 +38,7 @@ export class TerminalChatWidget extends Disposable {
 
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatService private readonly _chatService: IChatService) {
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService) {
 		super();
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -113,7 +113,7 @@ export class TerminalChatWidget extends Disposable {
 	cancel(): void {
 		// this._widget?.clear();
 	}
-	acceptInput(): void {
+	async acceptInput(): Promise<void> {
 		// this._widget?.acceptInput();
 		// this._chatModel ??= this._chatService.startSession('terminal', CancellationToken.None);
 
@@ -121,9 +121,36 @@ export class TerminalChatWidget extends Disposable {
 		// throw new Error('Could not start chat session');
 		// }
 		// this._chatService?.sendRequest(this._chatModel?.sessionId!, this._inlineChatWidget.value);
+		// this._activeSession = new Session(EditMode.Live, , this._instance);
+		// const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
+		// request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
+		// const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
+		const progressCallback = (progress: IChatProgress) => {
+			// if (token.isCancellationRequested) {
+			// 	return;
+			// }
+			console.log(progress);
+			// gotProgress = true;
 
+			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
+				// this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
+			} else {
+				// this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
+			}
+
+			// model.acceptResponseProgress(request, progress);
+		};
+		const requestProps: IChatAgentRequest = {
+			sessionId: generateUuid(),
+			requestId: generateUuid(),
+			agentId: 'terminal',
+			message: this._inlineChatWidget.value || '',
+			variables: new Map() as any,
+			variables2: {} as any
+		};
+		const agentResult = await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
+		console.log(agentResult);
 		this._inlineChatWidget.value = '';
-		// this.widget.setModel(this.model, { inputValue: this._currentQuery });
 	}
 	layout(width: number): void {
 		// this._widget?.layout(100, width < 300 ? 300 : width);

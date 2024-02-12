@@ -14,8 +14,8 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
@@ -51,7 +51,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 		// @IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		// @IInstantiationService private readonly _instantiationService: IInstantiationService,
 		// @ICommandService private readonly _commandService: ICommandService,
@@ -104,6 +104,22 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	async acceptInput(): Promise<void> {
 		// TODO: create session, deal with response
+		// this._activeSession = new Session(EditMode.Live, , this._instance);
+		// const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
+		// request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
+		// const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
+		// const requestProps: IChatAgentRequest = {
+		// 	sessionId: 'sessionId',
+		// 	requestId: 'fake',
+		// 	agentId: 'terminal',
+		// 	message: this._chatWidget?.rawValue?.getValue() || '',
+		// 	// variables: variableData.variables,
+		// 	// command: agentSlashCommandPart?.command.name,
+		// 	// variables2: asVariablesData2(parsedRequest, variableData)
+		// };
+		// const agentResult = await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, undefined, token);
+		// const rawResult = agentResult;
+		// const agentOrCommandFollowups = this._chatAgentService.getFollowups('terminal', agentResult, followupsCancelToken);
 		this._chatWidget?.rawValue?.acceptInput();
 	}
 
