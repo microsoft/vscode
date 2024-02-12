@@ -44,7 +44,7 @@ suite('VoiceChat', () => {
 		readonly onDidChangeAgents = Event.None;
 		registerAgent(agent: IChatAgent): IDisposable { throw new Error(); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
-		getFollowups(id: string, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
+		getFollowups(id: string, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
 		getAgents(): Array<IChatAgent> { return agents; }
 		getAgent(id: string): IChatAgent | undefined { throw new Error(); }
 		getDefaultAgent(): IChatAgent | undefined { throw new Error(); }
@@ -145,6 +145,11 @@ suite('VoiceChat', () => {
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
 		assert.strictEqual(event?.text, options.usesAgents ? '@workspace' : 'At workspace');
+		assert.strictEqual(event?.waitingForInput, options.usesAgents);
+
+		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'at workspace' });
+		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+		assert.strictEqual(event?.text, options.usesAgents ? '@workspace' : 'at workspace');
 		assert.strictEqual(event?.waitingForInput, options.usesAgents);
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace help' });

@@ -31,7 +31,7 @@ export interface IChatAgentData {
 
 export interface IChatAgent extends IChatAgentData {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	provideFollowups?(sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
+	provideFollowups?(result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
 	lastSlashCommands?: IChatAgentCommand[];
 	provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
@@ -89,13 +89,13 @@ export interface IChatAgentRequest {
 }
 
 export interface IChatAgentResult {
-	// delete, keep while people are still using the previous API
-	followUp?: IChatFollowup[];
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
 		firstProgress?: number;
 		totalElapsed: number;
 	};
+	/** Extra properties that the agent can use to identify a result */
+	readonly metadata?: { readonly [key: string]: any };
 }
 
 export const IChatAgentService = createDecorator<IChatAgentService>('chatAgentService');
@@ -105,7 +105,7 @@ export interface IChatAgentService {
 	readonly onDidChangeAgents: Event<void>;
 	registerAgent(agent: IChatAgent): IDisposable;
 	invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	getFollowups(id: string, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
+	getFollowups(id: string, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgents(): Array<IChatAgent>;
 	getAgent(id: string): IChatAgent | undefined;
 	getDefaultAgent(): IChatAgent | undefined;
@@ -184,7 +184,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return await data.agent.invoke(request, progress, history, token);
 	}
 
-	async getFollowups(id: string, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]> {
+	async getFollowups(id: string, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
 		const data = this._agents.get(id);
 		if (!data) {
 			throw new Error(`No agent with id ${id}`);
@@ -194,6 +194,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return [];
 		}
 
-		return data.agent.provideFollowups(sessionId, token);
+		return data.agent.provideFollowups(result, token);
 	}
 }

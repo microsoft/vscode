@@ -14,9 +14,9 @@ import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatContent, IChatContentInlineReference, IChatContentReference, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext, IChatCommandButton } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableData {
@@ -73,7 +73,7 @@ export interface IChatResponseModel {
 	readonly isStale: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
-	readonly errorDetails?: IChatResponseErrorDetails;
+	readonly result?: IChatAgentResult;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 }
 
@@ -227,8 +227,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._response;
 	}
 
-	public get errorDetails(): IChatResponseErrorDetails | undefined {
-		return this._errorDetails;
+	public get result(): IChatAgentResult | undefined {
+		return this._result;
 	}
 
 	public get providerId(): string {
@@ -282,7 +282,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
-		private _errorDetails?: IChatResponseErrorDetails,
+		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
 		super();
@@ -321,13 +321,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire();
 	}
 
-	setErrorDetails(errorDetails?: IChatResponseErrorDetails): void {
-		this._errorDetails = errorDetails;
+	setResult(result: IChatAgentResult): void {
+		this._result = result;
 		this._onDidChange.fire();
 	}
 
-	complete(errorDetails?: IChatResponseErrorDetails): void {
-		if (errorDetails?.responseIsRedacted) {
+	complete(): void {
+		if (this._result?.errorDetails?.responseIsRedacted) {
 			this._response.clear();
 		}
 
@@ -380,7 +380,8 @@ export interface ISerializableChatRequestData {
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
 	agent?: ISerializableChatAgentData;
 	slashCommand?: IChatAgentCommand;
-	responseErrorDetails: IChatResponseErrorDetails | undefined;
+	// responseErrorDetails: IChatResponseErrorDetails | undefined;
+	result?: IChatAgentResult; // Optional for backcompat
 	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
 	vote: InteractiveSessionVoteDirection | undefined;
@@ -561,13 +562,18 @@ export class ChatModel extends Disposable implements IChatModel {
 					typeof raw.message === 'string'
 						? this.getParsedRequestFromString(raw.message)
 						: reviveParsedChatRequest(raw.message);
+
 				// Only old messages don't have variableData
 				const variableData: IChatRequestVariableData = raw.variableData ?? { message: parsedRequest.text, variables: {} };
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
-				if (raw.response || raw.responseErrorDetails) {
+				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
+
+					// Port entries from old format
+					const result = 'responseErrorDetails' in raw ?
+						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, result, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(revive(raw.usedContext));
 					}
@@ -700,7 +706,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	setResponse(request: ChatRequestModel, rawResponse: IChatResponse): void {
+	setResponse(request: ChatRequestModel, result: IChatAgentResult): void {
 		if (!this._session) {
 			throw new Error('completeResponse: No session');
 		}
@@ -709,15 +715,15 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response = new ChatResponseModel([], this, undefined, undefined, request.id);
 		}
 
-		request.response.setErrorDetails(rawResponse.errorDetails);
+		request.response.setResult(result);
 	}
 
-	completeResponse(request: ChatRequestModel, errorDetails: IChatResponseErrorDetails | undefined): void {
+	completeResponse(request: ChatRequestModel): void {
 		if (!request.response) {
 			throw new Error('Call setResponse before completeResponse');
 		}
 
-		request.response.complete(errorDetails);
+		request.response.complete();
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {
@@ -748,8 +754,12 @@ export class ChatModel extends Disposable implements IChatModel {
 				}
 			}),
 			requests: this._requests.map((r): ISerializableChatRequestData => {
+				const message = {
+					...r.message,
+					parts: r.message.parts.map(p => p && 'toJSON' in p ? (p.toJSON as Function)() : p)
+				};
 				return {
-					message: r.message,
+					message,
 					variableData: r.variableData,
 					response: r.response ?
 						r.response.response.value.map(item => {
@@ -763,7 +773,7 @@ export class ChatModel extends Disposable implements IChatModel {
 							}
 						})
 						: undefined,
-					responseErrorDetails: r.response?.errorDetails,
+					result: r.response?.result,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,

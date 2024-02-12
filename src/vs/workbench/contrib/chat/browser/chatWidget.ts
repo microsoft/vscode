@@ -455,7 +455,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				providerId: this.viewModel.providerId,
 				sessionId: this.viewModel.sessionId,
 				requestId: e.response.requestId,
-				agentId: e.response?.agent?.id,
+				agentId: e.response.agent?.id,
+				result: e.response.result,
 				action: {
 					kind: 'followUp',
 					followup: e.followup

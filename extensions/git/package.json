@@ -3176,6 +3176,46 @@
           "highContrast": "#8db9e2",
           "highContrastLight": "#1258a7"
         }
+      },
+      {
+        "id": "gitDecoration.incomingAddedForegroundColor",
+        "description": "%colors.incomingAdded%",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#1b5225",
+          "highContrastLight": "#374e06"
+        }
+      },
+      {
+        "id": "gitDecoration.incomingDeletedForegroundColor",
+        "description": "%colors.incomingDeleted%",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
+        }
+      },
+      {
+        "id": "gitDecoration.incomingRenamedForegroundColor",
+        "description": "%colors.incomingRenamed%",
+        "defaults": {
+          "light": "#007100",
+          "dark": "#73C991",
+          "highContrast": "#73C991",
+          "highContrastLight": "#007100"
+        }
+      },
+      {
+        "id": "gitDecoration.incomingModifiedForegroundColor",
+        "description": "%colors.incomingModified%",
+        "defaults": {
+          "light": "#895503",
+          "dark": "#E2C08D",
+          "highContrast": "#E2C08D",
+          "highContrastLight": "#895503"
+        }
       }
     ],
     "configurationDefaults": {

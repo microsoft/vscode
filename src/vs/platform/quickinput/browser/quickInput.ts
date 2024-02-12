@@ -1219,7 +1219,7 @@ export class QuickInputHoverDelegate implements IHoverDelegate {
 				: typeof options.content === 'string'
 					? options.content
 					: options.content.value
-		).length > 20;
+		).includes('\n');
 		return this.hoverService.showHover({
 			...options,
 			persistence: {

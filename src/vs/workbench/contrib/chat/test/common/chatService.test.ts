@@ -75,7 +75,10 @@ const chatAgentWithUsedContext: IChatAgent = {
 			kind: 'usedContext'
 		});
 
-		return {};
+		return { metadata: { metadataKey: 'value' } };
+	},
+	async provideFollowups(sessionId, token) {
+		return [{ kind: 'reply', message: 'Something else', tooltip: 'a tooltip' }];
 	},
 };
 
@@ -109,6 +112,9 @@ suite('Chat', () => {
 			metadata: { isDefault: true },
 			async invoke(request, progress, history, token) {
 				return {};
+			},
+			async provideSlashCommands(token) {
+				return [];
 			},
 		} as IChatAgent;
 		testDisposables.add(chatAgentService.registerAgent(agent));
@@ -224,6 +230,7 @@ suite('Chat', () => {
 
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
+		await response.responseCompletePromise;
 
 		assert.strictEqual(model.getRequests().length, 1);
 
