@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -23,7 +23,6 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { basename } from 'vs/base/common/resources';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -39,6 +38,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
+import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 
 const enum State {
 	Data = 'data',
@@ -70,7 +70,6 @@ export class BulkEditPane extends ViewPane {
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
 	private _multiDiffEditor?: MultiDiffEditor;
-	private _fileOperations?: BulkFileOperation[];
 
 	constructor(
 		options: IViewletViewOptions,
@@ -104,6 +103,7 @@ export class BulkEditPane extends ViewPane {
 	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
+		this._multiDiffEditor = undefined;
 		super.dispose();
 	}
 
@@ -268,6 +268,7 @@ export class BulkEditPane extends ViewPane {
 		this._dialogService.warn(message).finally(() => this._done(false));
 	}
 
+	// Going through here to discard
 	discard() {
 		this._done(false);
 	}
@@ -320,6 +321,11 @@ export class BulkEditPane extends ViewPane {
 
 	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 
+		const fileOperations = this._currentInput?.fileOperations;
+		if (!fileOperations) {
+			return;
+		}
+
 		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
@@ -335,68 +341,48 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		let bulkFileOperations: BulkFileOperations | undefined = undefined;
-		let currentParent = fileElement.parent;
-		while (true) {
-			if (currentParent instanceof BulkFileOperations) {
-				bulkFileOperations = currentParent;
-				break;
-			}
-			currentParent = currentParent.parent;
-		}
-		const fileOperations = bulkFileOperations.fileOperations;
-
-		if (this._fileOperations === fileOperations) {
-			// Multi diff editor already open
-			this._multiDiffEditor?.scrollTo(fileElement.edit.uri);
+		if (this._multiDiffEditor) {
+			// Multi diff editor already visible
+			this._multiDiffEditor.scrollTo(fileElement.edit.uri);
 			return;
 		}
-		this._fileOperations = fileOperations;
 
-		const resources = [];
+		const resources: IResourceDiffEditorInput[] = [];
 		for (const operation of fileOperations) {
+			const operationUri = operation.uri;
+			const previewUri = this._currentProvider!.asPreviewUri(operationUri);
+			// delete -> show single editor
+			if (operation.type & BulkFileOperationType.Delete) {
+				resources.push({
+					original: { resource: undefined },
+					modified: { resource: URI.revive(previewUri) }
+				});
 
-			let leftResource: URI | undefined = operation.textEdits[0].textEdit.resource;
-			let rightResource: URI | undefined = undefined;
-			try {
-				(await this._textModelService.createModelReference(leftResource)).dispose();
-				rightResource = this._currentProvider!.asPreviewUri(leftResource);
-			} catch {
-				leftResource = BulkEditPreviewProvider.emptyPreview;
+			} else {
+				// rename, create, edits -> show diff editr
+				let leftResource: URI | undefined;
+				try {
+					(await this._textModelService.createModelReference(operationUri)).dispose();
+					leftResource = operationUri;
+				} catch {
+					leftResource = BulkEditPreviewProvider.emptyPreview;
+				}
+				resources.push({
+					original: { resource: URI.revive(leftResource) },
+					modified: { resource: URI.revive(previewUri) }
+				});
 			}
-			resources.push({
-				originalUri: leftResource,
-				modifiedUri: rightResource
-			});
 		}
-
-		let typeLabel: string | undefined;
-		if (fileElement.edit.type & BulkFileOperationType.Rename) {
-			typeLabel = localize('rename', "rename");
-		} else if (fileElement.edit.type & BulkFileOperationType.Create) {
-			typeLabel = localize('create', "create");
-		}
-
-		let label: string;
-		if (typeLabel) {
-			label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
-		} else {
-			label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
-		}
-
 		const multiDiffSource = URI.from({ scheme: 'refactor-preview', path: JSON.stringify(fileElement.edit.uri) });
-		const description = 'Refactor Preview';
-
-		console.log('before open editor');
-		this._multiDiffEditor = this._disposables.add(await this._editorService.openEditor({
-			multiDiffSource: multiDiffSource ? URI.revive(multiDiffSource) : undefined,
-			resources: resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } })),
-			label: label,
-			description: description,
-			options: options,
-		}) as MultiDiffEditor);
-
-
+		const label = 'Refactor Preview';
+		this._multiDiffEditor = this._sessionDisposables.add(
+			await this._editorService.openEditor({
+				multiDiffSource: multiDiffSource ? URI.revive(multiDiffSource) : undefined,
+				resources,
+				label: label,
+				description: label,
+				options: options,
+			}) as MultiDiffEditor);
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
