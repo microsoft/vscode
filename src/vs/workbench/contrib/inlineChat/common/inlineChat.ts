@@ -32,6 +32,7 @@ export interface IInlineChatSlashCommand {
 export interface IInlineChatSession {
 	id: number;
 	placeholder?: string;
+	disablementMessage?: string;
 	input?: string;
 	message?: string;
 	slashCommands?: IInlineChatSlashCommand[];

@@ -20,6 +20,7 @@ declare module 'vscode' {
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		disablementMessage?: string;
 		input?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;

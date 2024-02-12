@@ -48,6 +48,7 @@ import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLIN
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StashedSession } from './inlineChatSession';
 import { IValidEditOperation } from 'vs/editor/common/model';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -295,14 +296,11 @@ export class InlineChatController implements IEditorContribution {
 
 		let session: Session | undefined = options.existingSession;
 
-
 		let initPosition: Position | undefined;
 		if (options.position) {
 			initPosition = Position.lift(options.position).delta(-1);
 			delete options.position;
 		}
-
-		this._showWidget(true, initPosition);
 
 		this._updatePlaceholder();
 
@@ -344,6 +342,13 @@ export class InlineChatController implements IEditorContribution {
 			this._dialogService.info(localize('create.fail', "Failed to start editor chat"), localize('create.fail.detail', "Please consult the error log and try again later."));
 			return State.CANCEL;
 		}
+
+		if (session.session.disablementMessage) {
+			MessageController.get(this._editor)?.showMessage(session.session.disablementMessage, this._editor.getPosition());
+			return State.CANCEL;
+		}
+
+		this._showWidget(true, initPosition);
 
 		// create a new strategy
 		switch (session.editMode) {
