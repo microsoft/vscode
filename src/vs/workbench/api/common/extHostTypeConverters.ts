@@ -52,6 +52,7 @@ import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { basename } from 'vs/base/common/resources';
+import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 
 export namespace Command {
 
@@ -2609,9 +2610,21 @@ export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
 		return {
 			prompt: request.message,
+			prompt2: request.variables2.message,
 			variables: ChatVariable.objectTo(request.variables),
 			command: request.command,
 			agentId: request.agentId,
+			variables2: request.variables2.variables.map(ChatAgentResolvedVariable.to)
+		};
+	}
+}
+
+export namespace ChatAgentResolvedVariable {
+	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatAgentResolvedVariable {
+		return {
+			name: request.name,
+			range: [request.range.start, request.range.endExclusive],
+			values: request.values.map(ChatVariable.to)
 		};
 	}
 }
