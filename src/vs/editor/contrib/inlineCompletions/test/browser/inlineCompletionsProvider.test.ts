@@ -776,8 +776,8 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 				}
 				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
 				options.serviceCollection.set(IAccessibilitySignalService, {
-					playAudioCue: async () => { },
-					isEnabled(cue: unknown) { return false; },
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
