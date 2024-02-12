@@ -498,9 +498,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		try {
 			await this._strategy.apply(editor);
+			this._inlineChatSessionService.releaseSession(this._activeSession);
 		} catch (_err) { }
 
-		this._inlineChatSessionService.releaseSession(this._activeSession);
 		this.dismiss();
 	}
 
