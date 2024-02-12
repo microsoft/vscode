@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShowAccessibilityAlertHelp, ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
+import { ShowAccessibilityAnnouncementHelp, ShowAudioCueHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -11,14 +11,14 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IAudioCueService, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { AudioCueLineDebuggerContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueDebuggerContribution';
-import { AudioCueLineFeatureContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueLineFeatureContribution';
+import { IAccessibilitySignalService, AccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignalLineDebuggerContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalDebuggerContribution';
+import { SignalLineFeatureContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalLineFeatureContribution';
 
-registerSingleton(IAudioCueService, AudioCueService, InstantiationType.Delayed);
+registerSingleton(IAccessibilitySignalService, AccessibilitySignalService, InstantiationType.Delayed);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SignalLineFeatureContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AccessibilitySignalLineDebuggerContribution, LifecyclePhase.Restored);
 
 export const audioCueFeatureBase: IConfigurationPropertySchema = {
 	'type': 'string',
@@ -178,5 +178,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerAction2(ShowAudioCueHelp);
-registerAction2(ShowAccessibilityAlertHelp);
+registerAction2(ShowAccessibilityAnnouncementHelp);
 

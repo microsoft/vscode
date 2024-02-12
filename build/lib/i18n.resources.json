@@ -327,7 +327,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/audioCues",
+			"name": "vs/workbench/contrib/accessibilitySignals",
 			"project": "vscode-workbench"
 		},
 		{

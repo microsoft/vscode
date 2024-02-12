@@ -222,9 +222,9 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['notebook.*', 'interactiveWindow.*']
 				},
 				{
-					id: 'features/audioCues',
-					label: localize('audioCues', 'Audio Cues'),
-					settings: ['audioCues.*']
+					id: 'features/signals',
+					label: localize('signals', 'Signals'),
+					settings: ['signals.*']
 				},
 				{
 					id: 'features/accessibilitySignals',

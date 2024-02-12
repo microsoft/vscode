@@ -23,7 +23,7 @@ import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from
 import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { localize } from 'vs/nls';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -81,7 +81,7 @@ export class InlineCompletionsController extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageFeatureDebounceService private readonly _debounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
@@ -221,7 +221,7 @@ export class InlineCompletionsController extends Disposable {
 			if (state.inlineCompletion.semanticId !== lastInlineCompletionId) {
 				lastInlineCompletionId = state.inlineCompletion.semanticId;
 				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
-				this._audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 						this.provideScreenReaderUpdate(state.ghostText.renderForScreenReader(lineText));
 					}

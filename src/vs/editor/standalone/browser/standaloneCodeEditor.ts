@@ -37,7 +37,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { mainWindow } from 'vs/base/browser/window';
 
 /**
@@ -499,7 +499,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@IClipboardService clipboardService: IClipboardService,
-		@IAudioCueService audioCueService: IAudioCueService,
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -518,7 +518,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 			contextKeyService,
 			instantiationService,
 			codeEditorService,
-			audioCueService,
+			accessibilitySignalService,
 			editorProgressService,
 		);
 

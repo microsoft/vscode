@@ -34,7 +34,7 @@ import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/brow
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { autorun } from 'vs/base/common/observable';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Suggest Widget Model', () => {
@@ -160,7 +160,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				}],
 				[ILabelService, new class extends mock<ILabelService>() { }],
 				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
-				[IAudioCueService, {
+				[IAccessibilitySignalService, {
 					playAudioCue: async () => { },
 					isEnabled(cue: unknown) { return false; },
 				} as any]

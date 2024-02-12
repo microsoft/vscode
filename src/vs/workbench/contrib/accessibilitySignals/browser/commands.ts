@@ -8,7 +8,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { localize, localize2 } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -25,42 +25,42 @@ export class ShowAudioCueHelp extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const audioCueService = accessor.get(IAudioCueService);
+		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const accessibilityService = accessor.get(IAccessibilityService);
-		const userGestureCues = [AudioCue.save, AudioCue.format];
-		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.map((cue, idx) => ({
-			label: userGestureCues.includes(cue) ? `${cue.name} (${configurationService.getValue(cue.signalSettingsKey + '.audioCue')})` : cue.name,
-			audioCue: cue,
-			buttons: userGestureCues.includes(cue) ? [{
+		const userGestureSignals = [AccessibilitySignal.save, AccessibilitySignal.format];
+		const items: (IQuickPickItem & { audioCue: AccessibilitySignal })[] = AccessibilitySignal.allAccessibilitySignals.map((signal, idx) => ({
+			label: userGestureSignals.includes(signal) ? `${signal.name} (${configurationService.getValue(signal.signalSettingsKey + '.sound')})` : signal.name,
+			audioCue: signal,
+			buttons: userGestureSignals.includes(signal) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-				tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
+				tooltip: localize('sounds.help.settings', 'Enable/Disable Sound'),
 				alwaysVisible: true
 			}] : []
 		}));
-		const qp = quickInputService.createQuickPick<IQuickPickItem & { audioCue: AudioCue }>();
+		const qp = quickInputService.createQuickPick<IQuickPickItem & { audioCue: AccessibilitySignal }>();
 		qp.items = items;
-		qp.selectedItems = items.filter(i => audioCueService.isCueEnabled(i.audioCue));
+		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.audioCue));
 		qp.onDidAccept(() => {
 			const enabledCues = qp.selectedItems.map(i => i.audioCue);
-			const disabledCues = AudioCue.allAudioCues.filter(cue => !enabledCues.includes(cue));
+			const disabledCues = AccessibilitySignal.allAccessibilitySignals.filter(cue => !enabledCues.includes(cue));
 			for (const cue of enabledCues) {
-				if (!userGestureCues.includes(cue)) {
-					let { audioCue, alert } = configurationService.getValue<{ audioCue: string; alert?: string }>(cue.signalSettingsKey);
+				if (!userGestureSignals.includes(cue)) {
+					let { audioCue, announcement } = configurationService.getValue<{ audioCue: string; announcement?: string }>(cue.signalSettingsKey);
 					audioCue = accessibilityService.isScreenReaderOptimized() ? 'auto' : 'on';
-					if (alert) {
-						configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
+					if (announcement) {
+						configurationService.updateValue(cue.signalSettingsKey, { audioCue, announcement });
 					} else {
 						configurationService.updateValue(cue.signalSettingsKey, { audioCue });
 					}
 				}
 			}
 			for (const cue of disabledCues) {
-				const alert = cue.alertMessage ? configurationService.getValue(cue.signalSettingsKey + '.alert') : undefined;
-				const audioCue = userGestureCues.includes(cue) ? 'never' : 'off';
-				if (alert) {
-					configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
+				const announcement = cue.announcementMessage ? configurationService.getValue(cue.signalSettingsKey + '.announcement') : undefined;
+				const audioCue = userGestureSignals.includes(cue) ? 'never' : 'off';
+				if (announcement) {
+					configurationService.updateValue(cue.signalSettingsKey, { audioCue, announcement });
 				} else {
 					configurationService.updateValue(cue.signalSettingsKey, { audioCue });
 				}
@@ -68,7 +68,7 @@ export class ShowAudioCueHelp extends Action2 {
 			qp.hide();
 		});
 		qp.onDidChangeActive(() => {
-			audioCueService.playSound(qp.activeItems[0].audioCue.sound.getSound(true), true);
+			accessibilitySignalService.playSound(qp.activeItems[0].audioCue.sound.getSound(true), true);
 		});
 		qp.placeholder = localize('audioCues.help.placeholder', 'Select an audio cue to play and configure');
 		qp.canSelectMany = true;
@@ -76,49 +76,49 @@ export class ShowAudioCueHelp extends Action2 {
 	}
 }
 
-export class ShowAccessibilityAlertHelp extends Action2 {
-	static readonly ID = 'accessibility.alert.help';
+export class ShowAccessibilityAnnouncementHelp extends Action2 {
+	static readonly ID = 'accessibility.announcement.help';
 
 	constructor() {
 		super({
-			id: ShowAccessibilityAlertHelp.ID,
-			title: localize2('accessibility.alert.help', "Help: List Alerts"),
+			id: ShowAccessibilityAnnouncementHelp.ID,
+			title: localize2('accessibility.announcement.help', "Help: List Announcements"),
 			f1: true,
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const audioCueService = accessor.get(IAudioCueService);
+		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const accessibilityService = accessor.get(IAccessibilityService);
-		const userGestureAlerts = [AudioCue.save, AudioCue.format];
-		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.filter(c => c.alertSettingsKey).map((cue, idx) => ({
-			label: userGestureAlerts.includes(cue) ? `${cue.name} (${configurationService.getValue(cue.signalSettingsKey + '.alert')})` : cue.name,
-			audioCue: cue,
-			buttons: userGestureAlerts.includes(cue) ? [{
+		const userGestureSignals = [AccessibilitySignal.save, AccessibilitySignal.format];
+		const items: (IQuickPickItem & { audioCue: AccessibilitySignal })[] = AccessibilitySignal.allAccessibilitySignals.filter(c => !!c.announcementMessage).map((signal, idx) => ({
+			label: userGestureSignals.includes(signal) ? `${signal.name} (${configurationService.getValue(signal.signalSettingsKey + '.announcement')})` : signal.name,
+			audioCue: signal,
+			buttons: userGestureSignals.includes(signal) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-				tooltip: localize('alert.help.settings', 'Enable/Disable Alert'),
+				tooltip: localize('announcement.help.settings', 'Enable/Disable Announcement'),
 				alwaysVisible: true
 			}] : []
 		}));
-		const qp = quickInputService.createQuickPick<IQuickPickItem & { audioCue: AudioCue }>();
+		const qp = quickInputService.createQuickPick<IQuickPickItem & { audioCue: AccessibilitySignal }>();
 		qp.items = items;
-		qp.selectedItems = items.filter(i => audioCueService.isAlertEnabled(i.audioCue));
+		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.audioCue));
 		qp.onDidAccept(() => {
 			const enabledAlerts = qp.selectedItems.map(i => i.audioCue);
-			const disabledAlerts = AudioCue.allAudioCues.filter(cue => !enabledAlerts.includes(cue));
+			const disabledAlerts = AccessibilitySignal.allAccessibilitySignals.filter(cue => !enabledAlerts.includes(cue));
 			for (const cue of enabledAlerts) {
-				if (!userGestureAlerts.includes(cue)) {
+				if (!userGestureSignals.includes(cue)) {
 					let { audioCue, alert } = configurationService.getValue<{ audioCue: string; alert?: string }>(cue.signalSettingsKey);
-					alert = cue.alertMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
+					alert = cue.announcementMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
 					if (alert) {
 						configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
 					}
 				}
 			}
 			for (const cue of disabledAlerts) {
-				const alert = userGestureAlerts.includes(cue) ? 'never' : 'off';
+				const alert = userGestureSignals.includes(cue) ? 'never' : 'off';
 				const audioCue = configurationService.getValue(cue.signalSettingsKey + '.audioCue');
 				configurationService.updateValue(cue.signalSettingsKey, { audioCue, alert });
 			}
