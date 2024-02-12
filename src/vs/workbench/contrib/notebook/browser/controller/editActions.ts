@@ -38,6 +38,7 @@ const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
