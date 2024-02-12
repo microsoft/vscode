@@ -216,7 +216,7 @@ declare module 'vscode' {
 		 */
 		agentId?: string;
 
-		subCommand?: string;
+		command?: string;
 
 		/**
 		 * A tooltip to show when hovering over the followup.

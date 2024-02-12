@@ -2198,7 +2198,7 @@ export namespace ChatFollowup {
 		return {
 			kind: 'reply',
 			agentId: followup.agentId ?? request?.agentId ?? '',
-			subCommand: followup.subCommand ?? request?.command,
+			subCommand: followup.command ?? request?.command,
 			message: followup.prompt,
 			title: followup.title,
 			tooltip: followup.tooltip,
@@ -2210,7 +2210,7 @@ export namespace ChatFollowup {
 			prompt: followup.message,
 			title: followup.title,
 			agentId: followup.agentId,
-			subCommand: followup.subCommand,
+			command: followup.subCommand,
 			tooltip: followup.tooltip,
 		};
 	}
