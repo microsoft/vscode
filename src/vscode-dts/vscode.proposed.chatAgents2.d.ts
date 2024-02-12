@@ -183,7 +183,7 @@ declare module 'vscode' {
 		 * Whether executing the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message.
 		 * If this is not set, the chat input will fall back to the agent after submitting this command.
 		 */
-		readonly repopulate?: boolean;
+		readonly isSticky?: boolean;
 	}
 
 	export interface ChatAgentCommandProvider {

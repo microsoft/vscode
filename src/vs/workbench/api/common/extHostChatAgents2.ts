@@ -416,7 +416,7 @@ class ExtHostChatAgent {
 					name: c.name,
 					description: c.description,
 					followupPlaceholder: c.repopulate2?.placeholder,
-					shouldRepopulate: c.repopulate2?.shouldRepopulate ?? c.repopulate,
+					shouldRepopulate: c.repopulate2?.shouldRepopulate ?? c.isSticky,
 					sampleRequest: c.sampleRequest
 				};
 			});
