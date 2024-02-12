@@ -86,6 +86,7 @@ import 'vs/workbench/services/extensionManagement/browser/extensionEnablementSer
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import 'vs/workbench/services/extensionManagement/common/extensionFeaturesManagemetService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';

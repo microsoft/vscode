@@ -22,7 +22,7 @@ export interface IIconLabelCreationOptions {
 
 export interface IIconLabelValueOptions {
 	title?: string | ITooltipMarkdownString;
-	descriptionTitle?: string;
+	descriptionTitle?: string | ITooltipMarkdownString;
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
