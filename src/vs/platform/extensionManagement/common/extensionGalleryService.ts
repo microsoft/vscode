@@ -167,9 +167,8 @@ enum Flags {
 	IncludeLatestVersionOnly = 0x200,
 
 	/**
-	 * This flag switches the asset uri to use GetAssetByName instead of CDN
-	 * When this is used, values of base asset uri and base asset uri fallback are switched
-	 * When this is used, source of asset files are pointed to Gallery service always even if CDN is available
+	 * The Unpublished extension flag indicates that the extension can't be installed/downloaded.
+	 * Users who have installed such an extension can continue to use the extension.
 	 */
 	Unpublished = 0x1000,
 
