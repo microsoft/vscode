@@ -295,7 +295,7 @@ class VoiceChatSessions {
 					break;
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
-						session.controller.updateInput([inputValue, text].join(' '));
+						session.controller.updateInput(inputValue ? [inputValue, text].join(' ') : text);
 						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true) {
 							acceptTranscriptionScheduler.cancel();
 						}
@@ -303,7 +303,7 @@ class VoiceChatSessions {
 					break;
 				case SpeechToTextStatus.Recognized:
 					if (text) {
-						inputValue = [inputValue, text].join(' ');
+						inputValue = inputValue ? [inputValue, text].join(' ') : text;
 						session.controller.updateInput(inputValue);
 						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !waitingForInput) {
 							acceptTranscriptionScheduler.schedule();
