@@ -247,14 +247,11 @@ class InputEditorSlashCommandMode extends Disposable {
 
 	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
 		let value: string | undefined;
-		if (slashCommand) {
-			if (slashCommand.shouldRepopulate) {
-				value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
-			}
+		if (slashCommand && slashCommand.shouldRepopulate) {
+			value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
 		} else {
-			if (agent.metadata.shouldRepopulate) {
-				value = `${chatAgentLeader}${agent.id} `;
-			}
+			// Agents always repopulate, and slash commands fall back to the agent if they don't repopulate
+			value = `${chatAgentLeader}${agent.id} `;
 		}
 
 		if (value) {

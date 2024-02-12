@@ -373,7 +373,6 @@ class ExtHostChatAgent {
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatAgentWelcomeMessageProvider | undefined;
-	private _repopulate?: vscode.ChatAgent2['repopulate'];
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -408,13 +407,19 @@ class ExtHostChatAgent {
 			return [];
 		}
 		return result
-			.map(c => ({
-				name: c.name,
-				description: c.description,
-				followupPlaceholder: c.repopulate?.placeholder,
-				shouldRepopulate: c.repopulate?.shouldRepopulate,
-				sampleRequest: c.sampleRequest
-			}));
+			.map(c => {
+				if ('repopulate2' in c) {
+					checkProposedApiEnabled(this.extension, 'chatAgents2Additions');
+				}
+
+				return {
+					name: c.name,
+					description: c.description,
+					followupPlaceholder: c.repopulate2?.placeholder,
+					shouldRepopulate: c.repopulate2?.shouldRepopulate ?? c.repopulate,
+					sampleRequest: c.sampleRequest
+				};
+			});
 	}
 
 	async provideFollowups(result: vscode.ChatAgentResult2, token: CancellationToken): Promise<vscode.ChatAgentFollowup[]> {
@@ -491,9 +496,7 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
-					supportIssueReporting: this._supportIssueReporting,
-					shouldRepopulate: this._repopulate?.shouldRepopulate,
-					followupPlaceholder: this._repopulate?.placeholder,
+					supportIssueReporting: this._supportIssueReporting
 				});
 				updateScheduled = false;
 			});
@@ -623,13 +626,6 @@ class ExtHostChatAgent {
 			},
 			get welcomeMessageProvider() {
 				return that._welcomeMessageProvider;
-			},
-			get repopulate() {
-				return that._repopulate;
-			},
-			set repopulate(v) {
-				that._repopulate = v;
-				updateMetadataSoon();
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
 				? undefined!

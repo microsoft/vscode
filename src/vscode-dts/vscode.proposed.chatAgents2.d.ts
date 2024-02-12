@@ -180,20 +180,10 @@ declare module 'vscode' {
 		readonly sampleRequest?: string;
 
 		/**
-		 * Whether executing the command puts the chat into a persistent mode, where the
-		 * command is automatically prepended to the chat input for the next message.
+		 * Whether executing the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message.
+		 * If this is not set, the chat input will fall back to the agent after submitting this command.
 		 */
-		readonly repopulate?: {
-			/**
-			 * Indicates that the command should be automatically repopulated.
-			 */
-			shouldRepopulate: true;
-
-			/**
-			 * This can be set to a string to use a different placeholder message in the input box when the command has been repopulated.
-			 */
-			placeholder?: string;
-		};
+		readonly repopulate?: boolean;
 	}
 
 	export interface ChatAgentCommandProvider {
@@ -306,22 +296,6 @@ declare module 'vscode' {
 		 * When the user clicks this agent in `/help`, this text will be submitted to this command
 		 */
 		sampleRequest?: string;
-
-		/**
-		 * Whether executing the agent puts the chat into a persistent mode, where the
-		 * slash command is automatically prepended to the chat input for the next message.
-		 */
-		repopulate?: {
-			/**
-			 * Indicates that the agent should be automatically repopulated.
-			 */
-			shouldRepopulate: true;
-
-			/**
-			 * This can be set to a string to use a different placeholder message in the input box when the agent has been repopulated.
-			 */
-			placeholder?: string;
-		};
 
 		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
