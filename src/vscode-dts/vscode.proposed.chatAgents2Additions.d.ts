@@ -45,7 +45,6 @@ declare module 'vscode' {
 	 */
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
-		| ChatAgentFileTree
 		| ChatAgentInlineContentReference
 		| ChatAgentCommandButton;
 
@@ -107,20 +106,6 @@ declare module 'vscode' {
 		 */
 		content: string;
 	}
-
-	/** @deprecated */
-	export interface ChatAgentFileTree {
-		treeData: ChatAgentFileTreeData;
-	}
-
-	/** @deprecated */
-	export interface ChatAgentFileTreeData {
-		label: string;
-		uri: Uri;
-		type?: FileType;
-		children?: ChatAgentFileTreeData[];
-	}
-
 
 	export interface ChatAgentDocumentContext {
 		uri: Uri;
