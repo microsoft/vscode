@@ -33,7 +33,7 @@ import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common
 import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IParsedChatRequest, chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
@@ -446,7 +446,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
-			this.acceptInput(e.followup.message);
+			let msg = '';
+			if (e.followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
+				msg = `${chatAgentLeader}${e.followup.agentId} `;
+				if (e.followup.subCommand) {
+					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
+				}
+			}
+			msg += e.followup.message;
+			this.acceptInput(msg);
 
 			if (!e.response) {
 				// Followups can be shown by the welcome message, then there is no response associated.

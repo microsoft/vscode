@@ -458,7 +458,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				value: result.variable.value,
 				type: result.variable.type,
 				hasNamedChildren: result.hasNamedChildren,
-				indexedChildrenCount: result.indexedChildrenCount
+				indexedChildrenCount: result.indexedChildrenCount,
+				extensionId: obj.extensionId.value,
 			};
 			this.variableStore[variable.id] = result.variable;
 			this._proxy.$receiveVariable(requestId, variable);

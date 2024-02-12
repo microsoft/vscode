@@ -159,6 +159,8 @@ export interface IChatProvider {
 export interface IChatFollowup {
 	kind: 'reply';
 	message: string;
+	agentId: string;
+	subCommand?: string;
 	title?: string;
 	tooltip?: string;
 }

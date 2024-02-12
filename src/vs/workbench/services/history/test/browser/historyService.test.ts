@@ -427,6 +427,7 @@ suite('HistoryService', function () {
 
 		const resource: URI = toResource.call(this, '/path/index.txt');
 		const otherResource: URI = toResource.call(this, '/path/index.html');
+		const unrelatedResource: URI = toResource.call(this, '/path/unrelated.html');
 		const pane = await editorService.openEditor({ resource, options: { pinned: true } });
 
 		stack.notifyNavigation(pane);
@@ -444,7 +445,14 @@ suite('HistoryService', function () {
 		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
 		stack.notifyNavigation(pane);
 
+		// Remove unrelated resource does not cause any harm (via internal event)
+		await stack.goBack();
+		assert.strictEqual(stack.canGoForward(), true);
+		stack.remove(new FileOperationEvent(unrelatedResource, FileOperation.DELETE));
+		assert.strictEqual(stack.canGoForward(), true);
+
 		// Remove (via internal event)
+		await stack.goForward();
 		assert.strictEqual(stack.canGoBack(), true);
 		stack.remove(new FileOperationEvent(resource, FileOperation.DELETE));
 		assert.strictEqual(stack.canGoBack(), false);
