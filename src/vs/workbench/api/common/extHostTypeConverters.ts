@@ -2479,7 +2479,7 @@ export namespace ChatResponsePart {
 
 	}
 
-	export function from(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart {
+	export function from(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart | undefined {
 		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
 			case 'inlineReference': return ChatResponseAnchorPart.from(part);
@@ -2488,7 +2488,7 @@ export namespace ChatResponsePart {
 			case 'treeData': return ChatResponseFilesPart.from(part);
 			case 'command': return ChatResponseCommandButtonPart.from(part, commandsConverter);
 		}
-		return new types.ChatResponseTextPart('');
+		return undefined;
 	}
 }
 
