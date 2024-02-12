@@ -69,3 +69,13 @@ export const terminalStatePriorities: { [key in TestResultState]?: number } = {
 	[TestResultState.Failed]: 2,
 	[TestResultState.Errored]: 3,
 };
+
+/**
+ * Count of the number of tests in each run state.
+ */
+export type TestStateCount = { [K in TestResultState]: number };
+
+export const makeEmptyCounts = (): TestStateCount => {
+	// shh! don't tell anyone this is actually an array!
+	return new Uint32Array(statesInOrder.length) as any as { [K in TestResultState]: number };
+};

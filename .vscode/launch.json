@@ -242,12 +242,13 @@
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests"
 			],
+			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
 			],
-			"userDataDir": "${workspaceFolder}/.profile-oss",
 			"pauseForSourceMap": false,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -255,7 +256,11 @@
 			"browserLaunchLocation": "workspace",
 			"presentation": {
 				"hidden": true,
-			}
+			},
+			// This is read by the vscode-diagnostic-tools extension
+			"vscode-diagnostic-tools.debuggerScripts": [
+				"${workspaceFolder}/scripts/hot-reload-injected-script.js"
+			]
 		},
 		{
 			"type": "node",

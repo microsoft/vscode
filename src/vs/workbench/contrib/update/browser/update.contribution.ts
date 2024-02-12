@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/platform/update/common/update.config.contribution';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -38,9 +38,8 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		super({
 			id: ShowCurrentReleaseNotesActionId,
 			title: {
-				value: localize('showReleaseNotes', "Show Release Notes"),
+				...localize2('showReleaseNotes', "Show Release Notes"),
 				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
-				original: 'Show Release Notes'
 			},
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
@@ -80,7 +79,7 @@ export class CheckForUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.checkForUpdate',
-			title: { value: localize('checkForUpdates', "Check for Updates..."), original: 'Check for Updates...' },
+			title: localize2('checkForUpdates', 'Check for Updates...'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
@@ -97,7 +96,7 @@ class DownloadUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.downloadUpdate',
-			title: { value: localize('downloadUpdate', "Download Update"), original: 'Download Update' },
+			title: localize2('downloadUpdate', 'Download Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
@@ -113,7 +112,7 @@ class InstallUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.installUpdate',
-			title: { value: localize('installUpdate', "Install Update"), original: 'Install Update' },
+			title: localize2('installUpdate', 'Install Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
@@ -129,7 +128,7 @@ class RestartToUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.restartToUpdate',
-			title: { value: localize('restartToUpdate', "Restart to Update"), original: 'Restart to Update' },
+			title: localize2('restartToUpdate', 'Restart to Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
@@ -148,10 +147,7 @@ class DownloadAction extends Action2 {
 	constructor() {
 		super({
 			id: DownloadAction.ID,
-			title: {
-				value: localize('openDownloadPage', "Download {0}", product.nameLong),
-				original: `Download ${product.downloadUrl}`
-			},
+			title: localize2('openDownloadPage', "Download {0}", product.nameLong),
 			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
 			f1: true,
 			menu: [{
@@ -182,7 +178,7 @@ if (isWindows) {
 		constructor() {
 			super({
 				id: '_update.applyupdate',
-				title: { value: localize('applyUpdate', "Apply Update..."), original: 'Apply Update...' },
+				title: localize2('applyUpdate', 'Apply Update...'),
 				category: Categories.Developer,
 				f1: true,
 				precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentDescriptionMutator, IEnvironmentVariableCollection, IEnvironmentVariableMutator, ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableCollection, IEnvironmentVariableMutator, ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 
 // This file is shared between the renderer and extension host
 
@@ -11,7 +11,7 @@ export function serializeEnvironmentVariableCollection(collection: ReadonlyMap<s
 	return [...collection.entries()];
 }
 
-export function serializeEnvironmentDescriptionMap(descriptionMap: ReadonlyMap<string, IEnvironmentDescriptionMutator> | undefined): ISerializableEnvironmentDescriptionMap {
+export function serializeEnvironmentDescriptionMap(descriptionMap: ReadonlyMap<string, IEnvironmentVariableCollectionDescription> | undefined): ISerializableEnvironmentDescriptionMap {
 	return descriptionMap ? [...descriptionMap.entries()] : [];
 }
 
@@ -23,8 +23,8 @@ export function deserializeEnvironmentVariableCollection(
 
 export function deserializeEnvironmentDescriptionMap(
 	serializableEnvironmentDescription: ISerializableEnvironmentDescriptionMap | undefined
-): Map<string, IEnvironmentDescriptionMutator> {
-	return new Map<string, IEnvironmentDescriptionMutator>(serializableEnvironmentDescription ?? []);
+): Map<string, IEnvironmentVariableCollectionDescription> {
+	return new Map<string, IEnvironmentVariableCollectionDescription>(serializableEnvironmentDescription ?? []);
 }
 
 export function serializeEnvironmentVariableCollections(collections: ReadonlyMap<string, IEnvironmentVariableCollection>): ISerializableEnvironmentVariableCollections {

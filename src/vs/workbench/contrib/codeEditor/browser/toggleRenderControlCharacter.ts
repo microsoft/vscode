@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -18,9 +18,8 @@ export class ToggleRenderControlCharacterAction extends Action2 {
 		super({
 			id: ToggleRenderControlCharacterAction.ID,
 			title: {
-				value: localize('toggleRenderControlCharacters', "Toggle Control Characters"),
+				...localize2('toggleRenderControlCharacters', "Toggle Control Characters"),
 				mnemonicTitle: localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Render &&Control Characters"),
-				original: 'Toggle Control Characters'
 			},
 			category: Categories.View,
 			f1: true,
@@ -28,7 +27,7 @@ export class ToggleRenderControlCharacterAction extends Action2 {
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '4_editor',
-				order: 4
+				order: 5
 			}
 		});
 	}

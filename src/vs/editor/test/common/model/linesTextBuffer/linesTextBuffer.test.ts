@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IValidatedEditOperation, PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 suite('PieceTreeTextBuffer._getInverseEdits', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[] | null): IValidatedEditOperation {
 		return {
@@ -265,6 +268,8 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
 suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[] | null): IValidatedEditOperation {
 		return {
 			sortIndex: 0,
@@ -282,10 +287,11 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 	}
 
 	function testToSingleEditOperation(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF).textBuffer;
+		const { disposable, textBuffer } = createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF);
 
-		const actual = textBuffer._toSingleEditOperation(edits);
+		const actual = (<PieceTreeTextBuffer>textBuffer)._toSingleEditOperation(edits);
 		assert.deepStrictEqual(actual, expected);
+		disposable.dispose();
 	}
 
 	test('one edit op is unchanged', () => {

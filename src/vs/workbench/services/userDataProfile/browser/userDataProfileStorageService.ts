@@ -8,10 +8,11 @@ import { IStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUserDataProfileStorageService, IProfileStorageChanges, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { isProfileUsingDefaultStorage, IStorageService, IStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { IProfileStorageValueChangeEvent, isProfileUsingDefaultStorage, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IndexedDBStorageDatabase } from 'vs/workbench/services/storage/browser/storageService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class UserDataProfileStorageService extends AbstractUserDataProfileStorageService implements IUserDataProfileStorageService {
 
@@ -24,8 +25,9 @@ export class UserDataProfileStorageService extends AbstractUserDataProfileStorag
 		@ILogService private readonly logService: ILogService,
 	) {
 		super(storageService);
-		this._register(Event.filter(storageService.onDidChangeTarget, e => e.scope === StorageScope.PROFILE)(e => this.onDidChangeStorageTargetInCurrentProfile()));
-		this._register(Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.PROFILE)(e => this.onDidChangeStorageValueInCurrentProfile(e)));
+		const disposables = this._register(new DisposableStore());
+		this._register(Event.filter(storageService.onDidChangeTarget, e => e.scope === StorageScope.PROFILE, disposables)(() => this.onDidChangeStorageTargetInCurrentProfile()));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, disposables)(e => this.onDidChangeStorageValueInCurrentProfile(e)));
 	}
 
 	private onDidChangeStorageTargetInCurrentProfile(): void {
@@ -34,7 +36,7 @@ export class UserDataProfileStorageService extends AbstractUserDataProfileStorag
 		this._onDidChange.fire({ targetChanges: [this.userDataProfileService.currentProfile], valueChanges: [] });
 	}
 
-	private onDidChangeStorageValueInCurrentProfile(e: IStorageValueChangeEvent): void {
+	private onDidChangeStorageValueInCurrentProfile(e: IProfileStorageValueChangeEvent): void {
 		// Not broadcasting changes to other windows/tabs as it is not required in web
 		// Revisit if needed in future.
 		this._onDidChange.fire({ targetChanges: [], valueChanges: [{ profile: this.userDataProfileService.currentProfile, changes: [e] }] });

@@ -25,7 +25,7 @@ type LogChannelQuickPickItem = IQuickPickItem & { id: string; resource: URI; ext
 export class SetLogLevelAction extends Action {
 
 	static readonly ID = 'workbench.action.setLogLevel';
-	static readonly TITLE = { value: nls.localize('setLogLevel', "Set Log Level..."), original: 'Set Log Level...' };
+	static readonly TITLE = nls.localize2('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -65,7 +65,7 @@ export class SetLogLevelAction extends Action {
 		}
 		const entries: (LogLevelQuickPickItem | LogChannelQuickPickItem | IQuickPickSeparator)[] = [];
 		entries.push({ type: 'separator', label: nls.localize('all', "All") });
-		entries.push(...this.getLogLevelEntries(defaultLogLevels.default, this.loggerService.getLogLevel()));
+		entries.push(...this.getLogLevelEntries(defaultLogLevels.default, this.loggerService.getLogLevel(), true));
 		if (extensionLogs.length) {
 			entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
 			entries.push(...extensionLogs.sort((a, b) => a.label.localeCompare(b.label)));
@@ -100,14 +100,14 @@ export class SetLogLevelAction extends Action {
 		const defaultLogLevels = await this.defaultLogLevelsService.getDefaultLogLevels();
 		const defaultLogLevel = defaultLogLevels.extensions.find(e => e[0] === logChannel.extensionId?.toLowerCase())?.[1] ?? defaultLogLevels.default;
 		const currentLogLevel = this.loggerService.getLogLevel(logChannel.resource) ?? defaultLogLevel;
-		const entries = this.getLogLevelEntries(defaultLogLevel, currentLogLevel);
+		const entries = this.getLogLevelEntries(defaultLogLevel, currentLogLevel, !!logChannel.extensionId);
 
 		return new Promise((resolve, reject) => {
 			const disposables = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick();
 			quickPick.placeholder = logChannel ? nls.localize('selectLogLevelFor', " {0}: Select log level", logChannel?.label) : nls.localize('selectLogLevel', "Select log level");
 			quickPick.items = entries;
-			quickPick.activeItems = [entries[this.loggerService.getLogLevel()]];
+			quickPick.activeItems = entries.filter((entry) => entry.level === this.loggerService.getLogLevel());
 			let selectedItem: LogLevelQuickPickItem | undefined;
 			disposables.add(quickPick.onDidTriggerItemButton(e => {
 				quickPick.hide();
@@ -128,15 +128,15 @@ export class SetLogLevelAction extends Action {
 		});
 	}
 
-	private getLogLevelEntries(defaultLogLevel: LogLevel, currentLogLevel: LogLevel): LogLevelQuickPickItem[] {
-		const button: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.checkAll), tooltip: nls.localize('resetLogLevel', "Set as Default Log Level") };
+	private getLogLevelEntries(defaultLogLevel: LogLevel, currentLogLevel: LogLevel, canSetDefaultLogLevel: boolean): LogLevelQuickPickItem[] {
+		const button: IQuickInputButton | undefined = canSetDefaultLogLevel ? { iconClass: ThemeIcon.asClassName(Codicon.checkAll), tooltip: nls.localize('resetLogLevel', "Set as Default Log Level") } : undefined;
 		return [
-			{ label: this.getLabel(LogLevel.Trace, currentLogLevel), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Trace ? [button] : undefined },
-			{ label: this.getLabel(LogLevel.Debug, currentLogLevel), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Debug ? [button] : undefined },
-			{ label: this.getLabel(LogLevel.Info, currentLogLevel), level: LogLevel.Info, description: this.getDescription(LogLevel.Info, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Info ? [button] : undefined },
-			{ label: this.getLabel(LogLevel.Warning, currentLogLevel), level: LogLevel.Warning, description: this.getDescription(LogLevel.Warning, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Warning ? [button] : undefined },
-			{ label: this.getLabel(LogLevel.Error, currentLogLevel), level: LogLevel.Error, description: this.getDescription(LogLevel.Error, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Error ? [button] : undefined },
-			{ label: this.getLabel(LogLevel.Off, currentLogLevel), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Off ? [button] : undefined },
+			{ label: this.getLabel(LogLevel.Trace, currentLogLevel), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, defaultLogLevel), buttons: button && defaultLogLevel !== LogLevel.Trace ? [button] : undefined },
+			{ label: this.getLabel(LogLevel.Debug, currentLogLevel), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, defaultLogLevel), buttons: button && defaultLogLevel !== LogLevel.Debug ? [button] : undefined },
+			{ label: this.getLabel(LogLevel.Info, currentLogLevel), level: LogLevel.Info, description: this.getDescription(LogLevel.Info, defaultLogLevel), buttons: button && defaultLogLevel !== LogLevel.Info ? [button] : undefined },
+			{ label: this.getLabel(LogLevel.Warning, currentLogLevel), level: LogLevel.Warning, description: this.getDescription(LogLevel.Warning, defaultLogLevel), buttons: button && defaultLogLevel !== LogLevel.Warning ? [button] : undefined },
+			{ label: this.getLabel(LogLevel.Error, currentLogLevel), level: LogLevel.Error, description: this.getDescription(LogLevel.Error, defaultLogLevel), buttons: button && defaultLogLevel !== LogLevel.Error ? [button] : undefined },
+			{ label: this.getLabel(LogLevel.Off, currentLogLevel), level: LogLevel.Off, description: this.getDescription(LogLevel.Off, defaultLogLevel), buttons: button && defaultLogLevel !== LogLevel.Off ? [button] : undefined },
 		];
 	}
 
@@ -162,7 +162,7 @@ export class SetLogLevelAction extends Action {
 export class OpenWindowSessionLogFileAction extends Action {
 
 	static readonly ID = 'workbench.action.openSessionLogFile';
-	static readonly TITLE = { value: nls.localize('openSessionLogFile', "Open Window Log File (Session)..."), original: 'Open Window Log File (Session)...' };
+	static readonly TITLE = nls.localize2('openSessionLogFile', "Open Window Log File (Session)...");
 
 	constructor(id: string, label: string,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,

@@ -8,8 +8,11 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { range } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ListWidget', function () {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Page up and down', async function () {
 		const element = document.createElement('div');
 		element.style.height = '200px';
@@ -29,7 +32,7 @@ suite('ListWidget', function () {
 			disposeTemplate() { templatesCount--; }
 		};
 
-		const listWidget = new List<number>('test', element, delegate, [renderer]);
+		const listWidget = store.add(new List<number>('test', element, delegate, [renderer]));
 
 		listWidget.layout(200);
 		assert.strictEqual(templatesCount, 0, 'no templates have been allocated');
@@ -51,8 +54,6 @@ suite('ListWidget', function () {
 		listWidget.focusPreviousPage();
 		await timeout(0);
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'page down to previous page');
-
-		listWidget.dispose();
 	});
 
 	test('Page up and down with item taller than viewport #149502', async function () {
@@ -74,7 +75,7 @@ suite('ListWidget', function () {
 			disposeTemplate() { templatesCount--; }
 		};
 
-		const listWidget = new List<number>('test', element, delegate, [renderer]);
+		const listWidget = store.add(new List<number>('test', element, delegate, [renderer]));
 
 		listWidget.layout(200);
 		assert.strictEqual(templatesCount, 0, 'no templates have been allocated');
@@ -91,7 +92,5 @@ suite('ListWidget', function () {
 		listWidget.focusPreviousPage();
 		await timeout(0);
 		assert.strictEqual(listWidget.getFocus()[0], 0, 'page up to next page');
-
-		listWidget.dispose();
 	});
 });

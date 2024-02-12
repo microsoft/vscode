@@ -18,6 +18,8 @@ use crate::{
 
 const KEEP_LRU: usize = 5;
 const STAGING_SUFFIX: &str = ".staging";
+const RENAME_ATTEMPTS: u32 = 20;
+const RENAME_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 
 #[derive(Clone)]
 pub struct DownloadCache {
@@ -89,8 +91,21 @@ impl DownloadCache {
 		do_create(temp_dir.clone()).await?;
 
 		let _ = self.touch(name.to_string());
-		std::fs::rename(&temp_dir, &target_dir)
-			.map_err(|e| wrap(e, "error renaming downloaded server"))?;
+		// retry the rename, it seems on WoA sometimes it takes a second for the
+		// directory to be 'unlocked' after doing file/process operations in it.
+		for attempt_no in 0..=RENAME_ATTEMPTS {
+			match std::fs::rename(&temp_dir, &target_dir) {
+				Ok(_) => {
+					break;
+				}
+				Err(e) if attempt_no == RENAME_ATTEMPTS => {
+					return Err(wrap(e, "error renaming downloaded server").into())
+				}
+				Err(_) => {
+					tokio::time::sleep(RENAME_DELAY).await;
+				}
+			}
+		}
 
 		Ok(target_dir)
 	}

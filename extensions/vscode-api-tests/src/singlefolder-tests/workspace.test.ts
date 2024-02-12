@@ -597,6 +597,43 @@ suite('vscode API - workspace', () => {
 		});
 	});
 
+	test('`findFiles2`', () => {
+		return vscode.workspace.findFiles2('**/image.png').then((res) => {
+			assert.strictEqual(res.length, 2);
+		});
+	});
+
+	test('findFiles2 - null exclude', async () => {
+		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: true, useDefaultSearchExcludes: false }).then((res) => {
+			// file.exclude folder is still searched, search.exclude folder is not
+			assert.strictEqual(res.length, 1);
+			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+
+		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: false, useDefaultSearchExcludes: false }).then((res) => {
+			// search.exclude and files.exclude folders are both searched
+			assert.strictEqual(res.length, 2);
+			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+	});
+
+	test('findFiles2, exclude', () => {
+		return vscode.workspace.findFiles2('**/image.png', { exclude: '**/sub/**' }).then((res) => {
+			assert.strictEqual(res.length, 1);
+		});
+	});
+
+	test('findFiles2, cancellation', () => {
+
+		const source = new vscode.CancellationTokenSource();
+		const token = source.token; // just to get an instance first
+		source.cancel();
+
+		return vscode.workspace.findFiles2('*.js', {}, token).then((res) => {
+			assert.deepStrictEqual(res, []);
+		});
+	});
+
 	test('findTextInFiles', async () => {
 		const options: vscode.FindTextInFilesOptions = {
 			include: '*.ts',
@@ -975,6 +1012,22 @@ suite('vscode API - workspace', () => {
 		const expected = 'import1;import2;';
 		// const expected2 = 'import2;import1;';
 		assert.strictEqual(document.getText(), expected);
+	});
+
+
+	test('[Bug] Failed to create new test file when in an untitled file #1261', async function () {
+		const uri = vscode.Uri.parse('untitled:Untitled-5.test');
+		const contents = `Hello Test File ${uri.toString()}`;
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(uri, { ignoreIfExists: true });
+		we.replace(uri, new vscode.Range(0, 0, 0, 0), contents);
+
+		const success = await vscode.workspace.applyEdit(we);
+
+		assert.ok(success);
+
+		const doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.getText(), contents);
 	});
 
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 1/3', async function () {

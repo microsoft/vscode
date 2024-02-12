@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -148,24 +148,26 @@ const globalSnippet = `{
 
 suite('SnippetsSync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let testClient: UserDataSyncClient;
 	let client2: UserDataSyncClient;
 
 	let testObject: SnippetsSynchroniser;
 
+	teardown(async () => {
+		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
 		await testClient.setUp(true);
 		testObject = testClient.getSynchronizer(SyncResource.Snippets) as SnippetsSynchroniser;
-		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('when snippets does not exist', async () => {
 		const fileService = testClient.instantiationService.get(IFileService);
@@ -228,7 +230,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -263,7 +265,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -298,7 +300,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1 });
 	});
 
@@ -361,7 +363,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2, 'typescript.json': tsSnippet1 });
 	});
 
@@ -381,7 +383,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -417,7 +419,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2 });
 	});
 
@@ -474,7 +476,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2 });
 	});
 
@@ -495,7 +497,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1 });
 	});
 
@@ -581,7 +583,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1, 'html.json': htmlSnippet3 });
 	});
 
@@ -609,7 +611,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1 });
 	});
 
@@ -629,7 +631,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'global.code-snippets': globalSnippet });
 	});
 
@@ -652,7 +654,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1, 'global.code-snippets': globalSnippet });
 	});
 

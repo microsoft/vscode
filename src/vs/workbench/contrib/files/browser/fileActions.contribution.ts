@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { ToggleAutoSaveAction, FocusFilesExplorer, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, ShowOpenedFileInNewWindow, UPLOAD_COMMAND_ID, UPLOAD_LABEL, CompareNewUntitledTextFilesAction, SetActiveEditorReadonlyInSession, SetActiveEditorWriteableInSession, ToggleActiveEditorReadonlyInSession, ResetActiveEditorReadonlyInSession } from 'vs/workbench/contrib/files/browser/fileActions';
+import { ToggleAutoSaveAction, FocusFilesExplorer, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, OpenActiveFileInEmptyWorkspace, UPLOAD_COMMAND_ID, UPLOAD_LABEL, CompareNewUntitledTextFilesAction, SetActiveEditorReadonlyInSession, SetActiveEditorWriteableInSession, ToggleActiveEditorReadonlyInSession, ResetActiveEditorReadonlyInSession } from 'vs/workbench/contrib/files/browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { openWindowCommand, newWindowCommand } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, OpenEditorsDirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, OpenEditorsReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, SAVE_ALL_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
@@ -36,7 +36,7 @@ registerAction2(ShowActiveFileInExplorer);
 registerAction2(CompareWithClipboardAction);
 registerAction2(CompareNewUntitledTextFilesAction);
 registerAction2(ToggleAutoSaveAction);
-registerAction2(ShowOpenedFileInNewWindow);
+registerAction2(OpenActiveFileInEmptyWorkspace);
 registerAction2(SetActiveEditorReadonlyInSession);
 registerAction2(SetActiveEditorWriteableInSession);
 registerAction2(ToggleActiveEditorReadonlyInSession);
@@ -116,12 +116,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const PASTE_FILE_ID = 'filesExplorer.paste';
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: PASTE_FILE_ID,
+CommandsRegistry.registerCommand(PASTE_FILE_ID, pasteFileHandler);
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: `^${PASTE_FILE_ID}`, // the `^` enables pasting files into the explorer by preventing default bubble up
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
-	handler: pasteFileHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -189,29 +190,89 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, icon: Th
 
 // Menu registration - command palette
 
-export function appendToCommandPalette(id: string, title: ILocalizedString, category: ILocalizedString, when?: ContextKeyExpression): void {
+export function appendToCommandPalette({ id, title, category, metadata }: ICommandAction, when?: ContextKeyExpression): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id,
 			title,
-			category
+			category,
+			metadata
 		},
 		when
 	});
 }
 
-appendToCommandPalette(COPY_PATH_COMMAND_ID, { value: nls.localize('copyPathOfActive', "Copy Path of Active File"), original: 'Copy Path of Active File' }, Categories.File);
-appendToCommandPalette(COPY_RELATIVE_PATH_COMMAND_ID, { value: nls.localize('copyRelativePathOfActive', "Copy Relative Path of Active File"), original: 'Copy Relative Path of Active File' }, Categories.File);
-appendToCommandPalette(SAVE_FILE_COMMAND_ID, { value: SAVE_FILE_LABEL, original: 'Save' }, Categories.File);
-appendToCommandPalette(SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, { value: SAVE_FILE_WITHOUT_FORMATTING_LABEL, original: 'Save without Formatting' }, Categories.File);
-appendToCommandPalette(SAVE_ALL_IN_GROUP_COMMAND_ID, { value: nls.localize('saveAllInGroup', "Save All in Group"), original: 'Save All in Group' }, Categories.File);
-appendToCommandPalette(SAVE_FILES_COMMAND_ID, { value: nls.localize('saveFiles', "Save All Files"), original: 'Save All Files' }, Categories.File);
-appendToCommandPalette(REVERT_FILE_COMMAND_ID, { value: nls.localize('revert', "Revert File"), original: 'Revert File' }, Categories.File);
-appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, { value: nls.localize('compareActiveWithSaved', "Compare Active File with Saved"), original: 'Compare Active File with Saved' }, Categories.File);
-appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, { value: SAVE_FILE_AS_LABEL, original: 'Save As...' }, Categories.File);
-appendToCommandPalette(NEW_FILE_COMMAND_ID, { value: NEW_FILE_LABEL, original: 'New File' }, Categories.File, WorkspaceFolderCountContext.notEqualsTo('0'));
-appendToCommandPalette(NEW_FOLDER_COMMAND_ID, { value: NEW_FOLDER_LABEL, original: 'New Folder' }, Categories.File, WorkspaceFolderCountContext.notEqualsTo('0'));
-appendToCommandPalette(NEW_UNTITLED_FILE_COMMAND_ID, { value: NEW_UNTITLED_FILE_LABEL, original: 'New Untitled Text File' }, Categories.File);
+appendToCommandPalette({
+	id: COPY_PATH_COMMAND_ID,
+	title: nls.localize2('copyPathOfActive', "Copy Path of Active File"),
+	category: Categories.File
+});
+appendToCommandPalette({
+	id: COPY_RELATIVE_PATH_COMMAND_ID,
+	title: nls.localize2('copyRelativePathOfActive', "Copy Relative Path of Active File"),
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: SAVE_FILE_COMMAND_ID,
+	title: SAVE_FILE_LABEL,
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
+	title: SAVE_FILE_WITHOUT_FORMATTING_LABEL,
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
+	title: nls.localize2('saveAllInGroup', "Save All in Group"),
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: SAVE_FILES_COMMAND_ID,
+	title: nls.localize2('saveFiles', "Save All Files"),
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: REVERT_FILE_COMMAND_ID,
+	title: nls.localize2('revert', "Revert File"),
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: COMPARE_WITH_SAVED_COMMAND_ID,
+	title: nls.localize2('compareActiveWithSaved', "Compare Active File with Saved"),
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: SAVE_FILE_AS_COMMAND_ID,
+	title: SAVE_FILE_AS_LABEL,
+	category: Categories.File
+});
+
+appendToCommandPalette({
+	id: NEW_FILE_COMMAND_ID,
+	title: NEW_FILE_LABEL,
+	category: Categories.File
+}, WorkspaceFolderCountContext.notEqualsTo('0'));
+
+appendToCommandPalette({
+	id: NEW_FOLDER_COMMAND_ID,
+	title: NEW_FOLDER_LABEL,
+	category: Categories.File,
+	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
+}, WorkspaceFolderCountContext.notEqualsTo('0'));
+
+appendToCommandPalette({
+	id: NEW_UNTITLED_FILE_COMMAND_ID,
+	title: NEW_UNTITLED_FILE_LABEL,
+	category: Categories.File
+});
 
 // Menu registration - open editors
 

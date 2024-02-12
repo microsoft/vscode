@@ -9,6 +9,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
+import { importAMDNodeModule } from 'vs/amdX';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export abstract class BaseAssignmentService implements IAssignmentService {
 	_serviceBrand: undefined;
@@ -24,11 +26,12 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 		private readonly machineId: string,
 		protected readonly configurationService: IConfigurationService,
 		protected readonly productService: IProductService,
+		protected readonly environmentService: IEnvironmentService,
 		protected telemetry: IExperimentationTelemetry,
 		private keyValueStorage?: IKeyValueStorage
 	) {
-
-		if (productService.tasConfig && this.experimentsEnabled && getTelemetryLevel(this.configurationService) === TelemetryLevel.USAGE) {
+		const isTesting = environmentService.extensionTestsLocationURI !== undefined;
+		if (!isTesting && productService.tasConfig && this.experimentsEnabled && getTelemetryLevel(this.configurationService) === TelemetryLevel.USAGE) {
 			this.tasClient = this.setupTASClient();
 		}
 
@@ -85,7 +88,7 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 		);
 
 		const tasConfig = this.productService.tasConfig!;
-		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
+		const tasClient = new (await importAMDNodeModule<typeof import('tas-client-umd')>('tas-client-umd', 'lib/tas-client-umd.js')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,

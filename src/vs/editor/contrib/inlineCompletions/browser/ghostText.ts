@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from 'vs/base/common/arrays';
+import { splitLines } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { ColumnRange, applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
@@ -61,13 +63,15 @@ export class GhostText {
 export class GhostTextPart {
 	constructor(
 		readonly column: number,
-		readonly lines: readonly string[],
+		readonly text: string,
 		/**
 		 * Indicates if this part is a preview of an inline suggestion when a suggestion is previewed.
 		*/
 		readonly preview: boolean,
 	) {
 	}
+
+	readonly lines = splitLines(this.text);;
 
 	equals(other: GhostTextPart): boolean {
 		return this.column === other.column &&
@@ -80,7 +84,7 @@ export class GhostTextReplacement {
 	public readonly parts: ReadonlyArray<GhostTextPart> = [
 		new GhostTextPart(
 			this.columnRange.endColumnExclusive,
-			this.newLines,
+			this.text,
 			false
 		),
 	];
@@ -88,9 +92,11 @@ export class GhostTextReplacement {
 	constructor(
 		readonly lineNumber: number,
 		readonly columnRange: ColumnRange,
-		readonly newLines: readonly string[],
+		readonly text: string,
 		public readonly additionalReservedLineCount: number = 0,
 	) { }
+
+	readonly newLines = splitLines(this.text);
 
 	renderForScreenReader(_lineText: string): string {
 		return this.newLines.join('\n');
@@ -118,6 +124,34 @@ export class GhostTextReplacement {
 	isEmpty(): boolean {
 		return this.parts.every(p => p.lines.length === 0);
 	}
+
+	equals(other: GhostTextReplacement): boolean {
+		return this.lineNumber === other.lineNumber &&
+			this.columnRange.equals(other.columnRange) &&
+			this.newLines.length === other.newLines.length &&
+			this.newLines.every((line, index) => line === other.newLines[index]) &&
+			this.additionalReservedLineCount === other.additionalReservedLineCount;
+	}
 }
 
 export type GhostTextOrReplacement = GhostText | GhostTextReplacement;
+
+export function ghostTextsOrReplacementsEqual(a: readonly GhostTextOrReplacement[] | undefined, b: readonly GhostTextOrReplacement[] | undefined): boolean {
+	return equals(a, b, ghostTextOrReplacementEquals);
+}
+
+export function ghostTextOrReplacementEquals(a: GhostTextOrReplacement | undefined, b: GhostTextOrReplacement | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	if (a instanceof GhostText && b instanceof GhostText) {
+		return a.equals(b);
+	}
+	if (a instanceof GhostTextReplacement && b instanceof GhostTextReplacement) {
+		return a.equals(b);
+	}
+	return false;
+}

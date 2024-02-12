@@ -13,10 +13,10 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -46,6 +46,10 @@ import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollable
 import { DomEmitter } from 'vs/base/browser/event';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { FileAccess } from 'vs/base/common/network';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -69,6 +73,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditor: SimpleCommentEditor | null = null;
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
+	private _editorHeight = MIN_EDITOR_HEIGHT;
+
 	private _isPendingLabel!: HTMLElement;
 	private _timestamp: HTMLElement | undefined;
 	private _timestampWidget: TimestampWidget | undefined;
@@ -93,6 +99,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
+		private readonly parentEditor: LayoutableEditor,
 		private commentThread: languages.CommentThread<T>,
 		public comment: languages.Comment,
 		private pendingEdit: string | undefined,
@@ -107,7 +114,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IAccessibilityService private accessibilityService: IAccessibilityService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -131,6 +140,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createHeader(this._commentDetailsContainer);
 		this._body = document.createElement(`div`);
 		this._body.classList.add('comment-body', MOUSE_CURSOR_TEXT_CSS_CLASS_NAME);
+		if (configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.maxHeight !== false) {
+			this._body.classList.add('comment-body-max-height');
+		}
 
 		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
@@ -151,13 +163,24 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		if (pendingEdit) {
 			this.switchToEditMode();
 		}
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.toggleToolbarHidden(true);
+		}));
+
+		this.activeCommentListeners();
+	}
+
+	private activeCommentListeners() {
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.FOCUS_IN, () => {
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: this.commentThread, comment: this.comment });
+		}, true));
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
 		this._scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
-			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb)
+			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), cb)
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
@@ -241,8 +264,17 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._isPendingLabel.innerText = '';
 		}
 
-		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions.hidden'));
+		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions'));
+		this.toggleToolbarHidden(true);
 		this.createActionsToolbar();
+	}
+
+	private toggleToolbarHidden(hidden: boolean) {
+		if (hidden && !this.accessibilityService.isScreenReaderOptimized()) {
+			this._actionsToolbarContainer.classList.add('hidden');
+		} else {
+			this._actionsToolbarContainer.classList.remove('hidden');
+		}
 	}
 
 	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -348,7 +380,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	async submitComment(): Promise<void> {
 		if (this._commentEditor && this._commentFormActions) {
-			this._commentFormActions.triggerDefaultAction();
+			await this._commentFormActions.triggerDefaultAction();
+			this.pendingEdit = undefined;
 		}
 	}
 
@@ -436,7 +469,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					}
 					this.notificationService.error(error);
 				}
-			}, reaction.iconPath, reaction.count);
+			}, reaction.reactors, reaction.iconPath, reaction.count);
 
 			this._reactionsActionBar?.push(action, { label: true, icon: true });
 		});
@@ -460,16 +493,16 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.pendingEdit ?? this.commentBodyValue);
 		this.pendingEdit = undefined;
-		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
+		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 		this._commentEditor.focus();
 
-		dom.scheduleAtNextAnimationFrame(() => {
-			this._commentEditor!.layout({ width: container.clientWidth - 14, height: 90 });
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(editContainer), () => {
+			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
 		});
 
 		const lastLine = this._commentEditorModel.getLineCount();
-		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
+		const lastColumn = this._commentEditorModel.getLineLength(lastLine) + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
 		const commentThread = this.commentThread;
@@ -477,14 +510,16 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			uri: this._commentEditor.getModel()!.uri,
 			value: this.commentBodyValue
 		};
-		this.commentService.setActiveCommentThread(commentThread);
+		this.commentService.setActiveEditingCommentThread(commentThread);
+		this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 			commentThread.input = {
 				uri: this._commentEditor!.getModel()!.uri,
 				value: this.commentBodyValue
 			};
-			this.commentService.setActiveCommentThread(commentThread);
+			this.commentService.setActiveEditingCommentThread(commentThread);
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 		}));
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
@@ -494,13 +529,34 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					const input = commentThread.input;
 					input.value = newVal;
 					commentThread.input = input;
-					this.commentService.setActiveCommentThread(commentThread);
+					this.commentService.setActiveEditingCommentThread(commentThread);
+					this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 				}
 			}
 		}));
 
+		this.calculateEditorHeight();
+
+		this._register((this._commentEditorModel.onDidChangeContent(() => {
+			if (this._commentEditor && this.calculateEditorHeight()) {
+				this._commentEditor.layout({ height: this._editorHeight, width: this._commentEditor.getLayoutInfo().width });
+				this._commentEditor.render(true);
+			}
+		})));
+
 		this._register(this._commentEditor);
 		this._register(this._commentEditorModel);
+	}
+
+	private calculateEditorHeight(): boolean {
+		if (this._commentEditor) {
+			const newEditorHeight = calculateEditorHeight(this.parentEditor, this._commentEditor, this._editorHeight);
+			if (newEditorHeight !== this._editorHeight) {
+				this._editorHeight = newEditorHeight;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getPendingEdit(): string | undefined {
@@ -530,8 +586,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditContainer!.remove();
 	}
 
-	layout() {
-		this._commentEditor?.layout();
+	layout(widthInPixel?: number) {
+		const editorWidth = widthInPixel !== undefined ? widthInPixel - 72 /* - margin and scrollbar*/ : (this._commentEditor?.getLayoutInfo().width ?? 0);
+		this._commentEditor?.layout({ width: editorWidth, height: this._editorHeight });
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
 		const scrollHeight = this._body.scrollHeight;
@@ -566,7 +623,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions?.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, (action: IAction): void => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
@@ -592,7 +649,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions?.setActions(menu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(container, (action: IAction): void => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
@@ -612,7 +669,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	setFocus(focused: boolean, visible: boolean = false) {
 		if (focused) {
 			this._domNode.focus();
-			this._actionsToolbarContainer.classList.remove('hidden');
+			this.toggleToolbarHidden(false);
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
 			if (this.comment.mode === languages.CommentMode.Editing) {
@@ -620,7 +677,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		} else {
 			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
-				this._actionsToolbarContainer.classList.add('hidden');
+				this.toggleToolbarHidden(true);
 				this._domNode.tabIndex = -1;
 			}
 			this._actionsToolbarContainer.classList.remove('tabfocused');
@@ -629,12 +686,12 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private registerActionBarListeners(actionsContainer: HTMLElement): void {
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
-			actionsContainer.classList.remove('hidden');
+			this.toggleToolbarHidden(false);
 			actionsContainer.classList.add('mouseover');
 		}));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
 			if (actionsContainer.classList.contains('mouseover') && !actionsContainer.classList.contains('tabfocused')) {
-				actionsContainer.classList.add('hidden');
+				this.toggleToolbarHidden(true);
 			}
 			actionsContainer.classList.remove('mouseover');
 		}));
@@ -686,8 +743,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(dom.getWindow(this._domNode), e);
+
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e,
+			getAnchor: () => event,
 			menuId: MenuId.CommentThreadCommentContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: this._contextKeyService,

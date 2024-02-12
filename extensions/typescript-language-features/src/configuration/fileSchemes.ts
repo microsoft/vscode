@@ -10,6 +10,7 @@ export const file = 'file';
 export const untitled = 'untitled';
 export const git = 'git';
 export const github = 'github';
+export const azurerepos = 'azurerepos';
 
 /** Live share scheme */
 export const vsls = 'vsls';
@@ -18,6 +19,7 @@ export const vscodeNotebookCell = 'vscode-notebook-cell';
 export const memFs = 'memfs';
 export const vscodeVfs = 'vscode-vfs';
 export const officeScript = 'office-script';
+export const chatCodeBlock = 'vscode-chat-code-block';
 
 export function getSemanticSupportedSchemes() {
 	if (isWeb() && vscode.workspace.workspaceFolders) {
@@ -39,4 +41,5 @@ export const disabledSchemes = new Set([
 	git,
 	vsls,
 	github,
+	azurerepos,
 ]);

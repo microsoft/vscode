@@ -29,7 +29,7 @@ export class WebviewPortMappingManager implements IDisposable {
 
 	public async getRedirect(resolveAuthority: IAddress | null | undefined, url: string): Promise<string | undefined> {
 		const uri = URI.parse(url);
-		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri);
+		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri, { checkQuery: false });
 		if (!requestLocalHostInfo) {
 			return undefined;
 		}
@@ -72,7 +72,11 @@ export class WebviewPortMappingManager implements IDisposable {
 		if (existing) {
 			return existing;
 		}
-		const tunnel = await this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
+		const tunnelOrError = await this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
+		let tunnel: RemoteTunnel | undefined;
+		if (typeof tunnelOrError === 'string') {
+			tunnel = undefined;
+		}
 		if (tunnel) {
 			this._tunnels.set(remotePort, tunnel);
 		}

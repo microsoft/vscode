@@ -3,15 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
-export interface IEditorModel {
-
-	/**
-	 * Emitted when the model is about to be disposed.
-	 */
-	readonly onWillDispose: Event<void>;
+export interface IResolvableEditorModel extends IDisposable {
 
 	/**
 	 * Resolves the model.
@@ -22,16 +17,13 @@ export interface IEditorModel {
 	 * Find out if the editor model was resolved or not.
 	 */
 	isResolved(): boolean;
+}
 
-	/**
-	 * Find out if this model has been disposed.
-	 */
-	isDisposed(): boolean;
+export function isResolvedEditorModel(model: IDisposable | undefined | null): model is IResolvableEditorModel {
+	const candidate = model as IResolvableEditorModel | undefined | null;
 
-	/**
-	 * Dispose associated resources
-	 */
-	dispose(): void;
+	return typeof candidate?.resolve === 'function'
+		&& typeof candidate?.isResolved === 'function';
 }
 
 export interface IBaseUntypedEditorInput {

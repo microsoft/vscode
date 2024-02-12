@@ -20,6 +20,7 @@ const mkdirp = require('mkdirp');
 export interface IExtensionDefinition {
 	name: string;
 	version: string;
+	sha256: string;
 	repo: string;
 	platforms?: string[];
 	metadata: {

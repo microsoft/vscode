@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleValue } from 'vs/base/common/async';
+import { GlobalIdleValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
@@ -248,14 +248,19 @@ export class InstantiationService implements IInstantiationService {
 			const child = new InstantiationService(undefined, this._strict, this, this._enableTracing);
 			child._globalGraphImplicitDependency = String(id);
 
+			type EaryListenerData = {
+				listener: Parameters<Event<any>>;
+				disposable?: IDisposable;
+			};
+
 			// Return a proxy object that's backed by an idle value. That
 			// strategy is to instantiate services in our idle time or when actually
 			// needed but not when injected into a consumer
 
 			// return "empty events" when the service isn't instantiated yet
-			const earlyListeners = new Map<string, LinkedList<Parameters<Event<any>>>>();
+			const earlyListeners = new Map<string, LinkedList<EaryListenerData>>();
 
-			const idle = new IdleValue<any>(() => {
+			const idle = new GlobalIdleValue<any>(() => {
 				const result = child._createInstance<T>(ctor, args, _trace);
 
 				// early listeners that we kept are now being subscribed to
@@ -263,8 +268,8 @@ export class InstantiationService implements IInstantiationService {
 				for (const [key, values] of earlyListeners) {
 					const candidate = <Event<any>>(<any>result)[key];
 					if (typeof candidate === 'function') {
-						for (const listener of values) {
-							candidate.apply(result, listener);
+						for (const value of values) {
+							value.disposable = candidate.apply(result, value.listener);
 						}
 					}
 				}
@@ -284,8 +289,17 @@ export class InstantiationService implements IInstantiationService {
 								earlyListeners.set(key, list);
 							}
 							const event: Event<any> = (callback, thisArg, disposables) => {
-								const rm = list!.push([callback, thisArg, disposables]);
-								return toDisposable(rm);
+								if (idle.isInitialized) {
+									return idle.value[key](callback, thisArg, disposables);
+								} else {
+									const entry: EaryListenerData = { listener: [callback, thisArg, disposables], disposable: undefined };
+									const rm = list.push(entry);
+									const result = toDisposable(() => {
+										rm();
+										entry.disposable?.dispose();
+									});
+									return result;
+								}
 							};
 							return event;
 						}

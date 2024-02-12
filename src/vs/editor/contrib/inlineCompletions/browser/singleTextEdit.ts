@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
-import { commonPrefixLength, getLeadingWhitespace, splitLines } from 'vs/base/common/strings';
+import { commonPrefixLength, getLeadingWhitespace } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
@@ -16,6 +16,11 @@ export class SingleTextEdit {
 		public readonly range: Range,
 		public readonly text: string
 	) {
+	}
+
+	static equals(first: SingleTextEdit, second: SingleTextEdit) {
+		return first.range.equalsRange(second.range) && first.text === second.text;
+
 	}
 
 	removeCommonPrefix(model: ITextModel, validModelRange?: Range): SingleTextEdit {
@@ -70,10 +75,13 @@ export class SingleTextEdit {
 			const suggestionAddedIndentationLength = getLeadingWhitespace(edit.text).length;
 
 			const replacedIndentation = sourceLine.substring(edit.range.startColumn - 1, sourceIndentationLength);
-			const rangeThatDoesNotReplaceIndentation = Range.fromPositions(
-				edit.range.getStartPosition().delta(0, replacedIndentation.length),
-				edit.range.getEndPosition()
-			);
+
+			const [startPosition, endPosition] = [edit.range.getStartPosition(), edit.range.getEndPosition()];
+			const newStartPosition =
+				startPosition.column + replacedIndentation.length <= endPosition.column
+					? startPosition.delta(0, replacedIndentation.length)
+					: endPosition;
+			const rangeThatDoesNotReplaceIndentation = Range.fromPositions(newStartPosition, endPosition);
 
 			const suggestionWithoutIndentationChange =
 				edit.text.startsWith(replacedIndentation)
@@ -131,12 +139,10 @@ export class SingleTextEdit {
 			const italicText = edit.text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
 
 			if (nonPreviewText.length > 0) {
-				const lines = splitLines(nonPreviewText);
-				parts.push(new GhostTextPart(insertColumn, lines, false));
+				parts.push(new GhostTextPart(insertColumn, nonPreviewText, false));
 			}
 			if (italicText.length > 0) {
-				const lines = splitLines(italicText);
-				parts.push(new GhostTextPart(insertColumn, lines, true));
+				parts.push(new GhostTextPart(insertColumn, italicText, true));
 			}
 		}
 

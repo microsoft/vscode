@@ -54,8 +54,11 @@ class VideoPreview extends MediaPreview {
 
 	protected async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
+		const configurations = vscode.workspace.getConfiguration('mediaPreview.video');
 		const settings = {
 			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
+			autoplay: configurations.get('autoPlay'),
+			loop: configurations.get('loop'),
 		};
 
 		const nonce = getNonce();

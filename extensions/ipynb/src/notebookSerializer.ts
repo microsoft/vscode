@@ -63,7 +63,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 
 		// For notebooks without metadata default the language in metadata to the preferred language.
 		if (!json.metadata || (!json.metadata.kernelspec && !json.metadata.language_info)) {
-			json.metadata = json.metadata || { orig_nbformat: defaultNotebookFormat.major };
+			json.metadata = json.metadata || {};
 			json.metadata.language_info = json.metadata.language_info || { name: preferredCellLanguage };
 		}
 
@@ -101,8 +101,8 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 export function getNotebookMetadata(document: vscode.NotebookDocument | vscode.NotebookData) {
 	const notebookContent: Partial<nbformat.INotebookContent> = document.metadata?.custom || {};
 	notebookContent.cells = notebookContent.cells || [];
-	notebookContent.nbformat = notebookContent.nbformat || 4;
-	notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? 2;
-	notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
+	notebookContent.nbformat = notebookContent.nbformat || defaultNotebookFormat.major;
+	notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? defaultNotebookFormat.minor;
+	notebookContent.metadata = notebookContent.metadata || {};
 	return notebookContent;
 }

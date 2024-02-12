@@ -79,6 +79,12 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 		return this.channel.call('updateItems', serializableRequest);
 	}
 
+	optimize(): Promise<void> {
+		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace };
+
+		return this.channel.call('optimize', serializableRequest);
+	}
+
 	abstract close(): Promise<void>;
 }
 

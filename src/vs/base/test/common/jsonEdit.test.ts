@@ -5,8 +5,11 @@
 import * as assert from 'assert';
 import { removeProperty, setProperty } from 'vs/base/common/jsonEdit';
 import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('JSON - edits', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertEdit(content: string, edits: Edit[], expected: string) {
 		assert(edits);

@@ -5,11 +5,29 @@
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
+import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ConfigurationModelParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suiteSetup(() => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'ConfigurationModelParserTest',
+			'type': 'object',
+			'properties': {
+				'ConfigurationModelParserTest.windowSetting': {
+					'type': 'string',
+					'default': 'isSet',
+				}
+			}
+		});
+	});
 
 	test('parse configuration model with single override identifier', () => {
 		const testObject = new ConfigurationModelParser('');
@@ -35,10 +53,45 @@ suite('ConfigurationModelParser', () => {
 		assert.deepStrictEqual(JSON.stringify(testObject.configurationModel.overrides), JSON.stringify([{ identifiers: ['x', 'y', 'z'], keys: ['a'], contents: { 'a': 1 } }]));
 	});
 
+	test('parse configuration model with exclude option', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'a': 1, 'b': 2 }), { exclude: ['a'] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('a'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('b'), 2);
+	});
+
+	test('parse configuration model with exclude option even included', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'a': 1, 'b': 2 }), { exclude: ['a'], include: ['a'] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('a'), undefined);
+		assert.strictEqual(testObject.configurationModel.getValue('b'), 2);
+	});
+
+	test('parse configuration model with scopes filter', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'ConfigurationModelParserTest.windowSetting': '1' }), { scopes: [ConfigurationScope.APPLICATION] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('ConfigurationModelParserTest.windowSetting'), undefined);
+	});
+
+	test('parse configuration model with include option', () => {
+		const testObject = new ConfigurationModelParser('');
+
+		testObject.parse(JSON.stringify({ 'ConfigurationModelParserTest.windowSetting': '1' }), { include: ['ConfigurationModelParserTest.windowSetting'], scopes: [ConfigurationScope.APPLICATION] });
+
+		assert.strictEqual(testObject.configurationModel.getValue('ConfigurationModelParserTest.windowSetting'), '1');
+	});
 
 });
 
 suite('ConfigurationModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('setValue for a key that has no sections and not defined', () => {
 		const testObject = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b']);
@@ -294,10 +347,10 @@ suite('ConfigurationModel', () => {
 	test('inspect when raw is same', () => {
 		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 1 }, keys: ['a'] }]);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: undefined, override: 1, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('d'), { value: undefined, override: undefined, merged: undefined });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: undefined, override: 1, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 1 }] });
+		assert.deepStrictEqual(testObject.inspect('d'), { value: undefined, override: undefined, merged: undefined, overrides: undefined });
 	});
 
 	test('inspect when raw is not same', () => {
@@ -312,11 +365,11 @@ suite('ConfigurationModel', () => {
 			}
 		}]);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: 2, override: 1, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('d'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('e'), { value: undefined, override: undefined, merged: undefined });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b', 'x'), { value: 2, override: 1, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 1 }] });
+		assert.deepStrictEqual(testObject.inspect('d'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+		assert.deepStrictEqual(testObject.inspect('e'), { value: undefined, override: undefined, merged: undefined, overrides: undefined });
 	});
 
 	test('inspect in merged configuration when raw is same', () => {
@@ -324,11 +377,11 @@ suite('ConfigurationModel', () => {
 		const target2 = new ConfigurationModel({ 'b': 3 }, ['b'], []);
 		const testObject = target1.merge(target2);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('c'), { value: undefined, override: undefined, merged: undefined });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+		assert.deepStrictEqual(testObject.inspect('c'), { value: undefined, override: undefined, merged: undefined, overrides: undefined });
 	});
 
 	test('inspect in merged configuration when raw is not same for one model', () => {
@@ -344,16 +397,37 @@ suite('ConfigurationModel', () => {
 		const target2 = new ConfigurationModel({ 'b': 3 }, ['b'], []);
 		const testObject = target1.merge(target2);
 
-		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1 });
-		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2 });
-		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3 });
-		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: 4, merged: 4 });
-		assert.deepStrictEqual(testObject.inspect('c'), { value: 3, override: undefined, merged: 3 });
+		assert.deepStrictEqual(testObject.inspect('a'), { value: 1, override: undefined, merged: 1, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('a', 'x'), { value: 1, override: 2, merged: 2, overrides: [{ identifiers: ['x', 'y'], value: 2 }] });
+		assert.deepStrictEqual(testObject.inspect('b'), { value: 3, override: undefined, merged: 3, overrides: [{ identifiers: ['x', 'y'], value: 4 }] });
+		assert.deepStrictEqual(testObject.inspect('b', 'y'), { value: 3, override: 4, merged: 4, overrides: [{ identifiers: ['x', 'y'], value: 4 }] });
+		assert.deepStrictEqual(testObject.inspect('c'), { value: 3, override: undefined, merged: 3, overrides: undefined });
+	});
+
+	test('inspect: return all overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c'], [
+			{ identifiers: ['x', 'y'], contents: { 'a': 2, 'b': 1 }, keys: ['a', 'b'] },
+			{ identifiers: ['x'], contents: { 'a': 3 }, keys: ['a'] },
+			{ identifiers: ['y'], contents: { 'b': 3 }, keys: ['b'] }
+		]);
+
+		assert.deepStrictEqual(testObject.inspect('a').overrides, [
+			{ identifiers: ['x', 'y'], value: 2 },
+			{ identifiers: ['x'], value: 3 }
+		]);
+	});
+
+	test('inspect when no overrides', () => {
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, ['a', 'c']);
+
+		assert.strictEqual(testObject.inspect('a').overrides, undefined);
 	});
 
 });
 
 suite('CustomConfigurationModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('simple merge using models', () => {
 		const base = new ConfigurationModelParser('base');
@@ -438,12 +512,12 @@ suite('CustomConfigurationModel', () => {
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parse(null!);
+		testObject.parse(null);
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
-		testObject.parse(undefined!);
+		testObject.parse(undefined);
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
@@ -462,6 +536,8 @@ suite('CustomConfigurationModel', () => {
 });
 
 suite('Configuration', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Test inspect for overrideIdentifiers', () => {
 		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
@@ -623,6 +699,8 @@ suite('Configuration', () => {
 });
 
 suite('ConfigurationChangeEvent', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('changeEvent affecting keys with new configuration', () => {
 		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());

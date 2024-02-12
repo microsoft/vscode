@@ -5,9 +5,12 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { LanguageSelector, score } from 'vs/editor/common/languageSelector';
 
 suite('LanguageSelector', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const model = {
 		language: 'farboo',
@@ -16,7 +19,7 @@ suite('LanguageSelector', function () {
 
 	test('score, invalid selector', function () {
 		assert.strictEqual(score({}, model.uri, model.language, true, undefined, undefined), 0);
-		assert.strictEqual(score(undefined!, model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score(undefined, model.uri, model.language, true, undefined, undefined), 0);
 		assert.strictEqual(score(null!, model.uri, model.language, true, undefined, undefined), 0);
 		assert.strictEqual(score('', model.uri, model.language, true, undefined, undefined), 0);
 	});

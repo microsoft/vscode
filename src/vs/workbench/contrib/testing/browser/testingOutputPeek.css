@@ -13,10 +13,10 @@
 	color: var(--vscode-peekViewResult-selectionForeground) !important;
 }
 
-.monaco-editor .test-output-peek .test-output-peek-message-container a {
+.test-output-peek-message-container a {
 	color: var(--vscode-textLink-foreground);
 }
 
-.monaco-editor .test-output-peek .test-output-peek-message-container a :hover {
+.test-output-peek-message-container a :hover {
 	color: var(--vscode-textLink-activeForeground);
 }

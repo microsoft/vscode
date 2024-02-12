@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IInlineChatSession, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInlineChatShape, IInlineChatResponseDto, IMainContext, MainContext, MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { IInlineChatFollowup, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import type * as vscode from 'vscode';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IRange } from 'vs/editor/common/core/range';
 
 class ProviderWrapper {
 
@@ -26,7 +28,7 @@ class ProviderWrapper {
 
 	constructor(
 		readonly extension: Readonly<IRelaxedExtensionDescription>,
-		readonly provider: vscode.InteractiveEditorSessionProvider,
+		readonly provider: vscode.InteractiveEditorSessionProvider
 	) { }
 }
 
@@ -57,14 +59,18 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 		type EditorChatApiArg = {
 			initialRange?: vscode.Range;
+			initialSelection?: vscode.Selection;
 			message?: string;
 			autoSend?: boolean;
+			position?: vscode.Position;
 		};
 
 		type InteractiveEditorRunOptions = {
 			initialRange?: IRange;
+			initialSelection?: ISelection;
 			message?: string;
 			autoSend?: boolean;
+			position?: IPosition;
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
@@ -77,18 +83,20 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
+					initialSelection: extHostTypes.Selection.isSelection(v.initialSelection) ? typeConvert.Selection.from(v.initialSelection) : undefined,
 					message: v.message,
-					autoSend: v.autoSend
+					autoSend: v.autoSend,
+					position: v.position ? typeConvert.Position.from(v.position) : undefined,
 				};
 			})],
 			ApiCommandResult.Void
 		));
 	}
 
-	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider): vscode.Disposable {
+	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata?.label ?? extension.displayName ?? extension.name, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', typeof provider.provideFollowups === 'function', metadata?.supportReportIssue ?? false);
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);
@@ -119,7 +127,8 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		return {
 			id,
 			placeholder: session.placeholder,
-			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer })),
+			input: session.input,
+			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer, executeImmediately: c.executeImmediately })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
 			message: session.message
 		};
@@ -135,88 +144,117 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			return;
 		}
 
-		const res = await entry.provider.provideInteractiveEditorResponse({
-			session: sessionData.session,
+		const apiRequest: vscode.InteractiveEditorRequest = {
 			prompt: request.prompt,
 			selection: typeConvert.Selection.to(request.selection),
 			wholeRange: typeConvert.Range.to(request.wholeRange),
 			attempt: request.attempt,
-		}, token);
+			live: request.live,
+			previewDocument: this._documents.getDocument(URI.revive(request.previewDocument)),
+			withIntentDetection: request.withIntentDetection,
+		};
 
-		if (res) {
 
-			const id = sessionData.responses.push(res) - 1;
-
-			const stub: Partial<IInlineChatResponseDto> = {
-				wholeRange: typeConvert.Range.from(res.wholeRange),
-				placeholder: res.placeholder,
-			};
-
-			if (ExtHostInteractiveEditor._isMessageResponse(res)) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.Message,
-					message: typeConvert.MarkdownString.from(res.contents),
-				};
+		let done = false;
+		const progress: vscode.Progress<vscode.InteractiveEditorProgressItem> = {
+			report: async value => {
+				if (!request.live && value.edits?.length) {
+					throw new Error('Progress reporting is only supported for live sessions');
+				}
+				if (done || token.isCancellationRequested) {
+					return;
+				}
+				await this._proxy.$handleProgressChunk(request.requestId, {
+					message: value.message,
+					edits: value.edits?.map(typeConvert.TextEdit.from),
+					editsShouldBeInstant: value.editsShouldBeInstant,
+					slashCommand: value.slashCommand?.command,
+					markdownFragment: extHostTypes.MarkdownString.isMarkdownString(value.content) ? value.content.value : value.content
+				});
 			}
+		};
 
-			const { edits } = res;
-			if (edits instanceof extHostTypes.WorkspaceEdit) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.BulkEdit,
-					edits: typeConvert.WorkspaceEdit.from(edits),
-				};
+		const task = Promise.resolve(entry.provider.provideInteractiveEditorResponse(sessionData.session, apiRequest, progress, token));
 
-			} else if (Array.isArray(edits)) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.EditorEdit,
-					edits: edits.map(typeConvert.TextEdit.from),
-				};
-			}
+		let res: vscode.InteractiveEditorResponse | vscode.InteractiveEditorMessageResponse | null | undefined;
+		try {
+			res = await raceCancellation(task, token);
+		} finally {
+			done = true;
 		}
 
+		if (!res) {
+			return undefined;
+		}
+
+
+		const id = sessionData.responses.push(res) - 1;
+
+		const stub: Partial<IInlineChatResponseDto> = {
+			wholeRange: typeConvert.Range.from(res.wholeRange),
+			placeholder: res.placeholder,
+		};
+
+		if (!ExtHostInteractiveEditor._isEditResponse(res)) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				message: typeConvert.MarkdownString.from(res.contents),
+				edits: []
+			};
+		}
+
+		const { edits, contents } = res;
+		const message = contents !== undefined ? typeConvert.MarkdownString.from(contents) : undefined;
+		if (edits instanceof extHostTypes.WorkspaceEdit) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.BulkEdit,
+				edits: typeConvert.WorkspaceEdit.from(edits),
+				message
+			};
+
+		} else {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
+				message
+			};
+		}
+	}
+
+	async $provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IInlineChatFollowup[] | undefined> {
+		const entry = this._inputProvider.get(handle);
+		const sessionData = this._inputSessions.get(sessionId);
+		const response = sessionData?.responses[responseId];
+		if (entry && response && entry.provider.provideFollowups) {
+			const task = Promise.resolve(entry.provider.provideFollowups(sessionData.session, response, token));
+			const followups = await raceCancellation(task, token);
+			return followups?.map(typeConvert.ChatInlineFollowup.from);
+		}
 		return undefined;
 	}
+
 
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
-
 		if (entry && response) {
-			// todo@jrieken move to type converter
-			let apiKind: extHostTypes.InteractiveEditorResponseFeedbackKind;
-			switch (kind) {
-				case InlineChatResponseFeedbackKind.Helpful:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Helpful;
-					break;
-				case InlineChatResponseFeedbackKind.Unhelpful:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Unhelpful;
-					break;
-				case InlineChatResponseFeedbackKind.Undone:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
-					break;
-			}
-
+			const apiKind = typeConvert.InteractiveEditorResponseFeedbackKind.to(kind);
 			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
 		}
 	}
 
 	$releaseSession(handle: number, sessionId: number) {
-		const sessionData = this._inputSessions.get(sessionId);
-		const entry = this._inputProvider.get(handle);
-		if (sessionData && entry) {
-			entry.provider.releaseInteractiveEditorSession?.(sessionData.session);
-		}
-		this._inputSessions.delete(sessionId);
+		// TODO@jrieken remove this
 	}
 
-	private static _isMessageResponse(thing: any): thing is vscode.InteractiveEditorMessageResponse {
-		return typeof thing === 'object' && typeof (<vscode.InteractiveEditorMessageResponse>thing).contents === 'object';
+	private static _isEditResponse(thing: any): thing is vscode.InteractiveEditorResponse {
+		return typeof thing === 'object' && typeof (<vscode.InteractiveEditorResponse>thing).edits === 'object';
 	}
 }

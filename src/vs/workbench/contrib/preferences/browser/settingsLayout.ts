@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getExperimentalExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
@@ -32,12 +29,11 @@ const defaultCommonlyUsedSettings: string[] = [
 	'workbench.editor.enablePreview'
 ];
 
-export async function getCommonlyUsedData(workbenchAssignmentService: IWorkbenchAssignmentService, environmentService: IEnvironmentService, productService: IProductService): Promise<ITOCEntry<string>> {
-	const toggleData = await getExperimentalExtensionToggleData(workbenchAssignmentService, environmentService, productService);
+export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
 	return {
 		id: 'commonlyUsed',
 		label: localize('commonlyUsed', "Commonly Used"),
-		settings: toggleData ? toggleData.commonlyUsed : defaultCommonlyUsedSettings
+		settings: toggleData?.commonlyUsed ?? defaultCommonlyUsedSettings
 	};
 }
 
@@ -74,6 +70,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'editor/diffEditor',
 					label: localize('diffEditor', "Diff Editor"),
 					settings: ['diffEditor.*']
+				},
+				{
+					id: 'editor/multiDiffEditor',
+					label: localize('multiDiffEditor', "Multi-File Diff Editor"),
+					settings: ['multiDiffEditor.*']
 				},
 				{
 					id: 'editor/minimap',
@@ -226,6 +227,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['audioCues.*']
 				},
 				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signals.*']
+				},
+				{
 					id: 'features/mergeEditor',
 					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']
@@ -281,7 +287,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
-			settings: isWindows ? ['security.*'] : undefined,
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

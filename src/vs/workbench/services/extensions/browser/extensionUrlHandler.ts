@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { localize, localize2 } from 'vs/nls';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -19,17 +19,16 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ActivationKind, IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { CancellationToken } from 'vs/base/common/cancellation';
-
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { disposableWindowInterval } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -121,11 +120,11 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
+		@IProductService private readonly productService: IProductService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
-		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
+		const interval = disposableWindowInterval(mainWindow, () => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
 		if (urlToHandleValue) {
 			this.storageService.remove(URL_TO_HANDLE, StorageScope.WORKSPACE);
@@ -134,7 +133,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		this.disposable = combinedDisposable(
 			urlService.registerHandler(this),
-			toDisposable(() => clearInterval(interval))
+			interval
 		);
 
 		const cache = ExtensionUrlBootstrapHandler.cache;
@@ -159,14 +158,14 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				await this.handleUnhandledURL(uri, { id: extensionId }, options);
 				return true;
 			} else {
-				extensionDisplayName = extension.displayName || extension.name;
+				extensionDisplayName = extension.displayName ?? '';
 			}
 		} else {
 			extensionDisplayName = initialHandler.extensionDisplayName;
 		}
 
 		const trusted = options?.trusted
-			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
+			|| this.productService.trustedExtensionProtocolHandlers?.includes(extensionId)
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
@@ -177,11 +176,11 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			const result = await this.dialogService.confirm({
-				message: localize('confirmUrl', "Allow an extension to open this URI?", extensionId),
+				message: localize('confirmUrl', "Allow '{0}' extension to open this URI?", extensionDisplayName),
 				checkbox: {
-					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
+					label: localize('rememberConfirmUrl', "Do not ask me again for this extension"),
 				},
-				detail: `${extensionDisplayName} (${extensionId}) wants to open a URI:\n\n${uriString}`,
+				detail: uriString,
 				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
 			});
 
@@ -267,8 +266,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			// Install the Extension and reload the window to handle.
 			const result = await this.dialogService.confirm({
-				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and open this URL?", galleryExtension.displayName || galleryExtension.name),
-				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				message: localize('installAndHandle', "Would you like to install '{0}' extension from '{1}' to open this URI?", galleryExtension.displayName, galleryExtension.publisherDisplayName),
+				detail: `${localize('installDetail', "'{0}' extension wants to open a URI:", galleryExtension.displayName)}\n\n${uri.toString()}`,
 				primaryButton: localize({ key: 'install and open', comment: ['&& denotes a mnemonic'] }, "&&Install and Open")
 			});
 
@@ -283,7 +282,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				extension = await this.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
-				}, () => this.extensionManagementService.installFromGallery(galleryExtension!));
+				}, () => this.extensionManagementService.installFromGallery(galleryExtension));
 			} catch (error) {
 				this.notificationService.error(error);
 				return;
@@ -399,6 +398,8 @@ registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, InstantiationType.E
  */
 class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
 
+	static readonly ID = 'workbench.contrib.extensionUrlBootstrapHandler';
+
 	private static _cache: [URI, IOpenURLOptions | undefined][] = [];
 	private static disposable: IDisposable;
 
@@ -424,16 +425,15 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExtensionUrlBootstrapHandler, LifecyclePhase.Ready);
+registerWorkbenchContribution2(ExtensionUrlBootstrapHandler.ID, ExtensionUrlBootstrapHandler, WorkbenchPhase.BlockRestore /* registration only */);
 
 class ManageAuthorizedExtensionURIsAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.manageAuthorizedExtensionURIs',
-			title: { value: localize('manage', "Manage Authorized Extension URIs..."), original: 'Manage Authorized Extension URIs...' },
-			category: { value: localize('extensions', "Extensions"), original: 'Extensions' },
+			title: localize2('manage', 'Manage Authorized Extension URIs...'),
+			category: localize2('extensions', 'Extensions'),
 			menu: {
 				id: MenuId.CommandPalette,
 				when: IsWebContext.toNegated()

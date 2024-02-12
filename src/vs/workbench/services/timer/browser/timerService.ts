@@ -19,6 +19,8 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { isWeb } from 'vs/base/common/platform';
 import { createBlobWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ITerminalBackendRegistry, TerminalExtensions } from 'vs/platform/terminal/common/terminal';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -64,6 +66,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWorkbenchContributions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -78,7 +81,8 @@ export interface IMemoryInfo {
 		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"isARM64Emulated" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 	}
 */
 export interface IStartupMetrics {
@@ -362,6 +366,16 @@ export interface IStartupMetrics {
 		readonly ellapsedEditorRestore: number;
 
 		/**
+		 * The time it took to create all workbench contributions on the starting and ready
+		 * lifecycle phase, thus blocking `ellapsedWorkbench`.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willCreateWorkbenchContributions/1` and `didCreateWorkbenchContributions/2` performance marks.
+		 *
+		 */
+		readonly ellapsedWorkbenchContributions: number;
+
+		/**
 		 * The time it took to create the workbench.
 		 *
 		 * * Happens in the renderer-process
@@ -388,6 +402,7 @@ export interface IStartupMetrics {
 	readonly meminfo?: IMemoryInfo;
 	readonly cpus?: { count: number; speed: number; model: string };
 	readonly loadavg?: number[];
+	readonly isARM64Emulated?: boolean;
 }
 
 export interface ITimerService {
@@ -499,7 +514,8 @@ export abstract class AbstractTimerService implements ITimerService {
 		Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(), // extensions registered
 			_lifecycleService.when(LifecyclePhase.Restored),			// workbench created and parts restored
-			layoutService.whenRestored									// layout restored (including visible editors resolved)
+			layoutService.whenRestored,									// layout restored (including visible editors resolved)
+			Promise.all(Array.from(Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values()).map(e => e.whenReady))
 		]).then(() => {
 			// set perf mark from renderer
 			this.setPerformanceMarks('renderer', perf.getMarks());
@@ -539,6 +555,7 @@ export abstract class AbstractTimerService implements ITimerService {
 					const t1 = performance.now();
 					fib(24);
 					const value = Math.round(performance.now() - t1);
+					// eslint-disable-next-line no-restricted-globals
 					postMessage({ value: tooSlow ? -1 : value });
 
 				}).toString();
@@ -680,6 +697,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedEditorRestore: this._marks.getDuration('code/willRestoreEditors', 'code/didRestoreEditors'),
 				ellapsedViewletRestore: this._marks.getDuration('code/willRestoreViewlet', 'code/didRestoreViewlet'),
 				ellapsedPanelRestore: this._marks.getDuration('code/willRestorePanel', 'code/didRestorePanel'),
+				ellapsedWorkbenchContributions: this._marks.getDuration('code/willCreateWorkbenchContributions/1', 'code/didCreateWorkbenchContributions/2'),
 				ellapsedWorkbench: this._marks.getDuration('code/willStartWorkbench', 'code/didStartWorkbench'),
 				ellapsedExtensionsReady: this._marks.getDuration(startMark, 'code/didLoadExtensions'),
 				ellapsedRenderer: this._marks.getDuration('code/didStartRenderer', 'code/didStartWorkbench')
@@ -727,6 +745,7 @@ export class TimerService extends AbstractTimerService {
 	}
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		info.isVMLikelyhood = 0;
+		info.isARM64Emulated = false;
 		info.platform = navigator.userAgent;
 		info.release = navigator.appVersion;
 	}

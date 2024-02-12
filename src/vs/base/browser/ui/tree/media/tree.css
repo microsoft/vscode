@@ -128,3 +128,48 @@
 .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
 	padding: 2px;
 }
+
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container{
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 0;
+	z-index: 13; /* Settings editor uses z-index: 12 */
+
+	/* TODO@benibenj temporary solution, all lists should provide their background */
+	background-color: var(--vscode-sideBar-background);
+}
+
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row.monaco-list-row{
+	position: absolute;
+	width: 100%;
+	opacity: 1 !important; /* Settings editor uses opacity < 1 */
+	overflow: hidden;
+
+	/* TODO@benibenj temporary solution, all lists should provide their background */
+	background-color: var(--vscode-sideBar-background);
+}
+
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row:hover{
+	background-color: var(--vscode-list-hoverBackground) !important;
+	cursor: pointer;
+}
+
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container.empty,
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container.empty .monaco-tree-sticky-container-shadow {
+	display: none;
+}
+
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-container-shadow{
+	position: absolute;
+	bottom: -3px;
+	left: 0px;
+	height: 3px;
+	width: 100%;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}
+
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container[tabindex="0"]:focus{
+	outline: none;
+}

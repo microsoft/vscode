@@ -24,8 +24,8 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 
 export class NotebookDiffEditorInput extends DiffEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, name: string | undefined, description: string | undefined, originalResource: URI, viewType: string) {
-		const original = NotebookEditorInput.create(instantiationService, originalResource, viewType);
-		const modified = NotebookEditorInput.create(instantiationService, resource, viewType);
+		const original = NotebookEditorInput.getOrCreate(instantiationService, originalResource, undefined, viewType);
+		const modified = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, viewType);
 		return instantiationService.createInstance(NotebookDiffEditorInput, name, description, original, modified, viewType);
 	}
 

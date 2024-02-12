@@ -29,7 +29,7 @@
 	padding: 2px 3px;
 }
 
-.monaco-editor .inlineSuggestionsHints .custom-actions .action-item:nth-child(2) a {
+.monaco-editor .inlineSuggestionsHints .availableSuggestionCount a {
 	display: flex;
 	min-width: 19px;
 	justify-content: center;

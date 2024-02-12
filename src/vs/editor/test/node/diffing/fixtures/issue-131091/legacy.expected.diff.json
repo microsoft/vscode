@@ -1,0 +1,27 @@
+{
+	"original": {
+		"content": "{\n\tif (A) {\n\t\tif (B) {\n\t\t\tdoit\n\t\t}\n\t}\n}\nC\nX\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "{\n\tif (A && B) {\n\t\tdoit\n\t}\n}\nC\nY\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[2,8)",
+			"modifiedRange": "[2,6)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[9,10)",
+			"modifiedRange": "[7,8)",
+			"innerChanges": [
+				{
+					"originalRange": "[9,1 -> 9,2 EOL]",
+					"modifiedRange": "[7,1 -> 7,2 EOL]"
+				}
+			]
+		}
+	]
+}

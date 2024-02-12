@@ -30,6 +30,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -97,6 +98,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	protected readonly _storageService: IStorageService;
 	private readonly _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
+	protected readonly _notificationService: INotificationService;
 
 	get editor() {
 		return this._editor;
@@ -110,7 +112,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super();
 		this._editor = editor;
@@ -118,6 +121,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._contextKeyService = contextKeyService;
 		this._storageService = storageService;
 		this._clipboardService = clipboardService;
+		this._notificationService = notificationService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._state = this._register(new FindReplaceState());
@@ -255,8 +259,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			this._state.change({ searchScope: null }, true);
 		} else {
 			if (this._editor.hasModel()) {
-				const selections = this._editor.getSelections();
-				selections.map(selection => {
+				let selections = this._editor.getSelections();
+				selections = selections.map(selection => {
 					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 						selection = selection.setEndPosition(
 							selection.endLineNumber - 1,
@@ -267,7 +271,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 						return selection;
 					}
 					return null;
-				}).filter(element => !!element);
+				}).filter((element): element is Selection => !!element);
 
 				if (selections.length) {
 					this._state.change({ searchScope: selections }, true);
@@ -390,6 +394,10 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public replaceAll(): boolean {
 		if (this._model) {
+			if (this._editor.getModel()?.isTooLargeForHeapOperation()) {
+				this._notificationService.warn(nls.localize('too.large.for.replaceall', "The file is too large to perform a replace all operation."));
+				return false;
+			}
 			this._model.replaceAll();
 			return true;
 		}
@@ -437,11 +445,11 @@ export class FindController extends CommonFindController implements IFindControl
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		@INotificationService notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 	) {
-		super(editor, _contextKeyService, _storageService, clipboardService);
+		super(editor, _contextKeyService, _storageService, clipboardService, notificationService);
 		this._widget = null;
 		this._findOptionsWidget = null;
 	}
@@ -551,26 +559,10 @@ const findArgDescription = {
 			properties: {
 				searchString: { type: 'string' },
 				replaceString: { type: 'string' },
-				regex: { type: 'boolean' },
-				regexOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.isRegexOverride', 'Overrides "Use Regular Expression" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
-				wholeWord: { type: 'boolean' },
-				wholeWordOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.wholeWordOverride', 'Overrides "Match Whole Word" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
-				matchCase: { type: 'boolean' },
-				matchCaseOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.matchCaseOverride', 'Overrides "Math Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
+				isRegex: { type: 'boolean' },
+				matchWholeWord: { type: 'boolean' },
+				isCaseSensitive: { type: 'boolean' },
 				preserveCase: { type: 'boolean' },
-				preserveCaseOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.preserveCaseOverride', 'Overrides "Preserve Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
 				findInSelection: { type: 'boolean' },
 			}
 		}
@@ -590,7 +582,7 @@ export class StartFindWithArgsAction extends EditorAction {
 				primary: 0,
 				weight: KeybindingWeight.EditorContrib
 			},
-			description: findArgDescription
+			metadata: findArgDescription
 		});
 	}
 

@@ -4,34 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { OutputService } from 'vs/workbench/contrib/output/browser/outputServices';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { EditorExtensions } from 'vs/workbench/common/editor';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -54,7 +52,7 @@ ModesRegistry.registerLanguage({
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	title: nls.localize('output', "Output"),
+	title: nls.localize2('output', "Output"),
 	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
@@ -64,7 +62,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
-	name: nls.localize('output', "Output"),
+	name: nls.localize2('output', "Output"),
 	containerIcon: outputViewIcon,
 	canMoveView: true,
 	canToggleVisibility: false,
@@ -82,25 +80,13 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	}
 }], VIEW_CONTAINER);
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		LogViewer,
-		LogViewer.LOG_VIEWER_EDITOR_ID,
-		nls.localize('logViewer', "Log Viewer")
-	),
-	[
-		new SyncDescriptor(LogViewerInput)
-	]
-);
-
 class OutputContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextModelService textModelService: ITextModelService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IFilesConfigurationService private readonly fileConfigurationService: IFilesConfigurationService,
 	) {
 		super();
-		textModelService.registerTextModelContentProvider(LOG_SCHEME, instantiationService.createInstance(LogContentProvider));
 		this.registerActions();
 	}
 
@@ -109,7 +95,8 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerShowOutputChannelsAction();
 		this.registerClearOutputAction();
 		this.registerToggleAutoScrollAction();
-		this.registerOpenActiveLogOutputFileAction();
+		this.registerOpenActiveOutputFileAction();
+		this.registerOpenActiveOutputFileInAuxWindowAction();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
 	}
@@ -180,8 +167,8 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: 'workbench.action.showOutputChannels',
-					title: { value: nls.localize('showOutputChannels', "Show Output Channels..."), original: 'Show Output Channels...' },
-					category: { value: nls.localize('output', "Output"), original: 'Output' },
+					title: nls.localize2('showOutputChannels', "Show Output Channels..."),
+					category: nls.localize2('output', "Output"),
 					f1: true
 				});
 			}
@@ -219,7 +206,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.output.action.clearOutput`,
-					title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
+					title: nls.localize2('clearOutput.label', "Clear Output"),
 					category: Categories.View,
 					menu: [{
 						id: MenuId.ViewTitle,
@@ -237,10 +224,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
+				const audioCueService = accessor.get(IAudioCueService);
 				const activeChannel = outputService.getActiveChannel();
 				if (activeChannel) {
 					activeChannel.clear();
-					aria.status(nls.localize('outputCleared', "Output was cleared"));
+					audioCueService.playAudioCue(AudioCue.clear);
 				}
 			}
 		}));
@@ -251,7 +239,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.output.action.toggleAutoScroll`,
-					title: { value: nls.localize('toggleAutoScroll', "Toggle Auto Scrolling"), original: 'Toggle Auto Scrolling' },
+					title: nls.localize2('toggleAutoScroll', "Toggle Auto Scrolling"),
 					tooltip: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
 					menu: {
 						id: MenuId.ViewTitle,
@@ -274,42 +262,76 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		}));
 	}
 
-	private registerOpenActiveLogOutputFileAction(): void {
+	private registerOpenActiveOutputFileAction(): void {
+		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.action.openActiveLogOutputFile`,
-					title: { value: nls.localize('openActiveLogOutputFile', "Open Log Output File"), original: 'Open Log Output File' },
+					title: nls.localize2('openActiveOutputFile', "Open Output in Editor"),
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'navigation',
-						order: 4
+						order: 4,
+						isHiddenByDefault: true
 					}],
 					icon: Codicon.goToFile,
-					precondition: CONTEXT_ACTIVE_LOG_OUTPUT
+					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
-				const outputService = accessor.get(IOutputService);
-				const editorService = accessor.get(IEditorService);
-				const instantiationService = accessor.get(IInstantiationService);
-				const logFileOutputChannelDescriptor = this.getLogFileOutputChannelDescriptor(outputService);
-				if (logFileOutputChannelDescriptor) {
-					await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor), { pinned: true });
-				}
-			}
-			private getLogFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
-				const channel = outputService.getActiveChannel();
-				if (channel) {
-					const descriptor = outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0];
-					if (descriptor && descriptor.file && descriptor.log) {
-						return <IFileOutputChannelDescriptor>descriptor;
-					}
-				}
-				return null;
+			async run(): Promise<void> {
+				that.openActiveOutoutFile();
 			}
 		}));
+	}
+
+	private registerOpenActiveOutputFileInAuxWindowAction(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.openActiveLogOutputFileInNewWindow`,
+					title: nls.localize2('openActiveOutputFileInNewWindow', "Open Output in New Window"),
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: 'navigation',
+						order: 5,
+						isHiddenByDefault: true
+					}],
+					icon: Codicon.emptyWindow,
+					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
+				});
+			}
+			async run(): Promise<void> {
+				that.openActiveOutoutFile(AUX_WINDOW_GROUP);
+			}
+		}));
+	}
+
+	private async openActiveOutoutFile(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
+		const fileOutputChannelDescriptor = this.getFileOutputChannelDescriptor();
+		if (fileOutputChannelDescriptor) {
+			await this.fileConfigurationService.updateReadonly(fileOutputChannelDescriptor.file, true);
+			await this.editorService.openEditor({
+				resource: fileOutputChannelDescriptor.file,
+				options: {
+					pinned: true,
+				},
+			}, group);
+		}
+	}
+
+	private getFileOutputChannelDescriptor(): IFileOutputChannelDescriptor | null {
+		const channel = this.outputService.getActiveChannel();
+		if (channel) {
+			const descriptor = this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0];
+			if (descriptor?.file) {
+				return <IFileOutputChannelDescriptor>descriptor;
+			}
+		}
+		return null;
 	}
 
 	private registerShowLogsAction(): void {
@@ -317,7 +339,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: 'workbench.action.showLogs',
-					title: { value: nls.localize('showLogs', "Show Logs..."), original: 'Show Logs...' },
+					title: nls.localize2('showLogs', "Show Logs..."),
 					category: Categories.Developer,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -363,26 +385,49 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: 'workbench.action.openLogFile',
-					title: { value: nls.localize('openLogFile', "Open Log File..."), original: 'Open Log File...' },
+					title: nls.localize2('openLogFile', "Open Log File..."),
 					category: Categories.Developer,
 					menu: {
 						id: MenuId.CommandPalette,
 					},
+					metadata: {
+						description: 'workbench.action.openLogFile',
+						args: [{
+							name: 'logFile',
+							schema: {
+								markdownDescription: nls.localize('logFile', "The id of the log file to open, for example `\"window\"`. Currently the best way to get this is to get the ID by checking the `workbench.action.output.show.<id>` commands"),
+								type: 'string'
+							}
+						}]
+					},
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const quickInputService = accessor.get(IQuickInputService);
-				const instantiationService = accessor.get(IInstantiationService);
 				const editorService = accessor.get(IEditorService);
+				const fileConfigurationService = accessor.get(IFilesConfigurationService);
 
 				const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
 					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 
-				const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
+				const argName = args && typeof args === 'string' ? args : undefined;
+				let entry: IOutputChannelQuickPickItem | undefined;
+				if (argName) {
+					entry = entries.find(e => e.id === argName);
+				}
+				if (!entry) {
+					entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
+				}
 				if (entry) {
-					assertIsDefined(entry.channel.file);
-					await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
+					const resource = assertIsDefined(entry.channel.file);
+					await fileConfigurationService.updateReadonly(resource, true);
+					await editorService.openEditor({
+						resource,
+						options: {
+							pinned: true,
+						}
+					});
 				}
 			}
 		}));

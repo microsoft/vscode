@@ -15,11 +15,12 @@ import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IRange } from 'vs/editor/common/core/range';
+import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 
 export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
 	private _commentsElement!: HTMLElement;
@@ -42,6 +43,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 
 	constructor(
+		private readonly _parentEditor: LayoutableEditor,
 		readonly owner: string,
 		readonly parentResourceUri: URI,
 		readonly container: HTMLElement,
@@ -58,7 +60,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS_IN, e => {
 			// TODO @rebornix, limit T to IRange | ICellRange
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
 		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
@@ -76,7 +78,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._register(dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
+			if ((event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) && (!this._focusedComment || !this._commentElements[this._focusedComment].isEditing)) {
 				const moveFocusWithinBounds = (change: number): number => {
 					if (this._focusedComment === undefined && change >= 0) { return 0; }
 					if (this._focusedComment === undefined && change < 0) { return this._commentElements.length - 1; }
@@ -120,9 +122,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return dom.getClientArea(this.container);
 	}
 
-	layout() {
+	layout(widthInPixel?: number) {
 		this._commentElements.forEach(element => {
-			element.layout();
+			element.layout(widthInPixel);
 		});
 	}
 
@@ -154,7 +156,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return;
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>) {
+	updateCommentThread(commentThread: languages.CommentThread<T>, preserveFocus: boolean) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
@@ -220,7 +222,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		}
 
 		this._updateAriaLabel();
-		this._setFocusedComment(this._focusedComment);
+		if (!preserveFocus) {
+			this._setFocusedComment(this._focusedComment);
+		}
 	}
 
 	private _updateAriaLabel() {
@@ -254,9 +258,10 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 	private createNewCommentNode(comment: languages.Comment): CommentNode<T> {
 		const newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
+			this._parentEditor,
 			this._commentThread,
 			comment,
-			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread!] : undefined,
+			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread] : undefined,
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,

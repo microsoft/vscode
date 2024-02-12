@@ -6,10 +6,10 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ConfigurationTarget, isConfigured } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -17,23 +17,23 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-suite('ConfigurationService', () => {
+suite('ConfigurationService.test.ts', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let fileService: IFileService;
 	let settingsResource: URI;
-	const disposables: DisposableStore = new DisposableStore();
 
 	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
 		settingsResource = URI.file('settings.json');
 	});
-
-	teardown(() => disposables.clear());
 
 	test('simple', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
@@ -248,4 +248,150 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(res.value, null);
 		assert.strictEqual(res.userValue, null);
 	}));
+
+	test('update configuration', async () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
+
+		await testObject.updateValue('configurationService.testSetting', 'value');
+		assert.strictEqual(testObject.getValue('configurationService.testSetting'), 'value');
+	});
+
+	test('update configuration when exist', async () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
+
+		await testObject.updateValue('configurationService.testSetting', 'value');
+		await testObject.updateValue('configurationService.testSetting', 'updatedValue');
+		assert.strictEqual(testObject.getValue('configurationService.testSetting'), 'updatedValue');
+	});
+
+	test('update configuration to default value should remove', async () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
+
+		await testObject.updateValue('configurationService.testSetting', 'value');
+		await testObject.updateValue('configurationService.testSetting', 'isSet');
+		const inspect = testObject.inspect('configurationService.testSetting');
+
+		assert.strictEqual(inspect.userValue, undefined);
+	});
+
+	test('update configuration should remove when undefined is passed', async () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
+
+		await testObject.updateValue('configurationService.testSetting', 'value');
+		await testObject.updateValue('configurationService.testSetting', undefined);
+		const inspect = testObject.inspect('configurationService.testSetting');
+
+		assert.strictEqual(inspect.userValue, undefined);
+	});
+
+	test('update unknown configuration', async () => {
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
+
+		await testObject.updateValue('configurationService.unknownSetting', 'value');
+		assert.strictEqual(testObject.getValue('configurationService.unknownSetting'), 'value');
+	});
+
+	test('update configuration in non user target throws error', async () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
+
+		try {
+			await testObject.updateValue('configurationService.testSetting', 'value', ConfigurationTarget.WORKSPACE);
+			assert.fail('Should fail with error');
+		} catch (e) {
+			// succeess
+		}
+	});
+
+	test('update configuration throws error for policy setting', async () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.policySetting': {
+					'type': 'string',
+					'default': 'isSet',
+					policy: {
+						name: 'configurationService.policySetting',
+						minimumVersion: '1.0.0',
+					}
+				}
+			}
+		});
+
+		const logService = new NullLogService();
+		const policyFile = URI.file('policies.json');
+		await fileService.writeFile(policyFile, VSBuffer.fromString('{ "configurationService.policySetting": "policyValue" }'));
+		const policyService = disposables.add(new FilePolicyService(policyFile, fileService, logService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, policyService, logService));
+		await testObject.initialize();
+
+		try {
+			await testObject.updateValue('configurationService.policySetting', 'value');
+			assert.fail('Should throw error');
+		} catch (error) {
+			// succeess
+		}
+	});
 });

@@ -449,12 +449,10 @@ class GrammarTokens extends Disposable {
 					this._onDidChangeBackgroundTokenizationState.fire();
 				},
 				setEndState: (lineNumber, state) => {
-					if (!state) {
-						throw new BugIndicatingError();
-					}
-					const firstInvalidEndStateLineNumber = this._tokenizer?.store.getFirstInvalidEndStateLineNumber() ?? undefined;
-					if (firstInvalidEndStateLineNumber !== undefined && lineNumber >= firstInvalidEndStateLineNumber) {
-						// Don't accept states for definitely valid states
+					if (!this._tokenizer) { return; }
+					const firstInvalidEndStateLineNumber = this._tokenizer.store.getFirstInvalidEndStateLineNumber();
+					// Don't accept states for definitely valid states, the renderer is ahead of the worker!
+					if (firstInvalidEndStateLineNumber !== null && lineNumber >= firstInvalidEndStateLineNumber) {
 						this._tokenizer?.store.setEndState(lineNumber, state);
 					}
 				},
@@ -463,7 +461,7 @@ class GrammarTokens extends Disposable {
 			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
 				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
-			if (!this._backgroundTokenizer.value) {
+			if (!this._backgroundTokenizer.value && !this._textModel.isTooLargeForTokenization()) {
 				this._backgroundTokenizer.value = this._defaultBackgroundTokenizer =
 					new DefaultBackgroundTokenizer(this._tokenizer, b);
 				this._defaultBackgroundTokenizer.handleChanges();
@@ -642,7 +640,7 @@ class AttachedViewHandler extends Disposable {
 	}
 
 	private update(): void {
-		if (equals(this._computedLineRanges, this._lineRanges)) {
+		if (equals(this._computedLineRanges, this._lineRanges, (a, b) => a.equals(b))) {
 			return;
 		}
 		this._computedLineRanges = this._lineRanges;
