@@ -109,14 +109,12 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 			for (const signal of enabledAnnouncements) {
 				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
 				announcement = userGestureSignals.includes(signal) ? 'userGesture' : signal.announcementMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
-				if (announcement) {
-					configurationService.updateValue(signal.settingsKey, { sound, announcement });
-				}
+				configurationService.updateValue(signal.settingsKey, { sound, announcement });
 			}
 			for (const signal of disabledAnnouncements) {
 				const announcement = userGestureSignals.includes(signal) ? 'never' : 'off';
 				const sound = configurationService.getValue(signal.settingsKey + '.sound');
-				configurationService.updateValue(signal.settingsKey, { sound, announcement });
+				configurationService.updateValue(signal.settingsKey, announcement ? { sound, announcement } : { sound });
 			}
 			qp.hide();
 		});
