@@ -322,11 +322,10 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(session => !this._sessionModels.has(session.sessionId))
 			.filter(session => !session.isImported)
 			.map(item => {
-				const firstRequestMessage = item.requests[0]?.message;
+				const title = ChatModel.getDefaultTitle(item.requests);
 				return {
 					sessionId: item.sessionId,
-					title: (typeof firstRequestMessage === 'string' ? firstRequestMessage :
-						firstRequestMessage?.text) ?? '',
+					title
 				};
 			});
 	}
