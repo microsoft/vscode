@@ -7,7 +7,7 @@ import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
-import { commonPrefixLength, splitLines } from 'vs/base/common/strings';
+import { commonPrefixLength, splitLinesIncludeSeparators } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -479,21 +479,21 @@ function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Positio
 export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
 	const primaryPosition = positions[0];
 	const secondaryPositions = positions.slice(1);
-	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(Range.fromPositions(primaryPosition, primaryEdit.range.getEndPosition()));
-	const newLine = primaryPosition.lineNumber - primaryEdit.range.startLineNumber;
-	const newCol = newLine === 0 ? primaryPosition.column - primaryEdit.range.startColumn + 1 : primaryPosition.column;
-	let text = '';
-	const _splitLines = splitLines(primaryEdit.text);
-	for (let i = newLine; i < _splitLines.length; i++) {
-		if (i === newLine) {
-			text += _splitLines[i].substring(newCol - 1) + (i === _splitLines.length - 1 ? '' : '\n');
-		} else {
-			text += _splitLines[i] + (i === _splitLines.length - 1 ? '' : '\n');
-		}
+	const primaryEditEndPosition = primaryEdit.range.getEndPosition();
+	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(
+		Range.fromPositions(primaryPosition, primaryEditEndPosition)
+	);
+	const lineNumberWithinEditText = primaryPosition.lineNumber - primaryEdit.range.startLineNumber;
+	const columnWithinEditText = lineNumberWithinEditText === 0 ? primaryPosition.column - primaryEdit.range.startColumn : primaryPosition.column - 1;
+	let secondaryEditText = '';
+	const { lines, separators } = splitLinesIncludeSeparators(primaryEdit.text);
+	for (let i = lineNumberWithinEditText; i < lines.length; i++) {
+		secondaryEditText += lines[i].substring(i === lineNumberWithinEditText ? columnWithinEditText : 0) + (separators[i] ?? '');
 	}
-	const secondaryEditText = text;
 	return secondaryPositions.map(pos => {
-		const textAfterSecondaryCursor = textModel.getValueInRange(Range.fromPositions(pos, primaryEdit.range.getEndPosition()));
+		const textAfterSecondaryCursor = textModel.getValueInRange(
+			Range.fromPositions(pos, primaryEditEndPosition)
+		);
 		const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
 		const range = Range.fromPositions(pos, pos.delta(0, l));
 		return new SingleTextEdit(range, secondaryEditText);

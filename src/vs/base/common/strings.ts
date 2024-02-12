@@ -254,6 +254,14 @@ export function splitLines(str: string): string[] {
 	return str.split(/\r\n|\r|\n/);
 }
 
+export function splitLinesIncludeSeparators(str: string): { lines: string[]; separators: string[] } {
+	const lines: string[] = [];
+	const separators: string[] = [];
+	const splitLinesAndSeparators = str.split(/(\r\n|\r|\n)/);
+	splitLinesAndSeparators.forEach((el, idx) => (idx % 2 === 0 ? lines : separators).push(el));
+	return { lines, separators };
+}
+
 /**
  * Returns first index of the string that is not whitespace.
  * If string is empty or contains only whitespaces, returns -1
