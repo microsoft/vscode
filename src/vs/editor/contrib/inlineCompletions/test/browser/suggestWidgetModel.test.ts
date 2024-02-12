@@ -161,8 +161,8 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				[ILabelService, new class extends mock<ILabelService>() { }],
 				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 				[IAccessibilitySignalService, {
-					playAudioCue: async () => { },
-					isEnabled(cue: unknown) { return false; },
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
 				} as any]
 			);
 
