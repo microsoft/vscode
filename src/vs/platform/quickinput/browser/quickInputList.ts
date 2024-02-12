@@ -30,7 +30,7 @@ import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
 import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickInputListFocus, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { isDark } from 'vs/platform/theme/common/theme';
@@ -420,16 +420,6 @@ class ListElementDelegate implements IListVirtualDelegate<IListElement> {
 	getTemplateId(element: IListElement): string {
 		return ListElementRenderer.ID;
 	}
-}
-
-export enum QuickInputListFocus {
-	First = 1,
-	Second,
-	Last,
-	Next,
-	Previous,
-	NextPage,
-	PreviousPage
 }
 
 export class QuickInputList {

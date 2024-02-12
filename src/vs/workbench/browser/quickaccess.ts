@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, QuickInputListFocus } from 'vs/platform/quickinput/common/quickInput';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';

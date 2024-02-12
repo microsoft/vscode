@@ -14,7 +14,7 @@ import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/l
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputListFocus, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { activeContrastBorder, asCssVariable, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -188,8 +188,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		this.controller.toggle();
 	}
 
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
-		this.controller.navigate(next, quickNavigate);
+	navigate(focusType: QuickInputListFocus, quickNavigate?: IQuickNavigateConfiguration) {
+		this.controller.navigate(focusType, quickNavigate);
 	}
 
 	accept(keyMods?: IKeyMods) {

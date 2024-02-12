@@ -9,7 +9,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions, IQuickWidget, QuickInputListFocus } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -144,8 +144,8 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		return this.activeService.toggle();
 	}
 
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration | undefined): void {
-		return this.activeService.navigate(next, quickNavigate);
+	navigate(focusType: QuickInputListFocus, quickNavigate?: IQuickNavigateConfiguration | undefined): void {
+		return this.activeService.navigate(focusType, quickNavigate);
 	}
 
 	accept(): Promise<void> {

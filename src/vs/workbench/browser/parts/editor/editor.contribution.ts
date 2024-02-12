@@ -71,6 +71,7 @@ import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/e
 import { EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { QuickInputListFocus } from 'vs/platform/quickinput/common/quickInput';
 
 //#region Editor Registrations
 
@@ -309,7 +310,7 @@ const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavig
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateNextInEditorPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigateNextInEditorPickerId, true),
+	handler: getQuickNavigateHandler(quickAccessNavigateNextInEditorPickerId, QuickInputListFocus.Next),
 	when: editorPickerContext,
 	primary: KeyMod.CtrlCmd | KeyCode.Tab,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Tab }
@@ -319,7 +320,7 @@ const quickAccessNavigatePreviousInEditorPickerId = 'workbench.action.quickOpenN
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigatePreviousInEditorPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInEditorPickerId, false),
+	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInEditorPickerId, QuickInputListFocus.Previous),
 	when: editorPickerContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab }

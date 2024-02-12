@@ -15,6 +15,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { QuickInputListFocus } from 'vs/platform/quickinput/common/quickInput';
 
 //#region Quick Access Proviers
 
@@ -125,7 +126,7 @@ const quickAccessNavigateNextInViewPickerId = 'workbench.action.quickOpenNavigat
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateNextInViewPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigateNextInViewPickerId, true),
+	handler: getQuickNavigateHandler(quickAccessNavigateNextInViewPickerId, QuickInputListFocus.Next),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary,
 	linux: viewPickerKeybinding.linux,
@@ -136,7 +137,7 @@ const quickAccessNavigatePreviousInViewPickerId = 'workbench.action.quickOpenNav
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigatePreviousInViewPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInViewPickerId, false),
+	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInViewPickerId, QuickInputListFocus.Previous),
 	when: inViewsPickerContext,
 	primary: viewPickerKeybinding.primary | KeyMod.Shift,
 	linux: viewPickerKeybinding.linux,

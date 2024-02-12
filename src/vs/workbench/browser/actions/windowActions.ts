@@ -12,7 +12,7 @@ import { IsMainWindowFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem, QuickInputListFocus } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -428,7 +428,7 @@ const quickPickNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNa
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickPickNavigateNextInRecentFilesPickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickPickNavigateNextInRecentFilesPickerId, true),
+	handler: getQuickNavigateHandler(quickPickNavigateNextInRecentFilesPickerId, QuickInputListFocus.Next),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR }
@@ -438,7 +438,7 @@ const quickPickNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpen
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickPickNavigatePreviousInRecentFilesPicker,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickPickNavigatePreviousInRecentFilesPicker, false),
+	handler: getQuickNavigateHandler(quickPickNavigatePreviousInRecentFilesPicker, QuickInputListFocus.Previous),
 	when: recentFilesPickerContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR }

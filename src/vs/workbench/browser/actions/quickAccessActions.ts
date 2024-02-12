@@ -7,15 +7,14 @@ import { localize, localize2 } from 'vs/nls';
 import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, ItemActivation, QuickInputListFocus } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
+import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { Codicon } from 'vs/base/common/codicons';
-import { QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
 
 //#region Quick access management commands and keys
 
@@ -74,7 +73,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateNextInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickAccessNavigateNextInFilePickerId, QuickInputListFocus.Next),
-	when: defaultQuickAccessContext,
+	when: inQuickPickContext,
 	primary: globalQuickAccessKeybinding.primary,
 	secondary: [...globalQuickAccessKeybinding.secondary, KeyCode.DownArrow],
 	mac: globalQuickAccessKeybinding.mac
@@ -85,7 +84,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigatePreviousInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInFilePickerId, QuickInputListFocus.Previous),
-	when: defaultQuickAccessContext,
+	when: inQuickPickContext,
 	primary: globalQuickAccessKeybinding.primary | KeyMod.Shift,
 	secondary: [globalQuickAccessKeybinding.secondary[0] | KeyMod.Shift, KeyCode.UpArrow],
 	mac: {
@@ -99,7 +98,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateFirstInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickAccessNavigateFirstInFilePickerId, QuickInputListFocus.First),
-	when: defaultQuickAccessContext,
+	when: inQuickPickContext,
 	primary: KeyCode.Home,
 });
 
@@ -108,7 +107,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateLastInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickAccessNavigateLastInFilePickerId, QuickInputListFocus.Last),
-	when: defaultQuickAccessContext,
+	when: inQuickPickContext,
 	primary: KeyCode.End,
 });
 
@@ -117,8 +116,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateNextPageInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickAccessNavigateNextPageInFilePickerId, QuickInputListFocus.NextPage),
-	when: defaultQuickAccessContext,
-	primary: KeyCode.Home,
+	when: inQuickPickContext,
+	primary: KeyCode.PageDown,
 });
 
 const quickAccessNavigatePreviousPageInFilePickerId = 'workbench.action.quickOpenNavigatePreviousPageInFilePicker';
@@ -126,8 +125,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigatePreviousPageInFilePickerId,
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickAccessNavigatePreviousPageInFilePickerId, QuickInputListFocus.PreviousPage),
-	when: defaultQuickAccessContext,
-	primary: KeyCode.Home,
+	when: inQuickPickContext,
+	primary: KeyCode.PageUp,
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

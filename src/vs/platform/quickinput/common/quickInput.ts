@@ -715,6 +715,16 @@ export const IQuickInputService = createDecorator<IQuickInputService>('quickInpu
 
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
+export enum QuickInputListFocus {
+	First = 1,
+	Second,
+	Last,
+	Next,
+	Previous,
+	NextPage,
+	PreviousPage
+}
+
 export interface IQuickInputService {
 
 	readonly _serviceBrand: undefined;
