@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShowAccessibilityAnnouncementHelp, ShowAudioCueHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
+import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -44,11 +44,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['accessibility']
 		},
 		'audioCues.volume': {
-			'description': localize('audioCues.volume', "The volume of the audio cues in percent (0-100)."),
-			'type': 'number',
-			'minimum': 0,
-			'maximum': 100,
-			'default': 70,
+			markdownDeprecationMessage: 'Deprecated. Use `accessibility.signals.sounds.volume` instead.',
 			tags: ['accessibility']
 		},
 		'audioCues.debouncePositionChanges': {
@@ -177,6 +173,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-registerAction2(ShowAudioCueHelp);
+registerAction2(ShowSignalSoundHelp);
 registerAction2(ShowAccessibilityAnnouncementHelp);
 

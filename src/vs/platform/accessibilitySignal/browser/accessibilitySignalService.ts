@@ -63,14 +63,14 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		}
 
 		if (this.isSoundEnabled(signal, options.userGesture)) {
-			this.sendAudioCueTelemetry(signal, options.source);
+			this.sendSignalTelemetry(signal, options.source);
 			await this.playSound(signal.sound.getSound(), options.allowManyInParallel);
 		}
 	}
 
 	public async playAccessibilitySignals(cues: (AccessibilitySignal | { cue: AccessibilitySignal; source: string })[]): Promise<void> {
 		for (const cue of cues) {
-			this.sendAudioCueTelemetry('cue' in cue ? cue.cue : cue, 'source' in cue ? cue.source : undefined);
+			this.sendSignalTelemetry('cue' in cue ? cue.cue : cue, 'source' in cue ? cue.source : undefined);
 		}
 		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
 		const alerts = cueArray.filter(cue => this.isAnnouncementEnabled(cue)).map(c => c.announcementMessage);
@@ -78,14 +78,14 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			this.accessibilityService.status(alerts.join(', '));
 		}
 
-		// Some audio cues might reuse sounds. Don't play the same sound twice.
+		// Some sounds are reused. Don't play the same sound twice.
 		const sounds = new Set(cueArray.filter(cue => this.isSoundEnabled(cue)).map(cue => cue.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 
 	}
 
 
-	private sendAudioCueTelemetry(cue: AccessibilitySignal, source: string | undefined): void {
+	private sendSignalTelemetry(cue: AccessibilitySignal, source: string | undefined): void {
 		const isScreenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
 		const key = cue.name + (source ? `::${source}` : '') + (isScreenReaderOptimized ? '{screenReaderOptimized}' : '');
 		// Only send once per user session
@@ -95,19 +95,19 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		this.sentTelemetry.add(key);
 
 		this.telemetryService.publicLog2<{
-			audioCue: string;
+			signal: string;
 			source: string;
 			isScreenReaderOptimized: boolean;
 		}, {
 			owner: 'hediet';
 
-			audioCue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The audio cue that was played.' };
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source that triggered the audio cue (e.g. "diffEditorNavigation").' };
+			signal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The signal that was played.' };
+			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source that triggered the signal (e.g. "diffEditorNavigation").' };
 			isScreenReaderOptimized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is using a screen reader' };
 
-			comment: 'This data is collected to understand how audio cues are used and if more audio cues should be added.';
-		}>('audioCue.played', {
-			audioCue: cue.name,
+			comment: 'This data is collected to understand how signals are used and if more signals should be added.';
+		}>('signal.played', {
+			signal: cue.name,
 			source: source ?? '',
 			isScreenReaderOptimized,
 		});
@@ -183,7 +183,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(event.signal.signalSettingsKey + '.audioCue')
 		);
 		return derived(reader => {
-			/** @description audio cue enabled */
+			/** @description sound enabled */
 			const setting = settingObservable.read(reader);
 			if (
 				setting === 'on' ||
@@ -363,17 +363,17 @@ export class AccessibilitySignal {
 		sound: Sound | {
 			/**
 			 * Gaming and other apps often play a sound variant when the same event happens again
-			 * for an improved experience. This option enables audio cues to play a random sound.
+			 * for an improved experience. This option enables playing a random sound.
 			 */
 			randomOneOf: Sound[];
 		};
-		legacyAudioCueSettingsKey: string;
+		legacySoundSettingsKey: string;
 		settingsKey: string;
 		legacyAnnouncementSettingsKey?: AccessibilityAlertSettingId;
 		announcementMessage?: string;
 	}): AccessibilitySignal {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
-		const signal = new AccessibilitySignal(soundSource, options.name, options.legacyAudioCueSettingsKey, options.settingsKey, options.legacyAnnouncementSettingsKey, options.announcementMessage);
+		const signal = new AccessibilitySignal(soundSource, options.name, options.legacySoundSettingsKey, options.settingsKey, options.legacyAnnouncementSettingsKey, options.announcementMessage);
 		AccessibilitySignal._signals.add(signal);
 		return signal;
 	}
@@ -385,7 +385,7 @@ export class AccessibilitySignal {
 	public static readonly error = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.lineHasError.name', 'Error on Line'),
 		sound: Sound.error,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.lineHasError',
+		legacySoundSettingsKey: 'accessibilitySignals.lineHasError',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Error,
 		announcementMessage: localize('accessibility.signals.lineHasError', 'Error'),
 		settingsKey: 'accessibility.signals.lineHasError'
@@ -393,7 +393,7 @@ export class AccessibilitySignal {
 	public static readonly warning = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.lineHasWarning.name', 'Warning on Line'),
 		sound: Sound.warning,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.lineHasWarning',
+		legacySoundSettingsKey: 'accessibilitySignals.lineHasWarning',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Warning,
 		announcementMessage: localize('accessibility.signals.lineHasWarning', 'Warning'),
 		settingsKey: 'accessibility.signals.lineHasWarning'
@@ -401,7 +401,7 @@ export class AccessibilitySignal {
 	public static readonly foldedArea = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.lineHasFoldedArea.name', 'Folded Area on Line'),
 		sound: Sound.foldedArea,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.lineHasFoldedArea',
+		legacySoundSettingsKey: 'accessibilitySignals.lineHasFoldedArea',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.FoldedArea,
 		announcementMessage: localize('accessibility.signals.lineHasFoldedArea', 'Folded'),
 		settingsKey: 'accessibility.signals.lineHasFoldedArea'
@@ -409,7 +409,7 @@ export class AccessibilitySignal {
 	public static readonly break = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.lineHasBreakpoint.name', 'Breakpoint on Line'),
 		sound: Sound.break,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.lineHasBreakpoint',
+		legacySoundSettingsKey: 'accessibilitySignals.lineHasBreakpoint',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Breakpoint,
 		announcementMessage: localize('accessibility.signals.lineHasBreakpoint', 'Breakpoint'),
 		settingsKey: 'accessibility.signals.lineHasBreakpoint'
@@ -417,14 +417,14 @@ export class AccessibilitySignal {
 	public static readonly inlineSuggestion = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.lineHasInlineSuggestion.name', 'Inline Suggestion on Line'),
 		sound: Sound.quickFixes,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.lineHasInlineSuggestion',
+		legacySoundSettingsKey: 'accessibilitySignals.lineHasInlineSuggestion',
 		settingsKey: 'accessibility.signals.lineHasInlineSuggestion'
 	});
 
 	public static readonly terminalQuickFix = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalQuickFix.name', 'Terminal Quick Fix'),
 		sound: Sound.quickFixes,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.terminalQuickFix',
+		legacySoundSettingsKey: 'accessibilitySignals.terminalQuickFix',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TerminalQuickFix,
 		announcementMessage: localize('accessibility.signals.terminalQuickFix', 'Quick Fix'),
 		settingsKey: 'accessibility.signals.terminalQuickFix'
@@ -433,7 +433,7 @@ export class AccessibilitySignal {
 	public static readonly onDebugBreak = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.onDebugBreak',
+		legacySoundSettingsKey: 'accessibilitySignals.onDebugBreak',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.OnDebugBreak,
 		announcementMessage: localize('accessibility.signals.onDebugBreak', 'Breakpoint'),
 		settingsKey: 'accessibility.signals.onDebugBreak'
@@ -442,7 +442,7 @@ export class AccessibilitySignal {
 	public static readonly noInlayHints = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.noInlayHints',
+		legacySoundSettingsKey: 'accessibilitySignals.noInlayHints',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.NoInlayHints,
 		announcementMessage: localize('accessibility.signals.noInlayHints', 'No Inlay Hints'),
 		settingsKey: 'accessibility.signals.noInlayHints'
@@ -451,7 +451,7 @@ export class AccessibilitySignal {
 	public static readonly taskCompleted = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.taskCompleted', 'Task Completed'),
 		sound: Sound.taskCompleted,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.taskCompleted',
+		legacySoundSettingsKey: 'accessibilitySignals.taskCompleted',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TaskCompleted,
 		announcementMessage: localize('accessibility.signals.taskCompleted', 'Task Completed'),
 		settingsKey: 'accessibility.signals.taskCompleted'
@@ -460,7 +460,7 @@ export class AccessibilitySignal {
 	public static readonly taskFailed = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.taskFailed', 'Task Failed'),
 		sound: Sound.taskFailed,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.taskFailed',
+		legacySoundSettingsKey: 'accessibilitySignals.taskFailed',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TaskFailed,
 		announcementMessage: localize('accessibility.signals.taskFailed', 'Task Failed'),
 		settingsKey: 'accessibility.signals.taskFailed'
@@ -469,7 +469,7 @@ export class AccessibilitySignal {
 	public static readonly terminalCommandFailed = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalCommandFailed', 'Terminal Command Failed'),
 		sound: Sound.error,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.terminalCommandFailed',
+		legacySoundSettingsKey: 'accessibilitySignals.terminalCommandFailed',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TerminalCommandFailed,
 		announcementMessage: localize('accessibility.signals.terminalCommandFailed', 'Command Failed'),
 		settingsKey: 'accessibility.signals.terminalCommandFailed'
@@ -478,7 +478,7 @@ export class AccessibilitySignal {
 	public static readonly terminalBell = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalBell', 'Terminal Bell'),
 		sound: Sound.terminalBell,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.terminalBell',
+		legacySoundSettingsKey: 'accessibilitySignals.terminalBell',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TerminalBell,
 		announcementMessage: localize('accessibility.signals.terminalBell', 'Terminal Bell'),
 		settingsKey: 'accessibility.signals.terminalBell'
@@ -487,7 +487,7 @@ export class AccessibilitySignal {
 	public static readonly notebookCellCompleted = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.notebookCellCompleted', 'Notebook Cell Completed'),
 		sound: Sound.taskCompleted,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.notebookCellCompleted',
+		legacySoundSettingsKey: 'accessibilitySignals.notebookCellCompleted',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.NotebookCellCompleted,
 		announcementMessage: localize('accessibility.signals.notebookCellCompleted', 'Notebook Cell Completed'),
 		settingsKey: 'accessibility.signals.notebookCellCompleted'
@@ -496,7 +496,7 @@ export class AccessibilitySignal {
 	public static readonly notebookCellFailed = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.notebookCellFailed', 'Notebook Cell Failed'),
 		sound: Sound.taskFailed,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.notebookCellFailed',
+		legacySoundSettingsKey: 'accessibilitySignals.notebookCellFailed',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.NotebookCellFailed,
 		announcementMessage: localize('accessibility.signals.notebookCellFailed', 'Notebook Cell Failed'),
 		settingsKey: 'accessibility.signals.notebookCellFailed'
@@ -505,28 +505,28 @@ export class AccessibilitySignal {
 	public static readonly diffLineInserted = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.diffLineInserted', 'Diff Line Inserted'),
 		sound: Sound.diffLineInserted,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.diffLineInserted',
+		legacySoundSettingsKey: 'accessibilitySignals.diffLineInserted',
 		settingsKey: 'accessibility.signals.diffLineInserted'
 	});
 
 	public static readonly diffLineDeleted = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.diffLineDeleted', 'Diff Line Deleted'),
 		sound: Sound.diffLineDeleted,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.diffLineDeleted',
+		legacySoundSettingsKey: 'accessibilitySignals.diffLineDeleted',
 		settingsKey: 'accessibility.signals.diffLineDeleted'
 	});
 
 	public static readonly diffLineModified = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.diffLineModified', 'Diff Line Modified'),
 		sound: Sound.diffLineModified,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.diffLineModified',
+		legacySoundSettingsKey: 'accessibilitySignals.diffLineModified',
 		settingsKey: 'accessibility.signals.diffLineModified'
 	});
 
 	public static readonly chatRequestSent = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatRequestSent', 'Chat Request Sent'),
 		sound: Sound.chatRequestSent,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.chatRequestSent',
+		legacySoundSettingsKey: 'accessibilitySignals.chatRequestSent',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.ChatRequestSent,
 		announcementMessage: localize('accessibility.signals.chatRequestSent', 'Chat Request Sent'),
 		settingsKey: 'accessibility.signals.chatRequestSent'
@@ -534,7 +534,7 @@ export class AccessibilitySignal {
 
 	public static readonly chatResponseReceived = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatResponseReceived', 'Chat Response Received'),
-		legacyAudioCueSettingsKey: 'accessibilitySignals.chatResponseReceived',
+		legacySoundSettingsKey: 'accessibilitySignals.chatResponseReceived',
 		sound: {
 			randomOneOf: [
 				Sound.chatResponseReceived1,
@@ -549,7 +549,7 @@ export class AccessibilitySignal {
 	public static readonly chatResponsePending = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatResponsePending', 'Chat Response Pending'),
 		sound: Sound.chatResponsePending,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.chatResponsePending',
+		legacySoundSettingsKey: 'accessibilitySignals.chatResponsePending',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.ChatResponsePending,
 		announcementMessage: localize('accessibility.signals.chatResponsePending', 'Chat Response Pending'),
 		settingsKey: 'accessibility.signals.chatResponsePending'
@@ -558,7 +558,7 @@ export class AccessibilitySignal {
 	public static readonly clear = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.clear', 'Clear'),
 		sound: Sound.clear,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.clear',
+		legacySoundSettingsKey: 'accessibilitySignals.clear',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Clear,
 		announcementMessage: localize('accessibility.signals.clear', 'Clear'),
 		settingsKey: 'accessibility.signals.clear'
@@ -567,7 +567,7 @@ export class AccessibilitySignal {
 	public static readonly save = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.save', 'Save'),
 		sound: Sound.save,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.save',
+		legacySoundSettingsKey: 'accessibilitySignals.save',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Save,
 		announcementMessage: localize('accessibility.signals.save', 'Save'),
 		settingsKey: 'accessibility.signals.save'
@@ -576,7 +576,7 @@ export class AccessibilitySignal {
 	public static readonly format = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.format', 'Format'),
 		sound: Sound.format,
-		legacyAudioCueSettingsKey: 'accessibilitySignals.format',
+		legacySoundSettingsKey: 'accessibilitySignals.format',
 		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Format,
 		announcementMessage: localize('accessibility.signals.format', 'Format'),
 		settingsKey: 'accessibility.signals.format'

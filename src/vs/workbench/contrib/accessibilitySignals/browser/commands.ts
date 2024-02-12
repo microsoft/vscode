@@ -13,13 +13,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
-export class ShowAudioCueHelp extends Action2 {
-	static readonly ID = 'audioCues.help';
+export class ShowSignalSoundHelp extends Action2 {
+	static readonly ID = 'signals.sounds.help';
 
 	constructor() {
 		super({
-			id: ShowAudioCueHelp.ID,
-			title: localize2('audioCues.help', "Help: List Audio Cues"),
+			id: ShowSignalSoundHelp.ID,
+			title: localize2('signals.sound.help', "Help: List Signal Sounds"),
 			f1: true,
 		});
 	}
@@ -82,7 +82,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 	constructor() {
 		super({
 			id: ShowAccessibilityAnnouncementHelp.ID,
-			title: localize2('accessibility.announcement.help', "Help: List Announcements"),
+			title: localize2('accessibility.announcement.help', "Help: List Signal Announcements"),
 			f1: true,
 		});
 	}

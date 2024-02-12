@@ -266,6 +266,14 @@ const configuration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		'accessibility.signals.sounds.volume': {
+			'description': localize('accessibility.signals.sounds.volume', "The volume of the sounds in percent (0-100)."),
+			'type': 'number',
+			'minimum': 0,
+			'maximum': 100,
+			'default': 70,
+			tags: ['accessibility']
+		},
 		'accessibility.signals.debouncePositionChanges': {
 			'description': localize('accessibility.signals.debouncePositionChanges', "Whether or not position changes should be debounced"),
 			'type': 'boolean',
@@ -688,7 +696,16 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 		});
 	}
 }
-
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'audioCues.volume',
+		migrateFn: (value, accessor) => {
+			return [
+				['accessibility.signals.sounds.volume', { value }],
+				['audioCues.volume', { value: undefined }]
+			];
+		}
+	}]);
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
@@ -696,7 +713,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		migrateFn: (value, accessor) => {
 			return [
 				['accessibility.signals.debouncePositionChanges', { value }],
-				['audioCues.debouncePositionChangess', { value: undefined }]
+				['audioCues.debouncePositionChanges', { value: undefined }]
 			];
 		}
 	}]);

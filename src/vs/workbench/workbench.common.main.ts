@@ -368,7 +368,7 @@ import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 // List
 import 'vs/workbench/contrib/list/browser/list.contribution';
 
-// Audio Cues
+// Accessibility Signals
 import 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
 
 // Deprecated Extension Migrator
