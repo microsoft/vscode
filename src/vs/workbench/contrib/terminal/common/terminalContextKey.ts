@@ -41,7 +41,7 @@ export const enum TerminalContextKeyStrings {
 	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
 	ChatFocus = 'terminalChatFocus',
 	ChatVisible = 'terminalChatVisible',
-	ChatSessionInProgress = 'terminalChatSessionInProgress',
+	ChatActiveRequest = 'terminalChatActiveRequest',
 	ChatInputHasText = 'terminalChatInputHasText',
 }
 
@@ -170,8 +170,8 @@ export namespace TerminalContextKeys {
 	/** Whether the chat widget is visible */
 	export const chatVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatVisible, false, localize('chatVisibleContextKey', "Whether the chat view is visible."));
 
-	/** Whether a chat session is in progress */
-	export const chatSessionInProgress = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatSessionInProgress, false, localize('chatSessionInProgressContextKey', "Whether a chat session is in progress."));
+	/** Whether there is an active chat request */
+	export const chatRequestActive = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatActiveRequest, false, localize('chatRequestActiveContextKey', "Whether there is an active chat request."));
 
 	/** Whether the chat input has text */
 	export const chatInputHasText = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatInputHasText, false, localize('chatInputHasTextContextKey', "Whether the chat input has text."));

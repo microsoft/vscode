@@ -3,100 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { IDimension } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { localize2 } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
+import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
-export class TerminalChatContribution extends Disposable implements ITerminalContribution {
-	static readonly ID = 'terminal.Chat';
-
-	static get(instance: ITerminalInstance): TerminalChatContribution | null {
-		return instance.getContribution<TerminalChatContribution>(TerminalChatContribution.ID);
-	}
-	/**
-	 * Currently focused chat widget. This is used to track action context since
-	 * 'active terminals' are only tracked for non-detached terminal instanecs.
-	 */
-	static activeChatWidget?: TerminalChatContribution;
-	private _chatWidget: Lazy<TerminalChatWidget> | undefined;
-	private _lastLayoutDimensions: IDimension | undefined;
-
-	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
-
-	constructor(
-		private readonly _instance: ITerminalInstance,
-		processManager: ITerminalProcessManager,
-		widgetManager: TerminalWidgetManager,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super();
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
-	}
-
-	layout(_xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void {
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
-		this._lastLayoutDimensions = dimension;
-		this._chatWidget?.rawValue?.layout(dimension.width);
-	}
-
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
-		this._chatWidget = new Lazy(() => {
-			const chatWidget = this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance);
-			chatWidget.focusTracker.onDidFocus(() => {
-				TerminalChatContribution.activeChatWidget = this;
-				if (!isDetachedTerminalInstance(this._instance)) {
-					this._terminalService.setActiveInstance(this._instance);
-				}
-			});
-			chatWidget.focusTracker.onDidBlur(() => {
-				TerminalChatContribution.activeChatWidget = undefined;
-				this._instance.resetScrollbarVisibility();
-			});
-			if (!this._instance.domElement) {
-				throw new Error('FindWidget expected terminal DOM to be initialized');
-			}
-
-			// this._instance.domElement?.appendChild(chatWidget.getDomNode());
-			if (this._lastLayoutDimensions) {
-				chatWidget.layout(this._lastLayoutDimensions.width);
-			}
-
-			return chatWidget;
-		});
-	}
-
-	override dispose() {
-		super.dispose();
-		this._chatWidget?.rawValue?.dispose();
-	}
-}
-registerTerminalContribution(TerminalChatContribution.ID, TerminalChatContribution, false);
+registerTerminalContribution(TerminalChatController.ID, TerminalChatController, false);
 
 registerActiveXtermAction({
 	id: TerminalCommandId.FocusChat,
@@ -115,7 +36,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.chatWidget?.reveal();
 	}
 });
@@ -138,7 +59,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.chatWidget?.hide();
 	}
 });
@@ -153,7 +74,7 @@ registerActiveXtermAction({
 	),
 	icon: Codicon.send,
 	keybinding: {
-		when: TerminalContextKeys.chatSessionInProgress.negate(),
+		when: TerminalContextKeys.chatRequestActive.negate(),
 		// TODO:
 		// when: CTX_INLINE_CHAT_FOCUSED,
 		weight: KeybindingWeight.EditorCore + 7,
@@ -171,8 +92,8 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
-		contr?.chatWidget?.acceptInput();
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.acceptInput();
 	}
 });
 
@@ -181,7 +102,7 @@ registerActiveXtermAction({
 	title: localize2('workbench.action.terminal.cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalContextKeys.chatSessionInProgress,
+		TerminalContextKeys.chatRequestActive,
 	),
 	icon: Codicon.debugStop,
 	menu: {
@@ -192,7 +113,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatContribution.activeChatWidget || TerminalChatContribution.get(activeInstance);
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.chatWidget?.cancel();
 	}
 });

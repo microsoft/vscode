@@ -115,12 +115,13 @@ export class TerminalChatWidget extends Disposable {
 	}
 	acceptInput(): void {
 		// this._widget?.acceptInput();
-		this._chatModel ??= this._chatService.startSession('terminal', CancellationToken.None);
+		// this._chatModel ??= this._chatService.startSession('terminal', CancellationToken.None);
 
 		// if (!this._model) {
 		// throw new Error('Could not start chat session');
 		// }
-		this._chatService?.sendRequest(this._chatModel?.sessionId!, this._inlineChatWidget.value);
+		// this._chatService?.sendRequest(this._chatModel?.sessionId!, this._inlineChatWidget.value);
+
 		this._inlineChatWidget.value = '';
 		// this.widget.setModel(this.model, { inputValue: this._currentQuery });
 	}
