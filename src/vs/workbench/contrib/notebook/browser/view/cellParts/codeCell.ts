@@ -147,6 +147,10 @@ export class CodeCell extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			if (model) {
 				model.updateOptions({
 					indentSize: this._cellEditorOptions.indentSize,

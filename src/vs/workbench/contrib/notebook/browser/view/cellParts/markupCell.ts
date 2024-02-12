@@ -44,6 +44,7 @@ export class MarkupCell extends Disposable {
 	private foldingState: CellFoldingState;
 	private cellEditorOptions: CellEditorOptions;
 	private editorOptions: IEditorOptions;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -186,6 +187,10 @@ export class MarkupCell extends Disposable {
 			const cts = new CancellationTokenSource();
 			this._register({ dispose() { cts.dispose(true); } });
 			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+				if (this._isDisposed) {
+					return;
+				}
+
 				if (model) {
 					model.updateOptions({
 						indentSize: this.cellEditorOptions.indentSize,
@@ -241,6 +246,8 @@ export class MarkupCell extends Disposable {
 	}
 
 	override dispose() {
+		this._isDisposed = true;
+
 		// move focus back to the cell list otherwise the focus goes to body
 		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)) {
 			this.notebookEditor.focusContainer();
