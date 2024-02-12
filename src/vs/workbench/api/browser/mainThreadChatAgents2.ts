@@ -59,9 +59,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				for (const [handle, agent] of this._agents) {
 					if (agent.name === e.agentId) {
 						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.sessionId, e.requestId, e.action.direction);
+							this._proxy.$acceptFeedback(handle, e.result ?? {}, e.action.direction);
 						} else {
-							this._proxy.$acceptAction(handle, e.sessionId, e.requestId, e);
+							this._proxy.$acceptAction(handle, e.result || {}, e);
 						}
 						break;
 					}
@@ -87,12 +87,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
-			provideFollowups: async (sessionId, token): Promise<IChatFollowup[]> => {
+			provideFollowups: async (result, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(handle, sessionId, token);
+				return this._proxy.$provideFollowups(handle, result, token);
 			},
 			get lastSlashCommands() {
 				return lastSlashCommands;

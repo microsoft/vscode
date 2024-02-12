@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgent2<TResult extends ChatAgentResult2> {
+	export interface ChatAgent2 {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
 		supportIssueReporting?: boolean;
 	}
@@ -17,28 +17,115 @@ declare module 'vscode' {
 		responseIsRedacted?: boolean;
 	}
 
-	/**
-	 * This is temporary until inline references are fully supported and adopted
-	 */
+	/** @deprecated */
 	export interface ChatAgentMarkdownContent {
 		markdownContent: MarkdownString;
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSubCommand;
+		command?: ChatAgentCommand;
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentVulnerability {
 		title: string;
 		description: string;
 		// id: string; // Later we will need to be able to link these across multiple content chunks.
 	}
 
+	// TODO@API fit this into the stream
 	export interface ChatAgentContent {
 		vulnerabilities?: ChatAgentVulnerability[];
 	}
 
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentContentProgress =
+		| ChatAgentContent
+		| ChatAgentInlineContentReference
+		| ChatAgentCommandButton;
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentMetadataProgress =
+		| ChatAgentUsedContext
+		| ChatAgentContentReference
+		| ChatAgentProgressMessage;
+
+	/**
+	 * @deprecated use ChatAgentResponseStream instead
+	 */
+	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
+
+	/** @deprecated */
+	export interface ChatAgentProgressMessage {
+		message: string;
+	}
+
+	/** @deprecated */
+
+	export interface ChatAgentContentReference {
+		/**
+		 * The resource that was referenced.
+		 */
+		reference: Uri | Location;
+	}
+
+	/**
+	 * A reference to a piece of content that will be rendered inline with the markdown content.
+	 */
+	export interface ChatAgentInlineContentReference {
+		/**
+		 * The resource being referenced.
+		 */
+		inlineReference: Uri | Location;
+
+		/**
+		 * An alternate title for the resource.
+		 */
+		title?: string;
+	}
+
+	/**
+	 * Displays a {@link Command command} as a button in the chat response.
+	 */
+	export interface ChatAgentCommandButton {
+		command: Command;
+	}
+
+	/**
+	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
+	 */
+	export interface ChatAgentContent {
+		/**
+		 * The content as a string of markdown source.
+		 */
+		content: string;
+	}
+
+	export interface ChatAgentDocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	// TODO@API fit this into the stream
+	export interface ChatAgentUsedContext {
+		documents: ChatAgentDocumentContext[];
+	}
+
+	export interface ChatAgentResponseStream {
+		/**
+		 * @deprecated use above methods instread
+		 */
+		report(value: ChatAgentProgress): void;
+	}
+
+	/** @deprecated */
 	export type ChatAgentExtendedProgress = ChatAgentProgress
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
@@ -50,7 +137,7 @@ declare module 'vscode' {
 		report(value: ChatAgentExtendedProgress): void;
 	};
 
-	export interface ChatAgent2<TResult extends ChatAgentResult2> {
+	export interface ChatAgent2 {
 		/**
 		 * Provide a set of variables that can only be used with this agent.
 		 */
@@ -77,7 +164,7 @@ declare module 'vscode' {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentExtendedHandler): ChatAgent2<TResult>;
+		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
 	}
 
 	/*

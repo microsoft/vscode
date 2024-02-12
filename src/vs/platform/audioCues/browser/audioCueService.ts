@@ -178,9 +178,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	private readonly isCueEnabledCache = new Cache((event: { readonly cue: AudioCue; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-				e.affectsConfiguration(event.cue.settingsKey)
+				e.affectsConfiguration(event.cue.settingsKey) || e.affectsConfiguration(event.cue.signalSettingsKey)
 			),
-			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(event.cue.settingsKey)
+			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(event.cue.signalSettingsKey + '.audioCue')
 		);
 		return derived(reader => {
 			/** @description audio cue enabled */
@@ -209,9 +209,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	private readonly isAlertEnabledCache = new Cache((event: { readonly cue: AudioCue; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-				e.affectsConfiguration(event.cue.alertSettingsKey!)
+				e.affectsConfiguration(event.cue.alertSettingsKey!) || e.affectsConfiguration(event.cue.signalSettingsKey)
 			),
-			() => event.cue.alertSettingsKey ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(event.cue.alertSettingsKey) : false
+			() => event.cue.alertSettingsKey ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(event.cue.signalSettingsKey + '.alert') : false
 		);
 		return derived(reader => {
 			/** @description alert enabled */
@@ -368,11 +368,12 @@ export class AudioCue {
 			randomOneOf: Sound[];
 		};
 		settingsKey: string;
+		signalSettingsKey: string;
 		alertSettingsKey?: AccessibilityAlertSettingId;
 		alertMessage?: string;
 	}): AudioCue {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
-		const audioCue = new AudioCue(soundSource, options.name, options.settingsKey, options.alertSettingsKey, options.alertMessage);
+		const audioCue = new AudioCue(soundSource, options.name, options.settingsKey, options.signalSettingsKey, options.alertSettingsKey, options.alertMessage);
 		AudioCue._audioCues.add(audioCue);
 		return audioCue;
 	}
@@ -386,33 +387,38 @@ export class AudioCue {
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasError',
 		alertSettingsKey: AccessibilityAlertSettingId.Error,
-		alertMessage: localize('audioCues.lineHasError.alertMessage', 'Error')
+		alertMessage: localize('accessibility.signals.lineHasError', 'Error'),
+		signalSettingsKey: 'accessibility.signals.lineHasError'
 	});
 	public static readonly warning = AudioCue.register({
 		name: localize('audioCues.lineHasWarning.name', 'Warning on Line'),
 		sound: Sound.warning,
 		settingsKey: 'audioCues.lineHasWarning',
 		alertSettingsKey: AccessibilityAlertSettingId.Warning,
-		alertMessage: localize('audioCues.lineHasWarning.alertMessage', 'Warning')
+		alertMessage: localize('accessibility.signals.lineHasWarning', 'Warning'),
+		signalSettingsKey: 'accessibility.signals.lineHasWarning'
 	});
 	public static readonly foldedArea = AudioCue.register({
 		name: localize('audioCues.lineHasFoldedArea.name', 'Folded Area on Line'),
 		sound: Sound.foldedArea,
 		settingsKey: 'audioCues.lineHasFoldedArea',
 		alertSettingsKey: AccessibilityAlertSettingId.FoldedArea,
-		alertMessage: localize('audioCues.lineHasFoldedArea.alertMessage', 'Folded')
+		alertMessage: localize('accessibility.signals.lineHasFoldedArea', 'Folded'),
+		signalSettingsKey: 'accessibility.signals.lineHasFoldedArea'
 	});
 	public static readonly break = AudioCue.register({
 		name: localize('audioCues.lineHasBreakpoint.name', 'Breakpoint on Line'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasBreakpoint',
 		alertSettingsKey: AccessibilityAlertSettingId.Breakpoint,
-		alertMessage: localize('audioCues.lineHasBreakpoint.alertMessage', 'Breakpoint')
+		alertMessage: localize('accessibility.signals.lineHasBreakpoint', 'Breakpoint'),
+		signalSettingsKey: 'accessibility.signals.lineHasBreakpoint'
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
 		name: localize('audioCues.lineHasInlineSuggestion.name', 'Inline Suggestion on Line'),
 		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
+		signalSettingsKey: 'accessibility.signals.lineHasInlineSuggestion'
 	});
 
 	public static readonly terminalQuickFix = AudioCue.register({
@@ -420,7 +426,8 @@ export class AudioCue {
 		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.terminalQuickFix',
 		alertSettingsKey: AccessibilityAlertSettingId.TerminalQuickFix,
-		alertMessage: localize('audioCues.terminalQuickFix.alertMessage', 'Quick Fix')
+		alertMessage: localize('accessibility.signals.terminalQuickFix', 'Quick Fix'),
+		signalSettingsKey: 'accessibility.signals.terminalQuickFix'
 	});
 
 	public static readonly onDebugBreak = AudioCue.register({
@@ -428,7 +435,8 @@ export class AudioCue {
 		sound: Sound.break,
 		settingsKey: 'audioCues.onDebugBreak',
 		alertSettingsKey: AccessibilityAlertSettingId.OnDebugBreak,
-		alertMessage: localize('audioCues.onDebugBreak.alertMessage', 'Breakpoint')
+		alertMessage: localize('accessibility.signals.onDebugBreak', 'Breakpoint'),
+		signalSettingsKey: 'accessibility.signals.onDebugBreak'
 	});
 
 	public static readonly noInlayHints = AudioCue.register({
@@ -436,7 +444,8 @@ export class AudioCue {
 		sound: Sound.error,
 		settingsKey: 'audioCues.noInlayHints',
 		alertSettingsKey: AccessibilityAlertSettingId.NoInlayHints,
-		alertMessage: localize('audioCues.noInlayHints.alertMessage', 'No Inlay Hints')
+		alertMessage: localize('accessibility.signals.noInlayHints', 'No Inlay Hints'),
+		signalSettingsKey: 'accessibility.signals.noInlayHints'
 	});
 
 	public static readonly taskCompleted = AudioCue.register({
@@ -444,7 +453,8 @@ export class AudioCue {
 		sound: Sound.taskCompleted,
 		settingsKey: 'audioCues.taskCompleted',
 		alertSettingsKey: AccessibilityAlertSettingId.TaskCompleted,
-		alertMessage: localize('audioCues.taskCompleted.alertMessage', 'Task Completed')
+		alertMessage: localize('accessibility.signals.taskCompleted', 'Task Completed'),
+		signalSettingsKey: 'accessibility.signals.taskCompleted'
 	});
 
 	public static readonly taskFailed = AudioCue.register({
@@ -452,7 +462,8 @@ export class AudioCue {
 		sound: Sound.taskFailed,
 		settingsKey: 'audioCues.taskFailed',
 		alertSettingsKey: AccessibilityAlertSettingId.TaskFailed,
-		alertMessage: localize('audioCues.taskFailed.alertMessage', 'Task Failed')
+		alertMessage: localize('accessibility.signals.taskFailed', 'Task Failed'),
+		signalSettingsKey: 'accessibility.signals.taskFailed'
 	});
 
 	public static readonly terminalCommandFailed = AudioCue.register({
@@ -460,7 +471,8 @@ export class AudioCue {
 		sound: Sound.error,
 		settingsKey: 'audioCues.terminalCommandFailed',
 		alertSettingsKey: AccessibilityAlertSettingId.TerminalCommandFailed,
-		alertMessage: localize('audioCues.terminalCommandFailed.alertMessage', 'Command Failed')
+		alertMessage: localize('accessibility.signals.terminalCommandFailed', 'Command Failed'),
+		signalSettingsKey: 'accessibility.signals.terminalCommandFailed'
 	});
 
 	public static readonly terminalBell = AudioCue.register({
@@ -468,7 +480,8 @@ export class AudioCue {
 		sound: Sound.terminalBell,
 		settingsKey: 'audioCues.terminalBell',
 		alertSettingsKey: AccessibilityAlertSettingId.TerminalBell,
-		alertMessage: localize('audioCues.terminalBell.alertMessage', 'Terminal Bell')
+		alertMessage: localize('accessibility.signals.terminalBell', 'Terminal Bell'),
+		signalSettingsKey: 'accessibility.signals.terminalBell'
 	});
 
 	public static readonly notebookCellCompleted = AudioCue.register({
@@ -476,7 +489,8 @@ export class AudioCue {
 		sound: Sound.taskCompleted,
 		settingsKey: 'audioCues.notebookCellCompleted',
 		alertSettingsKey: AccessibilityAlertSettingId.NotebookCellCompleted,
-		alertMessage: localize('audioCues.notebookCellCompleted.alertMessage', 'Notebook Cell Completed')
+		alertMessage: localize('accessibility.signals.notebookCellCompleted', 'Notebook Cell Completed'),
+		signalSettingsKey: 'accessibility.signals.notebookCellCompleted'
 	});
 
 	public static readonly notebookCellFailed = AudioCue.register({
@@ -484,25 +498,29 @@ export class AudioCue {
 		sound: Sound.taskFailed,
 		settingsKey: 'audioCues.notebookCellFailed',
 		alertSettingsKey: AccessibilityAlertSettingId.NotebookCellFailed,
-		alertMessage: localize('audioCues.notebookCellFailed.alertMessage', 'Notebook Cell Failed')
+		alertMessage: localize('accessibility.signals.notebookCellFailed', 'Notebook Cell Failed'),
+		signalSettingsKey: 'accessibility.signals.notebookCellFailed'
 	});
 
 	public static readonly diffLineInserted = AudioCue.register({
 		name: localize('audioCues.diffLineInserted', 'Diff Line Inserted'),
 		sound: Sound.diffLineInserted,
 		settingsKey: 'audioCues.diffLineInserted',
+		signalSettingsKey: 'accessibility.signals.diffLineInserted'
 	});
 
 	public static readonly diffLineDeleted = AudioCue.register({
 		name: localize('audioCues.diffLineDeleted', 'Diff Line Deleted'),
 		sound: Sound.diffLineDeleted,
 		settingsKey: 'audioCues.diffLineDeleted',
+		signalSettingsKey: 'accessibility.signals.diffLineDeleted'
 	});
 
 	public static readonly diffLineModified = AudioCue.register({
 		name: localize('audioCues.diffLineModified', 'Diff Line Modified'),
 		sound: Sound.diffLineModified,
 		settingsKey: 'audioCues.diffLineModified',
+		signalSettingsKey: 'accessibility.signals.diffLineModified'
 	});
 
 	public static readonly chatRequestSent = AudioCue.register({
@@ -510,7 +528,8 @@ export class AudioCue {
 		sound: Sound.chatRequestSent,
 		settingsKey: 'audioCues.chatRequestSent',
 		alertSettingsKey: AccessibilityAlertSettingId.ChatRequestSent,
-		alertMessage: localize('audioCues.chatRequestSent.alertMessage', 'Chat Request Sent')
+		alertMessage: localize('accessibility.signals.chatRequestSent', 'Chat Request Sent'),
+		signalSettingsKey: 'accessibility.signals.chatRequestSent'
 	});
 
 	public static readonly chatResponseReceived = AudioCue.register({
@@ -524,6 +543,7 @@ export class AudioCue {
 				Sound.chatResponseReceived4
 			]
 		},
+		signalSettingsKey: 'accessibility.signals.chatResponseReceived'
 	});
 
 	public static readonly chatResponsePending = AudioCue.register({
@@ -531,7 +551,8 @@ export class AudioCue {
 		sound: Sound.chatResponsePending,
 		settingsKey: 'audioCues.chatResponsePending',
 		alertSettingsKey: AccessibilityAlertSettingId.ChatResponsePending,
-		alertMessage: localize('audioCues.chatResponsePending.alertMessage', 'Chat Response Pending')
+		alertMessage: localize('accessibility.signals.chatResponsePending', 'Chat Response Pending'),
+		signalSettingsKey: 'accessibility.signals.chatResponsePending'
 	});
 
 	public static readonly clear = AudioCue.register({
@@ -539,7 +560,8 @@ export class AudioCue {
 		sound: Sound.clear,
 		settingsKey: 'audioCues.clear',
 		alertSettingsKey: AccessibilityAlertSettingId.Clear,
-		alertMessage: localize('audioCues.clear.alertMessage', 'Clear')
+		alertMessage: localize('accessibility.signals.clear', 'Clear'),
+		signalSettingsKey: 'accessibility.signals.clear'
 	});
 
 	public static readonly save = AudioCue.register({
@@ -547,7 +569,8 @@ export class AudioCue {
 		sound: Sound.save,
 		settingsKey: 'audioCues.save',
 		alertSettingsKey: AccessibilityAlertSettingId.Save,
-		alertMessage: localize('audioCues.save.alertMessage', 'Save')
+		alertMessage: localize('accessibility.signals.save', 'Save'),
+		signalSettingsKey: 'accessibility.signals.save'
 	});
 
 	public static readonly format = AudioCue.register({
@@ -555,14 +578,16 @@ export class AudioCue {
 		sound: Sound.format,
 		settingsKey: 'audioCues.format',
 		alertSettingsKey: AccessibilityAlertSettingId.Format,
-		alertMessage: localize('audioCues.format.alertMessage', 'Format')
+		alertMessage: localize('accessibility.signals.format', 'Format'),
+		signalSettingsKey: 'accessibility.signals.format'
 	});
 
 	private constructor(
 		public readonly sound: SoundSource,
 		public readonly name: string,
 		public readonly settingsKey: string,
+		public readonly signalSettingsKey: string,
 		public readonly alertSettingsKey?: string,
-		public readonly alertMessage?: string
+		public readonly alertMessage?: string,
 	) { }
 }

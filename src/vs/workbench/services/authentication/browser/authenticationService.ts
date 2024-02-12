@@ -24,7 +24,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IAuthenticationCreateSessionOptions, AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationCreateSessionOptions, AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, AllowedExtension } from 'vs/workbench/services/authentication/common/authentication';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -105,15 +105,6 @@ export async function getCurrentAuthenticationSessionInfo(
 		}
 	}
 	return undefined;
-}
-
-interface AllowedExtension {
-	id: string;
-	name: string;
-	allowed?: boolean;
-	lastUsed?: number;
-	// If true, this comes from the product.json
-	trusted?: boolean;
 }
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
@@ -244,6 +235,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private _onDidChangeDeclaredProviders: Emitter<AuthenticationProviderInformation[]> = this._register(new Emitter<AuthenticationProviderInformation[]>());
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]> = this._onDidChangeDeclaredProviders.event;
+
+	private _onDidChangeExtensionSessionAccess: Emitter<{ providerId: string; accountName: string }> = this._register(new Emitter<{ providerId: string; accountName: string }>());
+	readonly onDidChangeExtensionSessionAccess: Event<{ providerId: string; accountName: string }> = this._onDidChangeExtensionSessionAccess.event;
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
@@ -432,7 +426,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined {
 		const trustedExtensionAuthAccess = this.productService.trustedExtensionAuthAccess;
 		if (Array.isArray(trustedExtensionAuthAccess)) {
-			return trustedExtensionAuthAccess.includes(extensionId) ?? undefined;
+			if (trustedExtensionAuthAccess.includes(extensionId)) {
+				return true;
+			}
 		} else if (trustedExtensionAuthAccess?.[providerId]?.includes(extensionId)) {
 			return true;
 		}
@@ -816,7 +812,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private readAllowedExtensions(providerId: string, accountName: string): AllowedExtension[] {
+	// TODO: pull this stuff out into its own service
+	readAllowedExtensions(providerId: string, accountName: string): AllowedExtension[] {
 		let trustedExtensions: AllowedExtension[] = [];
 		try {
 			const trustedExtensionSrc = this.storageService.get(`${providerId}-${accountName}`, StorageScope.APPLICATION);
@@ -901,7 +898,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				: nls.localize('notUsed', "Has not used this account");
 			let tooltip: string | undefined;
 			if (extension.trusted) {
-				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and has access to this account");
+				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and\nalways has access to this account");
 			}
 			return {
 				label: extension.name,
@@ -926,6 +923,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				.filter((item): item is TrustedExtensionsQuickPickItem => item.type !== 'separator')
 				.map(i => i.extension);
 			this.storageService.store(`${authProvider.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.APPLICATION, StorageTarget.USER);
+			this._onDidChangeExtensionSessionAccess.fire({ providerId: authProvider.id, accountName });
 			quickPick.hide();
 		}));
 

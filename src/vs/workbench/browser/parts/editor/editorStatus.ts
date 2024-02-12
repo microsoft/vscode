@@ -449,6 +449,12 @@ class EditorStatus extends Disposable {
 			return;
 		}
 
+		const editorURI = getCodeEditor(this.editorService.activeTextEditorControl)?.getModel()?.uri;
+		if (editorURI?.scheme === Schemas.vscodeNotebookCell) {
+			this.selectionElement.clear();
+			return;
+		}
+
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.selection', "Editor Selection"),
 			text,
@@ -462,6 +468,12 @@ class EditorStatus extends Disposable {
 
 	private updateIndentationElement(text: string | undefined): void {
 		if (!text) {
+			this.indentationElement.clear();
+			return;
+		}
+
+		const editorURI = getCodeEditor(this.editorService.activeTextEditorControl)?.getModel()?.uri;
+		if (editorURI?.scheme === Schemas.vscodeNotebookCell) {
 			this.indentationElement.clear();
 			return;
 		}

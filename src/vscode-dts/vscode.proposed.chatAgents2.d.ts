@@ -12,13 +12,12 @@ declare module 'vscode' {
 		/**
 		 * The request that was sent to the chat agent.
 		 */
-		// TODO@API make this optional? Allow for response without request?
 		request: ChatAgentRequest;
 
 		/**
 		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
 		 */
-		response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart)[];
+		response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
 
 		/**
 		 * The result that was received from the chat agent.
@@ -26,31 +25,69 @@ declare module 'vscode' {
 		result: ChatAgentResult2;
 	}
 
-	// TODO@API class
-	// export interface ChatAgentResponse {
-	// 	/**
-	// 	 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
-	// 	 */
-	// 	response: (ChatAgentContentProgress | ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart)[];
+	// TODO@API name: Turn?
+	export class ChatAgentRequestTurn {
 
-	// agentId: string
+		/**
+		 * The prompt as entered by the user.
+		 *
+		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables2}.
+		 *
+		 * *Note* that the {@link ChatAgent2.name name} of the agent and the {@link ChatAgentCommand.name command}
+		 * are not part of the prompt.
+		 */
+		readonly prompt: string;
 
-	// 	/**
-	// 	 * The result that was received from the chat agent.
-	// 	 */
-	// 	result: ChatAgentResult2;
-	// }
+		/**
+		 * The ID of the chat agent to which this request was directed.
+		 */
+		readonly agentId: string;
+
+		/**
+		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
+		 */
+		readonly command: string | undefined;
+
+		/**
+		 *
+		 */
+		// TODO@API is this needed?
+		readonly variables: ChatAgentResolvedVariable[];
+
+		private constructor(prompt: string, agentId: string, command: string | undefined, variables: ChatAgentResolvedVariable[],);
+	}
+
+	// TODO@API name: Turn?
+	export class ChatAgentResponseTurn {
+
+		/**
+		 * The content that was received from the chat agent. Only the progress parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
+
+		/**
+		 * The result that was received from the chat agent.
+		 */
+		readonly result: ChatAgentResult2;
+
+		readonly agentId: string;
+
+		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: string);
+	}
 
 	export interface ChatAgentContext {
 		/**
-		 * All of the chat messages so far in the current chat session.
+		 * @deprecated
 		 */
 		history: ChatAgentHistoryEntry[];
 
 		// location:
 
-		// TODO@API have "turns"
-		// history2: (ChatAgentRequest | ChatAgentResponse)[];
+		/**
+		 * All of the chat messages so far in the current chat session.
+		 */
+		// TODO@API name: histroy
+		readonly history2: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
 	}
 
 	/**
@@ -86,9 +123,10 @@ declare module 'vscode' {
 		 */
 		errorDetails?: ChatAgentErrorDetails;
 
-		// TODO@API
-		// add CATCH-all signature [name:string]: string|boolean|number instead of `T extends...`
-		// readonly metadata: { readonly [key: string]: any };
+		/**
+		 * Arbitrary metadata for this result. Can be anything but must be JSON-stringifyable.
+		 */
+		readonly metadata?: { readonly [key: string]: any };
 	}
 
 	/**
@@ -109,12 +147,12 @@ declare module 'vscode' {
 	/**
 	 * Represents user feedback for a result.
 	 */
-	export interface ChatAgentResult2Feedback<TResult extends ChatAgentResult2> {
+	export interface ChatAgentResult2Feedback {
 		/**
 		 * This instance of ChatAgentResult2 is the same instance that was returned from the chat agent,
 		 * and it can be extended with arbitrary properties if needed.
 		 */
-		readonly result: TResult;
+		readonly result: ChatAgentResult2;
 
 		/**
 		 * The kind of feedback that was received.
@@ -122,12 +160,12 @@ declare module 'vscode' {
 		readonly kind: ChatAgentResultFeedbackKind;
 	}
 
-	export interface ChatAgentSubCommand {
+	export interface ChatAgentCommand {
 		/**
 		 * A short name by which this command is referred to in the UI, e.g. `fix` or
 		 * `explain` for commands that fix an issue or explain code.
 		 *
-		 * **Note**: The name should be unique among the subCommands provided by this agent.
+		 * **Note**: The name should be unique among the commands provided by this agent.
 		 */
 		readonly name: string;
 
@@ -137,40 +175,39 @@ declare module 'vscode' {
 		readonly description: string;
 
 		/**
-		 * When the user clicks this subCommand in `/help`, this text will be submitted to this subCommand
+		 * When the user clicks this command in `/help`, this text will be submitted to this command
 		 */
 		readonly sampleRequest?: string;
 
 		/**
 		 * Whether executing the command puts the
 		 * chat into a persistent mode, where the
-		 * subCommand is prepended to the chat input.
+		 * command is prepended to the chat input.
 		 */
 		readonly shouldRepopulate?: boolean;
 
 		/**
 		 * Placeholder text to render in the chat input
-		 * when the subCommand has been repopulated.
+		 * when the command has been repopulated.
 		 * Has no effect if `shouldRepopulate` is `false`.
 		 */
 		// TODO@API merge this with shouldRepopulate? so that invalid state cannot be represented?
 		readonly followupPlaceholder?: string;
 	}
 
-	// TODO@API NAME: w/o Sub just `ChatAgentCommand` etc pp
-	export interface ChatAgentSubCommandProvider {
+	export interface ChatAgentCommandProvider {
 
 		/**
-		 * Returns a list of subCommands that its agent is capable of handling. A subCommand
+		 * Returns a list of commands that its agent is capable of handling. A command
 		 * can be selected by the user and will then be passed to the {@link ChatAgentHandler handler}
-		 * via the {@link ChatAgentRequest.subCommand subCommand} property.
+		 * via the {@link ChatAgentRequest.command command} property.
 		 *
 		 *
 		 * @param token A cancellation token.
-		 * @returns A list of subCommands. The lack of a result can be signaled by returning `undefined`, `null`, or
+		 * @returns A list of commands. The lack of a result can be signaled by returning `undefined`, `null`, or
 		 * an empty array.
 		 */
-		provideSubCommands(token: CancellationToken): ProviderResult<ChatAgentSubCommand[]>;
+		provideCommands(token: CancellationToken): ProviderResult<ChatAgentCommand[]>;
 	}
 
 	/**
@@ -196,16 +233,16 @@ declare module 'vscode' {
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
 	 */
-	export interface ChatAgentFollowupProvider<TResult extends ChatAgentResult2> {
+	export interface ChatAgentFollowupProvider {
 		/**
 		 *
 		 * @param result The same instance of the result object that was returned by the chat agent, and it can be extended with arbitrary properties if needed.
 		 * @param token A cancellation token.
 		 */
-		provideFollowups(result: TResult, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
+		provideFollowups(result: ChatAgentResult2, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
 	}
 
-	export interface ChatAgent2<TResult extends ChatAgentResult2> {
+	export interface ChatAgent2 {
 
 		/**
 		 * The short name by which this agent is referred to in the UI, e.g `workspace`.
@@ -237,14 +274,14 @@ declare module 'vscode' {
 		} | ThemeIcon;
 
 		/**
-		 * This provider will be called to retrieve the agent's subCommands.
+		 * This provider will be called to retrieve the agent's commands.
 		 */
-		subCommandProvider?: ChatAgentSubCommandProvider;
+		commandProvider?: ChatAgentCommandProvider;
 
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
-		followupProvider?: ChatAgentFollowupProvider<TResult>;
+		followupProvider?: ChatAgentFollowupProvider;
 
 
 		// TODO@API
@@ -257,7 +294,7 @@ declare module 'vscode' {
 		// onDidClearResult(value: TResult): void;
 
 		/**
-		 * When the user clicks this agent in `/help`, this text will be submitted to this subCommand
+		 * When the user clicks this agent in `/help`, this text will be submitted to this command
 		 */
 		sampleRequest?: string;
 
@@ -268,7 +305,7 @@ declare module 'vscode' {
 		 * The passed {@link ChatAgentResult2Feedback.result result} is guaranteed to be the same instance that was
 		 * previously returned from this chat agent.
 		 */
-		onDidReceiveFeedback: Event<ChatAgentResult2Feedback<TResult>>;
+		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
 
 		/**
 		 * Dispose this agent and free resources
@@ -276,15 +313,31 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	export interface ChatAgentResolvedVariable {
+		name: string;
+		range: [start: number, end: number];
+		values: ChatVariableValue[];
+	}
+
 	export interface ChatAgentRequest {
 
 		/**
-		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentSubCommand.name subCommand}
+		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentCommand.name command}
 		 * are not part of the prompt.
 		 *
-		 * @see {@link ChatAgentRequest.subCommand}
+		 * @see {@link ChatAgentRequest.command}
 		 */
 		prompt: string;
+
+		/**
+		 * The prompt as entered by the user.
+		 *
+		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables2}.
+		 *
+		 * *Note* that the {@link ChatAgent2.name name} of the agent and the {@link ChatAgentCommand.name command}
+		 * are not part of the prompt.
+		 */
+		prompt2: string;
 
 		/**
 		 * The ID of the chat agent to which this request was directed.
@@ -292,14 +345,17 @@ declare module 'vscode' {
 		agentId: string;
 
 		/**
-		 * The name of the {@link ChatAgentSubCommand subCommand} that was selected for this request.
+		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
 		 */
-		subCommand?: string;
+		command?: string;
 
+		/** @deprecated */
 		variables: Record<string, ChatVariableValue[]>;
 
-		// TODO@API argumented prompt, reverse order!
-		// variables2: { start:number, length:number,  values: ChatVariableValue[]}[]
+		/**
+		 *
+		 */
+		variables2: ChatAgentResolvedVariable[];
 	}
 
 	export interface ChatAgentResponseStream {
@@ -384,11 +440,6 @@ declare module 'vscode' {
 		 * @param part A response part, rendered or metadata
 		 */
 		push(part: ChatResponsePart): ChatAgentResponseStream;
-
-		/**
-		 * @deprecated use above methods instread
-		 */
-		report(value: ChatAgentProgress): void;
 	}
 
 	// TODO@API
@@ -443,128 +494,6 @@ declare module 'vscode' {
 	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
 		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
 
-	/**
-	 * @deprecated use ChatAgentResponseStream instead
-	 */
-	export type ChatAgentContentProgress =
-		| ChatAgentContent
-		| ChatAgentFileTree
-		| ChatAgentInlineContentReference
-		| ChatAgentCommandButton;
-
-	/**
-	 * @deprecated use ChatAgentResponseStream instead
-	 */
-	export type ChatAgentMetadataProgress =
-		| ChatAgentUsedContext
-		| ChatAgentContentReference
-		| ChatAgentProgressMessage;
-
-	/**
-	 * @deprecated use ChatAgentResponseStream instead
-	 */
-	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
-
-	/**
-	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
-	 */
-	export interface ChatAgentProgressMessage {
-		message: string;
-	}
-
-	/**
-	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.
-	 */
-	export interface ChatAgentContentReference {
-		/**
-		 * The resource that was referenced.
-		 */
-		reference: Uri | Location;
-	}
-
-	/**
-	 * A reference to a piece of content that will be rendered inline with the markdown content.
-	 */
-	export interface ChatAgentInlineContentReference {
-		/**
-		 * The resource being referenced.
-		 */
-		inlineReference: Uri | Location;
-
-		/**
-		 * An alternate title for the resource.
-		 */
-		title?: string;
-	}
-
-	/**
-	 * Displays a {@link Command command} as a button in the chat response.
-	 */
-	export interface ChatAgentCommandButton {
-		command: Command;
-	}
-
-	/**
-	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
-	 */
-	export interface ChatAgentContent {
-		/**
-		 * The content as a string of markdown source.
-		 */
-		content: string;
-	}
-
-	/**
-	 * Represents a tree, such as a file and directory structure, rendered in the chat response.
-	 */
-	export interface ChatAgentFileTree {
-		/**
-		 * The root node of the tree.
-		 */
-		treeData: ChatAgentFileTreeData;
-	}
-
-	/**
-	 * Represents a node in a chat response tree.
-	 */
-	export interface ChatAgentFileTreeData {
-		/**
-		 * A human-readable string describing this node.
-		 */
-		label: string;
-
-		/**
-		 * A Uri for this node, opened when it's clicked.
-		 */
-		// TODO@API why label and uri. Can the former be derived from the latter?
-		// TODO@API don't use uri but just names? This API allows to to build nonsense trees where the data structure doesn't match the uris
-		// path-structure.
-		uri: Uri;
-
-		/**
-		 * The type of this node. Defaults to {@link FileType.Directory} if it has {@link ChatAgentFileTreeData.children children}.
-		 */
-		// TODO@API cross API usage
-		type?: FileType;
-
-		/**
-		 * The children of this node.
-		 */
-		children?: ChatAgentFileTreeData[];
-	}
-
-	export interface ChatAgentDocumentContext {
-		uri: Uri;
-		version: number;
-		ranges: Range[];
-	}
-
-	/**
-	 * Document references that should be used by the MappedEditsProvider.
-	 */
-	export interface ChatAgentUsedContext {
-		documents: ChatAgentDocumentContext[];
-	}
 
 	// TODO@API Remove a different type of `request` so that they can
 	// evolve at their own pace
@@ -579,7 +508,7 @@ declare module 'vscode' {
 		 * @param handler The reply-handler of the agent.
 		 * @returns A new chat agent
 		 */
-		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentHandler): ChatAgent2<TResult>;
+		export function createChatAgent(name: string, handler: ChatAgentHandler): ChatAgent2;
 
 		/**
 		 * Register a variable which can be used in a chat request to any agent.
@@ -587,6 +516,7 @@ declare module 'vscode' {
 		 * @param description A description of the variable for the chat input suggest widget.
 		 * @param resolver Will be called to provide the chat variable's value when it is used.
 		 */
+		// TODO@API NAME: registerChatVariable, registerChatVariableResolver
 		export function registerVariable(name: string, description: string, resolver: ChatVariableResolver): Disposable;
 	}
 

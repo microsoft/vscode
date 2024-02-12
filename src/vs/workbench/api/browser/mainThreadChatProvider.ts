@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -12,8 +13,10 @@ import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtHostChatProviderShape, ExtHostContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatResponseProviderMetadata, IChatResponseFragment, IChatProviderService, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadChatProvider)
 export class MainThreadChatProvider implements MainThreadChatProviderShape {
@@ -28,6 +31,8 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		@IChatProviderService private readonly _chatProviderService: IChatProviderService,
 		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@ILogService private readonly _logService: ILogService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 
@@ -54,6 +59,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 				}
 			}
 		}));
+		dipsosables.add(this._registerAuthenticationProvider(identifier));
 		dipsosables.add(Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 			id: `lm-${identifier}`,
 			label: localize('languageModels', "Language Model ({0})", `${identifier}-${metadata.model}`),
@@ -92,5 +98,101 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		});
 
 		return task;
+	}
+
+	private _registerAuthenticationProvider(identifier: string): IDisposable {
+		const disposables = new DisposableStore();
+		// This needs to be done in both MainThread & ExtHost ChatProvider
+		const authProviderId = INTERNAL_AUTH_PROVIDER_PREFIX + identifier;
+		// This is what will be displayed in the UI and the account used for managing access via Auth UI
+		const authAccountId = identifier;
+		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, authAccountId));
+		disposables.add(toDisposable(() => {
+			this._authenticationService.unregisterAuthenticationProvider(authProviderId);
+		}));
+		disposables.add(this._authenticationService.onDidChangeSessions(async (e) => {
+			if (e.providerId === authProviderId) {
+				if (e.event.removed?.length) {
+					const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, authAccountId);
+					const extensionsToUpdateAccess = [];
+					for (const allowed of allowedExtensions) {
+						const extension = await this._extensionService.getExtension(allowed.id);
+						this._authenticationService.updateAllowedExtension(authProviderId, authAccountId, allowed.id, allowed.name, false);
+						if (extension) {
+							extensionsToUpdateAccess.push({
+								extension: extension.identifier,
+								enabled: false
+							});
+						}
+					}
+					this._proxy.$updateAccesslist(extensionsToUpdateAccess);
+				}
+			}
+		}));
+		disposables.add(this._authenticationService.onDidChangeExtensionSessionAccess(async (e) => {
+			const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, authAccountId);
+			const accessList = [];
+			for (const allowedExtension of allowedExtensions) {
+				const extension = await this._extensionService.getExtension(allowedExtension.id);
+				if (extension) {
+					accessList.push({
+						extension: extension.identifier,
+						enabled: allowedExtension.allowed ?? true
+					});
+				}
+			}
+			this._proxy.$updateAccesslist(accessList);
+		}));
+		return disposables;
+	}
+}
+
+// The fake AuthenticationProvider that will be used to gate access to the Language Model. There will be one per provider.
+class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
+	supportsMultipleAccounts = false;
+	label = 'Language Model';
+
+	// Important for updating the UI
+	private _onDidChangeSessions: Emitter<AuthenticationSessionsChangeEvent> = new Emitter<AuthenticationSessionsChangeEvent>();
+	onDidChangeSessions: Event<AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
+
+	private _session: AuthenticationSession | undefined;
+
+	constructor(readonly id: string, private readonly accountName: string) { }
+
+	async getSessions(scopes?: string[] | undefined): Promise<readonly AuthenticationSession[]> {
+		// If there are no scopes and no session that means no extension has requested a session yet
+		// and the user is simply opening the Account menu. In that case, we should not return any "sessions".
+		if (scopes === undefined && !this._session) {
+			return [];
+		}
+		if (this._session) {
+			return [this._session];
+		}
+		return [await this.createSession(scopes || [], {})];
+	}
+	async createSession(scopes: string[], options: IAuthenticationProviderCreateSessionOptions): Promise<AuthenticationSession> {
+		this._session = this._createFakeSession(scopes);
+		this._onDidChangeSessions.fire({ added: [this._session], changed: [], removed: [] });
+		return this._session;
+	}
+	removeSession(sessionId: string): Promise<void> {
+		if (this._session) {
+			this._onDidChangeSessions.fire({ added: [], changed: [], removed: [this._session!] });
+			this._session = undefined;
+		}
+		return Promise.resolve();
+	}
+
+	private _createFakeSession(scopes: string[]): AuthenticationSession {
+		return {
+			id: 'fake-session',
+			account: {
+				id: this.id,
+				label: this.accountName,
+			},
+			accessToken: 'fake-access-token',
+			scopes,
+		};
 	}
 }

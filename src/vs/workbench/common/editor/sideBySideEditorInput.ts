@@ -362,8 +362,8 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 					const serializedEditorInput: ISerializedSideBySideEditorInput = {
 						name: input.getPreferredName(),
 						description: input.getPreferredDescription(),
-						primarySerialized: primarySerialized,
-						secondarySerialized: secondarySerialized,
+						primarySerialized,
+						secondarySerialized,
 						primaryTypeId: input.primary.typeId,
 						secondaryTypeId: input.secondary.typeId
 					};
