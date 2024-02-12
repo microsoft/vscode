@@ -491,7 +491,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	$registerNewSymbolNamesProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, this._languageFeaturesService.newSymbolNamesProvider.register(selector, {
-			provideNewSymbolNames: (model: ITextModel, range: IRange, token: CancellationToken): Promise<string[] | undefined> => {
+			provideNewSymbolNames: (model: ITextModel, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> => {
 				return this._proxy.$provideNewSymbolNames(handle, model.uri, range, token);
 			}
 		} satisfies languages.NewSymbolNamesProvider));

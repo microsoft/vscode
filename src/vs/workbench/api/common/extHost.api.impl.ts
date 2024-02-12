@@ -1672,6 +1672,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelSystemMessage: extHostTypes.LanguageModelSystemMessage,
 			LanguageModelUserMessage: extHostTypes.LanguageModelUserMessage,
 			LanguageModelAssistantMessage: extHostTypes.LanguageModelAssistantMessage,
+			NewSymbolName: extHostTypes.NewSymbolName,
+			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 		};
 	};
 }
