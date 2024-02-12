@@ -22,7 +22,7 @@ import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostT
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { Permutation, addPositions, getNewRanges, lengthOfText } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { Permutation, addPositions, getNewRanges, lengthOfText, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -469,13 +469,6 @@ export class InlineCompletionsModel extends Disposable {
 	}
 }
 
-function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
-	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
-	const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
-	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
-	return newRanges.map(range => range.getEndPosition());
-}
-
 export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
 	const primaryPosition = positions[0];
 	const secondaryPositions = positions.slice(1);
@@ -483,13 +476,8 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(
 		Range.fromPositions(primaryPosition, primaryEditEndPosition)
 	);
-	const lineNumberWithinEditText = primaryPosition.lineNumber - primaryEdit.range.startLineNumber;
-	const columnWithinEditText = lineNumberWithinEditText === 0 ? primaryPosition.column - primaryEdit.range.startColumn : primaryPosition.column - 1;
-	let secondaryEditText = '';
-	const { lines, separators } = splitLinesIncludeSeparators(primaryEdit.text);
-	for (let i = lineNumberWithinEditText; i < lines.length; i++) {
-		secondaryEditText += lines[i].substring(i === lineNumberWithinEditText ? columnWithinEditText : 0) + (separators[i] ?? '');
-	}
+	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEdit.range.getStartPosition());
+	const secondaryEditText = getTextFromPosition(primaryEdit.text, positionWithinTextEdit);
 	return secondaryPositions.map(pos => {
 		const textAfterSecondaryCursor = textModel.getValueInRange(
 			Range.fromPositions(pos, primaryEditEndPosition)
@@ -500,3 +488,18 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 	});
 }
 
+function getTextFromPosition(text: string, pos: Position): string {
+	let subtext = '';
+	const { lines, separators } = splitLinesIncludeSeparators(text);
+	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
+		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0) + (separators[i] ?? '');
+	}
+	return subtext;
+}
+
+function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+	const sortPerm = Permutation.createSortPermutation(edits, (edit1, edit2) => Range.compareRangesUsingStarts(edit1.range, edit2.range));
+	const sortedNewRanges = getNewRanges(sortPerm.apply(edits));
+	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
+	return newRanges.map(range => range.getEndPosition());
+}
