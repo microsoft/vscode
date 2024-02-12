@@ -78,7 +78,7 @@ export class InlineCompletionsController extends Disposable {
 		{ min: 50, max: 50 }
 	);
 
-	private readonly _playAudioCueSignal = observableSignal(this);
+	private readonly _playAccessibilitySignal = observableSignal(this);
 
 	private readonly _isReadonly = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
 	private readonly _textModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
@@ -213,14 +213,14 @@ export class InlineCompletionsController extends Disposable {
 		let lastInlineCompletionId: string | undefined = undefined;
 		this._register(autorunHandleChanges({
 			handleChange: (context, changeSummary) => {
-				if (context.didChange(this._playAudioCueSignal)) {
+				if (context.didChange(this._playAccessibilitySignal)) {
 					lastInlineCompletionId = undefined;
 				}
 				return true;
 			},
 		}, async reader => {
-			/** @description InlineCompletionsController.playAudioCueAndReadSuggestion */
-			this._playAudioCueSignal.read(reader);
+			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
+			this._playAccessibilitySignal.read(reader);
 
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
@@ -249,8 +249,8 @@ export class InlineCompletionsController extends Disposable {
 		this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.inlineCompletions') });
 	}
 
-	public playAudioCue(tx: ITransaction) {
-		this._playAudioCueSignal.trigger(tx);
+	public playAccessibilitySignal(tx: ITransaction) {
+		this._playAccessibilitySignal.trigger(tx);
 	}
 
 	private provideScreenReaderUpdate(content: string): void {

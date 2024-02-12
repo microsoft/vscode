@@ -600,7 +600,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
-		await playAudioCueForChange(change.change, accessibilitySignalService);
+		await playAccessibilitySymbolForChange(change.change, accessibilitySignalService);
 		setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
@@ -643,7 +643,7 @@ export class GotoNextChangeAction extends EditorAction {
 
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index].change;
-		await playAudioCueForChange(change, accessibilitySignalService);
+		await playAccessibilitySymbolForChange(change, accessibilitySignalService);
 		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
@@ -658,7 +658,7 @@ function setPositionAndSelection(change: IChange, editor: ICodeEditor, accessibi
 	}
 }
 
-async function playAudioCueForChange(change: IChange, accessibilitySignalService: IAccessibilitySignalService) {
+async function playAccessibilitySymbolForChange(change: IChange, accessibilitySignalService: IAccessibilitySignalService) {
 	const changeType = getChangeType(change);
 	switch (changeType) {
 		case ChangeType.Add:
