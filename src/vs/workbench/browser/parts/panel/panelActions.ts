@@ -199,7 +199,7 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 		constructor() {
 			super({
 				id,
-				title: title,
+				title,
 				category: Categories.View,
 				toggled: when.negate(),
 				f1: true

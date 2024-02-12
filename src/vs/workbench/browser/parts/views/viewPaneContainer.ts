@@ -658,7 +658,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		const wasMerged = this.isViewMergedWithContainer();
 
-		for (const { pane: pane, size, index, disposable } of panes) {
+		for (const { pane, size, index, disposable } of panes) {
 			this.addPane(pane, size, disposable, index);
 		}
 
