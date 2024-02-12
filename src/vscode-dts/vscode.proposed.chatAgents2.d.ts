@@ -180,19 +180,10 @@ declare module 'vscode' {
 		readonly sampleRequest?: string;
 
 		/**
-		 * Whether executing the command puts the
-		 * chat into a persistent mode, where the
-		 * command is prepended to the chat input.
+		 * Whether executing the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message.
+		 * If this is not set, the chat input will fall back to the agent after submitting this command.
 		 */
-		readonly shouldRepopulate?: boolean;
-
-		/**
-		 * Placeholder text to render in the chat input
-		 * when the command has been repopulated.
-		 * Has no effect if `shouldRepopulate` is `false`.
-		 */
-		// TODO@API merge this with shouldRepopulate? so that invalid state cannot be represented?
-		readonly followupPlaceholder?: string;
+		readonly isSticky?: boolean;
 	}
 
 	export interface ChatAgentCommandProvider {
@@ -221,7 +212,7 @@ declare module 'vscode' {
 		prompt: string;
 
 		/**
-		 * By default, the followup goes to the same agent/subCommand. But these properties can be set to override that.
+		 * By default, the followup goes to the same agent/command. But these properties can be set to override that.
 		 */
 		agentId?: string;
 

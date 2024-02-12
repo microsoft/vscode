@@ -407,13 +407,19 @@ class ExtHostChatAgent {
 			return [];
 		}
 		return result
-			.map(c => ({
-				name: c.name,
-				description: c.description,
-				followupPlaceholder: c.followupPlaceholder,
-				shouldRepopulate: c.shouldRepopulate,
-				sampleRequest: c.sampleRequest
-			}));
+			.map(c => {
+				if ('repopulate2' in c) {
+					checkProposedApiEnabled(this.extension, 'chatAgents2Additions');
+				}
+
+				return {
+					name: c.name,
+					description: c.description,
+					followupPlaceholder: c.isSticky2?.placeholder,
+					shouldRepopulate: c.isSticky2?.isSticky ?? c.isSticky,
+					sampleRequest: c.sampleRequest
+				};
+			});
 	}
 
 	async provideFollowups(result: vscode.ChatAgentResult2, token: CancellationToken): Promise<vscode.ChatAgentFollowup[]> {
