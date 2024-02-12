@@ -232,11 +232,11 @@ declare module 'vscode' {
 	}
 
 	export interface ChatAgentCommand {
-		readonly repopulate2?: {
+		readonly isSticky2?: {
 			/**
 			 * Indicates that the command should be automatically repopulated.
 			 */
-			shouldRepopulate: true;
+			isSticky: true;
 
 			/**
 			 * This can be set to a string to use a different placeholder message in the input box when the command has been repopulated.
