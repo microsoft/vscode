@@ -51,43 +51,39 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 const WIDGET_MARGIN_BOTTOM = 16;
 
 class NotebookChatWidget extends Disposable implements INotebookViewZone {
-	private _afterModelPosition: number;
-
 	set afterModelPosition(afterModelPosition: number) {
-		this._afterModelPosition = afterModelPosition;
+		this.notebookViewZone.afterModelPosition = afterModelPosition;
 	}
 
 	get afterModelPosition(): number {
-		return this._afterModelPosition;
+		return this.notebookViewZone.afterModelPosition;
 	}
 
-	private _heightInPx: number;
-
 	set heightInPx(heightInPx: number) {
-		this._heightInPx = heightInPx;
+		this.notebookViewZone.heightInPx = heightInPx;
 	}
 
 	get heightInPx(): number {
-		return this._heightInPx;
+		return this.notebookViewZone.heightInPx;
 	}
 
 	private _editingCell: CellViewModel | null = null;
 
+	get editingCell() {
+		return this._editingCell;
+	}
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		readonly id: string,
+		readonly notebookViewZone: INotebookViewZone,
 		readonly domNode: HTMLElement,
 		readonly widgetContainer: HTMLElement,
 		readonly inlineChatWidget: InlineChatWidget,
 		readonly parentEditor: CodeEditorWidget,
-		afterModelPosition: number,
-		heightInPx: number,
 		private readonly _languageService: ILanguageService,
 	) {
 		super();
-
-		this._afterModelPosition = afterModelPosition;
-		this._heightInPx = heightInPx;
 
 		this._register(inlineChatWidget.onDidChangeHeight(() => {
 			this.heightInPx = inlineChatWidget.getHeight() + WIDGET_MARGIN_BOTTOM;
@@ -114,7 +110,7 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 			return undefined;
 		}
 
-		this._editingCell = insertCell(this._languageService, this._notebookEditor, this._afterModelPosition, CellKind.Code, 'above');
+		this._editingCell = insertCell(this._languageService, this._notebookEditor, this.afterModelPosition, CellKind.Code, 'above');
 
 		if (!this._editingCell) {
 			return undefined;
@@ -223,7 +219,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			{ isSimpleWidget: true }
 		);
 
-		const inputBoxPath = `/notebook-chat-input0-${NotebookChatController.counter++}`;
+		const inputBoxPath = `/notebook-chat-input-${NotebookChatController.counter++}`;
 		const inputUri = URI.from({ scheme: Schemas.untitled, path: inputBoxPath });
 		const result: ITextModel = this._modelService.createModel('', null, inputUri, false);
 		fakeParentEditor.setModel(result);
@@ -243,21 +239,22 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		widgetContainer.appendChild(inlineChatWidget.domNode);
 
 		this._notebookEditor.changeViewZones(accessor => {
-			const id = accessor.addZone({
+			const notebookViewZone = {
 				afterModelPosition: index,
 				heightInPx: 80 + WIDGET_MARGIN_BOTTOM,
 				domNode: viewZoneContainer
-			});
+			};
+
+			const id = accessor.addZone(notebookViewZone);
 
 			this._widget = new NotebookChatWidget(
 				this._notebookEditor,
 				id,
+				notebookViewZone,
 				viewZoneContainer,
 				widgetContainer,
 				inlineChatWidget,
 				fakeParentEditor,
-				index,
-				80 + WIDGET_MARGIN_BOTTOM,
 				this._languageService
 			);
 
@@ -302,6 +299,20 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		if (!editor.hasModel() || !model) {
 			return;
+		}
+
+		const editingCellIndex = this._widget.editingCell ? this._notebookEditor.getCellIndex(this._widget.editingCell) : undefined;
+		if (editingCellIndex !== undefined) {
+			this._notebookEditor.setSelections([{
+				start: editingCellIndex,
+				end: editingCellIndex + 1
+			}]);
+		} else {
+			// Update selection to the widget index
+			this._notebookEditor.setSelections([{
+				start: this._widget.afterModelPosition,
+				end: this._widget.afterModelPosition
+			}]);
 		}
 
 		this._ctxHasActiveRequest.set(true);
