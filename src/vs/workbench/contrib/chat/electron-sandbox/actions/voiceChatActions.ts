@@ -29,7 +29,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -229,6 +229,12 @@ interface ActiveVoiceChatSession {
 	readonly disposables: DisposableStore;
 }
 
+interface IVoiceChatSession {
+	setTimeoutDisabled(disabled: boolean): void;
+	accept(): void;
+	stop(): void;
+}
+
 class VoiceChatSessions {
 
 	private static instance: VoiceChatSessions | undefined = undefined;
@@ -257,7 +263,7 @@ class VoiceChatSessions {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): void {
+	start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): IVoiceChatSession {
 		this.stop();
 
 		const sessionId = ++this.voiceChatSessionIds;
@@ -286,6 +292,7 @@ class VoiceChatSessions {
 			voiceChatTimeout = SpeechTimeoutDefault;
 		}
 
+		let disableTimeout = false;
 		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), voiceChatTimeout));
 		session.disposables.add(voiceChatSession.onDidChange(({ status, text, waitingForInput }) => {
 			if (cts.token.isCancellationRequested) {
@@ -299,7 +306,7 @@ class VoiceChatSessions {
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
 						session.controller.updateInput(inputValue ? [inputValue, text].join(' ') : text);
-						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true) {
+						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !disableTimeout) {
 							acceptTranscriptionScheduler.cancel();
 						}
 					}
@@ -308,7 +315,7 @@ class VoiceChatSessions {
 					if (text) {
 						inputValue = inputValue ? [inputValue, text].join(' ') : text;
 						session.controller.updateInput(inputValue);
-						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !waitingForInput) {
+						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !waitingForInput && !disableTimeout) {
 							acceptTranscriptionScheduler.schedule();
 						}
 					}
@@ -318,6 +325,12 @@ class VoiceChatSessions {
 					break;
 			}
 		}));
+
+		return {
+			setTimeoutDisabled: (disabled: boolean) => { disableTimeout = disabled; },
+			accept: () => session.controller.acceptInput(),
+			stop: () => this.stop(sessionId, controller.context)
+		};
 	}
 
 	private onDidSpeechToTextSessionStart(controller: IVoiceChatSessionController, disposables: DisposableStore): void {
@@ -386,11 +399,22 @@ class VoiceChatSessions {
 	}
 }
 
-async function awaitHoldAndAccept(instantiationService: IInstantiationService, holdMode?: Promise<void>): Promise<void> {
-	const now = Date.now();
+async function awaitHoldAndAccept(session: IVoiceChatSession, holdMode?: Promise<void>): Promise<void> {
+	if (!holdMode) {
+		return;
+	}
+
+	let acceptVoice = false;
+	const handle = disposableTimeout(() => {
+		acceptVoice = true;
+		session.setTimeoutDisabled(true);
+	}, 250);
+
 	await holdMode;
-	if (Date.now() - now > 250) {
-		VoiceChatSessions.getInstance(instantiationService).accept();
+	handle.dispose();
+
+	if (acceptVoice) {
+		session.accept();
 	}
 }
 
@@ -411,9 +435,9 @@ class VoiceChatWithHoldModeAction extends Action2 {
 			return;
 		}
 
-		VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+		const session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 
-		awaitHoldAndAccept(instantiationService, holdMode);
+		awaitHoldAndAccept(session, holdMode);
 	}
 }
 
@@ -505,7 +529,6 @@ export class StartVoiceChatAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const commandService = accessor.get(ICommandService);
 		const keybindingService = accessor.get(IKeybindingService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
@@ -522,15 +545,14 @@ export class StartVoiceChatAction extends Action2 {
 			widget.focusInput();
 		}
 
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
-		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-		} else {
-			// fallback to Quick Voice Chat command
-			commandService.executeCommand(QuickVoiceChatAction.ID, context);
+		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused') ?? await VoiceChatSessionControllerFactory.create(accessor, 'quick');
+		if (!controller) {
+			return;
 		}
 
-		awaitHoldAndAccept(instantiationService, holdMode);
+		const session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+
+		awaitHoldAndAccept(session, holdMode);
 	}
 }
 
