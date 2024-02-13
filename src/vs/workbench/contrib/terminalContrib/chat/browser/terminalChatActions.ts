@@ -86,7 +86,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_INPUT,
 		group: 'main',
 		order: 1,
-		// when: TerminalContextKeys.chatSessionInProgress.negate(),
+		when: TerminalContextKeys.chatRequestActive.negate(),
 		// TODO:
 		// when: CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.isEqualTo(false)
 	},
@@ -110,6 +110,7 @@ registerActiveXtermAction({
 	menu: {
 		id: MENU_TERMINAL_CHAT_INPUT,
 		group: 'main',
+		when: TerminalContextKeys.chatRequestActive,
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
