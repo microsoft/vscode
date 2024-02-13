@@ -141,7 +141,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			// gesture and not e.g. when focus was lost because that
 			// could mean the user clicked into the editor directly.
 			if (reason === QuickInputHideReason.Gesture) {
-				this.editorViewState.restore();
+				this.editorViewState.restore(true);
 			}
 			this.searchModel.searchResult.toggleHighlights(false);
 		}));
