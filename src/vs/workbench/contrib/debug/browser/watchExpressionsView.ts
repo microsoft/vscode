@@ -259,7 +259,7 @@ class WatchExpressionsDataSource extends AbstractExpressionDataSource<IDebugServ
 		return isDebugService(element) || element.hasChildren;
 	}
 
-	public override doGetChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
+	protected override doGetChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
 		if (isDebugService(element)) {
 			const debugService = element as IDebugService;
 			const watchExpressions = debugService.getModel().getWatchExpressions();

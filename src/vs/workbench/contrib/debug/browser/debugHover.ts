@@ -414,7 +414,7 @@ class DebugHoverDataSource extends AbstractExpressionDataSource<IExpression, IEx
 		return element.hasChildren;
 	}
 
-	public override doGetChildren(element: IExpression): Promise<IExpression[]> {
+	protected override doGetChildren(element: IExpression): Promise<IExpression[]> {
 		return element.getChildren();
 	}
 }
