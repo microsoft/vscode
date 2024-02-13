@@ -44,6 +44,7 @@ export const enum TerminalContextKeyStrings {
 	ChatActiveRequest = 'terminalChatActiveRequest',
 	ChatInputHasText = 'terminalChatInputHasText',
 	ChatAgentRegistered = 'terminalChatAgentRegistered',
+	ChatResponseEditorFocused = 'terminalChatResponseEditorFocused',
 }
 
 export namespace TerminalContextKeys {
@@ -179,4 +180,7 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal chat agent has been registered */
 	export const chatAgentRegistered = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether the terminal chat agent has been registered."));
+
+	/** Whether the chat response editor is focused */
+	export const chatResponseEditorFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatResponseEditorFocused, false, localize('chatResponseEditorFocusedContextKey', "Whether the chat response editor is focused."));
 }

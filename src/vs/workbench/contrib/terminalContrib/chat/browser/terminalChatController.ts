@@ -65,6 +65,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._ctxHasActiveRequest = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
 		this._ctxHasTerminalAgent = TerminalContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(this._contextKeyService);
+
 		if (!this._chatAgentService.hasAgent('terminal')) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
 				if (this._chatAgentService.getAgent('terminal')) {
@@ -161,7 +162,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (codeBlock) {
 			// TODO: check the SR experience
 			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._accessibilityRequestId);
-			this._ctxLastResponseType.set(InlineChatResponseTypes.OnlyEdits);
 		} else {
 			this._chatWidget?.rawValue?.renderMessage(message, this._accessibilityRequestId, requestId);
 			this._ctxLastResponseType.set(InlineChatResponseTypes.OnlyMessages);

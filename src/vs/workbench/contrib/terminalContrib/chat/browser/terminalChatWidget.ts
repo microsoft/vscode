@@ -23,15 +23,16 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 export class TerminalChatWidget extends Disposable {
-	private _scopedInstantiationService: IInstantiationService;
-	private _widgetContainer: HTMLElement;
-	private _chatWidgetFocused: IContextKey<boolean>;
-	private _chatWidgetVisible: IContextKey<boolean>;
+	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _widgetContainer: HTMLElement;
+	private readonly _ctxChatWidgetFocused: IContextKey<boolean>;
+	private readonly _ctxChatWidgetVisible: IContextKey<boolean>;
+	private readonly _ctxResponseEditorFocused!: IContextKey<boolean>;
 
 	private readonly _inlineChatWidget: InlineChatWidget;
-	private _responseWidget: CodeEditorWidget | undefined;
-	private _responseElement: HTMLElement;
+	private readonly _responseElement: HTMLElement;
 	private readonly _focusTracker: IFocusTracker;
+	private _responseWidget: CodeEditorWidget | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -44,8 +45,10 @@ export class TerminalChatWidget extends Disposable {
 		super();
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-		this._chatWidgetFocused = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
-		this._chatWidgetVisible = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
+		this._ctxChatWidgetFocused = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
+		this._ctxChatWidgetVisible = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
+		this._ctxResponseEditorFocused = TerminalContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
+
 		this._widgetContainer = document.createElement('div');
 		this._widgetContainer.classList.add('terminal-inline-chat');
 		this._container.appendChild(this._widgetContainer);
@@ -86,7 +89,7 @@ export class TerminalChatWidget extends Disposable {
 		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
 		this._responseElement.classList.remove('hide');
 		if (!this._responseWidget) {
-			this._responseWidget = this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {}, { isSimpleWidget: true });
+			this._responseWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {}, { isSimpleWidget: true }));
 			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: codeBlock })).then((model) => {
 				if (!model || !this._responseWidget) {
 					return;
@@ -96,6 +99,12 @@ export class TerminalChatWidget extends Disposable {
 				const height = this._responseWidget.getContentHeight();
 				this._responseWidget.layout(new Dimension(400, height));
 			});
+			this._register(this._responseWidget.onDidFocusEditorText(() => {
+				this._ctxResponseEditorFocused.set(true);
+			}));
+			this._register(this._responseWidget.onDidBlurEditorText(() => {
+				this._ctxResponseEditorFocused.set(false);
+			}));
 		} else {
 			this._responseWidget.setValue(codeBlock);
 		}
@@ -116,15 +125,15 @@ export class TerminalChatWidget extends Disposable {
 	reveal(): void {
 		this._inlineChatWidget.layout(new Dimension(400, 150));
 		this._widgetContainer.classList.remove('hide');
-		this._chatWidgetFocused.set(true);
-		this._chatWidgetVisible.set(true);
+		this._ctxChatWidgetFocused.set(true);
+		this._ctxChatWidgetVisible.set(true);
 		this._inlineChatWidget.focus();
 	}
 	hide(): void {
 		this._responseElement?.classList.add('hide');
 		this._widgetContainer.classList.add('hide');
-		this._chatWidgetFocused.set(false);
-		this._chatWidgetVisible.set(false);
+		this._ctxChatWidgetFocused.set(false);
+		this._ctxChatWidgetVisible.set(false);
 		this._instance.focus();
 	}
 	cancel(): void {
