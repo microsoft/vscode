@@ -99,7 +99,7 @@ export class BulkEditPane extends ViewPane {
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
 		this._disposables.add(this._editorService.onDidCloseEditor((e) => {
-			if (this._multiDiffEditor && e.editor === this._multiDiffEditor.input) {
+			if (this._multiDiffEditor && e.editor === this._multiDiffEditor.input && e.groupId === this._multiDiffEditor.group?.id) {
 				this._multiDiffEditor = undefined;
 			}
 		}));
@@ -108,7 +108,6 @@ export class BulkEditPane extends ViewPane {
 	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
-		this._multiDiffEditor = undefined;
 		super.dispose();
 	}
 
@@ -284,8 +283,8 @@ export class BulkEditPane extends ViewPane {
 		this._sessionDisposables.clear();
 		if (this._multiDiffEditor && this._multiDiffEditor.input && this._multiDiffEditor.group) {
 			this._editorService.closeEditor({ editor: this._multiDiffEditor.input, groupId: this._multiDiffEditor.group.id });
+			this._multiDiffEditor = undefined;
 		}
-		this._multiDiffEditor = undefined;
 	}
 
 	toggleChecked() {
@@ -333,7 +332,6 @@ export class BulkEditPane extends ViewPane {
 		if (!fileOperations) {
 			return;
 		}
-
 		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
@@ -381,16 +379,15 @@ export class BulkEditPane extends ViewPane {
 				});
 			}
 		}
-		const multiDiffSource = URI.from({ scheme: 'refactor-preview', path: JSON.stringify(fileElement.edit.uri) });
+		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
-		this._multiDiffEditor =
-			await this._editorService.openEditor({
-				multiDiffSource: URI.revive(multiDiffSource),
-				resources,
-				label: label,
-				description: label,
-				options: options,
-			}) as MultiDiffEditor;
+		this._multiDiffEditor = await this._editorService.openEditor({
+			multiDiffSource,
+			resources,
+			label,
+			description: label,
+			options,
+		}) as MultiDiffEditor;
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
