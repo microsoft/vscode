@@ -1968,11 +1968,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	focusContainer() {
+	focusContainer(clearSelection: boolean = false) {
 		if (this._webviewFocused) {
 			this._webview?.focusWebview();
 		} else {
-			this._list.focusContainer();
+			this._list.focusContainer(clearSelection);
 		}
 	}
 

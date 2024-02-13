@@ -71,7 +71,7 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
-	focusContainer(): void;
+	focusContainer(clearSelection: boolean): void;
 	setCellEditorSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;

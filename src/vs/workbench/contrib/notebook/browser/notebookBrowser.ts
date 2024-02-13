@@ -521,7 +521,7 @@ export interface INotebookEditor {
 	/**
 	 * Focus the notebook cell list container
 	 */
-	focusContainer(): void;
+	focusContainer(clearSelection?: boolean): void;
 
 	hasEditorFocus(): boolean;
 	hasWebviewFocus(): boolean;
