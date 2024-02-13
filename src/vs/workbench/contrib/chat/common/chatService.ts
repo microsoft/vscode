@@ -159,6 +159,8 @@ export interface IChatProvider {
 export interface IChatFollowup {
 	kind: 'reply';
 	message: string;
+	agentId: string;
+	subCommand?: string;
 	title?: string;
 	tooltip?: string;
 }
@@ -260,13 +262,18 @@ export interface IChatTransferredSessionData {
 	inputValue: string;
 }
 
+export interface IChatSendRequestData {
+	responseCompletePromise: Promise<void>;
+	agent: IChatAgentData;
+	slashCommand?: IChatAgentCommand;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>;
 	onDidRegisterProvider: Event<{ providerId: string }>;
 	onDidUnregisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
@@ -281,7 +288,7 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: string, message: string): Promise<IChatSendRequestData | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;

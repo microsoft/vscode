@@ -100,7 +100,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp } from 'vs/base/common/numbers';
@@ -1047,13 +1047,21 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 
 interface SeparatorTemplate {
 	readonly label: IconLabel;
-	readonly disposables: IDisposable;
+	readonly disposables: DisposableStore;
 }
 
 class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorElement, void, SeparatorTemplate> {
 
 	static readonly TEMPLATE_ID = 'separator';
 	get templateId(): string { return SeparatorRenderer.TEMPLATE_ID; }
+
+	constructor(
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IKeybindingService	readonly keybindingService: IKeybindingService,
+		@IMenuService readonly menuService: IMenuService,
+		@ITelemetryService readonly telemetryService: ITelemetryService
+	) { }
 
 	renderTemplate(container: HTMLElement): SeparatorTemplate {
 		// hack
@@ -1062,11 +1070,16 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		// Use default cursor & disable hover for list item
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
 
+		const disposables = new DisposableStore();
 		const element = append(container, $('.separator-container'));
 		const label = new IconLabel(element, { supportIcons: true, });
 		append(element, $('.separator'));
+		disposables.add(label);
 
-		return { label, disposables: new DisposableStore() };
+		const toolBar = new MenuWorkbenchToolBar(append(element, $('.actions')), MenuId.SCMChangesSeparator, { moreIcon: Codicon.gear }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		disposables.add(toolBar);
+
+		return { label, disposables };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
 		templateData.label.setLabel(element.element.label, undefined, { title: element.element.ariaLabel });
@@ -1077,7 +1090,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 	}
 
 	disposeTemplate(templateData: SeparatorTemplate): void {
-		throw new Error('Method not implemented.');
+		templateData.disposables.dispose();
 	}
 
 }
@@ -1417,6 +1430,7 @@ const enum ViewSortKey {
 const Menus = {
 	ViewSort: new MenuId('SCMViewSort'),
 	Repositories: new MenuId('SCMRepositories'),
+	ChangesSettings: new MenuId('SCMChangesSettings'),
 };
 
 const ContextKeys = {
@@ -1438,7 +1452,16 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	title: localize('sortAction', "View & Sort"),
 	submenu: Menus.ViewSort,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
-	group: '0_view&sort'
+	group: '0_view&sort',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
+	title: localize('scmChanges', "Incoming & Outgoing"),
+	submenu: Menus.ChangesSettings,
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
+	group: '0_view&sort',
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(Menus.ViewSort, {
@@ -1446,6 +1469,150 @@ MenuRegistry.appendMenuItem(Menus.ViewSort, {
 	submenu: Menus.Repositories,
 	when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
 	group: '0_repositories'
+});
+
+abstract class SCMChangesSettingAction extends Action2 {
+	constructor(
+		private readonly settingKey: string,
+		private readonly settingValue: 'always' | 'auto' | 'never',
+		desc: Readonly<IAction2Options>) {
+		super({
+			...desc,
+			f1: false,
+			toggled: ContextKeyExpr.equals(`config.${settingKey}`, settingValue),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(this.settingKey, this.settingValue);
+	}
+}
+
+MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
+	title: localize('incomingChanges', "Show Incoming Changes"),
+	submenu: MenuId.SCMIncomingChangesSetting,
+	group: '1_incoming&outgoing',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
+	title: localize('incomingChanges', "Show Incoming Changes"),
+	submenu: MenuId.SCMIncomingChangesSetting,
+	group: '1_incoming&outgoing',
+	order: 1
+});
+
+registerAction2(class extends SCMChangesSettingAction {
+	constructor() {
+		super('scm.showIncomingChanges', 'always',
+			{
+				id: 'workbench.scm.action.showIncomingChanges.always',
+				title: localize('always', "Always"),
+				menu: { id: MenuId.SCMIncomingChangesSetting },
+			});
+	}
+});
+
+registerAction2(class extends SCMChangesSettingAction {
+	constructor() {
+		super('scm.showIncomingChanges', 'auto',
+			{
+				id: 'workbench.scm.action.showIncomingChanges.auto',
+				title: localize('auto', "Auto"),
+				menu: {
+					id: MenuId.SCMIncomingChangesSetting,
+				}
+			});
+	}
+});
+
+registerAction2(class extends SCMChangesSettingAction {
+	constructor() {
+		super('scm.showIncomingChanges', 'never',
+			{
+				id: 'workbench.scm.action.showIncomingChanges.never',
+				title: localize('never', "Never"),
+				menu: {
+					id: MenuId.SCMIncomingChangesSetting,
+				}
+			});
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
+	title: localize('outgoingChanges', "Show Outgoing Changes"),
+	submenu: MenuId.SCMOutgoingChangesSetting,
+	group: '1_incoming&outgoing',
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
+	title: localize('outgoingChanges', "Show Outgoing Changes"),
+	submenu: MenuId.SCMOutgoingChangesSetting,
+	group: '1_incoming&outgoing',
+	order: 2
+});
+
+registerAction2(class extends SCMChangesSettingAction {
+	constructor() {
+		super('scm.showOutgoingChanges', 'always',
+			{
+				id: 'workbench.scm.action.showOutgoingChanges.always',
+				title: localize('always', "Always"),
+				menu: {
+					id: MenuId.SCMOutgoingChangesSetting,
+
+				}
+			});
+	}
+});
+
+registerAction2(class extends SCMChangesSettingAction {
+	constructor() {
+		super('scm.showOutgoingChanges', 'auto',
+			{
+				id: 'workbench.scm.action.showOutgoingChanges.auto',
+				title: localize('auto', "Auto"),
+				menu: {
+					id: MenuId.SCMOutgoingChangesSetting,
+				}
+			});
+	}
+});
+
+registerAction2(class extends SCMChangesSettingAction {
+	constructor() {
+		super('scm.showOutgoingChanges', 'never',
+			{
+				id: 'workbench.scm.action.showOutgoingChanges.never',
+				title: localize('never', "Never"),
+				menu: {
+					id: MenuId.SCMOutgoingChangesSetting,
+				}
+			});
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.scm.showChangesSummary',
+			title: localize('showChangesSummary', "Show Changes Summary"),
+			f1: false,
+			toggled: ContextKeyExpr.equals('config.scm.showChangesSummary', true),
+			menu: [
+				{ id: MenuId.SCMChangesSeparator, order: 3 },
+				{ id: Menus.ChangesSettings, order: 3 },
+			]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const configValue = configurationService.getValue('scm.showChangesSummary') === true;
+		configurationService.updateValue('scm.showChangesSummary', !configValue);
+	}
 });
 
 class RepositoryVisibilityAction extends Action2 {
@@ -3392,7 +3559,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let incomingHistoryItemGroup = historyProviderCacheEntry?.incomingHistoryItemGroup;
 		let outgoingHistoryItemGroup = historyProviderCacheEntry?.outgoingHistoryItemGroup;
 
-		if (!incomingHistoryItemGroup || !outgoingHistoryItemGroup) {
+		if (!incomingHistoryItemGroup && !outgoingHistoryItemGroup) {
 			// Common ancestor, ahead, behind
 			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
 			if (!ancestor) {

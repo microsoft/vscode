@@ -138,12 +138,11 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
 
 	get referenceText(): string {
-		return this.text;
+		return this.text.replace(chatVariableLeader, '');
 	}
 
 	get promptText(): string {
-		// This needs to be dynamically generated for de-duping
-		return ``;
+		return this.text;
 	}
 }
 

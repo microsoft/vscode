@@ -118,11 +118,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		return phrases;
 	}
 
-	private toText(value: IPhraseValue, type: PhraseTextType, options: IVoiceChatSessionOptions): string {
-		if (type === PhraseTextType.COMMAND && options.usesAgents) {
-			type = PhraseTextType.AGENT_AND_COMMAND; // rewrite `/fix` to `@workspace /foo` in this case
-		}
-
+	private toText(value: IPhraseValue, type: PhraseTextType): string {
 		switch (type) {
 			case PhraseTextType.AGENT:
 				return `${VoiceChatService.AGENT_PREFIX}${value.agent}`;
@@ -158,7 +154,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 							if (options.usesAgents && startsWithAgent && !detectedAgent && !detectedSlashCommand && originalWords.length >= 4) {
 								const phrase = this.phrases.get(originalWords.slice(0, 4).map(word => this.normalizeWord(word)).join(' '));
 								if (phrase) {
-									transformedWords = [this.toText(phrase, PhraseTextType.AGENT_AND_COMMAND, options), ...originalWords.slice(4)];
+									transformedWords = [this.toText(phrase, PhraseTextType.AGENT_AND_COMMAND), ...originalWords.slice(4)];
 
 									waitingForInput = originalWords.length === 4;
 
@@ -173,7 +169,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 							if (options.usesAgents && startsWithAgent && !detectedAgent && !transformedWords && originalWords.length >= 2) {
 								const phrase = this.phrases.get(originalWords.slice(0, 2).map(word => this.normalizeWord(word)).join(' '));
 								if (phrase) {
-									transformedWords = [this.toText(phrase, PhraseTextType.AGENT, options), ...originalWords.slice(2)];
+									transformedWords = [this.toText(phrase, PhraseTextType.AGENT), ...originalWords.slice(2)];
 
 									waitingForInput = originalWords.length === 2;
 
@@ -187,7 +183,10 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 							if (startsWithSlashCommand && !detectedSlashCommand && !transformedWords && originalWords.length >= 2) {
 								const phrase = this.phrases.get(originalWords.slice(0, 2).map(word => this.normalizeWord(word)).join(' '));
 								if (phrase) {
-									transformedWords = [this.toText(phrase, PhraseTextType.COMMAND, options), ...originalWords.slice(2)];
+									transformedWords = [this.toText(phrase, options.usesAgents && !detectedAgent ?
+										PhraseTextType.AGENT_AND_COMMAND : 	// rewrite `/fix` to `@workspace /foo` in this case
+										PhraseTextType.COMMAND				// when we have not yet detected an agent before
+									), ...originalWords.slice(2)];
 
 									waitingForInput = originalWords.length === 2;
 

@@ -500,12 +500,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		for (const item of element.content) {
 			if (Array.isArray(item)) {
-				templateData.elementDisposables.add(new ChatFollowups(
-					templateData.value,
-					item,
-					undefined,
-					followup => this._onDidClickFollowup.fire(followup),
-					templateData.contextKeyService));
+				const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
+				templateData.elementDisposables.add(
+					scopedInstaService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(
+						ChatFollowups,
+						templateData.value,
+						item,
+						undefined,
+						followup => this._onDidClickFollowup.fire(followup)));
 			} else {
 				const result = this.renderMarkdown(item as IMarkdownString, element, templateData);
 				templateData.value.appendChild(result.element);

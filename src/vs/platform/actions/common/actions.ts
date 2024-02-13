@@ -108,10 +108,13 @@ export class MenuId {
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
+	static readonly SCMChangesSeparator = new MenuId('SCMChangesSeparator');
 	static readonly SCMIncomingChanges = new MenuId('SCMIncomingChanges');
 	static readonly SCMIncomingChangesContext = new MenuId('SCMIncomingChangesContext');
+	static readonly SCMIncomingChangesSetting = new MenuId('SCMIncomingChangesSetting');
 	static readonly SCMOutgoingChanges = new MenuId('SCMOutgoingChanges');
 	static readonly SCMOutgoingChangesContext = new MenuId('SCMOutgoingChangesContext');
+	static readonly SCMOutgoingChangesSetting = new MenuId('SCMOutgoingChangesSetting');
 	static readonly SCMIncomingChangesAllChangesContext = new MenuId('SCMIncomingChangesAllChangesContext');
 	static readonly SCMIncomingChangesHistoryItemContext = new MenuId('SCMIncomingChangesHistoryItemContext');
 	static readonly SCMOutgoingChangesAllChangesContext = new MenuId('SCMOutgoingChangesAllChangesContext');

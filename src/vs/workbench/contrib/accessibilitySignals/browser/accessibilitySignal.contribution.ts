@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShowAccessibilityAlertHelp, ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
+import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -11,29 +11,29 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IAudioCueService, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { AudioCueLineDebuggerContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueDebuggerContribution';
-import { AudioCueLineFeatureContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueLineFeatureContribution';
+import { IAccessibilitySignalService, AccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignalLineDebuggerContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalDebuggerContribution';
+import { SignalLineFeatureContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalLineFeatureContribution';
 
-registerSingleton(IAudioCueService, AudioCueService, InstantiationType.Delayed);
+registerSingleton(IAccessibilitySignalService, AccessibilitySignalService, InstantiationType.Delayed);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SignalLineFeatureContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AccessibilitySignalLineDebuggerContribution, LifecyclePhase.Restored);
 
-export const audioCueFeatureBase: IConfigurationPropertySchema = {
+export const soundFeatureBase: IConfigurationPropertySchema = {
 	'type': 'string',
 	'enum': ['auto', 'on', 'off'],
 	'default': 'auto',
 	'enumDescriptions': [
-		localize('audioCues.enabled.auto', "Enable audio cue when a screen reader is attached."),
-		localize('audioCues.enabled.on', "Enable audio cue."),
-		localize('audioCues.enabled.off', "Disable audio cue.")
+		localize('audioCues.enabled.auto', "Enable sound when a screen reader is attached."),
+		localize('audioCues.enabled.on', "Enable sound."),
+		localize('audioCues.enabled.off', "Disable sound.")
 	],
 	tags: ['accessibility'],
 };
 const markdownDeprecationMessage = localize('audioCues.enabled.deprecated', "This setting is deprecated. Use `signals` settings instead.");
-const audioCueDeprecatedFeatureBase: IConfigurationPropertySchema = {
-	...audioCueFeatureBase,
+const soundDeprecatedFeatureBase: IConfigurationPropertySchema = {
+	...soundFeatureBase,
 	markdownDeprecationMessage
 };
 
@@ -44,11 +44,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['accessibility']
 		},
 		'audioCues.volume': {
-			'description': localize('audioCues.volume', "The volume of the audio cues in percent (0-100)."),
-			'type': 'number',
-			'minimum': 0,
-			'maximum': 100,
-			'default': 70,
+			markdownDeprecationMessage: 'Deprecated. Use `accessibility.signals.sounds.volume` instead.',
 			tags: ['accessibility']
 		},
 		'audioCues.debouncePositionChanges': {
@@ -60,92 +56,92 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
-			...audioCueDeprecatedFeatureBase
+			...soundDeprecatedFeatureBase
 		},
 		'audioCues.lineHasInlineSuggestion': {
 			'description': localize('audioCues.lineHasInlineSuggestion', "Plays a sound when the active line has an inline suggestion."),
-			...audioCueDeprecatedFeatureBase
+			...soundDeprecatedFeatureBase
 		},
 		'audioCues.lineHasError': {
 			'description': localize('audioCues.lineHasError', "Plays a sound when the active line has an error."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.lineHasFoldedArea': {
 			'description': localize('audioCues.lineHasFoldedArea', "Plays a sound when the active line has a folded area that can be unfolded."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.lineHasWarning': {
 			'description': localize('audioCues.lineHasWarning', "Plays a sound when the active line has a warning."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 			default: 'off',
 		},
 		'audioCues.onDebugBreak': {
 			'description': localize('audioCues.onDebugBreak', "Plays a sound when the debugger stopped on a breakpoint."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.noInlayHints': {
 			'description': localize('audioCues.noInlayHints', "Plays a sound when trying to read a line with inlay hints that has no inlay hints."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.taskCompleted': {
 			'description': localize('audioCues.taskCompleted', "Plays a sound when a task is completed."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.taskFailed': {
 			'description': localize('audioCues.taskFailed', "Plays a sound when a task fails (non-zero exit code)."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.terminalCommandFailed': {
 			'description': localize('audioCues.terminalCommandFailed', "Plays a sound when a terminal command fails (non-zero exit code)."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.terminalQuickFix': {
 			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.terminalBell': {
 			'description': localize('audioCues.terminalBell', "Plays a sound when the terminal bell is ringing."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 			default: 'on'
 		},
 		'audioCues.diffLineInserted': {
 			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in Accessible Diff Viewer mode or to the next/previous change."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.diffLineDeleted': {
 			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in Accessible Diff Viewer mode or to the next/previous change."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.diffLineModified': {
 			'description': localize('audioCues.diffLineModified', "Plays a sound when the focus moves to a modified line in Accessible Diff Viewer mode or to the next/previous change."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.notebookCellCompleted': {
 			'description': localize('audioCues.notebookCellCompleted', "Plays a sound when a notebook cell execution is successfully completed."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.notebookCellFailed': {
 			'description': localize('audioCues.notebookCellFailed', "Plays a sound when a notebook cell execution fails."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 		},
 		'audioCues.chatRequestSent': {
 			'description': localize('audioCues.chatRequestSent', "Plays a sound when a chat request is made."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 			default: 'off'
 		},
 		'audioCues.chatResponsePending': {
 			'description': localize('audioCues.chatResponsePending', "Plays a sound on loop while the response is pending."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 			default: 'auto'
 		},
 		'audioCues.chatResponseReceived': {
 			'description': localize('audioCues.chatResponseReceived', "Plays a sound on loop while the response has been received."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 			default: 'off'
 		},
 		'audioCues.clear': {
 			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
-			...audioCueDeprecatedFeatureBase,
+			...soundDeprecatedFeatureBase,
 			default: 'off'
 		},
 		'audioCues.save': {
@@ -177,6 +173,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-registerAction2(ShowAudioCueHelp);
-registerAction2(ShowAccessibilityAlertHelp);
+registerAction2(ShowSignalSoundHelp);
+registerAction2(ShowAccessibilityAnnouncementHelp);
 

@@ -44,7 +44,7 @@ suite('VoiceChat', () => {
 		readonly onDidChangeAgents = Event.None;
 		registerAgent(agent: IChatAgent): IDisposable { throw new Error(); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
-		getFollowups(id: string, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
+		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
 		getAgents(): Array<IChatAgent> { return agents; }
 		getAgent(id: string): IChatAgent | undefined { throw new Error(); }
 		getDefaultAgent(): IChatAgent | undefined { throw new Error(); }
@@ -250,6 +250,43 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
 		assert.strictEqual(event?.text, options.usesAgents ? '@workspace for at workspace' : 'At workspace, for at workspace');
 		assert.strictEqual(event?.waitingForInput, false);
+
+		// Slash command detected after agent recognized
+		if (options.usesAgents) {
+			createSession(options);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'At workspace' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '@workspace');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'slash' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+			assert.strictEqual(event?.text, 'slash');
+			assert.strictEqual(event?.waitingForInput, false);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'slash fix' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+			assert.strictEqual(event?.text, '/fix');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'slash fix' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '/fix');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			createSession(options);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'At workspace' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '@workspace');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'slash fix' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '/fix');
+			assert.strictEqual(event?.waitingForInput, true);
+		}
 	}
 
 	test('waiting for input', async () => {
