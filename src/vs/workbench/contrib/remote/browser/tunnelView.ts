@@ -56,7 +56,7 @@ import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
-import { WorkbenchHoverDelegate } from 'vs/workbench/browser/hover';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
@@ -355,7 +355,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	) {
 		super();
 
-		this._hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate);
+		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate));
 	}
 
 	set actionRunner(actionRunner: ActionRunner) {

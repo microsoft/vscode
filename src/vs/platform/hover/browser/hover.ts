@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -228,4 +229,37 @@ export interface IHoverTarget extends IDisposable {
 	 * hover using `MouseEvent.pageY`.
 	 */
 	y?: number;
+}
+
+export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
+
+	readonly placement = 'mouse';
+
+	private _delay: number;
+	get delay(): number {
+		return this._delay;
+	}
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+
+		this._delay = this.configurationService.getValue<number>('workbench.hover.delay');
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.hover.delay')) {
+				this._delay = this.configurationService.getValue<number>('workbench.hover.delay');
+			}
+		}));
+	}
+
+	showHover(options: IHoverDelegateOptions): IHoverWidget | undefined {
+		return this.hoverService.showHover({
+			...options,
+			persistence: {
+				hideOnHover: true
+			}
+		});
+	}
 }

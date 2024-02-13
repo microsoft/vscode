@@ -55,7 +55,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { ILocalizedString } from 'vs/platform/action/common/action';
-import { WorkbenchHoverDelegate } from 'vs/workbench/browser/hover';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 const ItemHeight = 22;
 
@@ -1133,7 +1133,7 @@ export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeEle
 	}
 }
 
-class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
+class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
 	private readonly _onDidScrollToEnd = new Emitter<LoadMoreCommand>();
 	readonly onDidScrollToEnd: Event<LoadMoreCommand> = this._onDidScrollToEnd.event;
 
@@ -1148,8 +1148,10 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 	) {
+		super();
+
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate);
+		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate));
 	}
 
 	private uri: URI | undefined;

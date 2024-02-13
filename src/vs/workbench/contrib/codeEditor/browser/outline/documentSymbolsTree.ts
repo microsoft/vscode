@@ -25,9 +25,9 @@ import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/out
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchHoverDelegate } from 'vs/workbench/browser/hover';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -115,7 +115,7 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 	}
 }
 
-export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
+export class DocumentSymbolRenderer extends Disposable implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
 
 	readonly templateId: string = DocumentSymbolTemplate.id;
 
@@ -128,7 +128,9 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		this._hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate);
+		super();
+
+		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate));
 	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {

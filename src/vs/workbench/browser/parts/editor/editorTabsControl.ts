@@ -45,7 +45,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { WorkbenchHoverDelegate } from 'vs/workbench/browser/hover';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -123,6 +123,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private renderDropdownAsChildElement: boolean;
 
+	private readonly hoverDelegate: IHoverDelegate;
+
 	constructor(
 		protected readonly parent: HTMLElement,
 		protected readonly editorPartsView: IEditorPartsView,
@@ -160,6 +162,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
 
 		this.renderDropdownAsChildElement = false;
+
+		this.hoverDelegate = this._register(scopedInstantiationService.createInstance(WorkbenchHoverDelegate));
 
 		this.create(parent);
 	}
@@ -451,7 +455,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected getHoverDelegate(): IHoverDelegate {
-		return this.instantiationService.createInstance(WorkbenchHoverDelegate);
+		return this.hoverDelegate;
 	}
 
 	protected updateTabHeight(): void {
