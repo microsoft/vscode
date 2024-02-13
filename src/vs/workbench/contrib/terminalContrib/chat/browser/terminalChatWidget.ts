@@ -31,7 +31,6 @@ export class TerminalChatWidget extends Disposable {
 	private _responseElement: HTMLElement;
 	private readonly _focusTracker: IFocusTracker;
 
-
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _instance: ITerminalInstance,
@@ -129,6 +128,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 	cancel(): void {
 		// TODO: Impl
+		this._inlineChatWidget.value = '';
 	}
 	input(): string {
 		return this._inlineChatWidget.value;

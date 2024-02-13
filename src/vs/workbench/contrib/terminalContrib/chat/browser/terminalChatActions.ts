@@ -6,7 +6,6 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize2 } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -73,7 +72,7 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		// TerminalContextKeys.chatInputHasText
+		TerminalContextKeys.chatRequestActive.negate()
 	),
 	icon: Codicon.send,
 	keybinding: {
@@ -109,8 +108,8 @@ registerActiveXtermAction({
 	),
 	icon: Codicon.debugStop,
 	menu: {
-		id: MenuId.ChatExecute,
-		group: 'navigation',
+		id: MENU_TERMINAL_CHAT_INPUT,
+		group: 'main',
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {

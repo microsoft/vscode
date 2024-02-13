@@ -17,9 +17,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { generateUuid } from 'vs/base/common/uuid';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { marked } from 'vs/base/common/marked/marked';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
@@ -39,7 +42,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	// private _sessionCtor: CancelablePromise<void> | undefined;
 	// private _activeSession?: Session;
-	// private readonly _ctxHasActiveRequest: IContextKey<boolean>;
+	private readonly _ctxHasActiveRequest!: IContextKey<boolean>;
+
+	private _cancellationTokenSource!: CancellationTokenSource;
+
 	// private _isVisible: boolean = false;
 	// private _strategy: EditStrategy | undefined;
 
@@ -56,7 +62,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		// @IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
 		// @IInstantiationService private readonly _instantiationService: IInstantiationService,
 		// @ICommandService private readonly _commandService: ICommandService,
 		// @IInlineChatSavingService private readonly _inlineChatSavingService: IInlineChatSavingService
@@ -65,7 +72,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
 			return;
 		}
-		// this._ctxHasActiveRequest = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
+		this._ctxHasActiveRequest = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
+		this._cancellationTokenSource = new CancellationTokenSource();
 		// this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(this._contextKeyService);
 	}
 
@@ -105,8 +113,15 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		});
 	}
 
+	cancel(): void {
+		this._cancellationTokenSource.cancel();
+	}
+
 	async acceptInput(): Promise<void> {
 		let message = '';
+		this._chatAccessibilityService.acceptRequest();
+		this._ctxHasActiveRequest.set(true);
+		const cancellationToken = this._cancellationTokenSource.token;
 		const progressCallback = (progress: IChatProgress) => {
 			// if (token.isCancellationRequested) {
 			// 	return;
@@ -137,15 +152,19 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatWidget?.rawValue?.setValue();
 
 		// TODO: use token
-		await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
+		await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], cancellationToken);
 		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
 		this._requestId++;
+		if (cancellationToken.isCancellationRequested) {
+			return;
+		}
 		if (codeBlock) {
 			// TODO: check the SR experience
 			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._requestId);
 		} else {
 			this._chatWidget?.rawValue?.renderMessage(message, this._requestId);
 		}
+		this._ctxHasActiveRequest.set(false);
 	}
 
 	reveal(): void {
