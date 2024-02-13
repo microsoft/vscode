@@ -1,10 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=�������� �������� "������� � ������� %1" � ����������� ���� ����� ���������� Windows
-AddContextMenuFolders=�������� �������� "������� � ������� %1" � ����������� ���� �������� ����������
-AssociateWithFiles=���������������� %1 � �������� ��������� ��� �������������� ����� ������
-AddToPath=�������� � PATH (�������� ����� ������������)
-RunAfter=��������� %1 ����� ���������
-Other=������:
-SourceFile=�������� ���� %1
-OpenWithCodeContextMenu=������� � ������� %1
+AddContextMenuFiles=Добавить действие "Открыть с помощью %1" в контекстное меню файла проводника Windows
+AddContextMenuFolders=Добавить действие "Открыть с помощью %1" в контекстное меню каталога проводника
+AssociateWithFiles=Зарегистрировать %1 в качестве редактора для поддерживаемых типов файлов
+AddToPath=Добавить в PATH (доступно после перезагрузки)
+RunAfter=Запустить %1 после установки
+Other=Другое:
+SourceFile=Исходный файл %1
+OpenWithCodeContextMenu=Открыть с помощью %1
 UpdatingVisualStudioCode=������������� Visual Studio Code...
