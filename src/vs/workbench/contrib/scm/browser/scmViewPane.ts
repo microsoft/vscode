@@ -1430,6 +1430,7 @@ const enum ViewSortKey {
 const Menus = {
 	ViewSort: new MenuId('SCMViewSort'),
 	Repositories: new MenuId('SCMRepositories'),
+	ChangesSettings: new MenuId('SCMChangesSettings'),
 };
 
 const ContextKeys = {
@@ -1451,7 +1452,16 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	title: localize('sortAction', "View & Sort"),
 	submenu: Menus.ViewSort,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
-	group: '0_view&sort'
+	group: '0_view&sort',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
+	title: localize('scmChanges', "Incoming & Outgoing"),
+	submenu: Menus.ChangesSettings,
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
+	group: '0_view&sort',
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(Menus.ViewSort, {
@@ -1486,16 +1496,20 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	order: 1
 });
 
+MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
+	title: localize('incomingChanges', "Show Incoming Changes"),
+	submenu: MenuId.SCMIncomingChangesSetting,
+	group: '1_incoming&outgoing',
+	order: 1
+});
+
 registerAction2(class extends SCMChangesSettingAction {
 	constructor() {
 		super('scm.showIncomingChanges', 'always',
 			{
 				id: 'workbench.scm.action.showIncomingChanges.always',
 				title: localize('always', "Always"),
-				menu: {
-					id: MenuId.SCMIncomingChangesSetting,
-
-				}
+				menu: { id: MenuId.SCMIncomingChangesSetting },
 			});
 	}
 });
@@ -1527,6 +1541,13 @@ registerAction2(class extends SCMChangesSettingAction {
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
+	title: localize('outgoingChanges', "Show Outgoing Changes"),
+	submenu: MenuId.SCMOutgoingChangesSetting,
+	group: '1_incoming&outgoing',
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	title: localize('outgoingChanges', "Show Outgoing Changes"),
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
@@ -1580,10 +1601,10 @@ registerAction2(class extends Action2 {
 			title: localize('showChangesSummary', "Show Changes Summary"),
 			f1: false,
 			toggled: ContextKeyExpr.equals('config.scm.showChangesSummary', true),
-			menu: {
-				id: MenuId.SCMChangesSeparator,
-				order: 3
-			}
+			menu: [
+				{ id: MenuId.SCMChangesSeparator, order: 3 },
+				{ id: Menus.ChangesSettings, order: 3 },
+			]
 		});
 	}
 
