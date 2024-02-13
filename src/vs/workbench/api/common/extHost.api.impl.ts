@@ -1399,7 +1399,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const chat: typeof vscode.chat = {
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
-				return extHostChatProvider.registerLanguageModel(extension.identifier, id, provider, metadata);
+				return extHostChatProvider.registerLanguageModel(extension, id, provider, metadata);
 			},
 			requestLanguageModelAccess(id, options) {
 				checkProposedApiEnabled(extension, 'chatRequestAccess');
@@ -1667,6 +1667,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
+			ChatAgentRequestTurn: extHostTypes.ChatAgentRequestTurn,
+			ChatAgentResponseTurn: extHostTypes.ChatAgentResponseTurn,
+			LanguageModelSystemMessage: extHostTypes.LanguageModelSystemMessage,
+			LanguageModelUserMessage: extHostTypes.LanguageModelUserMessage,
+			LanguageModelAssistantMessage: extHostTypes.LanguageModelAssistantMessage,
 		};
 	};
 }

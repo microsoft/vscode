@@ -747,7 +747,7 @@ export class TimelinePane extends ViewPane {
 				}
 
 				const iterator = timeline.items[Symbol.iterator]();
-				sources.push({ timeline: timeline, iterator: iterator, nextItem: iterator.next() });
+				sources.push({ timeline, iterator, nextItem: iterator.next() });
 			}
 
 			this._visibleItemCount = hasAnyItems ? 1 : 0;
@@ -1046,7 +1046,7 @@ export class TimelinePane extends ViewPane {
 					this.tree.domFocus();
 				}
 			},
-			getActionsContext: (): TimelineActionContext => ({ uri: this.uri, item: item }),
+			getActionsContext: (): TimelineActionContext => ({ uri: this.uri, item }),
 			actionRunner: new TimelineActionRunner()
 		});
 	}
@@ -1068,13 +1068,13 @@ class TimelineElementTemplate implements IDisposable {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate: hoverDelegate });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
 
 		const actionsContainer = DOM.append(this.iconLabel.element, DOM.$('.actions'));
-		this.actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: actionViewItemProvider });
+		this.actionBar = new ActionBar(actionsContainer, { actionViewItemProvider });
 	}
 
 	dispose() {
@@ -1109,7 +1109,7 @@ class TimelineActionRunner extends ActionRunner {
 				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
 				source: item.source,
-				uri: uri
+				uri
 			},
 			uri,
 			item.source,
@@ -1212,7 +1212,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		template.timestamp.ariaLabel = item.relativeTimeFullWord ?? '';
 		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
-		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;
+		template.actionBar.context = { uri: this.uri, item } as TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();
 		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
 

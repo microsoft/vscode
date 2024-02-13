@@ -108,6 +108,7 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'copy',
 						codeBlockIndex: context.codeBlockIndex,
@@ -151,6 +152,7 @@ export function registerChatCodeBlockActions() {
 			agentId: context.element.agent?.id,
 			sessionId: context.element.sessionId,
 			requestId: context.element.requestId,
+			result: context.element.result,
 			action: {
 				kind: 'copy',
 				codeBlockIndex: context.codeBlockIndex,
@@ -325,6 +327,7 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'insert',
 						codeBlockIndex: context.codeBlockIndex,
@@ -370,6 +373,7 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'insert',
 						codeBlockIndex: context.codeBlockIndex,
@@ -383,7 +387,10 @@ export function registerChatCodeBlockActions() {
 
 	const shellLangIds = [
 		'fish',
+		'ps1',
+		'pwsh',
 		'powershell',
+		'sh',
 		'shellscript',
 		'zsh'
 	];
@@ -464,6 +471,7 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'runInTerminal',
 						codeBlockIndex: context.codeBlockIndex,

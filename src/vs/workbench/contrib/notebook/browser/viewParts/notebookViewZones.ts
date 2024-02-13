@@ -149,6 +149,8 @@ export class NotebookViewZones extends Disposable {
 			return;
 		}
 
+		this._updateWhitespace(this._zones[id]);
+
 		const isInHiddenArea = this._isInHiddenRanges(zoneWidget.zone);
 
 		if (isInHiddenArea) {

@@ -426,7 +426,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined {
 		const trustedExtensionAuthAccess = this.productService.trustedExtensionAuthAccess;
 		if (Array.isArray(trustedExtensionAuthAccess)) {
-			return trustedExtensionAuthAccess.includes(extensionId) ?? undefined;
+			if (trustedExtensionAuthAccess.includes(extensionId)) {
+				return true;
+			}
 		} else if (trustedExtensionAuthAccess?.[providerId]?.includes(extensionId)) {
 			return true;
 		}
@@ -896,7 +898,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				: nls.localize('notUsed', "Has not used this account");
 			let tooltip: string | undefined;
 			if (extension.trusted) {
-				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and has access to this account");
+				tooltip = nls.localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and\nalways has access to this account");
 			}
 			return {
 				label: extension.name,

@@ -88,7 +88,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -1057,33 +1057,33 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-class StandaloneAudioService implements IAudioCueService {
+class StandaloneAccessbilitySignalService implements IAccessibilitySignalService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
+	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
 	}
 
-	async playAudioCues(cues: AudioCue[]): Promise<void> {
+	async playAccessibilitySignals(cues: AccessibilitySignal[]): Promise<void> {
 	}
 
-	isCueEnabled(cue: AudioCue): boolean {
+	isSoundEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
 
-	isAlertEnabled(cue: AudioCue): boolean {
+	isAnnouncementEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
 
-	onEnabledChanged(cue: AudioCue): Event<void> {
+	onSoundEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
-	onAlertEnabledChanged(cue: AudioCue): Event<void> {
+	onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
-	playAudioCueLoop(cue: AudioCue): IDisposable {
+	playSignalLoop(cue: AccessibilitySignal): IDisposable {
 		return toDisposable(() => { });
 	}
 }
@@ -1125,7 +1125,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Eager);
 registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Eager);
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
-registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
+registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

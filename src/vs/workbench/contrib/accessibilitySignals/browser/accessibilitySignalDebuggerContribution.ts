@@ -5,23 +5,23 @@
 
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
-import { IAudioCueService, AudioCue, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService, AccessibilitySignal, AccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 
-export class AudioCueLineDebuggerContribution
+export class AccessibilitySignalLineDebuggerContribution
 	extends Disposable
 	implements IWorkbenchContribution {
 
 	constructor(
 		@IDebugService debugService: IDebugService,
-		@IAudioCueService private readonly audioCueService: AudioCueService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: AccessibilitySignalService,
 	) {
 		super();
 
 		const isEnabled = observableFromEvent(
-			audioCueService.onEnabledChanged(AudioCue.onDebugBreak),
-			() => audioCueService.isCueEnabled(AudioCue.onDebugBreak)
+			accessibilitySignalService.onSoundEnabledChanged(AccessibilitySignal.onDebugBreak),
+			() => accessibilitySignalService.isSoundEnabled(AccessibilitySignal.onDebugBreak)
 		);
 		this._register(autorunWithStore((reader, store) => {
 			/** @description subscribe to debug sessions */
@@ -60,7 +60,7 @@ export class AudioCueLineDebuggerContribution
 			const stoppedDetails = session.getStoppedDetails();
 			const BREAKPOINT_STOP_REASON = 'breakpoint';
 			if (stoppedDetails && stoppedDetails.reason === BREAKPOINT_STOP_REASON) {
-				this.audioCueService.playAudioCue(AudioCue.onDebugBreak);
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.onDebugBreak);
 			}
 		});
 
