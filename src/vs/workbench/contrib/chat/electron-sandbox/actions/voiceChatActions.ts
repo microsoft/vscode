@@ -473,7 +473,7 @@ export class StartVoiceChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
+				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
 					ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT),
@@ -691,7 +691,7 @@ export class StopListeningAndSubmitAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
+				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
 					ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT),
