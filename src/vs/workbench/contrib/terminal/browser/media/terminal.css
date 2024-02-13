@@ -580,6 +580,6 @@
 	visibility: hidden;
 }
 
-.monaco-workbench .terminal-inline-chat-response.message {
+.monaco-workbench .terminal-inline-chat .chatMessageContent {
 	width: 400px !important;
 }

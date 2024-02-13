@@ -23,6 +23,7 @@ import { marked } from 'vs/base/common/marked/marked';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
@@ -37,11 +38,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	static activeChatWidget?: TerminalChatController;
 	private _chatWidget: Lazy<TerminalChatWidget> | undefined;
 	private _lastLayoutDimensions: IDimension | undefined;
-	private _requestId: number = 0;
+	private _accessibilityRequestId: number = 0;
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
 	private readonly _ctxHasActiveRequest!: IContextKey<boolean>;
 	private readonly _ctxHasTerminalAgent!: IContextKey<boolean>;
+	private readonly _ctxLastResponseType!: IContextKey<undefined | InlineChatResponseTypes>;
 
 	private _cancellationTokenSource!: CancellationTokenSource;
 
@@ -54,7 +56,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 	) {
 		super();
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
@@ -62,6 +64,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		this._ctxHasActiveRequest = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
 		this._ctxHasTerminalAgent = TerminalContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
+		this._ctxLastResponseType = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(this._contextKeyService);
 		if (!this._chatAgentService.hasAgent('terminal')) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
 				if (this._chatAgentService.getAgent('terminal')) {
@@ -131,10 +134,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.rawValue?.updateProgress(progress);
 		};
 		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
-
+		const requestId = generateUuid();
 		const requestProps: IChatAgentRequest = {
 			sessionId: generateUuid(),
-			requestId: generateUuid(),
+			requestId,
 			agentId,
 			message: this._chatWidget?.rawValue?.input() || '',
 			variables: resolvedVariables,
@@ -151,15 +154,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
-		this._requestId++;
+		this._accessibilityRequestId++;
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
 		if (codeBlock) {
 			// TODO: check the SR experience
-			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._requestId);
+			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._accessibilityRequestId);
 		} else {
-			this._chatWidget?.rawValue?.renderMessage(message, this._requestId);
+			this._chatWidget?.rawValue?.renderMessage(message, this._accessibilityRequestId, requestId);
+			this._ctxLastResponseType.set(InlineChatResponseTypes.OnlyMessages);
 		}
 		this._ctxHasActiveRequest.set(false);
 		this._chatWidget?.rawValue?.updateProgress();

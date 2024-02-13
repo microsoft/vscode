@@ -9,6 +9,7 @@ import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -73,13 +74,12 @@ registerActiveXtermAction({
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalContextKeys.chatRequestActive.negate(),
-		TerminalContextKeys.chatAgentRegistered
+		TerminalContextKeys.chatAgentRegistered,
+		CTX_INLINE_CHAT_EMPTY.negate()
 	),
 	icon: Codicon.send,
 	keybinding: {
-		when: TerminalContextKeys.chatRequestActive.negate(),
-		// TODO:
-		// when: CTX_INLINE_CHAT_FOCUSED,
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, TerminalContextKeys.chatRequestActive.negate()),
 		weight: KeybindingWeight.EditorCore + 7,
 		primary: KeyCode.Enter
 	},

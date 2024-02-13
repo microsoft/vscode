@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/terminalChatWidget';
@@ -82,8 +83,8 @@ export class TerminalChatWidget extends Disposable {
 		this._focusTracker = this._register(trackFocus(this._widgetContainer));
 	}
 	renderTerminalCommand(codeBlock: string, requestId: number): void {
-		this._responseElement.classList.remove('message', 'hide');
 		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
+		this._responseElement.classList.remove('hide');
 		if (!this._responseWidget) {
 			this._responseWidget = this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {}, { isSimpleWidget: true });
 			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: codeBlock })).then((model) => {
@@ -98,11 +99,9 @@ export class TerminalChatWidget extends Disposable {
 		}
 	}
 
-	renderMessage(message: string, requestId: number): void {
-		this._responseElement?.classList.remove('hide');
-		this._responseElement.classList.add('message');
-		this._chatAccessibilityService.acceptResponse(message, requestId);
-		this._responseElement.textContent = message;
+	renderMessage(message: string, accessibilityRequestId: number, requestId: string): void {
+		this._inlineChatWidget.updateChatMessage({ message: new MarkdownString(message), requestId, providerId: 'terminal' });
+		this._chatAccessibilityService.acceptResponse(message, accessibilityRequestId);
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
