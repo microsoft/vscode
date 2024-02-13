@@ -303,18 +303,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		if (index === 0 || this._notebookEditor.getLength() === 0) {
 			// the cell is at the beginning of the notebook
 			this._notebookEditor.revealOffsetInCenterIfOutsideViewport(0);
-		} else if (index >= this._notebookEditor.getLength()) {
-			// the cell is at the end of the notebook
-			const cell = this._notebookEditor.cellAt(this._notebookEditor.getLength() - 1)!;
-			const cellTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
-			const cellHeight = this._notebookEditor.getHeightOfElement(cell);
-
-			this._notebookEditor.revealOffsetInCenterIfOutsideViewport(cellTop + cellHeight);
 		} else {
-			const cell = this._notebookEditor.cellAt(index - 1);
-			if (cell) {
-				const cellTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
-				const cellHeight = this._notebookEditor.getHeightOfElement(cell);
+			// the cell is at the end of the notebook
+			const previousCell = this._notebookEditor.cellAt(Math.min(index - 1, this._notebookEditor.getLength() - 1));
+			if (previousCell) {
+				const cellTop = this._notebookEditor.getAbsoluteTopOfElement(previousCell);
+				const cellHeight = this._notebookEditor.getHeightOfElement(previousCell);
 
 				this._notebookEditor.revealOffsetInCenterIfOutsideViewport(cellTop + cellHeight);
 			}
