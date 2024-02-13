@@ -140,7 +140,7 @@ export const enum PosixShellType {
 	Csh = 'csh',
 	Ksh = 'ksh',
 	Zsh = 'zsh',
-	Python = 'Python'
+	Python = 'python'
 
 }
 export const enum WindowsShellType {

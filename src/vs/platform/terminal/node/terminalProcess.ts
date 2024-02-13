@@ -403,11 +403,19 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return;
 		}
 		this._currentTitle = ptyProcess.process; // shell will tell us its own title
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle }); // fire property chain
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) }); /// FOR MAC AND LINUX ITS JUST MATTER OF CHECKING THE TITLE
+		this._logService.info(this.currentTitle, sanitizedTitle);
+		if (sanitizedTitle.toLowerCase().startsWith('python')) {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
+			// this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) }); /// FOR MAC AND LINUX ITS JUST MATTER OF CHECKING THE TITLE
+		} else {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
+		}
 	}
+
+
 
 	shutdown(immediate: boolean): void {
 		if (this._logService.getLevel() === LogLevel.Trace) {
