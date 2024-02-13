@@ -519,12 +519,12 @@ export class StartVoiceChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate()),
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
 				group: 'navigation',
 				order: -1
 			}, {
 				id: MENU_INLINE_CHAT_INPUT,
-				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
 			}]
