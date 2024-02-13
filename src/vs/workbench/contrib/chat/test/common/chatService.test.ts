@@ -24,7 +24,7 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatProgress, IChatProvider, IChatRequest } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatProvider, IChatRequest } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -75,7 +75,10 @@ const chatAgentWithUsedContext: IChatAgent = {
 			kind: 'usedContext'
 		});
 
-		return {};
+		return { metadata: { metadataKey: 'value' } };
+	},
+	async provideFollowups(sessionId, token) {
+		return [{ kind: 'reply', message: 'Something else', agentId: '', tooltip: 'a tooltip' } satisfies IChatFollowup];
 	},
 };
 
@@ -109,6 +112,9 @@ suite('Chat', () => {
 			metadata: { isDefault: true },
 			async invoke(request, progress, history, token) {
 				return {};
+			},
+			async provideSlashCommands(token) {
+				return [];
 			},
 		} as IChatAgent;
 		testDisposables.add(chatAgentService.registerAgent(agent));
@@ -224,6 +230,7 @@ suite('Chat', () => {
 
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
+		await response.responseCompletePromise;
 
 		assert.strictEqual(model.getRequests().length, 1);
 

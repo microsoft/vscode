@@ -1278,7 +1278,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 				: typeof options.content === 'string'
 					? options.content
 					: options.content.value
-		).length > 20;
+		).includes('\n');
 
 		return {
 			persistence: {

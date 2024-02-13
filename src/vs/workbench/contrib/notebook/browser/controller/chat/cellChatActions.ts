@@ -6,7 +6,6 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize, localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -15,16 +14,15 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
-import { CellEditState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
+import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -45,13 +43,8 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.acceptInput();
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.acceptInput();
 	}
 });
 
@@ -95,7 +88,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -114,10 +107,8 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const editor = context.notebookEditor;
-		const activeCell = context.cell;
-		await editor.focusNotebookCell(activeCell, 'editor');
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		await NotebookChatController.get(context.notebookEditor)?.focusNext();
 	}
 });
 
@@ -146,14 +137,8 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const activeCell = context.cell;
-		// Navigate to cell chat widget if it exists
-		const controller = NotebookCellChatController.get(activeCell);
-		if (controller && controller.isWidgetVisible()) {
-			controller.focusWidget();
-			return;
-		}
-
+		const index = context.notebookEditor.getCellIndex(context.cell);
+		await NotebookChatController.get(context.notebookEditor)?.focusNearestWidget(index, 'above');
 	}
 });
 
@@ -182,33 +167,12 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const editor = context.notebookEditor;
-		const activeCell = context.cell;
-
-		const idx = editor.getCellIndex(activeCell);
-		if (typeof idx !== 'number') {
-			return;
-		}
-
-		if (idx >= editor.getLength() - 1) {
-			// last one
-			return;
-		}
-
-		const targetCell = editor.cellAt(idx + 1);
-
-		if (targetCell) {
-			// Navigate to cell chat widget if it exists
-			const controller = NotebookCellChatController.get(targetCell);
-			if (controller && controller.isWidgetVisible()) {
-				controller.focusWidget();
-				return;
-			}
-		}
+		const index = context.notebookEditor.getCellIndex(context.cell);
+		await NotebookChatController.get(context.notebookEditor)?.focusNearestWidget(index, 'below');
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -224,17 +188,12 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.cancelCurrentRequest(false);
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.cancelCurrentRequest(false);
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -249,13 +208,8 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.dismiss(false);
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.dismiss();
 	}
 });
 
@@ -284,17 +238,12 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.acceptSession();
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.acceptSession();
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -314,20 +263,12 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		// todo discard
-		ctrl.dismiss(true);
-		// focus on the cell editor container
-		context.notebookEditor.focusNotebookCell(context.cell, 'container');
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.discard();
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: 'notebook.cell.feedbackHelpful',
@@ -342,17 +283,12 @@ registerAction2(class extends NotebookCellAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Helpful);
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Helpful);
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: 'notebook.cell.feedbackUnhelpful',
@@ -367,17 +303,12 @@ registerAction2(class extends NotebookCellAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Unhelpful);
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Unhelpful);
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: 'notebook.cell.reportIssueForBug',
@@ -392,13 +323,8 @@ registerAction2(class extends NotebookCellAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Bug);
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		NotebookChatController.get(context.notebookEditor)?.feedbackLast(InlineChatResponseFeedbackKind.Bug);
 	}
 });
 
@@ -458,7 +384,22 @@ registerAction2(class extends NotebookAction {
 	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, ...args: any[]): IInsertCellWithChatArgs | undefined {
 		const [firstArg] = args;
 		if (!firstArg) {
-			return undefined;
+			const notebookEditor = getEditorFromArgsOrActivePane(accessor);
+			if (!notebookEditor) {
+				return undefined;
+			}
+
+			const activeCell = notebookEditor.getActiveCell();
+			if (!activeCell) {
+				return undefined;
+			}
+
+			return {
+				cell: activeCell,
+				notebookEditor,
+				input: undefined,
+				autoSend: undefined
+			};
 		}
 
 		if (typeof firstArg !== 'object' || typeof firstArg.index !== 'number') {
@@ -481,37 +422,13 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: IInsertCellWithChatArgs) {
-		let newCell: ICellViewModel | null = null;
-		if (!context.cell) {
-			// insert at the top
-			const languageService = accessor.get(ILanguageService);
-			newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
-		} else {
-			newCell = insertNewCell(accessor, context, CellKind.Code, 'below', true);
-		}
-
-		if (!newCell) {
-			return;
-		}
-
-		await context.notebookEditor.focusNotebookCell(newCell, 'container');
-		const ctrl = NotebookCellChatController.get(newCell);
-		if (!ctrl) {
-			return;
-		}
-
-		context.notebookEditor.getCellsInRange().forEach(cell => {
-			const cellCtrl = NotebookCellChatController.get(cell);
-			if (cellCtrl) {
-				cellCtrl.dismiss(false);
-			}
-		});
-
-		ctrl.show(context.input, context.autoSend);
+		const index = Math.max(0, context.cell ? context.notebookEditor.getCellIndex(context.cell) + 1 : 0);
+		context.notebookEditor.focusContainer();
+		NotebookChatController.get(context.notebookEditor)?.run(index, context.input, context.autoSend);
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -536,27 +453,9 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const languageService = accessor.get(ILanguageService);
-		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
-
-		if (!newCell) {
-			return;
-		}
-		await context.notebookEditor.focusNotebookCell(newCell, 'container');
-		const ctrl = NotebookCellChatController.get(newCell);
-		if (!ctrl) {
-			return;
-		}
-
-		context.notebookEditor.getCellsInRange().forEach(cell => {
-			const cellCtrl = NotebookCellChatController.get(cell);
-			if (cellCtrl) {
-				cellCtrl.dismiss(false);
-			}
-		});
-
-		ctrl.show();
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		context.notebookEditor.focusContainer();
+		NotebookChatController.get(context.notebookEditor)?.run(0, '', false);
 	}
 });
 

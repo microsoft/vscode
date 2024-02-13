@@ -269,11 +269,13 @@ export class GettingStartedPage extends EditorPane {
 				const badgeelements = assertIsDefined(getWindow(this.container).document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
+						badgeelement.setAttribute('aria-checked', 'true');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
 						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 					}
 					else {
+						badgeelement.setAttribute('aria-checked', 'false');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
@@ -1400,7 +1402,7 @@ export class GettingStartedPage extends EditorPane {
 							'x-dispatch': 'selectTask:' + step.id,
 							'data-step-id': step.id,
 							'aria-expanded': 'false',
-							'aria-checked': '' + step.done,
+							'aria-checked': step.done ? 'true' : 'false',
 							'role': 'button',
 						},
 						codicon,

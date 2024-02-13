@@ -313,16 +313,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.creationOptions?.codeWindow ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, this._readOnly);
 		this._register(this._notebookOptions);
+		const eventDispatcher = this._register(new NotebookEventDispatcher());
 		this._viewContext = new ViewContext(
 			this._notebookOptions,
-			new NotebookEventDispatcher(),
+			eventDispatcher,
 			language => this.getBaseCellEditorOptions(language));
 		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
 			this._onDidChangeCellState.fire(e);
 		}));
 
 		this._overlayContainer = document.createElement('div');
-		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
 		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
 		this._register(_notebookService.onDidChangeOutputRenderers(() => {
@@ -1968,11 +1969,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	focusContainer() {
+	focusContainer(clearSelection: boolean = false) {
 		if (this._webviewFocused) {
 			this._webview?.focusWebview();
 		} else {
-			this._list.focusContainer();
+			this._list.focusContainer(clearSelection);
 		}
 	}
 
@@ -2086,6 +2087,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.getCellViewScrollTop(cell);
 	}
 
+	getHeightOfElement(cell: ICellViewModel) {
+		return this._list.elementHeight(cell);
+	}
+
 	scrollToBottom() {
 		this._list.scrollToBottom();
 	}
@@ -2144,6 +2149,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	revealCellOffsetInCenter(cell: ICellViewModel, offset: number) {
 		return this._list.revealCellOffsetInCenter(cell, offset);
+	}
+
+	revealOffsetInCenterIfOutsideViewport(offset: number) {
+		return this._list.revealOffsetInCenterIfOutsideViewport(offset);
 	}
 
 	getViewIndexByModelIndex(index: number): number {

@@ -168,7 +168,7 @@ import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/plat
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
 import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
 
@@ -280,7 +280,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
-	instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
+	instantiationService.stub(IAccessibilitySignalService, {
+		playSignal: async () => { },
+		isSoundEnabled(signal: unknown) { return false; },
+	} as any);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());

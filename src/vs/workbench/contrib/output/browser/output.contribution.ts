@@ -29,7 +29,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -224,11 +224,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
-				const audioCueService = accessor.get(IAudioCueService);
+				const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 				const activeChannel = outputService.getActiveChannel();
 				if (activeChannel) {
 					activeChannel.clear();
-					audioCueService.playAudioCue(AudioCue.clear);
+					accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 				}
 			}
 		}));
