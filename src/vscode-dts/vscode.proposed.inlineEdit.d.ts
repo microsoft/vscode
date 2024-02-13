@@ -10,13 +10,13 @@ declare module 'vscode' {
 		/**
 		 * The new text for this edit.
 		 */
-		text: string;
+		readonly text: string;
 
 		/**
 		 * An range that will be replaced by the text of the inline edit.
 		 * If change is only additive, this can be empty (same start and end position).
 		 */
-		range: Range;
+		readonly range: Range;
 
 		/**
 		 * An optional command that will be executed after applying the inline edit.
