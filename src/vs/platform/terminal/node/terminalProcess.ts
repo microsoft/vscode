@@ -178,8 +178,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}));
 			}
 			// WindowsShellHelper is used to fetch the process title and shell type
-			this.onProcessReady(e => { // special case for windows, periodically check process tree and gusses shell type from that
-				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid)); // goes down process tree and keeps going down until last one to guess
+			this.onProcessReady(e => {
+				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
@@ -409,7 +409,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.info(this.currentTitle, sanitizedTitle);
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
-			// this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) }); /// FOR MAC AND LINUX ITS JUST MATTER OF CHECKING THE TITLE
 		} else {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
 		}

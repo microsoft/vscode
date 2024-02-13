@@ -132,7 +132,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		});
 		return this._currentRequest;
 	}
-	// GETS THE SHELL TYPE BASED ON EXECUTABLE of the process title
+
 	getShellType(executable: string): TerminalShellType | undefined {
 		switch (executable.toLowerCase()) {
 			case 'cmd.exe':

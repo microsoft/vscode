@@ -51,7 +51,7 @@ const enum StorageKeys {
 	Entries = 'terminal.history.entries',
 	Timestamp = 'terminal.history.timestamp'
 }
-// for below to work we need to set SHELL TYPE for all py jul nu at terminalProcess
+
 let commandHistory: ITerminalPersistedHistory<{ shellType: TerminalShellType }> | undefined = undefined;
 export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType | undefined }> {
 	if (!commandHistory) {
@@ -92,7 +92,6 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Fish:
 			result = await fetchFishHistory(accessor);
 			break;
-		// add entry for Python
 		case PosixShellType.Python:
 			result = await fetchPythonHistory(accessor);
 			break;
@@ -116,24 +115,20 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	private _isReady = false;
 	private _isStale = true;
 
-	get entries(): IterableIterator<[string, T]> { // add shell type and think it would magically work???
-		// [
-		// ['exit()', {shellType: 'python'}],
-		// ['echo a'] {shellType: 'bash'}]
-		// ]
+	get entries(): IterableIterator<[string, T]> {
 		this._ensureUpToDate();
 		return this._entries.entries();
 	}
 
 	constructor(
-		private readonly _storageDataKey: string, // Probably has the shell type in it???
+		private readonly _storageDataKey: string,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
 		// Init cache
-		this._entries = new LRUCache<string, T>(this._getHistoryLimit()); // Least recently used
+		this._entries = new LRUCache<string, T>(this._getHistoryLimit());
 
 		// Listen for config changes to set history limit
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -150,8 +145,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		}));
 	}
 
-	add(key: string, value: T) { // when we CALL ADD, when command is finished, we add the command and we set the shell type
-		// refer to terminalInstance.ts line 442. Shell type is value
+	add(key: string, value: T) {
 		this._ensureUpToDate();
 		this._entries.set(key, value);
 		this._saveState();
@@ -304,8 +298,6 @@ export async function fetchZshHistory(accessor: ServicesAccessor) {
 	return result.values();
 }
 
-// Was not able to check this because it never even gets called
-// PROBLEM: POSIXSHELLTYPE.PYTHON does not seem to be called nor shows up when Python REPL is launched
 
 export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
 	const fileService = accessor.get(IFileService);
