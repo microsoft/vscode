@@ -147,7 +147,8 @@ export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',
-	GitBash = 'gitbash'
+	GitBash = 'gitbash',
+	Python = 'python'
 }
 export type TerminalShellType = PosixShellType | WindowsShellType;
 
