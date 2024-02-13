@@ -12,7 +12,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -28,12 +28,17 @@ export interface IChatRequestVariableData {
 	variables: Record<string, IChatRequestVariableValue[]>;
 }
 
+export interface IChatRequestVariableData2 {
+	message: string;
+	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
+}
+
 export interface IChatRequestModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
-	readonly message: IParsedChatRequest | IChatFollowup;
+	readonly message: IParsedChatRequest;
 	readonly variableData: IChatRequestVariableData;
 	readonly response?: IChatResponseModel;
 }
@@ -453,6 +458,14 @@ export enum ChatModelInitState {
 }
 
 export class ChatModel extends Disposable implements IChatModel {
+	static getDefaultTitle(requests: (ISerializableChatRequestData | IChatRequestModel)[]): string {
+		const firstRequestMessage = firstOrDefault(requests)?.message ?? '';
+		const message = typeof firstRequestMessage === 'string' ?
+			firstRequestMessage :
+			firstRequestMessage.text;
+		return message.split('\n')[0].substring(0, 50);
+	}
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -522,9 +535,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get title(): string {
-		const firstRequestMessage = firstOrDefault(this._requests)?.message;
-		const message = firstRequestMessage?.text ?? '';
-		return message.split('\n')[0].substring(0, 50);
+		return ChatModel.getDefaultTitle(this._requests);
 	}
 
 	constructor(
@@ -777,7 +788,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent ? { id: r.response.agent.id, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
+					agent: r.response?.agent ? { id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences

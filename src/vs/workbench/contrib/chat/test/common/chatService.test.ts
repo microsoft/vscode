@@ -24,12 +24,12 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatProgress, IChatProvider, IChatRequest } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatProvider, IChatRequest } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
@@ -57,6 +57,7 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
+	extensionId: nullExtensionDescription.identifier,
 	metadata: {},
 	async provideSlashCommands(token) {
 		return [];
@@ -78,7 +79,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 		return { metadata: { metadataKey: 'value' } };
 	},
 	async provideFollowups(sessionId, token) {
-		return [{ kind: 'reply', message: 'Something else', tooltip: 'a tooltip' }];
+		return [{ kind: 'reply', message: 'Something else', agentId: '', tooltip: 'a tooltip' } satisfies IChatFollowup];
 	},
 };
 
@@ -109,6 +110,7 @@ suite('Chat', () => {
 
 		const agent = {
 			id: 'testAgent',
+			extensionId: nullExtensionDescription.identifier,
 			metadata: { isDefault: true },
 			async invoke(request, progress, history, token) {
 				return {};

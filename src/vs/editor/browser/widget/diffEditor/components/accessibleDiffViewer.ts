@@ -30,7 +30,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { RenderLineInput, renderViewLine2 } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { localize } from 'vs/nls';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import 'vs/css!./accessibleDiffViewer';
@@ -109,7 +109,7 @@ class ViewModel extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 		private readonly _setVisible: (visible: boolean, tx: ITransaction | undefined) => void,
 		public readonly canClose: IObservable<boolean>,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -143,9 +143,9 @@ class ViewModel extends Disposable {
 			/** @description play audio-cue for diff */
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem?.type === LineType.Deleted) {
-				this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'accessibleDiffViewer.currentElementChanged' });
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'accessibleDiffViewer.currentElementChanged' });
 			} else if (currentViewItem?.type === LineType.Added) {
-				this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'accessibleDiffViewer.currentElementChanged' });
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'accessibleDiffViewer.currentElementChanged' });
 			}
 		}));
 

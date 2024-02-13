@@ -638,7 +638,8 @@ export class InlineChatWidget {
 		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
 		reset(this._elements.followUps);
 		if (items && items.length > 0 && onFollowup) {
-			this._followUpDisposables.add(new ChatFollowups(this._elements.followUps, items, undefined, onFollowup, this._contextKeyService));
+			this._followUpDisposables.add(
+				this._instantiationService.createInstance(ChatFollowups, this._elements.followUps, items, undefined, onFollowup));
 		}
 		this._onDidChangeHeight.fire();
 	}

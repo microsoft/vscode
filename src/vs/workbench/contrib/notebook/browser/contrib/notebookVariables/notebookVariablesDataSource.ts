@@ -26,6 +26,7 @@ export interface INotebookVariableElement {
 	readonly indexStart?: number;
 	readonly hasNamedChildren: boolean;
 	readonly notebook: NotebookTextModel;
+	readonly extensionId?: string;
 }
 
 export class NotebookVariableDataSource implements IAsyncDataSource<INotebookScope, INotebookVariableElement> {

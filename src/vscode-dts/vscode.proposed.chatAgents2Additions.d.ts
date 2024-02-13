@@ -25,7 +25,7 @@ declare module 'vscode' {
 	// TODO@API fit this into the stream
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSubCommand;
+		command?: ChatAgentCommand;
 	}
 
 	// TODO@API fit this into the stream
@@ -45,7 +45,6 @@ declare module 'vscode' {
 	 */
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
-		| ChatAgentFileTree
 		| ChatAgentInlineContentReference
 		| ChatAgentCommandButton;
 
@@ -107,20 +106,6 @@ declare module 'vscode' {
 		 */
 		content: string;
 	}
-
-	/** @deprecated */
-	export interface ChatAgentFileTree {
-		treeData: ChatAgentFileTreeData;
-	}
-
-	/** @deprecated */
-	export interface ChatAgentFileTreeData {
-		label: string;
-		uri: Uri;
-		type?: FileType;
-		children?: ChatAgentFileTreeData[];
-	}
-
 
 	export interface ChatAgentDocumentContext {
 		uri: Uri;
@@ -223,7 +208,7 @@ declare module 'vscode' {
 		commandButton: ChatAgentCommandButton;
 	}
 
-	export interface ChatAgentSessionFollowupAction {
+	export interface ChatAgentFollowupAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'followUp';
 		followup: ChatAgentFollowup;
@@ -236,7 +221,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentUserActionEvent {
 		readonly result: ChatAgentResult2;
-		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentSessionFollowupAction | ChatAgentBugReportAction;
+		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentFollowupAction | ChatAgentBugReportAction;
 	}
 
 	export interface ChatVariableValue {
@@ -244,5 +229,19 @@ declare module 'vscode' {
 		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
 		 */
 		kind?: string;
+	}
+
+	export interface ChatAgentCommand {
+		readonly isSticky2?: {
+			/**
+			 * Indicates that the command should be automatically repopulated.
+			 */
+			isSticky: true;
+
+			/**
+			 * This can be set to a string to use a different placeholder message in the input box when the command has been repopulated.
+			 */
+			placeholder?: string;
+		};
 	}
 }

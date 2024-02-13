@@ -63,6 +63,7 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	revealCells(range: ICellRange): void;
 	revealRangeInCell(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
 	revealCellOffsetInCenter(element: ICellViewModel, offset: number): void;
+	revealOffsetInCenterIfOutsideViewport(offset: number): void;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
@@ -70,7 +71,7 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
-	focusContainer(): void;
+	focusContainer(clearSelection: boolean): void;
 	setCellEditorSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;

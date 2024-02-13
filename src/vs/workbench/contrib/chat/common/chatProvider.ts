@@ -19,7 +19,6 @@ export const enum ChatMessageRole {
 export interface IChatMessage {
 	readonly role: ChatMessageRole;
 	readonly content: string;
-	readonly name?: string;
 }
 
 export interface IChatResponseFragment {
@@ -31,6 +30,10 @@ export interface IChatResponseProviderMetadata {
 	readonly extension: ExtensionIdentifier;
 	readonly model: string;
 	readonly description?: string;
+	readonly auth?: {
+		readonly providerLabel: string;
+		readonly accountLabel?: string;
+	};
 }
 
 export interface IChatResponseProvider {

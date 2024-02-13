@@ -17,6 +17,27 @@ declare module 'vscode' {
 		stream: AsyncIterable<string>;
 	}
 
+	//TODO@API see https://learn.microsoft.com/en-us/dotnet/api/azure.ai.openai.chatrequestmessage?view=azure-dotnet-preview
+	// this allows to grow message by type, e.g add more content types to User message to support multimodal language models
+
+	export class LanguageModelSystemMessage {
+		content: string;
+		constructor(content: string);
+	}
+
+	export class LanguageModelUserMessage {
+		content: string;
+		name: string | undefined;
+		constructor(content: string, name?: string);
+	}
+
+	export class LanguageModelAssistantMessage {
+		content: string;
+		constructor(content: string);
+	}
+
+	export type LanguageModelMessage = LanguageModelSystemMessage | LanguageModelUserMessage | LanguageModelAssistantMessage;
+
 	/**
 	 * Represents access to using a language model. Access can be revoked at any time and extension
 	 * must check if the access is {@link LanguageModelAccess.isRevoked still valid} before using it.
@@ -49,7 +70,7 @@ declare module 'vscode' {
 		 * @param messages
 		 * @param options
 		 */
-		makeChatRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
+		makeChatRequest(messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
 	}
 
 	export interface LanguageModelAccessOptions {

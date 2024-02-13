@@ -111,6 +111,11 @@ export namespace Schemas {
 	 * Scheme used for the Source Control commit input's text document
 	 */
 	export const vscodeSourceControl = 'vscode-scm';
+
+	/**
+	 * Scheme used for special rendering of settings in the release notes
+	 */
+	export const codeSetting = 'code-setting';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
