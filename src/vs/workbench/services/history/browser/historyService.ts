@@ -46,7 +46,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private lastActiveEditor: IEditorIdentifier | undefined = undefined;
 
 	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
-	public shouldIgnoreActiveEditorChange: boolean = false; // can be set to temporarily ignore messages from onDidActiveEditorChange
+
+	// Can be set to temporarily ignore messages from the editor service that indicate a new active editor.
+	// Used for ignoring some editors for history.
+	public shouldIgnoreActiveEditorChange: boolean = false;
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
