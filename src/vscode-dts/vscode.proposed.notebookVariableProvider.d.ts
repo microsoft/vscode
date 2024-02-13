@@ -41,6 +41,9 @@ declare module 'vscode' {
 
 		/** The type of the variable's value */
 		type?: string;
+
+		/** The language of the variable's value */
+		language?: string;
 	}
 
 }

@@ -633,3 +633,19 @@
 	font-size: 14px;
 	color: var(--vscode-debugIcon-startForeground) !important;
 }
+
+.interactive-item-container .chat-command-button {
+	display: flex;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button {
+	text-align: left;
+	width: initial;
+	padding: 4px 8px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button .codicon {
+	margin-left: 0;
+	margin-top: 1px;
+}

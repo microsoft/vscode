@@ -19,7 +19,6 @@ export const enum ChatMessageRole {
 export interface IChatMessage {
 	readonly role: ChatMessageRole;
 	readonly content: string;
-	readonly name?: string;
 }
 
 export interface IChatResponseFragment {
@@ -35,7 +34,7 @@ export interface IChatResponseProviderMetadata {
 
 export interface IChatResponseProvider {
 	metadata: IChatResponseProviderMetadata;
-	provideChatResponse(messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	provideChatResponse(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
 export const IChatProviderService = createDecorator<IChatProviderService>('chatProviderService');
@@ -52,7 +51,7 @@ export interface IChatProviderService {
 
 	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable;
 
-	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	fetchChatResponse(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
 export class ChatProviderService implements IChatProviderService {
@@ -89,11 +88,11 @@ export class ChatProviderService implements IChatProviderService {
 		});
 	}
 
-	fetchChatResponse(identifier: string, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
+	fetchChatResponse(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
 		const provider = this._providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
 		}
-		return provider.provideChatResponse(messages, options, progress, token);
+		return provider.provideChatResponse(messages, from, options, progress, token);
 	}
 }

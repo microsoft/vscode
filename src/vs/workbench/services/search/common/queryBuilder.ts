@@ -72,6 +72,7 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
+	shouldGlobSearch?: boolean;
 }
 
 export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
@@ -188,6 +189,7 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
+			shouldGlobMatchFilePattern: options.shouldGlobSearch
 		};
 	}
 

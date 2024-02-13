@@ -12,7 +12,7 @@ import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CompoisteBarActionViewItem, CompositeBarAction, IActivityHoverOptions, ICompositeBarActionViewItemOptions, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CompositeBarActionViewItem, CompositeBarAction, IActivityHoverOptions, ICompositeBarActionViewItemOptions, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -153,7 +153,7 @@ export class GlobalCompositeBar extends Disposable {
 	}
 }
 
-abstract class AbstractGlobalActivityActionViewItem extends CompoisteBarActionViewItem {
+abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionViewItem {
 
 	constructor(
 		private readonly menuId: MenuId,

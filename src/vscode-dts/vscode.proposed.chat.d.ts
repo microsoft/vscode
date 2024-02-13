@@ -9,6 +9,7 @@ declare module 'vscode' {
 	export enum ChatMessageRole {
 		System = 0,
 		User = 1,
+		// TODO@API name: align with ChatAgent (or whatever we'll rename that to)
 		Assistant = 2,
 	}
 
@@ -16,7 +17,6 @@ declare module 'vscode' {
 	export class ChatMessage {
 		role: ChatMessageRole;
 		content: string;
-		name?: string;
 
 		constructor(role: ChatMessageRole, content: string);
 	}

@@ -22,6 +22,9 @@ import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/e
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { platform } from 'vs/base/common/process';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface IAPIMenu {
 	readonly key: string;
@@ -996,6 +999,10 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 	readonly type = 'table';
 
+	constructor(
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) { super(); }
+
 	shouldRender(manifest: IExtensionManifest): boolean {
 		return !!manifest.contributes?.commands;
 	}
@@ -1005,7 +1012,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 		const commands = rawCommands.map(c => ({
 			id: c.command,
 			title: c.title,
-			keybindings: [] as string[],
+			keybindings: [] as ResolvedKeybinding[],
 			menus: [] as string[]
 		}));
 
@@ -1062,10 +1069,10 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 		const rows: IRowData[][] = commands.sort((a, b) => a.id.localeCompare(b.id))
 			.map(command => {
 				return [
-					{ data: command.id, type: 'code' },
+					new MarkdownString().appendMarkdown(`\`${command.id}\``),
 					typeof command.title === 'string' ? command.title : command.title.value,
-					{ data: command.keybindings, type: 'keybinding' },
-					{ data: command.menus, type: 'code' },
+					command.keybindings,
+					new MarkdownString().appendMarkdown(`${command.menus.map(menu => `\`${menu}\``).join('&nbsp;')}`),
 				];
 			});
 
@@ -1078,7 +1085,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 		};
 	}
 
-	private resolveKeybinding(rawKeyBinding: IKeyBinding): string | undefined {
+	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | undefined {
 		let key: string | undefined;
 
 		switch (platform) {
@@ -1087,7 +1094,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		return key ?? rawKeyBinding.key;
+		return this._keybindingService.resolveUserBinding(key ?? rawKeyBinding.key)[0];
 	}
 
 }

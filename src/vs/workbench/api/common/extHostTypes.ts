@@ -4242,6 +4242,13 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseCommandButtonPart {
+	value: vscode.Command;
+	constructor(value: vscode.Command) {
+		this.value = value;
+	}
+}
+
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location;
 	constructor(value: vscode.Uri | vscode.Location) {
@@ -4249,6 +4256,23 @@ export class ChatResponseReferencePart {
 	}
 }
 
+
+export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
+	constructor(
+		readonly prompt: string,
+		readonly agentId: string,
+		readonly command: string | undefined,
+		readonly variables: vscode.ChatAgentResolvedVariable[],
+	) { }
+}
+
+export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		readonly result: vscode.ChatAgentResult2,
+		readonly agentId: string,
+	) { }
+}
 
 //#endregion
 
