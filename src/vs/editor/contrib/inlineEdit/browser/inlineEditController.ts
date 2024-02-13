@@ -44,7 +44,7 @@ export class InlineEditController extends Disposable {
 		return editor.getContribution<InlineEditController>(InlineEditController.ID);
 	}
 
-	private _currentEdit: ISettableObservable<InlineEditWidget | undefined> = disposableObservableValue(this, undefined);
+	private _currentEdit: ISettableObservable<InlineEditWidget | undefined> = this._register(disposableObservableValue(this, undefined));
 	private _currentRequestCts: CancellationTokenSource | undefined;
 
 	private _jumpBackPosition: Position | undefined;
