@@ -70,7 +70,6 @@ class SplitPaneContainer extends Disposable {
 			if (
 				(this.orientation === Orientation.HORIZONTAL && direction === Direction.Down) ||
 				(this.orientation === Orientation.VERTICAL && direction === Direction.Right) ||
-				(part === Parts.SIDEBAR_PART && direction === Direction.Left) ||
 				(part === Parts.AUXILIARYBAR_PART && direction === Direction.Right)
 			) {
 				amount *= -1;
@@ -578,9 +577,13 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 		const isHorizontal = (direction === Direction.Left || direction === Direction.Right);
 
+		const part = getPartByLocation(this._terminalLocation);
+
+		const isTerminalLeft = this._panelPosition === Position.LEFT || part === Parts.SIDEBAR_PART;
+
 		// Left-positionned panels have inverted controls
 		// see https://github.com/microsoft/vscode/issues/140873
-		const shouldInvertHorizontalResize = (isHorizontal && this._panelPosition === Position.LEFT);
+		const shouldInvertHorizontalResize = (isHorizontal && isTerminalLeft);
 
 		const resizeDirection = shouldInvertHorizontalResize ? direction === Direction.Left ? Direction.Right : Direction.Left : direction;
 
@@ -588,7 +591,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		// TODO: Support letter spacing and line height
 		const charSize = (isHorizontal ? font.charWidth : font.charHeight);
 		if (charSize) {
-			this._splitPaneContainer.resizePane(this._activeInstanceIndex, resizeDirection, charSize * Constants.ResizePartCellCount, getPartByLocation(this._terminalLocation));
+			this._splitPaneContainer.resizePane(this._activeInstanceIndex, resizeDirection, charSize * Constants.ResizePartCellCount, part);
 		}
 	}
 
