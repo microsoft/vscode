@@ -257,6 +257,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			};
 
 			const id = accessor.addZone(notebookViewZone);
+			this._scrollWidgetIntoView(index);
 
 			this._widget = new NotebookChatWidget(
 				this._notebookEditor,
@@ -296,6 +297,25 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				}
 			});
 		});
+	}
+
+	private _scrollWidgetIntoView(index: number) {
+		if (index === 0 || this._notebookEditor.getLength() === 0) {
+			// the cell is at the beginning of the notebook
+			this._notebookEditor.revealOffsetInCenterIfOutsideViewport(0);
+		} else if (index >= this._notebookEditor.getLength()) {
+			// the cell is at the end of the notebook
+			const cell = this._notebookEditor.cellAt(this._notebookEditor.getLength() - 1)!;
+			const cellTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
+			const cellHeight = this._notebookEditor.getHeightOfElement(cell);
+
+			this._notebookEditor.revealOffsetInCenterIfOutsideViewport(cellTop + cellHeight);
+		} else {
+			const cell = this._notebookEditor.cellAt(index);
+			if (cell) {
+				this._notebookEditor.revealInCenterIfOutsideViewport(cell);
+			}
+		}
 	}
 
 	private _focusWidget() {

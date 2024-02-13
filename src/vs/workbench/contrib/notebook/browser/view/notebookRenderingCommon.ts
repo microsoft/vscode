@@ -63,6 +63,7 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	revealCells(range: ICellRange): void;
 	revealRangeInCell(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
 	revealCellOffsetInCenter(element: ICellViewModel, offset: number): void;
+	revealOffsetInCenterIfOutsideViewport(offset: number): void;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;

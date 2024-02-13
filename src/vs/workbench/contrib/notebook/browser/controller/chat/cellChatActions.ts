@@ -428,7 +428,7 @@ registerAction2(class extends NotebookAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -453,7 +453,7 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		context.notebookEditor.focusContainer();
 		NotebookChatController.get(context.notebookEditor)?.run(0, '', false);
 	}

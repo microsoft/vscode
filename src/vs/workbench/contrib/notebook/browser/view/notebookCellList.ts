@@ -1171,6 +1171,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	revealOffsetInCenterIfOutsideViewport(offset: number) {
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+
+		if (offset < scrollTop || offset > wrapperBottom) {
+			this.view.setScrollTop(offset - this.view.renderHeight / 2);
+		}
+	}
+
 	private _revealInCenterIfOutsideViewport(viewIndex: number) {
 		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
 	}

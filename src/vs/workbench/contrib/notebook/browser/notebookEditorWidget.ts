@@ -2086,6 +2086,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.getCellViewScrollTop(cell);
 	}
 
+	getHeightOfElement(cell: ICellViewModel) {
+		return this._list.elementHeight(cell);
+	}
+
 	scrollToBottom() {
 		this._list.scrollToBottom();
 	}
@@ -2144,6 +2148,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	revealCellOffsetInCenter(cell: ICellViewModel, offset: number) {
 		return this._list.revealCellOffsetInCenter(cell, offset);
+	}
+
+	revealOffsetInCenterIfOutsideViewport(offset: number) {
+		return this._list.revealOffsetInCenterIfOutsideViewport(offset);
 	}
 
 	getViewIndexByModelIndex(index: number): number {
