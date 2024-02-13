@@ -1195,7 +1195,7 @@ export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
 }
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
-	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void;
+	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata): void;
 	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;

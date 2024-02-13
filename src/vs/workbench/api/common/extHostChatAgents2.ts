@@ -176,7 +176,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, name, {});
+		this._proxy.$registerAgent(handle, extension.identifier, name, {});
 		return agent.apiAgent;
 	}
 
@@ -239,11 +239,11 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			res.push(new extHostTypes.ChatAgentRequestTurn(h.request.message, h.request.agentId, h.request.command, h.request.variables2.variables.map(typeConvert.ChatAgentResolvedVariable.to)));
+			res.push(new extHostTypes.ChatAgentRequestTurn(h.request.message, h.request.command, h.request.variables2.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', agentId: h.request.agentId }));
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter)));
-			res.push(new extHostTypes.ChatAgentResponseTurn(parts, result, h.request.agentId));
+			res.push(new extHostTypes.ChatAgentResponseTurn(parts, result, { extensionId: '', agentId: h.request.agentId }));
 		}
 
 		return res;

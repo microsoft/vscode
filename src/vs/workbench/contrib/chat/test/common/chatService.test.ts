@@ -29,7 +29,7 @@ import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
@@ -57,6 +57,7 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
+	extensionId: nullExtensionDescription.identifier,
 	metadata: {},
 	async provideSlashCommands(token) {
 		return [];
@@ -109,6 +110,7 @@ suite('Chat', () => {
 
 		const agent = {
 			id: 'testAgent',
+			extensionId: nullExtensionDescription.identifier,
 			metadata: { isDefault: true },
 			async invoke(request, progress, history, token) {
 				return {};

@@ -38,12 +38,15 @@ declare module 'vscode' {
 		 */
 		readonly prompt: string;
 
+		// TODO@API NAME agent
+		// TODO@API TYPE {agent:string, extension:string}
+		/** @deprecated */
+		readonly agentId: string;
+
 		/**
 		 * The ID of the chat agent to which this request was directed.
 		 */
-		// TODO@API NAME agent
-		// TODO@API TYPE {agent:string, extension:string}
-		readonly agentId: string;
+		readonly agent: { extensionId: string; agentId: string };
 
 		/**
 		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
@@ -56,7 +59,7 @@ declare module 'vscode' {
 		// TODO@API is this needed?
 		readonly variables: ChatAgentResolvedVariable[];
 
-		private constructor(prompt: string, agentId: string, command: string | undefined, variables: ChatAgentResolvedVariable[],);
+		private constructor(prompt: string, command: string | undefined, variables: ChatAgentResolvedVariable[], agent: { extensionId: string; agentId: string });
 	}
 
 	// TODO@API name: Turn?
@@ -72,9 +75,12 @@ declare module 'vscode' {
 		 */
 		readonly result: ChatAgentResult2;
 
+		/** @deprecated */
 		readonly agentId: string;
 
-		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: string);
+		readonly agent: { extensionId: string; agentId: string };
+
+		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: { extensionId: string; agentId: string });
 	}
 
 	export interface ChatAgentContext {

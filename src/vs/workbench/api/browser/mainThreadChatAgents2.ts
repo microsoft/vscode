@@ -13,6 +13,7 @@ import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -74,10 +75,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void {
+	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata): void {
 		let lastSlashCommands: IChatAgentCommand[] | undefined;
 		const d = this._chatAgentService.registerAgent({
 			id: name,
+			extensionId: extension,
 			metadata: revive(metadata),
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);

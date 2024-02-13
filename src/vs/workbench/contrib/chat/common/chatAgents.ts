@@ -11,6 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatProgressResponseContent, IChatRequestVariableData2 } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
@@ -26,6 +27,7 @@ export interface IChatAgentHistoryEntry {
 
 export interface IChatAgentData {
 	id: string;
+	extensionId: ExtensionIdentifier;
 	metadata: IChatAgentMetadata;
 }
 

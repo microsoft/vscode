@@ -10,10 +10,12 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProviderResult } from 'vs/editor/common/languages';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IChatAgent, IChatAgentCommand, IChatAgentHistoryEntry, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('VoiceChat', () => {
 
@@ -22,6 +24,9 @@ suite('VoiceChat', () => {
 	}
 
 	class TestChatAgent implements IChatAgent {
+
+		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
+
 		constructor(readonly id: string, readonly lastSlashCommands: IChatAgentCommand[]) { }
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]> { throw new Error('Method not implemented.'); }
