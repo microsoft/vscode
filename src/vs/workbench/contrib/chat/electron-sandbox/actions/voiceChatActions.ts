@@ -53,6 +53,7 @@ import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contri
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -500,7 +501,7 @@ export class StartVoiceChatAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
-					ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT),
+					EditorContextKeys.focus.toNegated(), // do not steal the inline-chat keybinding
 					CONTEXT_VOICE_CHAT_GETTING_READY.negate(),
 					CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate(),
@@ -545,7 +546,10 @@ export class StartVoiceChatAction extends Action2 {
 			widget.focusInput();
 		}
 
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused') ?? await VoiceChatSessionControllerFactory.create(accessor, 'quick');
+		let controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
+		if (!controller) {
+			controller = await instantiationService.invokeFunction(accessor => VoiceChatSessionControllerFactory.create(accessor, 'view'));
+		}
 		if (!controller) {
 			return;
 		}
