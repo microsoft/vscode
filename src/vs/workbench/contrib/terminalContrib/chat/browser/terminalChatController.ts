@@ -40,19 +40,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private _requestId: number = 0;
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
-	// private _sessionCtor: CancelablePromise<void> | undefined;
-	// private _activeSession?: Session;
 	private readonly _ctxHasActiveRequest!: IContextKey<boolean>;
 
 	private _cancellationTokenSource!: CancellationTokenSource;
-
-	// private _isVisible: boolean = false;
-	// private _strategy: EditStrategy | undefined;
-
-	// private _inlineChatListener: IDisposable | undefined;
-	// private _toolbar: MenuWorkbenchToolBar | undefined;
-	// private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
-	// private _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -64,9 +54,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
-		// @IInstantiationService private readonly _instantiationService: IInstantiationService,
-		// @ICommandService private readonly _commandService: ICommandService,
-		// @IInlineChatSavingService private readonly _inlineChatSavingService: IInlineChatSavingService
 	) {
 		super();
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
@@ -74,7 +61,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		this._ctxHasActiveRequest = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
 		this._cancellationTokenSource = new CancellationTokenSource();
-		// this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(this._contextKeyService);
 	}
 
 	layout(_xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void {
