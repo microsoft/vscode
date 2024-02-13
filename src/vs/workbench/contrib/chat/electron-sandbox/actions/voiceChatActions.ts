@@ -54,7 +54,6 @@ import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MENU_TERMINAL_CHAT_INPUT } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -529,8 +528,7 @@ export class StartVoiceChatAction extends Action2 {
 				order: -1
 			},
 			{
-				// TODO: Fix layer breaker, chat can't depend on terminalContrib
-				id: MENU_TERMINAL_CHAT_INPUT,
+				id: MenuId.for('terminalChatInput'),
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
@@ -577,6 +575,11 @@ export class InstallVoiceChatAction extends Action2 {
 				order: -1
 			}, {
 				id: MENU_INLINE_CHAT_INPUT,
+				when: HasSpeechProvider.negate(),
+				group: 'main',
+				order: -1
+			}, {
+				id: MenuId.for('terminalChatInput'),
 				when: HasSpeechProvider.negate(),
 				group: 'main',
 				order: -1
