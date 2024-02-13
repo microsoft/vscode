@@ -260,6 +260,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	override dispose() {
+		dispose(this._commentThreadDisposables);
 		super.dispose();
 		this.updateCurrentThread(false, false);
 	}

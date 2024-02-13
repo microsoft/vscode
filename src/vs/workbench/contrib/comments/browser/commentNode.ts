@@ -766,6 +766,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}, 3000);
 		}
 	}
+
+	override dispose(): void {
+		this._commentEditorDisposables.forEach(dispose => dispose.dispose());
+		super.dispose();
+	}
 }
 
 function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {

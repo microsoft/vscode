@@ -369,4 +369,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		});
 	}
 
+	override dispose(): void {
+		this._commentThreadDisposables.forEach(dispose => dispose.dispose());
+		super.dispose();
+	}
 }
