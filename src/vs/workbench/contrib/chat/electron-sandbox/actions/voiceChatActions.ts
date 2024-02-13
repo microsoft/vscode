@@ -63,6 +63,8 @@ const CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inline
 const CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInViewInProgress', false, { type: 'boolean', description: localize('voiceChatInViewInProgress', "True when voice recording from microphone is in progress in the chat view.") });
 const CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInEditorInProgress', false, { type: 'boolean', description: localize('voiceChatInEditorInProgress', "True when voice recording from microphone is in progress in the chat editor.") });
 
+const CanVoiceChat = ContextKeyExpr.and(CONTEXT_PROVIDER_EXISTS, HasSpeechProvider);
+
 type VoiceChatSessionContext = 'inline' | 'quick' | 'view' | 'editor';
 
 interface IVoiceChatSessionController {
@@ -452,7 +454,7 @@ export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 			id: VoiceChatInChatViewAction.ID,
 			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in View"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
+			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
 		}, 'view');
 	}
@@ -467,7 +469,7 @@ export class InlineVoiceChatAction extends VoiceChatWithHoldModeAction {
 			id: InlineVoiceChatAction.ID,
 			title: localize2('workbench.action.chat.inlineVoiceChat', "Inline Voice Chat"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, ActiveEditorContext, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
+			precondition: ContextKeyExpr.and(CanVoiceChat, ActiveEditorContext, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
 		}, 'inline');
 	}
@@ -482,7 +484,7 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 			id: QuickVoiceChatAction.ID,
 			title: localize2('workbench.action.chat.quickVoiceChat.label', "Quick Voice Chat"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
+			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
 		}, 'quick');
 	}
@@ -501,7 +503,7 @@ export class StartVoiceChatAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
-					HasSpeechProvider,
+					CanVoiceChat,
 					EditorContextKeys.focus.toNegated(), // do not steal the inline-chat keybinding
 					CONTEXT_VOICE_CHAT_GETTING_READY.negate(),
 					CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
@@ -514,15 +516,15 @@ export class StartVoiceChatAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: Codicon.mic,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate()),
+			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate()),
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
 				group: 'navigation',
 				order: -1
 			}, {
 				id: MENU_INLINE_CHAT_INPUT,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(CanVoiceChat, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
 			}]
@@ -643,13 +645,13 @@ class BaseStopListeningAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: ContextKeyExpr.and(HasSpeechProvider, context),
+				when: ContextKeyExpr.and(CanVoiceChat, context),
 				primary: KeyCode.Escape
 			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, context),
+			precondition: ContextKeyExpr.and(CanVoiceChat, context),
 			menu: menu ? [{
 				id: menu,
-				when: ContextKeyExpr.and(HasSpeechProvider, context),
+				when: ContextKeyExpr.and(CanVoiceChat, context),
 				group,
 				order: -1
 			}] : undefined
@@ -719,13 +721,13 @@ export class StopListeningAndSubmitAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
-					HasSpeechProvider,
+					CanVoiceChat,
 					ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT),
 					CONTEXT_VOICE_CHAT_IN_PROGRESS
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS)
+			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_IN_PROGRESS)
 		});
 	}
 
