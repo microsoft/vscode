@@ -81,8 +81,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		// Check if Upstream has changed
 		if (force ||
 			this._HEAD?.upstream?.name !== this.repository.HEAD?.upstream?.name ||
-			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote ||
-			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
+			this._HEAD?.upstream?.remote !== this.repository.HEAD?.upstream?.remote ||
+			this._HEAD?.upstream?.commit !== this.repository.HEAD?.upstream?.commit) {
 			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - Upstream has changed');
 			this._onDidChangeCurrentHistoryItemGroupBase.fire();
 		}
