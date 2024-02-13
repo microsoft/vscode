@@ -2631,11 +2631,8 @@ export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
 		return {
 			prompt: request.message,
-			prompt2: request.variables2.message,
-			variables: ChatVariable.objectTo(request.variables),
 			command: request.command,
-			agentId: request.agentId,
-			variables2: request.variables2.variables.map(ChatAgentResolvedVariable.to)
+			variables: request.variables.variables.map(ChatAgentResolvedVariable.to)
 		};
 	}
 }

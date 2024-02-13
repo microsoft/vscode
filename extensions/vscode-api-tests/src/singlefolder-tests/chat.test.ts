@@ -64,8 +64,8 @@ suite('chat', () => {
 		const deferred = getDeferredForRequest();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent hi #myVar' });
 		const request = await deferred.p;
-		assert.strictEqual(request.prompt, 'hi [#myVar](values:myVar)');
-		assert.strictEqual(request.variables['myVar'][0].value, 'myValue');
+		assert.strictEqual(request.prompt, 'hi #myVar');
+		assert.strictEqual(request.variables[0].values[0].value, 'myValue');
 	});
 
 	test('result metadata is returned to the followup provider', async () => {

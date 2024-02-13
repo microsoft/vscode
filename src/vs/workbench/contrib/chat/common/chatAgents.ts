@@ -13,9 +13,8 @@ import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatProgressResponseContent, IChatRequestVariableData2 } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 //#region agent service, commands etc
 
@@ -89,8 +88,7 @@ export interface IChatAgentRequest {
 	agentId: string;
 	command?: string;
 	message: string;
-	variables: Record<string, IChatRequestVariableValue[]>;
-	variables2: IChatRequestVariableData2;
+	variables: IChatRequestVariableData;
 }
 
 export interface IChatAgentResult {
