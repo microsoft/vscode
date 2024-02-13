@@ -233,8 +233,17 @@ export interface IHoverTarget extends IDisposable {
 
 export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
 
+	private instantHoverAfterRecentlyShown = false;
+	private lastHoverHideTime = Number.MAX_VALUE;
+	private timeLimit = 200;
+
+	private overrideOptions: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>) = {};
+
 	private _delay: number;
 	get delay(): number {
+		if (this.instantHoverAfterRecentlyShown && Date.now() - this.lastHoverHideTime < this.timeLimit) {
+			return 0; // show instantly when a hover was recently shown
+		}
 		return this._delay;
 	}
 
@@ -253,12 +262,29 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 		}));
 	}
 
-	showHover(options: IHoverDelegateOptions): IHoverWidget | undefined {
+	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+		const overrideOptions = typeof this.overrideOptions === 'function' ? this.overrideOptions(options, focus) : this.overrideOptions;
 		return this.hoverService.showHover({
 			...options,
 			persistence: {
 				hideOnHover: true
-			}
-		});
+			},
+			...overrideOptions
+		}, focus);
+	}
+
+	setOptions(options: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>)): void {
+		this.overrideOptions = options;
+	}
+
+	enableInstantHoverAfterRecentlyShown(timeLimit: number = 200): void {
+		this.timeLimit = timeLimit;
+		this.instantHoverAfterRecentlyShown = true;
+	}
+
+	onDidHideHover(): void {
+		if (this.instantHoverAfterRecentlyShown) {
+			this.lastHoverHideTime = Date.now();
+		}
 	}
 }
