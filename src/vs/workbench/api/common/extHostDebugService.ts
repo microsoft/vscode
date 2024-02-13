@@ -7,7 +7,7 @@ import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -18,7 +18,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, ThreadFocus, StackFrameFocus, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebugVisualization, IDebugVisualizationContext, IDebuggerContribution, DebugVisualizationType } from 'vs/workbench/contrib/debug/common/debug';
+import { MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebugVisualization, IDebugVisualizationContext, IDebuggerContribution, DebugVisualizationType, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -28,6 +28,7 @@ import { IExtHostVariableResolverProvider } from './extHostVariableResolverServi
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -54,6 +55,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	registerDebugAdapterDescriptorFactory(extension: IExtensionDescription, type: string, factory: vscode.DebugAdapterDescriptorFactory): vscode.Disposable;
 	registerDebugAdapterTrackerFactory(type: string, factory: vscode.DebugAdapterTrackerFactory): vscode.Disposable;
 	registerDebugVisualizationProvider<T extends vscode.DebugVisualization>(extension: IExtensionDescription, id: string, provider: vscode.DebugVisualizationProvider<T>): vscode.Disposable;
+	registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(extension: IExtensionDescription, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable;
 	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
 }
 
@@ -100,11 +102,16 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
+
+	private _debugVisualizationTreeItemIdsCounter = 0;
 	private readonly _debugVisualizationProviders = new Map<string, vscode.DebugVisualizationProvider>();
+	private readonly _debugVisualizationTrees = new Map<string, vscode.DebugVisualizationTree>();
+	private readonly _debugVisualizationTreeItemIds = new WeakMap<vscode.DebugTreeItem, number>();
+	private readonly _debugVisualizationElements = new Map<number, { provider: string; item: vscode.DebugTreeItem; children?: number[] }>();
 
 	private _signService: ISignService | undefined;
 
-	private readonly _visualizers = new Map<number, { v: vscode.DebugVisualization; provider: vscode.DebugVisualizationProvider }>();
+	private readonly _visualizers = new Map<number, { v: vscode.DebugVisualization; provider: vscode.DebugVisualizationProvider; extensionId: string }>();
 	private _visualizerIdCounter = 0;
 
 	constructor(
@@ -149,6 +156,77 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			});
 			this.registerAllDebugTypes(extensionRegistry);
 		});
+	}
+
+	public async $getVisualizerTreeItem(treeId: string, element: IDebugVisualizationContext): Promise<IDebugVisualizationTreeItem | undefined> {
+		const context = this.hydrateVisualizationContext(element);
+		if (!context) {
+			return undefined;
+		}
+
+		const item = await this._debugVisualizationTrees.get(treeId)?.getTreeItem?.(context);
+		return item ? this.convertVisualizerTreeItem(treeId, item) : undefined;
+	}
+
+	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: Readonly<IRelaxedExtensionDescription>, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
+		const extensionId = ExtensionIdentifier.toKey(manifest.identifier);
+		const key = this.extensionVisKey(extensionId, id);
+		if (this._debugVisualizationProviders.has(key)) {
+			throw new Error(`A debug visualization provider with id '${id}' is already registered`);
+		}
+
+		this._debugVisualizationTrees.set(key, provider);
+		this._debugServiceProxy.$registerDebugVisualizerTree(key, !!provider.editItem);
+		return toDisposable(() => {
+			this._debugServiceProxy.$unregisterDebugVisualizerTree(key);
+			this._debugVisualizationTrees.delete(id);
+		});
+	}
+
+	public async $getVisualizerTreeItemChildren(treeId: string, element: number): Promise<IDebugVisualizationTreeItem[]> {
+		const item = this._debugVisualizationElements.get(element)?.item;
+		if (!item) {
+			return [];
+		}
+
+		const children = await this._debugVisualizationTrees.get(treeId)?.getChildren?.(item);
+		return children?.map(i => this.convertVisualizerTreeItem(treeId, i)) || [];
+	}
+
+	public async $editVisualizerTreeItem(element: number, value: string): Promise<IDebugVisualizationTreeItem | undefined> {
+		const e = this._debugVisualizationElements.get(element);
+		if (!e) { return undefined; }
+
+		const r = await this._debugVisualizationTrees.get(e.provider)?.editItem?.(e.item, value);
+		return this.convertVisualizerTreeItem(e.provider, r || e.item);
+	}
+
+	public $disposeVisualizedTree(element: number): void {
+		const root = this._debugVisualizationElements.get(element);
+		if (!root) {
+			return;
+		}
+
+		const queue = [root.children];
+		for (const children of queue) {
+			if (children) {
+				for (const child of children) {
+					queue.push(this._debugVisualizationElements.get(child)?.children);
+					this._debugVisualizationElements.delete(child);
+				}
+			}
+		}
+	}
+
+	private convertVisualizerTreeItem(treeId: string, item: vscode.DebugTreeItem): IDebugVisualizationTreeItem {
+		let id = this._debugVisualizationTreeItemIds.get(item);
+		if (!id) {
+			id = this._debugVisualizationTreeItemIdsCounter++;
+			this._debugVisualizationTreeItemIds.set(item, id);
+			this._debugVisualizationElements.set(id, { provider: treeId, item });
+		}
+
+		return Convert.DebugTreeItem.from(item, id);
 	}
 
 	public asDebugSourceUri(src: vscode.DebugProtocolSource, session?: vscode.DebugSession): URI {
@@ -224,7 +302,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			throw new Error(`No debug visualizer found with id '${id}'`);
 		}
 
-		let { v, provider } = visualizer;
+		let { v, provider, extensionId } = visualizer;
 		if (!v.visualization) {
 			v = await provider.resolveDebugVisualization?.(v, token) || v;
 			visualizer.v = v;
@@ -234,7 +312,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			throw new Error(`No visualization returned from resolveDebugVisualization in '${provider}'`);
 		}
 
-		return this.serializeVisualization(v.visualization)!;
+		return this.serializeVisualization(extensionId, v.visualization)!;
 	}
 
 	public async $executeDebugVisualizerCommand(id: number): Promise<void> {
@@ -249,21 +327,26 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		}
 	}
 
-	public async $provideDebugVisualizers(extensionId: string, id: string, context: IDebugVisualizationContext, token: CancellationToken): Promise<IDebugVisualization.Serialized[]> {
+	private hydrateVisualizationContext(context: IDebugVisualizationContext): vscode.DebugVisualizationContext | undefined {
 		const session = this._debugSessions.get(context.sessionId);
-		const key = this.extensionVisKey(extensionId, id);
-		const provider = this._debugVisualizationProviders.get(key);
-		if (!session || !provider) {
-			return []; // probably ended in the meantime
-		}
-
-		const visualizations = await provider.provideDebugVisualization({
+		return session && {
 			session: session.api,
 			variable: context.variable,
 			containerId: context.containerId,
 			frameId: context.frameId,
 			threadId: context.threadId,
-		}, token);
+		};
+	}
+
+	public async $provideDebugVisualizers(extensionId: string, id: string, context: IDebugVisualizationContext, token: CancellationToken): Promise<IDebugVisualization.Serialized[]> {
+		const contextHydrated = this.hydrateVisualizationContext(context);
+		const key = this.extensionVisKey(extensionId, id);
+		const provider = this._debugVisualizationProviders.get(key);
+		if (!contextHydrated || !provider) {
+			return []; // probably ended in the meantime
+		}
+
+		const visualizations = await provider.provideDebugVisualization(contextHydrated, token);
 
 		if (!visualizations) {
 			return [];
@@ -271,14 +354,14 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		return visualizations.map(v => {
 			const id = ++this._visualizerIdCounter;
-			this._visualizers.set(id, { v, provider });
+			this._visualizers.set(id, { v, provider, extensionId });
 			const icon = v.iconPath ? this.getIconPathOrClass(v.iconPath) : undefined;
 			return {
 				id,
 				name: v.name,
 				iconClass: icon?.iconClass,
 				iconPath: icon?.iconPath,
-				visualization: this.serializeVisualization(v.visualization),
+				visualization: this.serializeVisualization(extensionId, v.visualization),
 			};
 		});
 	}
@@ -962,13 +1045,17 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		return `${extensionId}\0${id}`;
 	}
 
-	private serializeVisualization(viz: vscode.DebugVisualization['visualization']): MainThreadDebugVisualization | undefined {
+	private serializeVisualization(extensionId: string, viz: vscode.DebugVisualization['visualization']): MainThreadDebugVisualization | undefined {
 		if (!viz) {
 			return undefined;
 		}
 
 		if ('title' in viz && 'command' in viz) {
 			return { type: DebugVisualizationType.Command };
+		}
+
+		if ('treeId' in viz) {
+			return { type: DebugVisualizationType.Tree, id: `${extensionId}\0${viz.treeId}` };
 		}
 
 		throw new Error('Unsupported debug visualization type');

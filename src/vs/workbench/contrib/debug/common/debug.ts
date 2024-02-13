@@ -634,6 +634,8 @@ export interface IViewModel extends ITreeElement {
 	 */
 	readonly focusedStackFrame: IStackFrame | undefined;
 
+	setVisualizedExpression(original: IExpression, visualized: IExpression | undefined): void;
+	getVisualizedExpression(expression: IExpression): IExpression | undefined;
 	getSelectedExpression(): { expression: IExpression; settingWatch: boolean } | undefined;
 	setSelectedExpression(expression: IExpression | undefined, settingWatch: boolean): void;
 	updateViews(): void;
@@ -645,6 +647,11 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>;
 	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
 	onDidEvaluateLazyExpression: Event<IExpressionContainer>;
+	/**
+	 * Fired when `setVisualizedExpression`, to migrate elements currently
+	 * rendered as `original` to the `replacement`.
+	 */
+	onDidChangeVisualization: Event<{ original: IExpression; replacement: IExpression }>;
 	onWillUpdateViews: Event<void>;
 
 	evaluateLazyExpression(expression: IExpressionContainer): void;
@@ -1269,9 +1276,31 @@ export const enum DebugVisualizationType {
 	Tree,
 }
 
-export type MainThreadDebugVisualization = {
-	type: DebugVisualizationType.Command;
-};  // todo: tree
+export type MainThreadDebugVisualization =
+	| { type: DebugVisualizationType.Command }
+	| { type: DebugVisualizationType.Tree; id: string };
+
+
+export const enum DebugTreeItemCollapsibleState {
+	None = 0,
+	Collapsed = 1,
+	Expanded = 2
+}
+
+export interface IDebugVisualizationTreeItem {
+	id: number;
+	label: string;
+	description?: string;
+	collapsibleState: DebugTreeItemCollapsibleState;
+	contextValue?: string;
+	canEdit?: boolean;
+}
+
+export namespace IDebugVisualizationTreeItem {
+	export type Serialized = IDebugVisualizationTreeItem;
+	export const deserialize = (v: Serialized): IDebugVisualizationTreeItem => v;
+	export const serialize = (item: IDebugVisualizationTreeItem): Serialized => item;
+}
 
 export interface IDebugVisualization {
 	id: number;
