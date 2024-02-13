@@ -1665,6 +1665,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatAgentRequestTurn: extHostTypes.ChatAgentRequestTurn,
 			ChatAgentResponseTurn: extHostTypes.ChatAgentResponseTurn,
+			LanguageModelSystemMessage: extHostTypes.LanguageModelSystemMessage,
+			LanguageModelUserMessage: extHostTypes.LanguageModelUserMessage,
+			LanguageModelAssistantMessage: extHostTypes.LanguageModelAssistantMessage,
 		};
 	};
 }

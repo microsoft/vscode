@@ -2242,12 +2242,28 @@ export namespace ChatMessage {
 	export function to(message: chatProvider.IChatMessage): vscode.ChatMessage {
 		return new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
 	}
+}
 
-	export function from(message: vscode.ChatMessage): chatProvider.IChatMessage {
-		return {
-			role: ChatMessageRole.from(message.role),
-			content: message.content,
-		};
+export namespace LanguageModelMessage {
+
+	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelMessage {
+		switch (message.role) {
+			case chatProvider.ChatMessageRole.System: return new types.LanguageModelSystemMessage(message.content);
+			case chatProvider.ChatMessageRole.User: return new types.LanguageModelUserMessage(message.content);
+			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelAssistantMessage(message.content);
+		}
+	}
+
+	export function from(message: vscode.LanguageModelMessage): chatProvider.IChatMessage {
+		if (message instanceof types.LanguageModelSystemMessage) {
+			return { role: chatProvider.ChatMessageRole.System, content: message.content };
+		} else if (message instanceof types.LanguageModelUserMessage) {
+			return { role: chatProvider.ChatMessageRole.User, content: message.content };
+		} else if (message instanceof types.LanguageModelAssistantMessage) {
+			return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
+		} else {
+			throw new Error('Invalid LanguageModelMessage');
+		}
 	}
 }
 

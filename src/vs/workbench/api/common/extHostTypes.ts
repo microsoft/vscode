@@ -4274,6 +4274,32 @@ export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
 	) { }
 }
 
+export class LanguageModelSystemMessage {
+	content: string;
+
+	constructor(content: string) {
+		this.content = content;
+	}
+}
+
+export class LanguageModelUserMessage {
+	content: string;
+	name: string | undefined;
+
+	constructor(content: string, name?: string) {
+		this.content = content;
+		this.name = name;
+	}
+}
+
+export class LanguageModelAssistantMessage {
+	content: string;
+
+	constructor(content: string) {
+		this.content = content;
+	}
+}
+
 //#endregion
 
 //#region ai
