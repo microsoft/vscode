@@ -30,10 +30,14 @@ import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/comm
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Schemas } from 'vs/base/common/network';
 
 export class ReleaseNotesManager {
-
+	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
+	private scrollPosition: { x: number; y: number } | undefined;
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
@@ -50,20 +54,28 @@ export class ReleaseNotesManager {
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		TokenizationRegistry.onDidChange(async () => {
-			if (!this._currentReleaseNotes || !this._lastText) {
-				return;
-			}
-			const html = await this.renderBody(this._lastText);
-			if (this._currentReleaseNotes) {
-				this._currentReleaseNotes.webview.setHtml(html);
-			}
+		TokenizationRegistry.onDidChange(() => {
+			return this.updateHtml();
 		});
 
 		_configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 		_webviewWorkbenchService.onDidChangeActiveWebviewEditor(this.onDidChangeActiveWebviewEditor, this, this.disposables);
+		this._simpleSettingRenderer = this._instantiationService.createInstance(SimpleSettingRenderer);
+	}
+
+	private async updateHtml() {
+		if (!this._currentReleaseNotes || !this._lastText) {
+			return;
+		}
+		const captureScroll = this.scrollPosition;
+		const html = await this.renderBody(this._lastText);
+		if (this._currentReleaseNotes) {
+			this._currentReleaseNotes.webview.setHtml(html);
+			this._currentReleaseNotes.webview.postMessage({ type: 'setScroll', value: { scrollPosition: captureScroll } });
+		}
 	}
 
 	public async show(version: string): Promise<boolean> {
@@ -102,6 +114,8 @@ export class ReleaseNotesManager {
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
+				} else if (e.message.type === 'scroll') {
+					this.scrollPosition = e.message.value.scrollPosition;
 				}
 			}));
 
@@ -204,10 +218,15 @@ export class ReleaseNotesManager {
 		return this._releaseNotesCache.get(version)!;
 	}
 
-	private onDidClickLink(uri: URI) {
-		this.addGAParameters(uri, 'ReleaseNotes')
-			.then(updated => this._openerService.open(updated))
-			.then(undefined, onUnexpectedError);
+	private async onDidClickLink(uri: URI) {
+		if (uri.scheme === Schemas.codeSetting) {
+			await this._simpleSettingRenderer.updateSettingValue(uri);
+			this.updateHtml();
+		} else {
+			this.addGAParameters(uri, 'ReleaseNotes')
+				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings'] }))
+				.then(undefined, onUnexpectedError);
+		}
 	}
 
 	private async addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
@@ -221,7 +240,7 @@ export class ReleaseNotesManager {
 
 	private async renderBody(text: string) {
 		const nonce = generateUuid();
-		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, false);
+		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, false, undefined, undefined, this._simpleSettingRenderer);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
@@ -267,8 +286,22 @@ export class ReleaseNotesManager {
 					window.addEventListener('message', event => {
 						if (event.data.type === 'showReleaseNotes') {
 							input.checked = event.data.value;
+						} else if (event.data.type === 'setScroll') {
+							window.scrollTo(event.data.value.scrollPosition.x, event.data.value.scrollPosition.y);
 						}
 					});
+
+					window.onscroll = () => {
+						vscode.postMessage({
+							type: 'scroll',
+							value: {
+								scrollPosition: {
+									x: window.scrollX,
+									y: window.scrollY
+								}
+							}
+						});
+					};
 
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');

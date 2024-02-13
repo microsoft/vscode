@@ -46,6 +46,7 @@
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-list-background",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-foreground",
@@ -635,6 +636,7 @@
 		"--vscode-tab-activeForeground",
 		"--vscode-tab-activeModifiedBorder",
 		"--vscode-tab-border",
+		"--vscode-tab-dragAndDropBorder",
 		"--vscode-tab-hoverBackground",
 		"--vscode-tab-hoverBorder",
 		"--vscode-tab-hoverForeground",
@@ -691,6 +693,7 @@
 		"--vscode-terminalOverviewRuler-findMatchForeground",
 		"--vscode-terminalStickyScroll-background",
 		"--vscode-terminalStickyScrollHover-background",
+		"--vscode-testing-coverage-lineHeight",
 		"--vscode-testing-coverCountBadgeBackground",
 		"--vscode-testing-coverCountBadgeForeground",
 		"--vscode-testing-coveredBackground",
@@ -746,7 +749,8 @@
 		"--vscode-widget-border",
 		"--vscode-widget-shadow",
 		"--vscode-window-activeBorder",
-		"--vscode-window-inactiveBorder"
+		"--vscode-window-inactiveBorder",
+		"--vscode-multiDiffEditor-headerBackground"
 	],
 	"others": [
 		"--background-dark",

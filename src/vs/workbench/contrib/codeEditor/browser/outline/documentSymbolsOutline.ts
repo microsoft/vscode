@@ -433,7 +433,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor!, target, firstLoadBarrier));
+		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier));
 		await firstLoadBarrier.wait();
 		return result;
 	}

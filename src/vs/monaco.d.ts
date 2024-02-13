@@ -7766,6 +7766,10 @@ declare namespace monaco.languages {
 		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 	}
 
+	export interface NewSymbolNamesProvider {
+		provideNewSymbolNames(model: editor.ITextModel, range: IRange, token: CancellationToken): ProviderResult<string[]>;
+	}
+
 	export interface Command {
 		id: string;
 		title: string;

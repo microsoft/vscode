@@ -9,11 +9,10 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { MultiDiffEditorInput, MultiDiffEditorResolverContribution, MultiDiffEditorSerializer } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CollapseAllAction, ExpandAllAction, GoToFileAction } from './actions';
 import { IMultiDiffSourceResolverService, MultiDiffSourceResolverService } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -37,8 +36,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 registerSingleton(IMultiDiffSourceResolverService, MultiDiffSourceResolverService, InstantiationType.Delayed);
 
 // Editor Integration
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MultiDiffEditorResolverContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(MultiDiffEditorResolverContribution.ID, MultiDiffEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	.registerEditorPane(
@@ -51,5 +49,4 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 
 // SCM integration
 registerAction2(OpenScmGroupAction);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(ScmMultiDiffSourceResolverContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(ScmMultiDiffSourceResolverContribution.ID, ScmMultiDiffSourceResolverContribution, WorkbenchPhase.BlockStartup /* only registering an editor resolver  */);

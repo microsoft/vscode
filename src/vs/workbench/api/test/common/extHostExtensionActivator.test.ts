@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
+import { promiseWithResolvers, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -228,15 +228,12 @@ suite('ExtensionsActivator', () => {
 	}
 
 	class ExtensionActivationPromiseSource {
-		private _resolve!: (value: ActivatedExtension) => void;
-		private _reject!: (err: Error) => void;
+		private readonly _resolve: (value: ActivatedExtension) => void;
+		private readonly _reject: (err: Error) => void;
 		public readonly promise: Promise<ActivatedExtension>;
 
 		constructor() {
-			this.promise = new Promise<ActivatedExtension>((resolve, reject) => {
-				this._resolve = resolve;
-				this._reject = reject;
-			});
+			({ promise: this.promise, resolve: this._resolve, reject: this._reject } = promiseWithResolvers<ActivatedExtension>());
 		}
 
 		public resolve(): void {

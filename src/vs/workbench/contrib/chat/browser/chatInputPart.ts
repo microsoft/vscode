@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -37,7 +37,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -64,7 +64,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatReplyFollowup; response: IChatResponseViewModel | undefined }>());
+	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
 	private inputEditorHeight = 0;
@@ -302,6 +302,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			menuOptions: {
 				shouldForwardArgs: true
 			},
+			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
 				if (action.id === SubmitAction.ID) {
 					return this.instantiationService.createInstance(SubmitButtonActionViewItem, { widget } satisfies IChatExecuteActionContext, action, options);
@@ -338,7 +339,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	async renderFollowups(items: IChatReplyFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
+	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
 		if (!this.options.renderFollowups) {
 			return;
 		}
@@ -346,7 +347,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
-			this.followupsDisposables.add(new ChatFollowups(this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response }), this.contextKeyService));
+			this.followupsDisposables.add(this.instantiationService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(ChatFollowups, this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response })));
 		}
 	}
 

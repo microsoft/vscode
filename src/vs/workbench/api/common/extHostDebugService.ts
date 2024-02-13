@@ -1004,7 +1004,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 }
 
 export class ExtHostDebugSession {
-
+	private apiSession?: vscode.DebugSession;
 	constructor(
 		private _debugServiceProxy: MainThreadDebugServiceShape,
 		private _id: DebugSessionUUID,
@@ -1017,7 +1017,7 @@ export class ExtHostDebugSession {
 
 	public get api(): vscode.DebugSession {
 		const that = this;
-		return Object.freeze({
+		return this.apiSession ??= Object.freeze({
 			id: that._id,
 			type: that._type,
 			get name() {

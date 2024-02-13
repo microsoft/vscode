@@ -13,7 +13,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { registerChatCodeBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
@@ -58,6 +58,7 @@ import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/c
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -108,6 +109,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 class ChatResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatResolver';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -191,7 +195,7 @@ class ChatAccessibleViewContribution extends Disposable {
 				accessibleViewService.show({
 					id: AccessibleViewProviderId.Chat,
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-					provideContent(): string { return responseContent!; },
+					provideContent(): string { return responseContent; },
 					onClose() {
 						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {
@@ -281,7 +285,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(ChatResolverContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
@@ -307,3 +311,4 @@ registerSingleton(IChatProviderService, ChatProviderService, InstantiationType.D
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
+registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);

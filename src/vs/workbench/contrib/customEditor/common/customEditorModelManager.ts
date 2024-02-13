@@ -46,7 +46,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			return {
 				object: model,
 				dispose: createSingleCallFunction(() => {
-					if (--entry!.counter <= 0) {
+					if (--entry.counter <= 0) {
 						entry.model.then(x => x.dispose());
 						this._references.delete(key);
 					}

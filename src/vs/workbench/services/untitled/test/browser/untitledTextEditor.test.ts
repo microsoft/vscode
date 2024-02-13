@@ -111,6 +111,10 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(dirtyUntypedInput.contents, 'foo bar');
 		assert.strictEqual(dirtyUntypedInput.resource, undefined);
 
+		const dirtyUntypedInputWithResource = input2.toUntyped({ preserveViewState: 0, preserveResource: true });
+		assert.strictEqual(dirtyUntypedInputWithResource.contents, 'foo bar');
+		assert.strictEqual(dirtyUntypedInputWithResource?.resource?.toString(), input2.resource.toString());
+
 		const dirtyUntypedInputWithoutContent = input2.toUntyped();
 		assert.strictEqual(dirtyUntypedInputWithoutContent.resource?.toString(), input2.resource.toString());
 		assert.strictEqual(dirtyUntypedInputWithoutContent.contents, undefined);

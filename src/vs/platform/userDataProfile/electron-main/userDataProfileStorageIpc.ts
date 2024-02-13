@@ -97,7 +97,7 @@ export class ProfileStorageChangesListenerChannel extends Disposable implements 
 		switch (event) {
 			case 'onDidChange': return this._onDidChange.event;
 		}
-		throw new Error(`Event not found: ${event}`);
+		throw new Error(`[ProfileStorageChangesListenerChannel] Event not found: ${event}`);
 	}
 
 	async call(_: unknown, command: string): Promise<any> {

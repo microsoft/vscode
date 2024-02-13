@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Button } from 'vs/base/browser/ui/button/button';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -15,6 +18,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -30,6 +34,7 @@ export class RenameInputField implements IContentWidget {
 	private _position?: Position;
 	private _domNode?: HTMLElement;
 	private _input?: HTMLInputElement;
+	private _newNameCandidates?: NewSymbolNameCandidates;
 	private _label?: HTMLDivElement;
 	private _visible?: boolean;
 	private readonly _visibleContextKey: IContextKey<boolean>;
@@ -77,6 +82,12 @@ export class RenameInputField implements IContentWidget {
 			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 			this._domNode.appendChild(this._input);
 
+			// TODO@ulugbekna: support accept/escape corresponding to the keybindings
+			this._newNameCandidates = new NewSymbolNameCandidates();
+			this._newNameCandidates.onAccept(() => this.acceptInput(false)); // FIXME@ulugbekna: need to handle preview
+			this._newNameCandidates.onEscape(() => this._input!.focus());
+			this._domNode.appendChild(this._newNameCandidates!.domNode);
+
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
 			this._domNode.appendChild(this._label);
@@ -108,7 +119,7 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private _updateFont(): void {
-		if (!this._input || !this._label) {
+		if (!this._input || !this._label || !this._newNameCandidates) {
 			return;
 		}
 
@@ -116,6 +127,10 @@ export class RenameInputField implements IContentWidget {
 		this._input.style.fontFamily = fontInfo.fontFamily;
 		this._input.style.fontWeight = fontInfo.fontWeight;
 		this._input.style.fontSize = `${fontInfo.fontSize}px`;
+
+		this._newNameCandidates.domNode.style.fontFamily = fontInfo.fontFamily;
+		this._newNameCandidates.domNode.style.fontWeight = fontInfo.fontWeight;
+		this._newNameCandidates.domNode.style.fontSize = `${fontInfo.fontSize}px`;
 
 		this._label.style.fontSize = `${fontInfo.fontSize * 0.8}px`;
 	}
@@ -133,6 +148,10 @@ export class RenameInputField implements IContentWidget {
 	beforeRender(): IDimension | null {
 		const [accept, preview] = this._acceptKeybindings;
 		this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+		// TODO@ulugbekna: elements larger than maxWidth shouldn't overflow
+		const maxWidth = Math.ceil(this._editor.getLayoutInfo().contentWidth / 4);
+		this._domNode!.style.maxWidth = `${maxWidth}px`;
+		this._domNode!.style.minWidth = `250px`; // to prevent from widening when candidates come in
 		return null;
 	}
 
@@ -155,7 +174,7 @@ export class RenameInputField implements IContentWidget {
 		this._currentCancelInput?.(focusEditor);
 	}
 
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, newNameCandidates: Promise<string[]>, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {
 
 		this._domNode!.classList.toggle('preview', supportPreview);
 
@@ -167,26 +186,41 @@ export class RenameInputField implements IContentWidget {
 
 		const disposeOnDone = new DisposableStore();
 
+		newNameCandidates.then(candidates => {
+			if (!token.isCancellationRequested) { // TODO@ulugbekna: make sure this's the correct token to check
+				this._newNameCandidates!.setCandidates(candidates);
+			}
+		});
+
 		return new Promise<RenameInputFieldResult | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
+				this._newNameCandidates?.clearCandidates();
 				resolve(focusEditor);
 				return true;
 			};
 
 			this._currentAcceptInput = (wantsPreview) => {
-				if (this._input!.value.trim().length === 0 || this._input!.value === value) {
+				if (this._input!.value.trim().length === 0) {
 					// empty or whitespace only or not changed
+					this.cancelInput(true);
+					return;
+				}
+
+				const selectedCandidate = this._newNameCandidates?.selectedCandidate;
+				if ((selectedCandidate === undefined && this._input!.value === value) || selectedCandidate === value) {
 					this.cancelInput(true);
 					return;
 				}
 
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
+				this._newNameCandidates?.clearCandidates();
+
 				resolve({
-					newName: this._input!.value,
+					newName: selectedCandidate ?? this._input!.value,
 					wantsPreview: supportPreview && wantsPreview
 				});
 			};
@@ -220,5 +254,52 @@ export class RenameInputField implements IContentWidget {
 		this._visible = false;
 		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
+	}
+}
+
+export class NewSymbolNameCandidates {
+
+	public readonly domNode: HTMLElement;
+
+	private _onAcceptEmitter = new Emitter<string>();
+	public readonly onAccept = this._onAcceptEmitter.event;
+	private _onEscapeEmitter = new Emitter<void>();
+	public readonly onEscape = this._onEscapeEmitter.event;
+
+	private _candidates: Button[] = [];
+
+	private _candidateDisposables: DisposableStore | undefined;
+
+	// TODO@ulugbekna: pressing escape when focus is on a candidate should return the focus to the input field
+	constructor() {
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'rename-box new-name-candidates-container';
+		this.domNode.tabIndex = -1; // Make the div unfocusable
+	}
+
+	get selectedCandidate(): string | undefined {
+		const selected = this._candidates.find(c => c.hasFocus());
+		return selected === undefined ? undefined : (
+			assertType(typeof selected.label === 'string', 'string'),
+			selected.label
+		);
+	}
+
+	setCandidates(candidates: string[]): void {
+		this._candidateDisposables = new DisposableStore();
+		for (let i = 0; i < candidates.length; i++) {
+			const candidate = candidates[i];
+			const candidateElt = new Button(this.domNode, defaultButtonStyles);
+			this._candidateDisposables.add(candidateElt.onDidClick(() => this._onAcceptEmitter.fire(candidate)));
+			this._candidateDisposables.add(candidateElt.onDidEscape(() => this._onEscapeEmitter.fire()));
+			candidateElt.label = candidate;
+			this._candidates.push(candidateElt);
+		}
+	}
+
+	clearCandidates(): void {
+		this._candidateDisposables?.dispose();
+		this.domNode.innerText = '';
+		this._candidates = [];
 	}
 }

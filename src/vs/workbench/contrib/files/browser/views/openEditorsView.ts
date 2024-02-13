@@ -795,7 +795,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleEditorGroupLayout',
-			title: { value: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"), original: 'Toggle Vertical/Horizontal Editor Layout' },
+			title: nls.localize2('flipLayout', "Toggle Vertical/Horizontal Editor Layout"),
 			f1: true,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit0,
@@ -824,8 +824,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	command: {
 		id: toggleEditorGroupLayoutId,
 		title: {
-			original: 'Flip Layout',
-			value: nls.localize('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
+			...nls.localize2('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
 			mnemonicTitle: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
 		}
 	},
@@ -836,7 +835,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.files.saveAll',
-			title: { value: SAVE_ALL_LABEL, original: 'Save All' },
+			title: SAVE_ALL_LABEL,
 			f1: true,
 			icon: Codicon.saveAll,
 			menu: {
@@ -882,7 +881,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'openEditors.newUntitledFile',
-			title: { value: nls.localize('newUntitledFile', "New Untitled Text File"), original: 'New Untitled Text File' },
+			title: nls.localize2('newUntitledFile', "New Untitled Text File"),
 			f1: false,
 			icon: Codicon.newFile,
 			menu: {

@@ -99,7 +99,7 @@ export class MarkerController implements IEditorContribution {
 			if (!this._widget || !this._widget.position || !this._model) {
 				return;
 			}
-			const info = this._model.find(this._editor.getModel()!.uri, this._widget!.position!);
+			const info = this._model.find(this._editor.getModel()!.uri, this._widget.position);
 			if (info) {
 				this._widget.updateMarker(info.marker);
 			} else {

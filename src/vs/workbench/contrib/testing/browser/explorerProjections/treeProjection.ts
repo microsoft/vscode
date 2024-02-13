@@ -302,9 +302,14 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 		treeElement.parent?.children.add(treeElement);
 		this.items.set(treeElement.test.item.extId, treeElement);
 
-		// The first element will cause the root to be shown
-		const affectsRootElement = treeElement.depth === 1 && treeElement.parent?.children.size === 1;
-		this.changedParents.add(affectsRootElement ? null : treeElement.parent);
+		// The first element will cause the root to be shown. The first element of
+		// a parent may need to re-render it for #204805.
+		const affectsParent = treeElement.parent?.children.size === 1;
+		const affectedParent = affectsParent ? treeElement.parent.parent : treeElement.parent;
+		this.changedParents.add(affectedParent);
+		if (affectedParent?.depth === 0) {
+			this.changedParents.add(null);
+		}
 
 		if (treeElement.depth === 0 || isCollapsedInSerializedTestTree(this.lastState, treeElement.test.item.extId) === false) {
 			this.expandElement(treeElement, 0);

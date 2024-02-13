@@ -253,9 +253,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.layout) {
-			this.delegate!.layout!();
-		}
+		this.delegate?.layout?.();
 
 		this.doLayout();
 	}
