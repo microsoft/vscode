@@ -31,6 +31,7 @@ import { Event } from 'vs/base/common/event';
 import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { Sequencer } from 'vs/base/common/async';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -49,6 +50,8 @@ interface ITextSearchQuickAccessItem extends IPickerQuickAccessItem {
 	match?: Match;
 }
 export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearchQuickAccessItem> {
+
+	private editorSequencer: Sequencer;
 	private queryBuilder: QueryBuilder;
 	private searchModel: SearchModel;
 	private currentAsyncSearch: Promise<ISearchComplete> = Promise.resolve({
@@ -89,6 +92,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
+		this.editorSequencer = new Sequencer();
 	}
 
 	override dispose(): void {
@@ -118,14 +122,14 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			if (item?.match) {
 				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
 				this.editorViewState.set();
-
-				// disable and re-enable history service so that we can ignore this history entry
-				this._historyService.shouldIgnoreActiveEditorChange = true;
-				// TODO: see why this doesn't work
-				this._editorService.openEditor({
-					resource: item.match.parent().resource,
-					options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: item.match.range() }
-				}).finally(() => {
+				const itemMatch = item.match;
+				this.editorSequencer.queue(async () => {
+					// disable and re-enable history service so that we can ignore this history entry
+					this._historyService.shouldIgnoreActiveEditorChange = true;
+					await this._editorService.openEditor({
+						resource: itemMatch.parent().resource,
+						options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+					});
 					this._historyService.shouldIgnoreActiveEditorChange = false;
 				});
 			}
