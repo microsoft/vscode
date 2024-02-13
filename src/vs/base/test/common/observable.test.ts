@@ -18,11 +18,15 @@ suite('observables', () => {
 	suite('tutorial', () => {
 		test('observable + autorun', () => {
 			const log = new Log();
-			// This creates a new observable value. The name is only used for debugging purposes.
+			// This creates a variable that stores a value and whose value changes can be observed.
+			// The name is only used for debugging purposes.
 			// The second arg is the initial value.
 			const myObservable = observableValue('myObservable', 0);
 
-			// This creates an autorun. The @description is only used for debugging purposes.
+			// This creates an autorun: It runs immediately and then again whenever any of the
+			// dependencies change. Dependencies are tracked by reading observables with the `reader` parameter.
+			//
+			// The @description is only used for debugging purposes.
 			// The autorun has to be disposed! This is very important.
 			ds.add(autorun(reader => {
 				/** @description myAutorun */
@@ -31,7 +35,7 @@ suite('observables', () => {
 
 				// Use the `reader` to read observable values and track the dependency to them.
 				// If you use `observable.get()` instead of `observable.read(reader)`, you will just
-				// get the value and not track the dependency.
+				// get the value and not subscribe to it.
 				log.log(`myAutorun.run(myObservable: ${myObservable.read(reader)})`);
 
 				// Now that all dependencies are tracked, the autorun is re-run whenever any of the
