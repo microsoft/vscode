@@ -355,7 +355,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	) {
 		super();
 
-		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate));
+		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse'));
 	}
 
 	set actionRunner(actionRunner: ActionRunner) {

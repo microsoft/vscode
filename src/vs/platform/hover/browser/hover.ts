@@ -233,14 +233,13 @@ export interface IHoverTarget extends IDisposable {
 
 export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
 
-	readonly placement = 'mouse';
-
 	private _delay: number;
 	get delay(): number {
 		return this._delay;
 	}
 
 	constructor(
+		public readonly placement: 'mouse' | 'element',
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {

@@ -230,7 +230,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
-		this._hoverDelegate = this._disposables.add(instantiationService.createInstance(WorkbenchHoverDelegate));
+		this._hoverDelegate = this._disposables.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element'));
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 		this.hide();

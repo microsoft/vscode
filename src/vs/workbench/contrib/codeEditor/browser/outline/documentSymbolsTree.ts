@@ -21,11 +21,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -123,14 +123,14 @@ export class DocumentSymbolRenderer extends Disposable implements ITreeRenderer<
 
 	constructor(
 		private _renderMarker: boolean,
+		target: OutlineTarget,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 
-		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate));
+		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, target === OutlineTarget.Breadcrumbs ? 'element' : 'mouse'));
 	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {

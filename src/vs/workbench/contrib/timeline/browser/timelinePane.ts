@@ -1151,7 +1151,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 		super();
 
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate));
+		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse'));
 	}
 
 	private uri: URI | undefined;
