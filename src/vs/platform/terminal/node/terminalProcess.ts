@@ -402,7 +402,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._store.isDisposed) {
 			return;
 		}
-		this._currentTitle = ptyProcess.process; // shell will tell us its own title
+		this._currentTitle = ptyProcess.process;
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
