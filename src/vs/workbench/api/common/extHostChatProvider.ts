@@ -151,7 +151,13 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
 		});
 
-		return data.provider.provideLanguageModelResponse(messages.map(typeConvert.ChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
+		if (data.provider.provideLanguageModelResponse2) {
+			return data.provider.provideLanguageModelResponse2(messages.map(typeConvert.LanguageModelMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
+		} else {
+			// TODO@jrieken remove
+			return data.provider.provideLanguageModelResponse(messages.map(typeConvert.ChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
+		}
+
 	}
 
 	//#region --- making request
@@ -269,7 +275,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				}
 				const cts = new CancellationTokenSource(token);
 				const requestId = (Math.random() * 1e6) | 0;
-				const requestPromise = that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.ChatMessage.from), options ?? {}, cts.token);
+				const requestPromise = that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options ?? {}, cts.token);
 				const res = new LanguageModelRequest(requestPromise, cts);
 				that._pendingRequest.set(requestId, { languageModelId, res });
 

@@ -548,6 +548,7 @@ export class TestMenuService implements IMenuService {
 export class TestHistoryService implements IHistoryService {
 
 	declare readonly _serviceBrand: undefined;
+	declare shouldIgnoreActiveEditorChange: boolean;
 
 	constructor(private root?: URI) { }
 

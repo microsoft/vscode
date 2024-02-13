@@ -280,9 +280,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, contextIndex];
 		if (usePosition) {
 			this.show(position, height);
+			this.editor.setPosition(position);
+			this.editor.focus();
 		}
-		this.editor.setPosition(position);
-		this.editor.focus();
 	}
 
 	private renderTitle(label: string): void {

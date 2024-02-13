@@ -1229,6 +1229,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'debugVisualization');
 				return extHostDebugService.registerDebugVisualizationProvider(extension, id, provider);
 			},
+			registerDebugVisualizationTreeProvider(id, provider) {
+				checkProposedApiEnabled(extension, 'debugVisualization');
+				return extHostDebugService.registerDebugVisualizationTree(extension, id, provider);
+			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostDebugService.onDidStartDebugSession)(listener, thisArg, disposables);
 			},
@@ -1665,6 +1669,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatAgentRequestTurn: extHostTypes.ChatAgentRequestTurn,
 			ChatAgentResponseTurn: extHostTypes.ChatAgentResponseTurn,
+			LanguageModelSystemMessage: extHostTypes.LanguageModelSystemMessage,
+			LanguageModelUserMessage: extHostTypes.LanguageModelUserMessage,
+			LanguageModelAssistantMessage: extHostTypes.LanguageModelAssistantMessage,
 		};
 	};
 }

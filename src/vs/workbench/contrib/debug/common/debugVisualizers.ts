@@ -10,9 +10,9 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/pla
 import { ExtensionIdentifier, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE, MainThreadDebugVisualization, IDebugVisualization, IDebugVisualizationContext, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE, MainThreadDebugVisualization, IDebugVisualization, IDebugVisualizationContext, IExpression, IExpressionContainer, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
 import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
-import { Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Scope, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -25,6 +25,13 @@ interface VisualizerHandle {
 	resolveDebugVisualizer(viz: IDebugVisualization, token: CancellationToken): Promise<MainThreadDebugVisualization>;
 	executeDebugVisualizerCommand(id: number): Promise<void>;
 	disposeDebugVisualizers(ids: number[]): void;
+}
+
+interface VisualizerTreeHandle {
+	getTreeItem(element: IDebugVisualizationContext): Promise<IDebugVisualizationTreeItem | undefined>;
+	getChildren(element: number): Promise<IDebugVisualizationTreeItem[]>;
+	disposeItem(element: number): void;
+	editItem?(item: number, value: string): Promise<IDebugVisualizationTreeItem | undefined>;
 }
 
 export class DebugVisualizer {
@@ -63,13 +70,38 @@ export interface IDebugVisualizerService {
 	 * Registers a new visualizer (called from the main thread debug service)
 	 */
 	register(handle: VisualizerHandle): IDisposable;
+
+	/**
+	 * Registers a new visualizer tree.
+	 */
+	registerTree(treeId: string, handle: VisualizerTreeHandle): IDisposable;
+
+	/**
+	 * Sets that a certa tree should be used for the visualized node
+	 */
+	setVisualizedNodeFor(treeId: string, expr: IExpression): Promise<IExpression | undefined>;
+
+	/**
+	 * Gets a visualized node for the given expression if the user has preferred
+	 * to visualize it that way.
+	 */
+	getVisualizedNodeFor(expr: IExpression): Promise<IExpression | undefined>;
+
+	/**
+	 * Gets children for a visualized tree node.
+	 */
+	getVisualizedChildren(treeId: string, treeElementId: number): Promise<IExpression[]>;
 }
+
+const emptyRef: IReference<DebugVisualizer[]> = { object: [], dispose: () => { } };
 
 export class DebugVisualizerService implements IDebugVisualizerService {
 	declare public readonly _serviceBrand: undefined;
 
 	private readonly handles = new Map</* extId + \0 + vizId */ string, VisualizerHandle>();
+	private readonly trees = new Map</* extId + \0 + treeId */ string, VisualizerTreeHandle>();
 	private readonly didActivate = new Map<string, Promise<void>>();
+	private readonly preferredTrees = new Map<string, /* key of trees */ string>();
 	private registrations: { expr: ContextKeyExpression; id: string; extensionId: ExtensionIdentifier }[] = [];
 
 	constructor(
@@ -85,10 +117,13 @@ export class DebugVisualizerService implements IDebugVisualizerService {
 	}
 
 	/** @inheritdoc */
-	public async getApplicableFor(variable: Variable, token: CancellationToken): Promise<IReference<DebugVisualizer[]>> {
+	public async getApplicableFor(variable: IExpression, token: CancellationToken): Promise<IReference<DebugVisualizer[]>> {
+		if (!(variable instanceof Variable)) {
+			return emptyRef;
+		}
 		const threadId = variable.getThreadId();
 		if (threadId === undefined) { // an expression, not a variable
-			return { object: [], dispose: () => { } };
+			return emptyRef;
 		}
 
 		const context: IDebugVisualizationContext = {
@@ -161,6 +196,92 @@ export class DebugVisualizerService implements IDebugVisualizerService {
 		const key = toKey(handle.extensionId, handle.id);
 		this.handles.set(key, handle);
 		return toDisposable(() => this.handles.delete(key));
+	}
+
+	/** @inheritdoc */
+	public registerTree(treeId: string, handle: VisualizerTreeHandle): IDisposable {
+		this.trees.set(treeId, handle);
+		return toDisposable(() => this.trees.delete(treeId));
+	}
+
+	/** @inheritdoc */
+	public async setVisualizedNodeFor(treeId: string, expr: IExpression): Promise<IExpression | undefined> {
+		return this.getOrSetNodeFor(expr, treeId);
+	}
+
+	/** @inheritdoc */
+	public async getVisualizedNodeFor(expr: IExpression): Promise<IExpression | undefined> {
+		return this.getOrSetNodeFor(expr);
+	}
+
+	/** @inheritdoc */
+	public async getVisualizedChildren(treeId: string, treeElementId: number): Promise<IExpression[]> {
+		const children = await this.trees.get(treeId)?.getChildren(treeElementId) || [];
+		return children.map(c => new VisualizedExpression(this, treeId, c, undefined));
+	}
+
+	private async getOrSetNodeFor(expr: IExpression, useTreeKey?: string): Promise<IExpression | undefined> {
+		if (!(expr instanceof Variable)) {
+			return;
+		}
+
+		const threadId = expr.getThreadId();
+		if (threadId === undefined) {
+			return;
+		}
+
+		const exprPreferKey = useTreeKey || this.getPreferredTreeKey(expr);
+		const tree = exprPreferKey && this.trees.get(exprPreferKey);
+		if (!tree) {
+			return;
+		}
+
+		const treeItem = await tree.getTreeItem(this.getVariableContext(threadId, expr));
+		if (!treeItem) {
+			return;
+		}
+
+		if (useTreeKey) {
+			this.preferredTrees.set(exprPreferKey, exprPreferKey);
+		}
+
+		return new VisualizedExpression(this, exprPreferKey, treeItem, expr);
+	}
+
+	private getPreferredTreeKey(expr: Variable) {
+		return JSON.stringify([
+			expr.name,
+			expr.value,
+			expr.type,
+			!!expr.memoryReference,
+		].join('\0'));
+	}
+
+	private getVariableContext(threadId: number, variable: Variable) {
+		const context: IDebugVisualizationContext = {
+			sessionId: variable.getSession()?.getId() || '',
+			containerId: variable.parent.getId(),
+			threadId,
+			variable: {
+				name: variable.name,
+				value: variable.value,
+				type: variable.type,
+				evaluateName: variable.evaluateName,
+				variablesReference: variable.reference || 0,
+				indexedVariables: variable.indexedVariables,
+				memoryReference: variable.memoryReference,
+				namedVariables: variable.namedVariables,
+				presentationHint: variable.presentationHint,
+			}
+		};
+
+		for (let p: IExpressionContainer = variable; p instanceof Variable; p = p.parent) {
+			if (p.parent instanceof Scope) {
+				context.frameId = p.parent.stackFrame.frameId;
+			}
+		}
+
+		return context;
 	}
 
 	private processExtensionRegistration(ext: Readonly<IRelaxedExtensionDescription>) {

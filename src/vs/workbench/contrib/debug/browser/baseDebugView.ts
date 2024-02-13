@@ -8,7 +8,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
@@ -143,6 +143,30 @@ export interface IExpressionTemplateData {
 	label: HighlightedLabel;
 	lazyButton: HTMLElement;
 	currentElement: IExpression | undefined;
+}
+
+export abstract class AbstractExpressionDataSource<Input, Element extends IExpression> implements IAsyncDataSource<Input, Element> {
+	constructor(@IDebugService protected debugService: IDebugService) { }
+
+	public abstract hasChildren(element: Input | Element): boolean;
+
+	public getChildren(element: Input | Element): Promise<Element[]> {
+		const vm = this.debugService.getViewModel();
+		return this.doGetChildren(element).then(r => {
+			let dup: Element[] | undefined;
+			for (let i = 0; i < r.length; i++) {
+				const visualized = vm.getVisualizedExpression(r[i] as IExpression);
+				if (visualized) {
+					dup ||= r.slice();
+					dup[i] = visualized as Element;
+				}
+			}
+
+			return dup || r;
+		});
+	}
+
+	protected abstract doGetChildren(element: Input | Element): Promise<Element[]>;
 }
 
 export abstract class AbstractExpressionsRenderer<T = IExpression> implements ITreeRenderer<T, FuzzyScore, IExpressionTemplateData> {

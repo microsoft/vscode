@@ -626,7 +626,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplRawObjectsRenderer(linkDetector),
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
-			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>,
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
