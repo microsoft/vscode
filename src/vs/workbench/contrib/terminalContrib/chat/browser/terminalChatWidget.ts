@@ -92,6 +92,8 @@ export class TerminalChatWidget extends Disposable {
 		this._responseElement.classList.remove('hide');
 		if (!this._responseWidget) {
 			this._responseWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {}, { isSimpleWidget: true }));
+			this._register(this._responseWidget.onDidFocusEditorText(() => this._ctxResponseEditorFocused.set(true)));
+			this._register(this._responseWidget.onDidBlurEditorText(() => this._ctxResponseEditorFocused.set(false)));
 			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: codeBlock })).then((model) => {
 				if (!model || !this._responseWidget) {
 					return;
@@ -101,12 +103,6 @@ export class TerminalChatWidget extends Disposable {
 				const height = this._responseWidget.getContentHeight();
 				this._responseWidget.layout(new Dimension(400, height));
 			});
-			this._register(this._responseWidget.onDidFocusEditorText(() => {
-				this._ctxResponseEditorFocused.set(true);
-			}));
-			this._register(this._responseWidget.onDidBlurEditorText(() => {
-				this._ctxResponseEditorFocused.set(false);
-			}));
 		} else {
 			this._responseWidget.setValue(codeBlock);
 		}
@@ -169,9 +165,6 @@ export class TerminalChatWidget extends Disposable {
 	}
 	updateProgress(progress?: IChatProgress): void {
 		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
-	}
-	layout(width: number): void {
-		// this._widget?.layout(100, width < 300 ? 300 : width);
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;

@@ -6,7 +6,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IDimension } from 'vs/base/browser/dom';
 import { Lazy } from 'vs/base/common/lazy';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -49,7 +48,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	 */
 	static activeChatWidget?: TerminalChatController;
 	private _chatWidget: Lazy<TerminalChatWidget> | undefined;
-	private _lastLayoutDimensions: IDimension | undefined;
 	private _accessibilityRequestId: number = 0;
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
@@ -95,14 +93,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._cancellationTokenSource = new CancellationTokenSource();
 	}
 
-	layout(_xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void {
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
-		this._lastLayoutDimensions = dimension;
-		this._chatWidget?.rawValue?.layout(dimension.width);
-	}
-
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
 			return;
@@ -121,10 +111,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			});
 			if (!this._instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
-			}
-
-			if (this._lastLayoutDimensions) {
-				chatWidget.layout(this._lastLayoutDimensions.width);
 			}
 
 			return chatWidget;
