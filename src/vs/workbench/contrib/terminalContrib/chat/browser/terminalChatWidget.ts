@@ -9,6 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/terminalChatWidget';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
@@ -42,6 +43,7 @@ export class TerminalChatWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
@@ -145,9 +147,13 @@ export class TerminalChatWidget extends Disposable {
 
 	private _getLanguageFromShell(shell?: string): string {
 		switch (shell) {
-			case 'sh':
-			case 'bash':
+			case 'fish':
+				return this._languageService.isRegisteredLanguageId('fish') ? 'fish' : 'shellscript';
 			case 'zsh':
+				return this._languageService.isRegisteredLanguageId('zsh') ? 'zsh' : 'shellscript';
+			case 'bash':
+				return this._languageService.isRegisteredLanguageId('bash') ? 'bash' : 'shellscript';
+			case 'sh':
 				return 'shellscript';
 			case 'pwsh':
 				return 'powershell';
