@@ -36,7 +36,7 @@ import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browse
 import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
-import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { IInlineChatMessageAppender, InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -354,7 +354,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		const request: IInlineChatRequest = {
 			requestId: generateUuid(),
 			prompt: value,
-			attempt: 0,
+			attempt: this._activeSession.lastInput.attempt,
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			live: true,
@@ -366,10 +366,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		const requestCts = new CancellationTokenSource();
 		const progressEdits: TextEdit[][] = [];
+
 		const progressiveEditsQueue = new Queue();
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsAvgDuration = new MovingAverage();
 		const progressiveEditsCts = new CancellationTokenSource(requestCts.token);
+		let progressiveChatResponse: IInlineChatMessageAppender | undefined;
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			// console.log('received chunk', data, request);
 
@@ -399,6 +401,19 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 						: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
 					);
 				});
+			}
+
+			if (data.markdownFragment) {
+				if (!progressiveChatResponse) {
+					const message = {
+						message: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false }),
+						providerId: this._activeSession!.provider.debugName,
+						requestId: request.requestId,
+					};
+					progressiveChatResponse = this._widget?.inlineChatWidget.updateChatMessage(message, true);
+				} else {
+					progressiveChatResponse.appendContent(data.markdownFragment);
+				}
 			}
 		});
 
