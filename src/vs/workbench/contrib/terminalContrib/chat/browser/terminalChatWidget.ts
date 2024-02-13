@@ -34,6 +34,8 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _focusTracker: IFocusTracker;
 	private _responseWidget: CodeEditorWidget | undefined;
 
+	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
+
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _instance: ITerminalInstance,
@@ -139,6 +141,12 @@ export class TerminalChatWidget extends Disposable {
 	cancel(): void {
 		// TODO: Impl
 		this._inlineChatWidget.value = '';
+	}
+	focus(): void {
+		this._inlineChatWidget.focus();
+	}
+	hasFocus(): boolean {
+		return this._inlineChatWidget.hasFocus();
 	}
 	input(): string {
 		return this._inlineChatWidget.value;

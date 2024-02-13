@@ -24,6 +24,18 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { Emitter, Event } from 'vs/base/common/event';
+
+const enum Message {
+	NONE = 0,
+	ACCEPT_SESSION = 1 << 0,
+	CANCEL_SESSION = 1 << 1,
+	PAUSE_SESSION = 1 << 2,
+	CANCEL_REQUEST = 1 << 3,
+	CANCEL_INPUT = 1 << 4,
+	ACCEPT_INPUT = 1 << 5,
+	RERUN_INPUT = 1 << 6,
+}
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
@@ -46,6 +58,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _ctxLastResponseType!: IContextKey<undefined | InlineChatResponseTypes>;
 
 	private _cancellationTokenSource!: CancellationTokenSource;
+
+	private _messages = this._store.add(new Emitter<Message>());
+
+	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
+	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -118,6 +135,18 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._cancellationTokenSource.cancel();
 	}
 
+	setPlaceholder(text: string): void {
+		// TODO: Impl
+		// this._forcedPlaceholder = text;
+		// this._updatePlaceholder();
+	}
+
+	resetPlaceholder(): void {
+		// TODO: Impl
+		// this._forcedPlaceholder = undefined;
+		// this._updatePlaceholder();
+	}
+
 	async acceptInput(): Promise<void> {
 		let message = '';
 		this._chatAccessibilityService.acceptRequest();
@@ -168,6 +197,29 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		this._ctxHasActiveRequest.set(false);
 		this._chatWidget?.rawValue?.updateProgress();
+		this._messages.fire(Message.ACCEPT_INPUT);
+	}
+
+	updateInput(text: string, selectAll = true): void {
+		const widget = this._chatWidget?.rawValue?.inlineChatWidget;
+		if (widget) {
+			widget.value = text;
+			if (selectAll) {
+				widget.selectAll();
+			}
+		}
+	}
+
+	getInput(): string {
+		return this._chatWidget?.rawValue?.input() ?? '';
+	}
+
+	focus(): void {
+		this._chatWidget?.rawValue?.focus();
+	}
+
+	hasFocus(): boolean {
+		return !!this._chatWidget?.rawValue?.hasFocus();
 	}
 
 	acceptCommand(): void {

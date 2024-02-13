@@ -54,18 +54,23 @@ import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+// TODO: The chat needs to move into contrib/terminal/ as we don't want anything importing from terminalContrib/
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
 
 const CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('quickVoiceChatInProgress', false, { type: 'boolean', description: localize('quickVoiceChatInProgress', "True when voice recording from microphone is in progress for quick chat.") });
 const CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inlineVoiceChatInProgress', false, { type: 'boolean', description: localize('inlineVoiceChatInProgress', "True when voice recording from microphone is in progress for inline chat.") });
+const CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('terminalVoiceChatInProgress', false, { type: 'boolean', description: localize('terminalVoiceChatInProgress', "True when voice recording from microphone is in progress for terminal chat.") });
 const CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInViewInProgress', false, { type: 'boolean', description: localize('voiceChatInViewInProgress', "True when voice recording from microphone is in progress in the chat view.") });
 const CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInEditorInProgress', false, { type: 'boolean', description: localize('voiceChatInEditorInProgress', "True when voice recording from microphone is in progress in the chat editor.") });
 
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_PROVIDER_EXISTS, HasSpeechProvider);
 
-type VoiceChatSessionContext = 'inline' | 'quick' | 'view' | 'editor';
+type VoiceChatSessionContext = 'inline' | 'terminal' | 'quick' | 'view' | 'editor';
 
 interface IVoiceChatSessionController {
 
@@ -89,8 +94,9 @@ class VoiceChatSessionControllerFactory {
 	static create(accessor: ServicesAccessor, context: 'quick'): Promise<IVoiceChatSessionController | undefined>;
 	static create(accessor: ServicesAccessor, context: 'view'): Promise<IVoiceChatSessionController | undefined>;
 	static create(accessor: ServicesAccessor, context: 'focused'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined>;
-	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
+	static create(accessor: ServicesAccessor, context: 'terminal'): Promise<IVoiceChatSessionController | undefined>;
+	static create(accessor: ServicesAccessor, context: 'inline' | 'terminal' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined>;
+	static async create(accessor: ServicesAccessor, context: 'inline' | 'terminal' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
@@ -98,6 +104,7 @@ class VoiceChatSessionControllerFactory {
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
+		const terminalService = accessor.get(ITerminalService);
 
 		// Currently Focused Context
 		if (context === 'focused') {
@@ -132,6 +139,15 @@ class VoiceChatSessionControllerFactory {
 					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
 				}
 			}
+
+			// Try with the terminal chat
+			const activeInstance = terminalService.activeInstance;
+			if (activeInstance) {
+				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+				if (terminalChat?.hasFocus()) {
+					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
+				}
+			}
 		}
 
 		// View Chat
@@ -152,6 +168,17 @@ class VoiceChatSessionControllerFactory {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat) {
 					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
+				}
+			}
+		}
+
+		// Terminal Chat
+		if (context === 'terminal') {
+			const activeInstance = terminalService.activeInstance;
+			if (activeInstance) {
+				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+				if (terminalChat) {
+					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
 				}
 			}
 		}
@@ -224,6 +251,20 @@ class VoiceChatSessionControllerFactory {
 			clearInputPlaceholder: () => inlineChat.resetPlaceholder()
 		};
 	}
+
+	private static doCreateForTerminalChat(terminalChat: TerminalChatController): IVoiceChatSessionController {
+		return {
+			context: 'terminal',
+			onDidAcceptInput: terminalChat.onDidAcceptInput,
+			onDidCancelInput: terminalChat.onDidCancelInput,
+			focusInput: () => terminalChat.focus(),
+			acceptInput: () => terminalChat.acceptInput(),
+			updateInput: text => terminalChat.updateInput(text, false),
+			getInput: () => terminalChat.getInput(),
+			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
+			clearInputPlaceholder: () => terminalChat.resetPlaceholder()
+		};
+	}
 }
 
 interface IVoiceChatSession {
@@ -255,6 +296,7 @@ class VoiceChatSessions {
 
 	private quickVoiceChatInProgressKey = CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.bindTo(this.contextKeyService);
 	private inlineVoiceChatInProgressKey = CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.bindTo(this.contextKeyService);
+	private terminalVoiceChatInProgressKey = CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS.bindTo(this.contextKeyService);
 	private voiceChatInViewInProgressKey = CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.bindTo(this.contextKeyService);
 	private voiceChatInEditorInProgressKey = CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.bindTo(this.contextKeyService);
 
@@ -345,6 +387,9 @@ class VoiceChatSessions {
 			case 'inline':
 				this.inlineVoiceChatInProgressKey.set(true);
 				break;
+			case 'terminal':
+				this.terminalVoiceChatInProgressKey.set(true);
+				break;
 			case 'quick':
 				this.quickVoiceChatInProgressKey.set(true);
 				break;
@@ -387,6 +432,7 @@ class VoiceChatSessions {
 
 		this.quickVoiceChatInProgressKey.set(false);
 		this.inlineVoiceChatInProgressKey.set(false);
+		this.terminalVoiceChatInProgressKey.set(false);
 		this.voiceChatInViewInProgressKey.set(false);
 		this.voiceChatInEditorInProgressKey.set(false);
 	}
@@ -510,7 +556,8 @@ export class StartVoiceChatAction extends Action2 {
 					CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(),
 					CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(),
 					CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate(),
-					CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()
+					CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate(),
+					CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS.negate()
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
@@ -529,7 +576,7 @@ export class StartVoiceChatAction extends Action2 {
 			},
 			{
 				id: MenuId.for('terminalChatInput'),
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
 			}]
@@ -629,7 +676,7 @@ class BaseStopListeningAction extends Action2 {
 
 	constructor(
 		desc: { id: string; icon?: ThemeIcon; f1?: boolean },
-		private readonly target: 'inline' | 'quick' | 'view' | 'editor' | undefined,
+		private readonly target: 'inline' | 'terminal' | 'quick' | 'view' | 'editor' | undefined,
 		context: RawContextKey<boolean>,
 		menu: MenuId | undefined,
 		group: 'navigation' | 'main' = 'navigation'
@@ -703,6 +750,15 @@ export class StopListeningInInlineChatAction extends BaseStopListeningAction {
 	}
 }
 
+export class StopListeningInTerminalChatAction extends BaseStopListeningAction {
+
+	static readonly ID = 'workbench.action.chat.stopListeningInTerminalChat';
+
+	constructor() {
+		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, 'terminal', CONTEXT_TERMINAL_VOICE_CHAT_IN_PROGRESS, MenuId.for('terminalChatInput'), 'main');
+	}
+}
+
 export class StopListeningAndSubmitAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.stopListeningAndSubmit';
@@ -745,7 +801,8 @@ registerThemingParticipant((theme, collector) => {
 	// Show a "microphone" icon when recording is in progress that glows via outline.
 	collector.addRule(`
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
+		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
+		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
 			color: ${activeRecordingColor};
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: -1px;
@@ -754,7 +811,8 @@ registerThemingParticipant((theme, collector) => {
 		}
 
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
+		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 			position: absolute;
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: 2px;
@@ -764,7 +822,8 @@ registerThemingParticipant((theme, collector) => {
 		}
 
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
+		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
+		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
 			content: '';
 			position: absolute;
 			outline: 1px solid ${activeRecordingDimmedColor};
