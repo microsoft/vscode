@@ -17,7 +17,7 @@ import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controll
 import { SELECT_NOTEBOOK_INDENTATION_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -276,6 +276,7 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 				this._update();
 			}
 		}));
+
 	}
 
 	private _update() {
@@ -283,6 +284,10 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		if (activeEditor) {
 			this._show(activeEditor);
+			this._register(activeEditor.onDidChangeActiveCell(() => {
+				this._accessor.clear();
+				this._show(activeEditor);
+			}));
 		} else {
 			this._accessor.clear();
 		}
@@ -294,11 +299,10 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 			return;
 		}
 
-		const cellEditorOverrides = this._configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
-
-		const indentSize = cellEditorOverrides['editor.indentSize'] ?? this._configurationService.getValue('editor.indentSize');
-		const tabSize = cellEditorOverrides['editor.tabSize'] ?? this._configurationService.getValue('editor.tabSize');
-		const insertSpaces = cellEditorOverrides['editor.insertSpaces'] ?? this._configurationService.getValue('editor.insertSpaces');
+		const cellOptions = editor.getActiveCell()?.textModel?.getOptions();
+		const indentSize = cellOptions?.indentSize;
+		const tabSize = cellOptions?.tabSize;
+		const insertSpaces = cellOptions?.insertSpaces;
 
 		const width = typeof indentSize === 'number' ? indentSize : tabSize;
 

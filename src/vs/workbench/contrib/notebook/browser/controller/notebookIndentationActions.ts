@@ -8,96 +8,165 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ChangeTabDisplaySize, IndentUsingSpaces, IndentUsingTabs, IndentationToSpacesAction, IndentationToSpacesCommand, IndentationToTabsAction, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { isNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IModelService } from 'vs/editor/common/services/model';
 import * as nls from 'vs/nls';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+// import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 
 export function registerNotebookIndentationActions() {
 	IndentationToSpacesAction.addImplementation(100, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-		if (!isCompositeNotebookEditorInput(editor)) {
-			return false;
-		}
-
+		const editorService = accessor.get(IEditorService);
 		const configurationService = accessor.get(IConfigurationService);
+		const logService = accessor.get(ILogService);
+		const textModelService = accessor.get(ITextModelService);
+		const notebookEditorService = accessor.get(INotebookEditorService);
 
-		const model = editor.getModel();
-		if (!model) {
+		// keep this check here to pop on non-notebook actions
+		const activeInput = editorService.activeEditorPane?.input;
+		const isNotebook = isNotebookEditorInput(activeInput);
+		if (!isNotebook) {
 			return false;
 		}
-		const modelOpts = model.getOptions();
-		const selection = editor.getSelection();
-		if (!selection) {
+
+		// get notebook editor to access all codeEditors
+		const notebookEditor = notebookEditorService.retrieveExistingWidgetFromURI(activeInput.resource)?.value;
+		if (!notebookEditor) {
 			return false;
 		}
-		const command = new IndentationToSpacesCommand(selection, modelOpts.tabSize);
 
-		editor.pushUndoStop();
-		editor.executeCommands(IndentationToSpacesAction.id, [command]);
-		editor.pushUndoStop();
+		const disposable = new DisposableStore();
+		try {
+			Promise.all(notebookEditor.codeEditors.map(async cell => {
+				const ref = await textModelService.createModelReference(cell[0].uri);
+				disposable.add(ref);
+				const model = ref.object.textEditorModel;
+				if (!model) {
+					return false;
+				}
+				const modelOpts = model.getOptions();
 
-		model.updateOptions({
-			insertSpaces: true
-		});
+				const cellEditor = cell[1];
+				const selection = cellEditor.getSelection();
+				if (!selection) {
+					return false;
+				}
 
-		// store the initial values of the configuration
-		const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
-		const initialIndentSize = initialConfig['editor.indentSize'] ?? modelOpts.indentSize;
-		const initialTabSize = initialConfig['editor.tabSize'] ?? modelOpts.tabSize;
-		// remove the initial values from the configuration
-		delete initialConfig['editor.indentSize'];
-		delete initialConfig['editor.tabSize'];
-		delete initialConfig['editor.insertSpaces'];
+				const command = new IndentationToSpacesCommand(selection, modelOpts.tabSize);
 
-		configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
-			...initialConfig,
-			'editor.tabSize': initialTabSize,
-			'editor.indentSize': initialIndentSize,
-			'editor.insertSpaces': true
-		});
+				cellEditor.pushUndoStop();
+				cellEditor.executeCommands(IndentationToSpacesAction.id, [command]);
+				cellEditor.pushUndoStop();
+
+				model.updateOptions({
+					insertSpaces: true
+				});
+
+				return true;
+			})).then(() => {
+				// store the initial values of the configuration
+				const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
+				const initialIndentSize = initialConfig['editor.indentSize'];
+				const initialTabSize = initialConfig['editor.tabSize'];
+				// remove the initial values from the configuration
+				delete initialConfig['editor.indentSize'];
+				delete initialConfig['editor.tabSize'];
+				delete initialConfig['editor.insertSpaces'];
+
+				configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
+					...initialConfig,
+					'editor.tabSize': initialTabSize,
+					'editor.indentSize': initialIndentSize,
+					'editor.insertSpaces': true
+				});
+
+				disposable.dispose();
+				return true;
+			});
+		} catch {
+			logService.error('Failed to convert indentation to spaces for notebook cells.');
+			disposable.dispose();
+			return false;
+		}
 		return true;
 	});
 
 	IndentationToTabsAction.addImplementation(100, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-		if (!isCompositeNotebookEditorInput(editor)) {
-			return false;
-		}
+		const editorService = accessor.get(IEditorService);
 		const configurationService = accessor.get(IConfigurationService);
+		const logService = accessor.get(ILogService);
+		const textModelService = accessor.get(ITextModelService);
+		const notebookEditorService = accessor.get(INotebookEditorService);
 
-		const model = editor.getModel();
-		if (!model) {
+		// keep this check here to pop on non-notebook actions
+		const activeInput = editorService.activeEditorPane?.input;
+		const isNotebook = isNotebookEditorInput(activeInput);
+		if (!isNotebook) {
 			return false;
 		}
-		const modelOpts = model.getOptions();
-		const selection = editor.getSelection();
-		if (!selection) {
+
+		// get notebook editor to access all codeEditors
+		const notebookEditor = notebookEditorService.retrieveExistingWidgetFromURI(activeInput.resource)?.value;
+		if (!notebookEditor) {
 			return false;
 		}
-		const command = new IndentationToTabsCommand(selection, modelOpts.tabSize);
 
-		editor.pushUndoStop();
-		editor.executeCommands(IndentationToTabsAction.id, [command]);
-		editor.pushUndoStop();
+		const disposable = new DisposableStore();
+		try {
+			Promise.all(notebookEditor.codeEditors.map(async cell => {
+				const ref = await textModelService.createModelReference(cell[0].uri);
+				disposable.add(ref);
+				const model = ref.object.textEditorModel;
+				if (!model) {
+					return false;
+				}
+				const modelOpts = model.getOptions();
 
-		model.updateOptions({
-			insertSpaces: false
-		});
+				const cellEditor = cell[1];
+				const selection = cellEditor.getSelection();
+				if (!selection) {
+					return false;
+				}
 
-		// store the initial values of the configuration
-		const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
-		const initialTabSize = initialConfig['editor.tabSize'] ?? modelOpts.tabSize;
-		const initialIndentSize = initialConfig['editor.indentSize'] ?? modelOpts.indentSize;
-		// remove the initial values from the configuration
-		delete initialConfig['editor.indentSize'];
-		delete initialConfig['editor.tabSize'];
-		delete initialConfig['editor.insertSpaces'];
+				const command = new IndentationToTabsCommand(selection, modelOpts.tabSize);
 
-		configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
-			...initialConfig,
-			'editor.tabSize': initialTabSize,
-			'editor.indentSize': initialIndentSize,
-			'editor.insertSpaces': false
-		});
+				cellEditor.pushUndoStop();
+				cellEditor.executeCommands(IndentationToTabsAction.id, [command]);
+				cellEditor.pushUndoStop();
+
+				model.updateOptions({
+					insertSpaces: false
+				});
+
+				return true;
+			})).then(() => {
+				// store the initial values of the configuration
+				const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
+				const initialTabSize = initialConfig['editor.tabSize'];
+				const initialIndentSize = initialConfig['editor.indentSize'];
+				// remove the initial values from the configuration
+				delete initialConfig['editor.indentSize'];
+				delete initialConfig['editor.tabSize'];
+				delete initialConfig['editor.insertSpaces'];
+
+				configurationService.updateValue(NotebookSetting.cellEditorOptionsCustomizations, {
+					...initialConfig,
+					'editor.tabSize': initialTabSize,
+					'editor.indentSize': initialIndentSize,
+					'editor.insertSpaces': false
+				});
+				return true;
+			});
+		} catch {
+			logService.error('Failed to convert indentation to spaces for notebook cells.');
+			disposable.dispose();
+			return false;
+		}
 		return true;
 	});
 
@@ -107,7 +176,10 @@ export function registerNotebookIndentationActions() {
 }
 
 function changeNotebookIndentation(accessor: ServicesAccessor, editor: ICodeEditor, insertSpaces: boolean, displaySizeOnly: boolean) {
-	if (!isCompositeNotebookEditorInput(editor)) {
+	const editorService = accessor.get(IEditorService);
+	const activeInput = editorService.activeEditorPane?.input;
+	const isNotebook = isNotebookEditorInput(activeInput);
+	if (!isNotebook) {
 		return false;
 	}
 
