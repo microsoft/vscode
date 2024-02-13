@@ -13,7 +13,7 @@ import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONS
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 registerActiveXtermAction({
@@ -72,7 +72,8 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.AcceptCommand,
-	title: localize2('workbench.action.terminal.acceptCommand', 'Accept Command'),
+	title: localize2('acceptCommand', 'Accept Command'),
+	shortTitle: localize2('accept', 'Accept'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -87,8 +88,8 @@ registerActiveXtermAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	},
 	menu: {
-		id: MENU_TERMINAL_CHAT_WIDGET,
-		group: 'main',
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
 		order: 0,
 		when: CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.Empty),
 	},
