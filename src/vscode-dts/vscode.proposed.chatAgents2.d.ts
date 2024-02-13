@@ -31,7 +31,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables2}.
+		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables}.
 		 *
 		 * *Note* that the {@link ChatAgent2.name name} of the agent and the {@link ChatAgentCommand.name command}
 		 * are not part of the prompt.
@@ -321,40 +321,24 @@ declare module 'vscode' {
 	export interface ChatAgentRequest {
 
 		/**
-		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentCommand.name command}
-		 * are not part of the prompt.
-		 *
-		 * @see {@link ChatAgentRequest.command}
-		 */
-		prompt: string;
-
-		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables2}.
+		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables}.
 		 *
 		 * *Note* that the {@link ChatAgent2.name name} of the agent and the {@link ChatAgentCommand.name command}
 		 * are not part of the prompt.
 		 */
-		prompt2: string;
-
-		/**
-		 * The ID of the chat agent to which this request was directed.
-		 */
-		agentId: string;
+		prompt: string;
 
 		/**
 		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
 		 */
 		command?: string;
 
-		/** @deprecated */
-		variables: Record<string, ChatVariableValue[]>;
-
 		/**
-		 *
+		 * The list of variables that are referenced in the prompt.
 		 */
-		variables2: ChatAgentResolvedVariable[];
+		variables: ChatAgentResolvedVariable[];
 	}
 
 	export interface ChatAgentResponseStream {
