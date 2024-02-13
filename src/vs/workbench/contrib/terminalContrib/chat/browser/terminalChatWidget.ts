@@ -91,7 +91,41 @@ export class TerminalChatWidget extends Disposable {
 		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
 		this._responseElement.classList.remove('hide');
 		if (!this._responseWidget) {
-			this._responseWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {}, { isSimpleWidget: true }));
+			this._responseWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {
+				padding: { top: 2, bottom: 2 },
+				overviewRulerLanes: 0,
+				glyphMargin: false,
+				lineNumbers: 'off',
+				folding: false,
+				hideCursorInOverviewRuler: true,
+				selectOnLineNumbers: false,
+				selectionHighlight: false,
+				scrollbar: {
+					useShadows: false,
+					vertical: 'hidden',
+					horizontal: 'auto',
+					alwaysConsumeMouseWheel: false
+				},
+				lineDecorationsWidth: 0,
+				overviewRulerBorder: false,
+				scrollBeyondLastLine: false,
+				renderLineHighlight: 'none',
+				fixedOverflowWidgets: true,
+				dragAndDrop: false,
+				revealHorizontalRightPadding: 5,
+				minimap: { enabled: false },
+				guides: { indentation: false },
+				rulers: [],
+				renderWhitespace: 'none',
+				dropIntoEditor: { enabled: true },
+				quickSuggestions: false,
+				suggest: {
+					showIcons: false,
+					showSnippets: false,
+					showWords: true,
+					showStatusBar: false,
+				},
+			}, { isSimpleWidget: true }));
 			this._register(this._responseWidget.onDidFocusEditorText(() => this._ctxResponseEditorFocused.set(true)));
 			this._register(this._responseWidget.onDidBlurEditorText(() => this._ctxResponseEditorFocused.set(false)));
 			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: codeBlock })).then((model) => {
