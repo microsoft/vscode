@@ -20,6 +20,7 @@ import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/b
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_VARIABLE_VIEW_ENABLED } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariableContextKeys';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
@@ -40,8 +41,12 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 
 		this.viewEnabled = NOTEBOOK_VARIABLE_VIEW_ENABLED.bindTo(contextKeyService);
 
-		this.listeners.push(this.editorService.onDidEditorsChange(() => this.handleInitEvent()));
-		this.listeners.push(this.notebookExecutionStateService.onDidChangeExecution(() => this.handleInitEvent()));
+		this.listeners.push(this.editorService.onDidEditorsChange((e) => {
+			if (e.event.editor instanceof NotebookEditorInput) {
+				this.handleInitEvent(true);
+			}
+		}));
+		this.listeners.push(this.notebookExecutionStateService.onDidChangeExecution((e) => this.handleInitEvent()));
 
 		this.configListener = configurationService.onDidChangeConfiguration((e) => this.handleConfigChange(e));
 	}
@@ -58,15 +63,14 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	private handleInitEvent() {
+	private handleInitEvent(isNotebook?: boolean) {
+		const notebookEditorActive = isNotebook ?? this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook';
+
 		if (this.configurationService.getValue(NotebookSetting.notebookVariablesView)
-			&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
+			&& notebookEditorActive) {
 
-			if (this.hasVariableProvider()) {
+			if (this.hasVariableProvider() && !this.initialized && this.initializeView()) {
 				this.viewEnabled.set(true);
-			}
-
-			if (!this.initialized && this.initializeView()) {
 				this.initialized = true;
 				this.listeners.forEach(listener => listener.dispose());
 			}
