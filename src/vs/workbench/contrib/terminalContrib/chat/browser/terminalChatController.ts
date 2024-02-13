@@ -14,8 +14,11 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
+import { generateUuid } from 'vs/base/common/uuid';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
@@ -34,7 +37,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
 	// private _sessionCtor: CancelablePromise<void> | undefined;
-	private _activeSession?: Session;
+	// private _activeSession?: Session;
 	// private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	// private _isVisible: boolean = false;
 	// private _strategy: EditStrategy | undefined;
@@ -51,7 +54,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		// @IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		// @IInstantiationService private readonly _instantiationService: IInstantiationService,
 		// @ICommandService private readonly _commandService: ICommandService,
@@ -93,7 +96,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
 
-			// this._instance.domElement?.appendChild(chatWidget.getDomNode());
 			if (this._lastLayoutDimensions) {
 				chatWidget.layout(this._lastLayoutDimensions.width);
 			}
@@ -103,24 +105,41 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async acceptInput(): Promise<void> {
-		// TODO: create session, deal with response
-		// this._activeSession = new Session(EditMode.Live, , this._instance);
-		// const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
-		// request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
-		// const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
-		// const requestProps: IChatAgentRequest = {
-		// 	sessionId: 'sessionId',
-		// 	requestId: 'fake',
-		// 	agentId: 'terminal',
-		// 	message: this._chatWidget?.rawValue?.getValue() || '',
-		// 	// variables: variableData.variables,
-		// 	// command: agentSlashCommandPart?.command.name,
-		// 	// variables2: asVariablesData2(parsedRequest, variableData)
-		// };
-		// const agentResult = await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, undefined, token);
-		// const rawResult = agentResult;
-		// const agentOrCommandFollowups = this._chatAgentService.getFollowups('terminal', agentResult, followupsCancelToken);
-		this._chatWidget?.rawValue?.acceptInput();
+		let message = '';
+		const progressCallback = (progress: IChatProgress) => {
+			// if (token.isCancellationRequested) {
+			// 	return;
+			// }
+
+
+			// gotProgress = true;
+
+			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
+				// this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
+				message += progress.content;
+			} else {
+				// this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
+			}
+
+			// model.acceptResponseProgress(request, progress);
+		};
+		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
+
+		const requestProps: IChatAgentRequest = {
+			sessionId: generateUuid(),
+			requestId: generateUuid(),
+			agentId: 'terminal',
+			message: this._chatWidget?.rawValue?.input() || '',
+			variables: resolvedVariables,
+			variables2: { message: this._chatWidget?.rawValue?.input() || '', variables: [] }
+		};
+		// TODO: use token
+		const agentResult = await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
+		console.log(agentResult);
+		console.log(message);
+		alert(message);
+		this._chatWidget?.rawValue?.setValue();
+		// TODO: accessibility announcement, help dialog
 	}
 
 	reveal(): void {

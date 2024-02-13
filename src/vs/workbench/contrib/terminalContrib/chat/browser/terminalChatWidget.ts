@@ -15,11 +15,8 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_FEEDBACK } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
-import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 
 export class TerminalChatWidget extends Disposable {
 	private _scopedInstantiationService: IInstantiationService;
@@ -113,45 +110,26 @@ export class TerminalChatWidget extends Disposable {
 	cancel(): void {
 		// this._widget?.clear();
 	}
-	async acceptInput(): Promise<void> {
-		// this._widget?.acceptInput();
-		// this._chatModel ??= this._chatService.startSession('terminal', CancellationToken.None);
-
-		// if (!this._model) {
-		// throw new Error('Could not start chat session');
-		// }
-		// this._chatService?.sendRequest(this._chatModel?.sessionId!, this._inlineChatWidget.value);
-		// this._activeSession = new Session(EditMode.Live, , this._instance);
-		// const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
-		// request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
-		// const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
-		const progressCallback = (progress: IChatProgress) => {
-			// if (token.isCancellationRequested) {
-			// 	return;
-			// }
-			console.log(progress);
-			// gotProgress = true;
-
-			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
-				// this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
-			} else {
-				// this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
-			}
-
-			// model.acceptResponseProgress(request, progress);
-		};
-		const requestProps: IChatAgentRequest = {
-			sessionId: generateUuid(),
-			requestId: generateUuid(),
-			agentId: 'terminal',
-			message: this._inlineChatWidget.value || '',
-			variables: new Map() as any,
-			variables2: {} as any
-		};
-		const agentResult = await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
-		console.log(agentResult);
-		this._inlineChatWidget.value = '';
+	input(): string {
+		return this._inlineChatWidget.value;
 	}
+	setValue(value?: string) {
+		this._inlineChatWidget.value = value ?? '';
+	}
+	// async acceptInput(): Promise<void> {
+	// 	// this._widget?.acceptInput();
+	// 	// this._chatModel ??= this._chatService.startSession('terminal', CancellationToken.None);
+
+	// 	// if (!this._model) {
+	// 	// throw new Error('Could not start chat session');
+	// 	// }
+	// 	// this._chatService?.sendRequest(this._chatModel?.sessionId!, this._inlineChatWidget.value);
+	// 	// this._activeSession = new Session(EditMode.Live, , this._instance);
+	// 	// const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
+	// 	// request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
+	// 	// const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
+	// 	this._inlineChatWidget.value = '';
+	// }
 	layout(width: number): void {
 		// this._widget?.layout(100, width < 300 ? 300 : width);
 	}
