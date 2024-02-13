@@ -311,9 +311,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 			this._notebookEditor.revealOffsetInCenterIfOutsideViewport(cellTop + cellHeight);
 		} else {
-			const cell = this._notebookEditor.cellAt(index);
+			const cell = this._notebookEditor.cellAt(index - 1);
 			if (cell) {
-				this._notebookEditor.revealInCenterIfOutsideViewport(cell);
+				const cellTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
+				const cellHeight = this._notebookEditor.getHeightOfElement(cell);
+
+				this._notebookEditor.revealOffsetInCenterIfOutsideViewport(cellTop + cellHeight);
 			}
 		}
 	}
