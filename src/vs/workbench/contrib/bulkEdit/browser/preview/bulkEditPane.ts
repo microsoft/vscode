@@ -98,6 +98,11 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
+		this._disposables.add(this._editorService.onDidCloseEditor((e) => {
+			if (this._multiDiffEditor && e.editor === this._multiDiffEditor.input) {
+				this._multiDiffEditor = undefined;
+			}
+		}));
 	}
 
 	override dispose(): void {
@@ -268,7 +273,6 @@ export class BulkEditPane extends ViewPane {
 		this._dialogService.warn(message).finally(() => this._done(false));
 	}
 
-	// Going through here to discard
 	discard() {
 		this._done(false);
 	}
@@ -278,6 +282,10 @@ export class BulkEditPane extends ViewPane {
 		this._currentInput = undefined;
 		this._setState(State.Message);
 		this._sessionDisposables.clear();
+		if (this._multiDiffEditor && this._multiDiffEditor.input && this._multiDiffEditor.group) {
+			this._editorService.closeEditor({ editor: this._multiDiffEditor.input, groupId: this._multiDiffEditor.group.id });
+		}
+		this._multiDiffEditor = undefined;
 	}
 
 	toggleChecked() {
@@ -375,14 +383,14 @@ export class BulkEditPane extends ViewPane {
 		}
 		const multiDiffSource = URI.from({ scheme: 'refactor-preview', path: JSON.stringify(fileElement.edit.uri) });
 		const label = 'Refactor Preview';
-		this._multiDiffEditor = this._sessionDisposables.add(
+		this._multiDiffEditor =
 			await this._editorService.openEditor({
-				multiDiffSource: multiDiffSource ? URI.revive(multiDiffSource) : undefined,
+				multiDiffSource: URI.revive(multiDiffSource),
 				resources,
 				label: label,
 				description: label,
 				options: options,
-			}) as MultiDiffEditor);
+			}) as MultiDiffEditor;
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
