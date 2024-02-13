@@ -15,6 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -139,20 +140,9 @@ export class TerminalChatWidget extends Disposable {
 			this._responseElement?.classList.add('hide');
 		}
 	}
-	// async acceptInput(): Promise<void> {
-	// 	// this._widget?.acceptInput();
-	// 	// this._chatModel ??= this._chatService.startSession('terminal', CancellationToken.None);
-
-	// 	// if (!this._model) {
-	// 	// throw new Error('Could not start chat session');
-	// 	// }
-	// 	// this._chatService?.sendRequest(this._chatModel?.sessionId!, this._inlineChatWidget.value);
-	// 	// this._activeSession = new Session(EditMode.Live, , this._instance);
-	// 	// const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
-	// 	// request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
-	// 	// const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
-	// 	this._inlineChatWidget.value = '';
-	// }
+	updateProgress(progress?: IChatProgress): void {
+		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
+	}
 	layout(width: number): void {
 		// this._widget?.layout(100, width < 300 ? 300 : width);
 	}

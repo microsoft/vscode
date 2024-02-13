@@ -117,6 +117,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 				message += progress.content;
 			}
+			this._chatWidget?.rawValue?.updateProgress(progress);
 		};
 		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 
@@ -130,7 +131,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		};
 		this._chatWidget?.rawValue?.setValue();
 
-		await this._chatAgentService.invokeAgent(agentId, requestProps, progressCallback, [], cancellationToken);
+		try {
+			await this._chatAgentService.invokeAgent(agentId, requestProps, progressCallback, [], cancellationToken);
+		} catch (e) {
+			// Provider is not ready
+			this._ctxHasActiveRequest.set(false);
+			this._chatWidget?.rawValue?.updateProgress();
+			return;
+		}
 		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
 		this._requestId++;
 		if (cancellationToken.isCancellationRequested) {
@@ -143,6 +151,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.rawValue?.renderMessage(message, this._requestId);
 		}
 		this._ctxHasActiveRequest.set(false);
+		this._chatWidget?.rawValue?.updateProgress();
 	}
 
 	reveal(): void {
