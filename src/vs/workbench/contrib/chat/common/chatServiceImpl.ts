@@ -22,8 +22,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableData2, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestVariablePart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatAgentCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -541,15 +541,14 @@ export class ChatService extends Disposable implements IChatService {
 							sessionId,
 							requestId: request.id,
 							agentId: request.response.agent?.id ?? '',
-							message: request.variableData.message,
-							variables: request.variableData.variables,
+							message: getPromptText(request.message.parts),
 							command: request.response.slashCommand?.name,
-							variables2: asVariablesData2(request.message, request.variableData)
+							variables: request.variableData
 						};
 						history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
 					}
 
-					const initVariableData: IChatRequestVariableData = { message: getPromptText(parsedRequest.parts), variables: {} };
+					const initVariableData: IChatRequestVariableData = { variables: [] };
 					request = model.addRequest(parsedRequest, initVariableData, agent, agentSlashCommandPart?.command);
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
 					request.variableData = variableData;
@@ -558,17 +557,16 @@ export class ChatService extends Disposable implements IChatService {
 						sessionId,
 						requestId: request.id,
 						agentId: agent.id,
-						message: variableData.message,
-						variables: variableData.variables,
+						message: getPromptText(request.message.parts),
 						command: agentSlashCommandPart?.command.name,
-						variables2: asVariablesData2(parsedRequest, variableData)
+						variables: variableData
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, followupsCancelToken);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
-					request = model.addRequest(parsedRequest, { message: parsedRequest.text, variables: {} });
+					request = model.addRequest(parsedRequest, { variables: [] });
 					// contributed slash commands
 					// TODO: spell this out in the UI
 					const history: IChatMessage[] = [];
@@ -670,7 +668,7 @@ export class ChatService extends Disposable implements IChatService {
 		const parsedRequest = typeof message === 'string' ?
 			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
 			message;
-		const request = model.addRequest(parsedRequest, variableData || { message: parsedRequest.text, variables: {} });
+		const request = model.addRequest(parsedRequest, variableData || { variables: [] });
 		if (typeof response.message === 'string') {
 			model.acceptResponseProgress(request, { content: response.message, kind: 'content' });
 		} else {
@@ -763,27 +761,4 @@ export class ChatService extends Disposable implements IChatService {
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
 	}
-}
-
-function asVariablesData2(parsedRequest: IParsedChatRequest, variableData: IChatRequestVariableData): IChatRequestVariableData2 {
-
-	const res: IChatRequestVariableData2 = {
-		message: getPromptText(parsedRequest.parts),
-		variables: []
-	};
-
-	for (const part of parsedRequest.parts) {
-		if (part instanceof ChatRequestVariablePart) {
-			const values = variableData.variables[part.variableName];
-			res.variables.push({ name: part.variableName, range: part.range, values });
-		} else if (part instanceof ChatRequestDynamicVariablePart) {
-			// Need variable without `#`
-			res.variables.push({ name: part.referenceText, range: part.range, values: part.data });
-		}
-	}
-
-	// "reverse", high index first so that replacement is simple
-	res.variables.sort((a, b) => b.range.start - a.range.start);
-
-	return res;
 }

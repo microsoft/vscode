@@ -29,8 +29,7 @@ export class MockChatVariablesService implements IChatVariablesService {
 
 	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData> {
 		return {
-			message: prompt.text,
-			variables: {}
+			variables: []
 		};
 	}
 }

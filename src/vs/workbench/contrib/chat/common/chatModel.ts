@@ -20,16 +20,6 @@ import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, 
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableData {
-	/**
-	 * The user's message with variable references for extension API.
-	 */
-	message: string;
-
-	variables: Record<string, IChatRequestVariableValue[]>;
-}
-
-export interface IChatRequestVariableData2 {
-	message: string;
 	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
 }
 

@@ -2629,9 +2629,9 @@ export namespace ChatResponseProgress {
 export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
 		return {
-			prompt: request.variables2.message,
+			prompt: request.message,
 			command: request.command,
-			variables: request.variables2.variables.map(ChatAgentResolvedVariable.to)
+			variables: request.variables.variables.map(ChatAgentResolvedVariable.to)
 		};
 	}
 }
