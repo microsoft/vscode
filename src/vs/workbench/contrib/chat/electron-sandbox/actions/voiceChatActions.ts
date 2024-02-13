@@ -224,16 +224,17 @@ class VoiceChatSessionControllerFactory {
 	}
 }
 
-interface ActiveVoiceChatSession {
+interface IVoiceChatSession {
+	setTimeoutDisabled(disabled: boolean): void;
+
+	accept(): void;
+	stop(): void;
+}
+
+interface IActiveVoiceChatSession extends IVoiceChatSession {
 	readonly id: number;
 	readonly controller: IVoiceChatSessionController;
 	readonly disposables: DisposableStore;
-}
-
-interface IVoiceChatSession {
-	setTimeoutDisabled(disabled: boolean): void;
-	accept(): void;
-	stop(): void;
 }
 
 class VoiceChatSessions {
@@ -255,7 +256,7 @@ class VoiceChatSessions {
 	private voiceChatInViewInProgressKey = CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.bindTo(this.contextKeyService);
 	private voiceChatInEditorInProgressKey = CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.bindTo(this.contextKeyService);
 
-	private currentVoiceChatSession: ActiveVoiceChatSession | undefined = undefined;
+	private currentVoiceChatSession: IActiveVoiceChatSession | undefined = undefined;
 	private voiceChatSessionIds = 0;
 
 	constructor(
@@ -267,11 +268,16 @@ class VoiceChatSessions {
 	start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): IVoiceChatSession {
 		this.stop();
 
+		let disableTimeout = false;
+
 		const sessionId = ++this.voiceChatSessionIds;
-		const session = this.currentVoiceChatSession = {
+		const session: IActiveVoiceChatSession = this.currentVoiceChatSession = {
 			id: sessionId,
 			controller,
-			disposables: new DisposableStore()
+			disposables: new DisposableStore(),
+			setTimeoutDisabled: (disabled: boolean) => { disableTimeout = disabled; },
+			accept: () => session.controller.acceptInput(),
+			stop: () => this.stop(sessionId, controller.context)
 		};
 
 		const cts = new CancellationTokenSource();
@@ -293,7 +299,6 @@ class VoiceChatSessions {
 			voiceChatTimeout = SpeechTimeoutDefault;
 		}
 
-		let disableTimeout = false;
 		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), voiceChatTimeout));
 		session.disposables.add(voiceChatSession.onDidChange(({ status, text, waitingForInput }) => {
 			if (cts.token.isCancellationRequested) {
@@ -327,11 +332,7 @@ class VoiceChatSessions {
 			}
 		}));
 
-		return {
-			setTimeoutDisabled: (disabled: boolean) => { disableTimeout = disabled; },
-			accept: () => session.controller.acceptInput(),
-			stop: () => this.stop(sessionId, controller.context)
-		};
+		return session;
 	}
 
 	private onDidSpeechToTextSessionStart(controller: IVoiceChatSessionController, disposables: DisposableStore): void {
@@ -408,7 +409,7 @@ async function awaitHoldAndAccept(session: IVoiceChatSession, holdMode?: Promise
 	let acceptVoice = false;
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
-		session.setTimeoutDisabled(true);
+		session.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for 250ms
 	}, 250);
 
 	await holdMode;
