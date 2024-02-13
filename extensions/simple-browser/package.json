@@ -51,6 +51,12 @@
             "default": true,
             "title": "Focus Lock Indicator Enabled",
             "description": "%configuration.focusLockIndicator.enabled.description%"
+          },
+          "simpleBrowser.cacheBusting.enabled": {
+            "type": "boolean",
+            "default": true,
+            "title": "Cache Busting Enabled",
+            "description": "%configuration.cacheBusting.enabled.description%"
           }
         }
       }

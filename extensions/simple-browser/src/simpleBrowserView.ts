@@ -94,6 +94,14 @@ export class SimpleBrowserView extends Disposable {
 					focusLockEnabled: configuration.get<boolean>('focusLockIndicator.enabled', true)
 				});
 			}
+
+			if (e.affectsConfiguration('simpleBrowser.cacheBusting.enabled')) {
+				const configuration = vscode.workspace.getConfiguration('simpleBrowser');
+				this._webviewPanel.webview.postMessage({
+					type: 'didChangeCacheBustingEnabled',
+					cacheBustingEnabled: configuration.get<boolean>('cacheBusting.enabled', true)
+				});
+			}
 		}));
 
 		this.show(url);
@@ -133,7 +141,8 @@ export class SimpleBrowserView extends Disposable {
 
 				<meta id="simple-browser-settings" data-settings="${escapeAttribute(JSON.stringify({
 			url: url,
-			focusLockEnabled: configuration.get<boolean>('focusLockIndicator.enabled', true)
+			focusLockEnabled: configuration.get<boolean>('focusLockIndicator.enabled', true),
+			cacheBustingEnabled: configuration.get<boolean>('cacheBusting.enabled', true)
 		}))}">
 
 				<link rel="stylesheet" type="text/css" href="${mainCss}">
