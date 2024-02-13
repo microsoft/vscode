@@ -200,7 +200,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			const convertedHistory = await this.prepareHistoryTurns(request, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
-				{ history: convertedHistory, history2: convertedHistory },
+				{ history: convertedHistory },
 				stream.apiObject,
 				token
 			);

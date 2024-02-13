@@ -88,11 +88,6 @@ declare module 'vscode' {
 		 * All of the chat messages so far in the current chat session.
 		 */
 		readonly history: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
-
-		/**
-		 * @deprecated, use histroy
-		 */
-		readonly history2: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
 	}
 
 	/**
