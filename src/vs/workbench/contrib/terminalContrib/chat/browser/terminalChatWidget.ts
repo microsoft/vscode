@@ -5,12 +5,16 @@
 
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/terminalChatWidget';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -23,7 +27,8 @@ export class TerminalChatWidget extends Disposable {
 	private _chatWidgetVisible: IContextKey<boolean>;
 
 	private readonly _inlineChatWidget: InlineChatWidget;
-
+	private _responseWidget: CodeEditorWidget | undefined;
+	private _responseContainer: HTMLElement | undefined;
 	private readonly _focusTracker: IFocusTracker;
 
 
@@ -31,7 +36,9 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
+		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
@@ -70,6 +77,33 @@ export class TerminalChatWidget extends Disposable {
 
 		this._focusTracker = this._register(trackFocus(this._widgetContainer));
 	}
+	renderResponse(codeBlock: string, requestId: number): void {
+		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
+		if (!this._responseWidget) {
+			this._responseContainer = document.createElement('div');
+			this._responseContainer.classList.add('terminal-inline-chat-response');
+			this._responseWidget = this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseContainer, {}, { isSimpleWidget: true });
+			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: codeBlock })).then((model) => {
+				if (!model || !this._responseWidget) {
+					return;
+				}
+				this._responseWidget.setModel(model);
+				this._responseWidget.layout(new Dimension(400, 150));
+				this._widgetContainer.prepend(this._responseContainer!);
+			});
+		} else {
+			this._responseWidget.setValue(codeBlock);
+		}
+		this._responseContainer?.classList.remove('hide');
+	}
+
+	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing && !existing.isDisposed()) {
+			return existing;
+		}
+		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
 	reveal(): void {
 		this._inlineChatWidget.layout(new Dimension(400, 150));
 
@@ -79,6 +113,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.focus();
 	}
 	hide(): void {
+		this._responseContainer?.classList.add('hide');
 		this._widgetContainer.classList.add('hide');
 		this._chatWidgetFocused.set(false);
 		this._chatWidgetVisible.set(false);
@@ -92,6 +127,9 @@ export class TerminalChatWidget extends Disposable {
 	}
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
+		if (!value) {
+			this._responseContainer?.classList.add('hide');
+		}
 	}
 	// async acceptInput(): Promise<void> {
 	// 	// this._widget?.acceptInput();

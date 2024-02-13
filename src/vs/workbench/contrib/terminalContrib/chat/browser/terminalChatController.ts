@@ -34,7 +34,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	static activeChatWidget?: TerminalChatController;
 	private _chatWidget: Lazy<TerminalChatWidget> | undefined;
 	private _lastLayoutDimensions: IDimension | undefined;
-
+	private _requestId: number = 0;
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
 	// private _sessionCtor: CancelablePromise<void> | undefined;
@@ -140,9 +140,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
 		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
 		if (codeBlock) {
-			alert(codeBlock);
+			// TODO: check the SR experience
+			this._chatWidget?.rawValue?.renderResponse(codeBlock, this._requestId++);
 		}
-		// TODO: accessibility announcement, help dialog
 	}
 
 	reveal(): void {

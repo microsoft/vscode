@@ -575,3 +575,7 @@
 .monaco-workbench .terminal-inline-chat.hide {
 	visibility: hidden;
 }
+
+.monaco-workbench .terminal-inline-chat-response.hide {
+	visibility: hidden;
+}
