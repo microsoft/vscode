@@ -17,7 +17,6 @@ import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { marked } from 'vs/base/common/marked/marked';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -162,15 +161,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 			this._chatWidget?.rawValue?.updateProgress(progress);
 		};
-		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 		const requestId = generateUuid();
 		const requestProps: IChatAgentRequest = {
 			sessionId: generateUuid(),
 			requestId,
 			agentId,
 			message: this._chatWidget?.rawValue?.input() || '',
-			variables: resolvedVariables,
-			variables2: { message: this._chatWidget?.rawValue?.input() || '', variables: [] }
+			variables: { variables: [] },
 		};
 		this._chatWidget?.rawValue?.setValue();
 
