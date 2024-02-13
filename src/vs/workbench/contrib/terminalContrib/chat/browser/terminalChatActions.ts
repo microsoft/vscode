@@ -162,6 +162,7 @@ registerActiveXtermAction({
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatRequestActive,
 	),
+	// TODO: toggled: CTX_INLINE_CHAT_LAST_FEEDBACK.isEqualTo('helpful'),
 	icon: Codicon.thumbsup,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
@@ -177,12 +178,13 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.FeedbackUnhelpful,
-	title: localize2('feedbackUnhelpful', 'Helpful'),
+	title: localize2('feedbackUnhelpful', 'Unhelpful'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatRequestActive,
 	),
-	icon: Codicon.thumbsup,
+	// TODO: toggled: CTX_INLINE_CHAT_LAST_FEEDBACK.isEqualTo('unhelpful'),
+	icon: Codicon.thumbsdown,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 		group: 'inline',
@@ -202,14 +204,19 @@ registerActiveXtermAction({
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatRequestActive,
 	),
-	icon: Codicon.thumbsup,
-	menu: {
+	// TODO: precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
+	icon: Codicon.report,
+	menu: [/*{
+		// TODO: Enable this
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		group: 'inline',
-		order: 3,
-		// TODO: Fill in ctx
-		// when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
-	},
+		when: ContextKeyExpr.and(CTX_TERMINAL_CHAT_SUPPORT_ISSUE_REPORTING, CTX_TERMINAL_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
+		group: '2_feedback',
+		order: 3
+	}, */{
+			id: MENU_TERMINAL_CHAT_WIDGET,
+			group: 'config',
+			order: 3
+		}],
 	run: (_xterm, _accessor, activeInstance) => {
 		// TODO: Impl
 	}
