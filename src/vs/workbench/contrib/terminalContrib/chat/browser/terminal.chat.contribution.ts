@@ -15,13 +15,13 @@ import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 registerTerminalContribution(TerminalChatController.ID, TerminalChatController, false);
 
 registerActiveXtermAction({
-	id: TerminalCommandId.FocusChat,
+	id: TerminalCommandId.ChatFocus,
 	title: localize2('workbench.action.terminal.focusChat', 'Focus Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
@@ -43,7 +43,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.HideChat,
+	id: TerminalCommandId.ChatHide,
 	title: localize2('workbench.action.terminal.closeChat', 'Close Chat'),
 	keybinding: {
 		primary: KeyCode.Escape,
@@ -72,7 +72,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.MakeChatRequest,
+	id: TerminalCommandId.ChatMakeRequest,
 	title: localize2('workbench.action.terminal.submitChat', 'Make Chat Request'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -105,7 +105,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.CancelChat,
+	id: TerminalCommandId.ChatCancel,
 	title: localize2('workbench.action.terminal.cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -122,5 +122,65 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.chatWidget?.cancel();
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalCommandId.ChatFeedbackHelpful,
+	title: localize2('feedbackHelpful', 'Helpful'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalContextKeys.chatRequestActive,
+	),
+	icon: Codicon.thumbsup,
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
+		group: 'inline',
+		order: 1,
+		// TODO: Fill in ctx
+		// when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		// TODO: Impl
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalCommandId.ChatFeedbackUnhelpful,
+	title: localize2('feedbackUnhelpful', 'Helpful'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalContextKeys.chatRequestActive,
+	),
+	icon: Codicon.thumbsup,
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
+		group: 'inline',
+		order: 2,
+		// TODO: Fill in ctx
+		// when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		// TODO: Impl
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalCommandId.ChatFeedbackReportIssue,
+	title: localize2('reportIssue', 'Report Issue'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		TerminalContextKeys.chatRequestActive,
+	),
+	icon: Codicon.thumbsup,
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
+		group: 'inline',
+		order: 3,
+		// TODO: Fill in ctx
+		// when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		// TODO: Impl
 	}
 });
