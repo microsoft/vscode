@@ -30,9 +30,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-// TODO: fix eslint-disable-next-line local/code-import-patterns
-import { MENU_TERMINAL_CHAT_INPUT } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -685,19 +682,13 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			id: ACTION_VIEW_IN_CHAT,
 			title: localize('viewInChat', 'View in Chat'),
 			icon: Codicon.commentDiscussion,
-			precondition: ContextKeyExpr.or(TerminalContextKeys.chatVisible, CTX_INLINE_CHAT_VISIBLE),
-			menu: [{
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			menu: {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages), CTX_INLINE_CHAT_VISIBLE),
+				when: CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages),
 				group: '0_main',
 				order: 1
-			},
-			{
-				id: MENU_TERMINAL_CHAT_INPUT,
-				when: ContextKeyExpr.and(TerminalContextKeys.chatVisible, CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages)),
-				group: 'inline',
-				order: 1
-			}]
+			}
 		});
 	}
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): void {
