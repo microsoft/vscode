@@ -19,6 +19,7 @@ import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { marked } from 'vs/base/common/marked/marked';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.Chat';
@@ -133,12 +134,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			variables: resolvedVariables,
 			variables2: { message: this._chatWidget?.rawValue?.input() || '', variables: [] }
 		};
-		// TODO: use token
-		const agentResult = await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
-		console.log(agentResult);
-		console.log(message);
-		alert(message);
 		this._chatWidget?.rawValue?.setValue();
+
+		// TODO: use token
+		await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
+		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
+		if (codeBlock) {
+			alert(codeBlock);
+		}
 		// TODO: accessibility announcement, help dialog
 	}
 

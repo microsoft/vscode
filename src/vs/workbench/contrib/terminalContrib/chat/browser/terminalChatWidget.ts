@@ -11,7 +11,6 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -32,8 +31,7 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
