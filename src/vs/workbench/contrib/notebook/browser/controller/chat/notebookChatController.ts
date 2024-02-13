@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { Dimension, IFocusTracker, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, disposableTimeout, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -162,6 +162,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private _widget: NotebookChatWidget | undefined;
+	private _widgetDisposableStore = this._register(new DisposableStore());
+	private _focusTracker: IFocusTracker | undefined;
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -189,6 +191,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				const window = getWindow(this._widget.domNode);
 				this._widget.dispose();
 				this._widget = undefined;
+				this._widgetDisposableStore.clear();
 
 				scheduleAtNextAnimationFrame(window, () => {
 					this._createWidget(index, input, autoSend);
@@ -203,28 +206,36 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	}
 
 	private _createWidget(index: number, input: string | undefined, autoSend: boolean | undefined) {
+		// Clear the widget if it's already there
+		this._widgetDisposableStore.clear();
+
 		const viewZoneContainer = document.createElement('div');
 		viewZoneContainer.classList.add('monaco-editor');
 		const widgetContainer = document.createElement('div');
 		widgetContainer.style.position = 'absolute';
 		viewZoneContainer.appendChild(widgetContainer);
 
+		this._focusTracker = this._widgetDisposableStore.add(trackFocus(viewZoneContainer));
+		this._widgetDisposableStore.add(this._focusTracker.onDidFocus(() => {
+			this._updateNotebookEditorFocusNSelections();
+		}));
+
 		const fakeParentEditorElement = document.createElement('div');
 
-		const fakeParentEditor = this._instantiationService.createInstance(
+		const fakeParentEditor = this._widgetDisposableStore.add(this._instantiationService.createInstance(
 			CodeEditorWidget,
 			fakeParentEditorElement,
 			{
 			},
 			{ isSimpleWidget: true }
-		);
+		));
 
 		const inputBoxPath = `/notebook-chat-input-${NotebookChatController.counter++}`;
 		const inputUri = URI.from({ scheme: Schemas.untitled, path: inputBoxPath });
 		const result: ITextModel = this._modelService.createModel('', null, inputUri, false);
 		fakeParentEditor.setModel(result);
 
-		const inlineChatWidget = this._instantiationService.createInstance(
+		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
 			InlineChatWidget,
 			fakeParentEditor,
 			{
@@ -233,7 +244,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 				feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
 			}
-		);
+		));
 		inlineChatWidget.placeholder = localize('default.placeholder', "Ask a question");
 		inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		widgetContainer.appendChild(inlineChatWidget.domNode);
@@ -260,7 +271,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 			disposableTimeout(() => {
 				this._ctxCellWidgetFocused.set(true);
-				this._widget?.focus();
+				this._focusWidget();
 			}, 0, this._store);
 
 			this._sessionCtor = createCancelablePromise<void>(async token => {
@@ -272,7 +283,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 						this._widget.inlineChatWidget.placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 						this._widget.inlineChatWidget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 						this._widget.inlineChatWidget.updateSlashCommands(this._activeSession?.session.slashCommands ?? []);
-						this.focusWidget();
+						this._focusWidget();
 					}
 
 					if (this._widget && input) {
@@ -287,7 +298,16 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		});
 	}
 
-	private focusWidget() {
+	private _focusWidget() {
+		if (!this._widget) {
+			return;
+		}
+
+		this._updateNotebookEditorFocusNSelections();
+		this._widget.focus();
+	}
+
+	private _updateNotebookEditorFocusNSelections() {
 		if (!this._widget) {
 			return;
 		}
@@ -297,8 +317,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			start: this._widget.afterModelPosition,
 			end: this._widget.afterModelPosition
 		}]);
-
-		this._widget.focus();
 	}
 
 	async acceptInput() {
@@ -536,12 +554,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		switch (direction) {
 			case 'above':
 				if (this._widget?.afterModelPosition === index) {
-					this.focusWidget();
+					this._focusWidget();
 				}
 				break;
 			case 'below':
 				if (this._widget?.afterModelPosition === index + 1) {
-					this.focusWidget();
+					this._focusWidget();
 				}
 				break;
 			default:
@@ -581,6 +599,13 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._sessionCtor = undefined;
 		this._widget?.dispose();
 		this._widget = undefined;
+		this._widgetDisposableStore.clear();
+	}
+
+	public override dispose(): void {
+		this.dismiss();
+
+		super.dispose();
 	}
 }
 
