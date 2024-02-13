@@ -592,6 +592,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return modelIndex;
 		}
 
+		if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+			// it's already after the last hidden range
+			return this.hiddenRangesPrefixSum.getTotalSum();
+		}
+
 		return this.hiddenRangesPrefixSum.getIndexOf(modelIndex).index;
 	}
 
@@ -1166,6 +1171,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	revealOffsetInCenterIfOutsideViewport(offset: number) {
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+
+		if (offset < scrollTop || offset > wrapperBottom) {
+			this.view.setScrollTop(offset - this.view.renderHeight / 2);
+		}
+	}
+
 	private _revealInCenterIfOutsideViewport(viewIndex: number) {
 		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
 	}
@@ -1276,7 +1290,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.domFocus();
 	}
 
-	focusContainer() {
+	focusContainer(clearSelection: boolean) {
+		if (clearSelection) {
+			// allow focus to be between cells
+			this._viewModel?.updateSelectionsState({
+				kind: SelectionStateType.Handle,
+				primary: null,
+				selections: []
+			}, 'view');
+			this.setFocus([], undefined, true);
+			this.setSelection([], undefined, true);
+		}
+
 		super.domFocus();
 	}
 
