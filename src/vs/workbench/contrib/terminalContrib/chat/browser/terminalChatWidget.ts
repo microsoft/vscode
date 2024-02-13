@@ -31,10 +31,10 @@ export class TerminalChatWidget extends Disposable {
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _instance: ITerminalInstance,
-
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService) {
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+	) {
 		super();
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
@@ -44,24 +44,9 @@ export class TerminalChatWidget extends Disposable {
 		this._widgetContainer.classList.add('terminal-inline-chat');
 		this._container.appendChild(this._widgetContainer);
 
-		// this._widget = this._register(this._scopedInstantiationService.createInstance(
-		// 	ChatWidget,
-		// 	{ viewId: 'terminal' },
-		// 	{ supportsFileReferences: false, renderStyle: 'compact' },
-		// 	{
-		// 		listForeground: editorForeground,
-		// 		listBackground: editorBackground,
-		// 		inputEditorBackground: inputBackground,
-		// 		resultEditorBackground: editorBackground
-		// 	}));
-		// this._widget.render(this._widgetContainer);
-		// this._register(this._widget.onDidFocus(() => this._chatWidgetFocused.set(true)));
-
+		// The inline chat widget requires a parent editor that it bases the diff view on, since the
+		// terminal doesn't use that feature we can just pass in an unattached editor instance.
 		const fakeParentEditorElement = document.createElement('div');
-
-		// const editorConstructionOptions = this.inputEditorOptions.getEditorConstructionOptions();
-		// this.setPlaceholderFontStyles(editorConstructionOptions.fontFamily!, editorConstructionOptions.fontSize!, editorConstructionOptions.lineHeight!);
-
 		const fakeParentEditor = this._scopedInstantiationService.createInstance(
 			CodeEditorWidget,
 			fakeParentEditorElement,
@@ -91,23 +76,18 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.layout(new Dimension(400, 150));
 
 		this._widgetContainer.classList.remove('hide');
-		// this._widget.setVisible(true);
 		this._chatWidgetFocused.set(true);
 		this._chatWidgetVisible.set(true);
-		// this._widget.setInput('@terminal');
-		// this._widget.setInputPlaceholder('Request a terminal command');
-		// this._widget.focusInput();
 		this._inlineChatWidget.focus();
 	}
 	hide(): void {
 		this._widgetContainer.classList.add('hide');
 		this._chatWidgetFocused.set(false);
 		this._chatWidgetVisible.set(false);
-		// this._widget.clear();
 		this._instance.focus();
 	}
 	cancel(): void {
-		// this._widget?.clear();
+		// TODO: Impl
 	}
 	input(): string {
 		return this._inlineChatWidget.value;
