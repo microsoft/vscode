@@ -194,7 +194,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this.logger.trace(`GitHistoryProvider:resolveHistoryItemGroupCommonAncestor - Resolved common ancestor for '${historyItemId1}' and '${historyItemId2}': ${JSON.stringify({ id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind })}`);
 			return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
 		} catch (err) {
-			this.logger.error(`Failed to get ahead/behind for '${historyItemId1}...${historyItemId2}': ${err.message}`);
+			this.logger.error(`GitHistoryProvider:resolveHistoryItemGroupCommonAncestor - Failed to get ahead/behind for '${historyItemId1}...${historyItemId2}': ${err.message}`);
 		}
 
 		return undefined;
@@ -226,7 +226,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			};
 		}
 		catch (err) {
-			this.logger.error(`Failed to get branch base for '${historyItemId}': ${err.message}`);
+			this.logger.error(`GitHistoryProvider:resolveHistoryItemGroupBase - Failed to get branch base for '${historyItemId}': ${err.message}`);
 		}
 
 		return undefined;
