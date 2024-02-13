@@ -15,6 +15,7 @@ import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 registerTerminalContribution(TerminalChatController.ID, TerminalChatController, false);
@@ -43,12 +44,18 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.HideChat,
-	title: localize2('workbench.action.terminal.hideChat', 'Hide Chat'),
+	title: localize2('workbench.action.terminal.closeChat', 'Close Chat'),
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
 		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused, TerminalContextKeys.chatVisible),
 		weight: KeybindingWeight.WorkbenchContrib
+	},
+	icon: Codicon.close,
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET,
+		group: 'main',
+		order: 2
 	},
 	f1: true,
 	precondition: ContextKeyExpr.and(
@@ -81,7 +88,7 @@ registerActiveXtermAction({
 		primary: KeyCode.Enter
 	},
 	menu: {
-		id: MenuId.TerminalChat,
+		id: MENU_TERMINAL_CHAT_INPUT,
 		group: 'main',
 		order: 1,
 		// when: TerminalContextKeys.chatSessionInProgress.negate(),

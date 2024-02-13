@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/terminalChatWidget';
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./media/terminalChatWidget';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 export class TerminalChatWidget extends Disposable {
 	private _scopedInstantiationService: IInstantiationService;
@@ -76,10 +75,10 @@ export class TerminalChatWidget extends Disposable {
 			InlineChatWidget,
 			fakeParentEditor,
 			{
-				menuId: MenuId.TerminalChat,
-				widgetMenuId: MENU_CELL_CHAT_WIDGET,
-				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
-				feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
+				menuId: MENU_TERMINAL_CHAT_INPUT,
+				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
+				statusMenuId: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK
 			}
 		);
 		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
