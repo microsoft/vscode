@@ -135,16 +135,29 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._cancellationTokenSource.cancel();
 	}
 
+	private _forcedPlaceholder: string | undefined = undefined;
+
+	private _updatePlaceholder(): void {
+		const inlineChatWidget = this._chatWidget?.rawValue?.inlineChatWidget;
+		if (inlineChatWidget) {
+			inlineChatWidget.placeholder = this._getPlaceholderText();
+		}
+	}
+
+	private _getPlaceholderText(): string {
+		return this._forcedPlaceholder ?? '';
+		// TODO: Pass through session placeholder
+		// return this._forcedPlaceholder ?? this._session?.session.placeholder ?? '';
+	}
+
 	setPlaceholder(text: string): void {
-		// TODO: Impl
-		// this._forcedPlaceholder = text;
-		// this._updatePlaceholder();
+		this._forcedPlaceholder = text;
+		this._updatePlaceholder();
 	}
 
 	resetPlaceholder(): void {
-		// TODO: Impl
-		// this._forcedPlaceholder = undefined;
-		// this._updatePlaceholder();
+		this._forcedPlaceholder = undefined;
+		this._updatePlaceholder();
 	}
 
 	async acceptInput(): Promise<void> {
