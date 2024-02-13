@@ -2645,6 +2645,12 @@
           "default": false,
           "description": "%config.followTagsWhenSync%"
         },
+        "git.replaceTagsWhenPull": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.replaceTagsWhenPull%"
+        },
         "git.promptToSaveFilesBeforeStash": {
           "type": "string",
           "enum": [
