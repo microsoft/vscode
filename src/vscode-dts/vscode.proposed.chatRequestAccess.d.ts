@@ -14,6 +14,7 @@ declare module 'vscode' {
 		// TODO@API define this type!
 		result: Thenable<unknown>;
 
+		// TODO@API doc what to expect here
 		stream: AsyncIterable<string>;
 	}
 
@@ -52,6 +53,7 @@ declare module 'vscode' {
 		/**
 		 * An event that is fired when the access the language model has has been revoked or re-granted.
 		 */
+		// TODO@API NAME?
 		readonly onDidChangeAccess: Event<void>;
 
 		/**
@@ -94,7 +96,7 @@ declare module 'vscode' {
 		readonly removed: readonly string[];
 	}
 
-	//@API DEFINE the namespace for this: env, lm, ai?
+	//@API DEFINE the namespace for this: lm (languageModels), copilot, ai, env,?
 	export namespace chat {
 
 		/**
