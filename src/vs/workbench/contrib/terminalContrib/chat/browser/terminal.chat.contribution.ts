@@ -13,15 +13,14 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 registerTerminalContribution(TerminalChatController.ID, TerminalChatController, false);
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ChatFocus,
+	id: TerminalChatCommandId.Focus,
 	title: localize2('workbench.action.terminal.focusChat', 'Focus Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
@@ -43,7 +42,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ChatHide,
+	id: TerminalChatCommandId.Hide,
 	title: localize2('workbench.action.terminal.closeChat', 'Close Chat'),
 	keybinding: {
 		primary: KeyCode.Escape,
@@ -72,7 +71,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ChatMakeRequest,
+	id: TerminalChatCommandId.MakeRequest,
 	title: localize2('workbench.action.terminal.submitChat', 'Make Chat Request'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -105,7 +104,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ChatCancel,
+	id: TerminalChatCommandId.Cancel,
 	title: localize2('workbench.action.terminal.cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -126,7 +125,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ChatFeedbackHelpful,
+	id: TerminalChatCommandId.FeedbackHelpful,
 	title: localize2('feedbackHelpful', 'Helpful'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -146,7 +145,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ChatFeedbackUnhelpful,
+	id: TerminalChatCommandId.FeedbackUnhelpful,
 	title: localize2('feedbackUnhelpful', 'Helpful'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -166,7 +165,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalCommandId.ChatFeedbackReportIssue,
+	id: TerminalChatCommandId.FeedbackReportIssue,
 	title: localize2('reportIssue', 'Report Issue'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),

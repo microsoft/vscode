@@ -500,13 +500,6 @@ export const enum TerminalCommandId {
 	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
 	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
 	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
-	ChatFocus = 'workbench.action.terminal.chat.focus',
-	ChatHide = 'workbench.action.terminal.chat.close',
-	ChatMakeRequest = 'workbench.action.terminal.chat.makeRequest',
-	ChatCancel = 'workbench.action.terminal.chat.cancel',
-	ChatFeedbackHelpful = 'workbench.action.terminal.chat.feedbackHelpful',
-	ChatFeedbackUnhelpful = 'workbench.action.terminal.chat.feedbackUnhelpful',
-	ChatFeedbackReportIssue = 'workbench.action.terminal.chat.feedbackReportIssue',
 
 	// Developer commands
 
