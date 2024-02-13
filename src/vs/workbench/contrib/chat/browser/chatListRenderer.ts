@@ -838,9 +838,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderCommandButton(element: ChatTreeItem, commandButton: IChatCommandButton): IMarkdownRenderResult {
 		const container = $('.chat-command-button');
 		const disposables = new DisposableStore();
-		const button = disposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: true, title: commandButton.command.tooltip }));
+		const enabled = !isResponseVM(element) || !element.isStale;
+		const tooltip = enabled ?
+			commandButton.command.tooltip :
+			localize('commandButtonDisabled', "Button not available in restored chat");
+		const button = disposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: true, title: tooltip }));
 		button.label = commandButton.command.title;
-		button.enabled = !isResponseVM(element) || !element.isStale;
+		button.enabled = enabled;
 
 		// TODO still need telemetry for command buttons
 		disposables.add(button.onDidClick(() => this.commandService.executeCommand(commandButton.command.id, ...(commandButton.command.arguments ?? []))));
