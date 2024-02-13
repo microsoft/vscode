@@ -23,6 +23,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Emitter, Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 const enum Message {
 	NONE = 0,
@@ -172,12 +173,20 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatWidget?.rawValue?.setValue();
 
 		try {
-			await this._chatAgentService.invokeAgent(agentId, requestProps, progressCallback, [], cancellationToken);
+			const task = this._chatAgentService.invokeAgent(agentId, requestProps, progressCallback, [], cancellationToken);
+			this._chatWidget?.rawValue?.inlineChatWidget.updateChatMessage(undefined);
+			this._chatWidget?.rawValue?.inlineChatWidget.updateFollowUps(undefined);
+			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(true);
+			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo(localize('thinking', "Thinking\u2026"));
+			// TODO: this._zone.value.widget.updateInfo(!this._session.lastExchange ? localize('thinking', "Thinking\u2026") : '');
+			await task;
 		} catch (e) {
-			// Provider is not ready
+
+		} finally {
 			this._ctxHasActiveRequest.set(false);
-			this._chatWidget?.rawValue?.updateProgress();
-			return;
+			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
+			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
+			this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
 		}
 		const firstCodeBlockContent = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw;
 		const regex = /```(?<language>\w+)\n(?<content>[\s\S]*?)```/g;

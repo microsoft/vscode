@@ -84,7 +84,7 @@ export class TerminalChatWidget extends Disposable {
 			}
 		);
 		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
-		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
+		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
 		this._widgetContainer.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._widgetContainer));
