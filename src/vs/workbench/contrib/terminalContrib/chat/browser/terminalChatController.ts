@@ -161,12 +161,17 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (codeBlock) {
 			// TODO: check the SR experience
 			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._accessibilityRequestId);
+			this._ctxLastResponseType.set(InlineChatResponseTypes.OnlyEdits);
 		} else {
 			this._chatWidget?.rawValue?.renderMessage(message, this._accessibilityRequestId, requestId);
 			this._ctxLastResponseType.set(InlineChatResponseTypes.OnlyMessages);
 		}
 		this._ctxHasActiveRequest.set(false);
 		this._chatWidget?.rawValue?.updateProgress();
+	}
+
+	acceptCommand(): void {
+		this._chatWidget?.rawValue?.acceptCommand();
 	}
 
 	reveal(): void {

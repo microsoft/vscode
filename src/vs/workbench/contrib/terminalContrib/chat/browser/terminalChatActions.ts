@@ -9,7 +9,7 @@ import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -64,6 +64,40 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.chatWidget?.hide();
+	}
+});
+
+
+
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.AcceptCommand,
+	title: localize2('workbench.action.terminal.acceptCommand', 'Accept Command'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalContextKeys.chatRequestActive.negate(),
+		TerminalContextKeys.chatAgentRegistered,
+		CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyEdits)
+	),
+	icon: Codicon.check,
+	keybinding: {
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, TerminalContextKeys.chatRequestActive.negate()),
+		weight: KeybindingWeight.EditorCore + 7,
+		primary: KeyCode.Enter
+	},
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET,
+		group: 'main',
+		order: 0,
+		when: CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyEdits),
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.acceptCommand();
 	}
 });
 

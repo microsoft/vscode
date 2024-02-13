@@ -91,8 +91,10 @@ export class TerminalChatWidget extends Disposable {
 				if (!model || !this._responseWidget) {
 					return;
 				}
+				this._responseWidget.layout(new Dimension(400, 0));
 				this._responseWidget.setModel(model);
-				this._responseWidget.layout(new Dimension(400, 150));
+				const height = this._responseWidget.getContentHeight();
+				this._responseWidget.layout(new Dimension(400, height));
 			});
 		} else {
 			this._responseWidget.setValue(codeBlock);
@@ -113,7 +115,6 @@ export class TerminalChatWidget extends Disposable {
 	}
 	reveal(): void {
 		this._inlineChatWidget.layout(new Dimension(400, 150));
-
 		this._widgetContainer.classList.remove('hide');
 		this._chatWidgetFocused.set(true);
 		this._chatWidgetVisible.set(true);
@@ -138,6 +139,14 @@ export class TerminalChatWidget extends Disposable {
 		if (!value) {
 			this._responseElement?.classList.add('hide');
 		}
+	}
+	acceptCommand(): void {
+		const value = this._responseWidget?.getValue();
+		if (!value) {
+			return;
+		}
+		this._instance.sendText(value, false, true);
+		this.hide();
 	}
 	updateProgress(progress?: IChatProgress): void {
 		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
