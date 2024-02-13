@@ -54,9 +54,8 @@ declare module 'vscode' {
 		readonly command: string | undefined;
 
 		/**
-		 *
+		 * The variables that were referenced in this message.
 		 */
-		// TODO@API is this needed?
 		readonly variables: ChatAgentResolvedVariable[];
 
 		private constructor(prompt: string, command: string | undefined, variables: ChatAgentResolvedVariable[], agent: { extensionId: string; agentId: string });
@@ -207,15 +206,18 @@ declare module 'vscode' {
 	export interface ChatAgentFollowup {
 		/**
 		 * The message to send to the chat.
-		 * TODO@API is it ok for variables to resolved from the text of this prompt, using the `#` syntax?
 		 */
 		prompt: string;
 
 		/**
-		 * By default, the followup goes to the same agent/command. But these properties can be set to override that.
+		 * By default, the followup goes to the same agent/command. But this property can be set to invoke a different agent.
+		 * TODO@API do extensions need to specify the extensionID of the agent here as well?
 		 */
 		agentId?: string;
 
+		/**
+		 * By default, the followup goes to the same agent/command. But this property can be set to invoke a different command.
+		 */
 		command?: string;
 
 		/**
