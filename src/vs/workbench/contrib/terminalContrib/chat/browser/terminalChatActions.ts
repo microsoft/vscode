@@ -18,7 +18,7 @@ import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/cha
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Focus,
-	title: localize2('workbench.action.terminal.focusChat', 'Focus Chat'),
+	title: localize2('focusChat', 'Focus Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused.negate(), TerminalContextKeys.focusInAny),
@@ -40,7 +40,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Hide,
-	title: localize2('workbench.action.terminal.closeChat', 'Close Chat'),
+	title: localize2('closeChat', 'Close Chat'),
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
@@ -104,7 +104,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.MakeRequest,
-	title: localize2('workbench.action.terminal.submitChat', 'Make Chat Request'),
+	title: localize2('makeChatRequest', 'Make Chat Request'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -135,7 +135,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Cancel,
-	title: localize2('workbench.action.terminal.cancelChat', 'Cancel Chat'),
+	title: localize2('cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatRequestActive,
