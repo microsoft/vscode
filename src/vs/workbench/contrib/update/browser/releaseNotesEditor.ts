@@ -116,6 +116,8 @@ export class ReleaseNotesManager {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
 				} else if (e.message.type === 'scroll') {
 					this.scrollPosition = e.message.value.scrollPosition;
+				} else if (e.message.type === 'clickSetting') {
+					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), e.message.value.x, e.message.value.y);
 				}
 			}));
 
@@ -220,8 +222,7 @@ export class ReleaseNotesManager {
 
 	private async onDidClickLink(uri: URI) {
 		if (uri.scheme === Schemas.codeSetting) {
-			await this._simpleSettingRenderer.updateSettingValue(uri);
-			this.updateHtml();
+			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
 				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings'] }))
@@ -254,6 +255,49 @@ export class ReleaseNotesManager {
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
+
+					.codesetting {
+						color: var(--vscode-button-foreground);
+						background-color: var(--vscode-button-background);
+						width: fit-content;
+						padding: 1px 1px 1px 1px;
+						font-size: 12px;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						outline-offset: 2px !important;
+						box-sizing: border-box;
+						border-radius: 2px;
+						text-align: center;
+						cursor: pointer;
+						border: 1px solid var(--vscode-button-border, transparent);
+						line-height: 12px;
+						outline: 1px solid transparent;
+						display: inline-block;
+						margin-top: 3px;
+						margin-bottom: -6px !important;
+					}
+					.codesetting:hover {
+						background-color: var(--vscode-button-hoverBackground);
+						text-decoration: none !important;
+						color: var(--vscode-button-hoverForeground) !important;
+					}
+					.codesetting:focus {
+						outline: 0 !important;
+						text-decoration: none !important;
+						color: var(--vscode-button-hoverForeground) !important;
+						border: 1px solid var(--vscode-button-border, transparent);
+					}
+					.codesetting svg {
+						display: inline-block;
+						text-decoration: none;
+						text-rendering: auto;
+						text-align: center;
+						text-transform: none;
+						-webkit-font-smoothing: antialiased;
+						-moz-osx-font-smoothing: grayscale;
+						user-select: none;
+						-webkit-user-select: none;
+					}
 					header { display: flex; align-items: center; padding-top: 1em; }
 				</style>
 			</head>
@@ -303,6 +347,13 @@ export class ReleaseNotesManager {
 						});
 					};
 
+					window.addEventListener('click', event => {
+						const href = event.target.href ?? event.target.parentElement.href ?? event.target.parentElement.parentElement?.href;
+						if (href && href.startsWith('${Schemas.codeSetting}')) {
+							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.screenX, y: event.screenY }});
+						}
+					});
+
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');
 					});
@@ -313,17 +364,17 @@ export class ReleaseNotesManager {
 
 	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {
 		if (e.affectsConfiguration('update.showReleaseNotes')) {
-			this.updateWebview();
+			this.updateCheckboxWebview();
 		}
 	}
 
 	private onDidChangeActiveWebviewEditor(input: WebviewInput | undefined): void {
 		if (input && input === this._currentReleaseNotes) {
-			this.updateWebview();
+			this.updateCheckboxWebview();
 		}
 	}
 
-	private updateWebview() {
+	private updateCheckboxWebview() {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.webview.postMessage({
 				type: 'showReleaseNotes',
