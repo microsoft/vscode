@@ -72,8 +72,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		}));
 	}
 
-	public scrollTo(uri: URI): void {
-		this._multiDiffEditorWidget?.scrollTo(uri);
+	public reveal(resource: { original: URI } | { modified: URI }, lineNumber: number): void {
+		this._multiDiffEditorWidget?.reveal(resource, lineNumber);
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

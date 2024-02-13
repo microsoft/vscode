@@ -44,8 +44,8 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
-	public scrollTo(uri: URI): void {
-		this._widgetImpl.get().scrollTo(uri);
+	public reveal(resource: { original: URI } | { modified: URI }, lineNumber: number): void {
+		this._widgetImpl.get().reveal(resource, lineNumber);
 	}
 
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {

@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -36,8 +36,7 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 
 const enum State {
@@ -69,7 +68,8 @@ export class BulkEditPane extends ViewPane {
 	private _currentResolve?: (edit?: ResourceEdit[]) => void;
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
-	private _multiDiffEditor?: MultiDiffEditor;
+	private _fileOperations?: BulkFileOperation[];
+	private _resources?: IResourceDiffEditorInput[];
 
 	constructor(
 		options: IViewletViewOptions,
@@ -98,11 +98,6 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
-		this._disposables.add(this._editorService.onDidCloseEditor((e) => {
-			if (this._multiDiffEditor && e.editor === this._multiDiffEditor.input && e.groupId === this._multiDiffEditor.group?.id) {
-				this._multiDiffEditor = undefined;
-			}
-		}));
 	}
 
 	override dispose(): void {
@@ -281,10 +276,6 @@ export class BulkEditPane extends ViewPane {
 		this._currentInput = undefined;
 		this._setState(State.Message);
 		this._sessionDisposables.clear();
-		if (this._multiDiffEditor && this._multiDiffEditor.input && this._multiDiffEditor.group) {
-			this._editorService.closeEditor({ editor: this._multiDiffEditor.input, groupId: this._multiDiffEditor.group.id });
-			this._multiDiffEditor = undefined;
-		}
 	}
 
 	toggleChecked() {
@@ -347,12 +338,26 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		if (this._multiDiffEditor) {
-			// Multi diff editor already visible
-			this._multiDiffEditor.scrollTo(fileElement.edit.uri);
-			return;
+		let resources: IResourceDiffEditorInput[];
+		if (this._fileOperations === fileOperations && this._resources) {
+			resources = this._resources;
+		} else {
+			resources = await this._getResources(fileOperations);
 		}
+		const revealResource = resources.find(r => r.original.resource!.toString() === fileElement.edit.uri.toString());
+		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
+		const label = 'Refactor Preview';
+		this._editorService.openEditor({
+			multiDiffSource,
+			revealResource,
+			resources,
+			label,
+			description: label,
+			options,
+		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+	}
 
+	private async _getResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
 		const resources: IResourceDiffEditorInput[] = [];
 		for (const operation of fileOperations) {
 			const operationUri = operation.uri;
@@ -379,15 +384,7 @@ export class BulkEditPane extends ViewPane {
 				});
 			}
 		}
-		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
-		const label = 'Refactor Preview';
-		this._multiDiffEditor = await this._editorService.openEditor({
-			multiDiffSource,
-			resources,
-			label,
-			description: label,
-			options,
-		}) as MultiDiffEditor;
+		return resources;
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {

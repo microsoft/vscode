@@ -236,7 +236,6 @@ export interface IEditorService {
 	 * Open an editor in an editor group.
 	 *
 	 * @param editor the editor to open
-	 * @param options the options to use for the editor
 	 * @param group the target group. If unspecified, the editor will open in the currently
 	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.

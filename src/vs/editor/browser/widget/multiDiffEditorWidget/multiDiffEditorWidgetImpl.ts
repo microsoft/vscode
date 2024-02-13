@@ -25,6 +25,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -104,6 +105,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -186,10 +188,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
-	public scrollTo(originalUri: URI): void {
+	public reveal(resource: IMultiDiffResource, lineNumber: number): void {
 		const viewItems = this._viewItems.get();
-		const index = viewItems?.findIndex(item => item.viewModel.originalUri?.toString() === originalUri.toString());
-		let scrollTop = 0;
+		let searchCallback: (item: VirtualizedViewItem) => boolean;
+		if (isMultiDiffOriginalResourceUri(resource)) {
+			searchCallback = (item) => item.viewModel.originalUri?.toString() === resource.original.toString();
+		} else {
+			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
+		}
+		const index = viewItems.findIndex(searchCallback);
+		const scrollTopWithinItem = (lineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
+		// todo@aiday-mar: need to find the actual scroll top given the line number specific to the original or modified uri
+		// following does not neccessarily correspond to the appropriate scroll top within the editor
+		const maxScroll = viewItems[index].template.get()?.maxScroll.get().maxScroll;
+		let scrollTop = (maxScroll && scrollTopWithinItem < maxScroll) ? scrollTopWithinItem : 0;
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}
@@ -288,6 +300,20 @@ interface IMultiDiffDocState {
 	collapsed: boolean;
 	selections?: ISelection[];
 }
+
+interface IMultiDiffOriginalResource {
+	original: URI;
+}
+
+interface IMultiDiffModifiedResource {
+	modified: URI;
+}
+
+function isMultiDiffOriginalResourceUri(obj: any): obj is IMultiDiffOriginalResource {
+	return 'original' in obj && obj.original instanceof URI;
+}
+
+type IMultiDiffResource = IMultiDiffOriginalResource | IMultiDiffModifiedResource;
 
 class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
