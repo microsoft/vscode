@@ -1,10 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=Windows Gezgini ba�lam men�s�ne "%1 �le A�" eylemini ekle
-AddContextMenuFolders=Windows Gezgini dizin ba�lam men�s�ne "%1 �le A�" eylemini ekle
-AssociateWithFiles=%1 uygulamas�n� desteklenen dosya t�rleri i�in bir d�zenleyici olarak kay�t et
-AddToPath=PATH'e ekle (yeniden ba�latt�ktan sonra kullan�labilir)
-RunAfter=Kurulumdan sonra %1 uygulamas�n� �al��t�r.
-Other=Di�er:
-SourceFile=%1 Kaynak Dosyas�
-OpenWithCodeContextMenu=%1 �le A�
+AddContextMenuFiles=Windows Gezgini bağlam menüsüne "%1 İle Aç" eylemini ekle
+AddContextMenuFolders=Windows Gezgini dizin bağlam menüsüne "%1 İle Aç" eylemini ekle
+AssociateWithFiles=%1 uygulamasını desteklenen dosya türleri için bir düzenleyici olarak kayıt et
+AddToPath=PATH'e ekle (yeniden başlattıktan sonra kullanılabilir)
+RunAfter=Kurulumdan sonra %1 uygulamasını çalıştır.
+Other=Diğer:
+SourceFile=%1 Kaynak Dosyası
+OpenWithCodeContextMenu=%1 İle Aç
 UpdatingVisualStudioCode=Visual Studio Code g�ncelleniyor...
