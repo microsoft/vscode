@@ -197,11 +197,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter, sessionDisposables);
 		try {
-			const convertedHistory = await this.prepareHistory(request, context);
-			const convertedHistory2 = await this.prepareHistoryTurns(request, context);
+			const convertedHistory = await this.prepareHistoryTurns(request, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
-				{ history: convertedHistory, history2: convertedHistory2 },
+				{ history: convertedHistory, history2: convertedHistory },
 				stream.apiObject,
 				token
 			);
@@ -227,21 +226,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			stream.close();
 			this._extHostChatProvider.$updateAccesslist([{ extension: agent.extension.identifier, enabled: false }]);
 		}
-	}
-
-	private async prepareHistory(request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<vscode.ChatAgentHistoryEntry[]> {
-		return coalesce(await Promise.all(context.history
-			.map(async h => {
-				const ehResult = typeConvert.ChatAgentResult.to(h.result);
-				const result: vscode.ChatAgentResult2 = request.agentId === h.request.agentId ?
-					ehResult :
-					{ ...ehResult, metadata: undefined };
-				return {
-					request: typeConvert.ChatAgentRequest.to(h.request),
-					response: coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter))),
-					result,
-				} satisfies vscode.ChatAgentHistoryEntry;
-			})));
 	}
 
 	private async prepareHistoryTurns(request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatAgentRequestTurn | vscode.ChatAgentResponseTurn)[]> {

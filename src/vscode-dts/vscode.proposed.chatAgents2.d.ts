@@ -79,16 +79,13 @@ declare module 'vscode' {
 
 	export interface ChatAgentContext {
 		/**
-		 * @deprecated
-		 */
-		history: ChatAgentHistoryEntry[];
-
-		// location:
-
-		/**
 		 * All of the chat messages so far in the current chat session.
 		 */
-		// TODO@API name: histroy
+		readonly history: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
+
+		/**
+		 * @deprecated, use histroy
+		 */
 		readonly history2: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
 	}
 
