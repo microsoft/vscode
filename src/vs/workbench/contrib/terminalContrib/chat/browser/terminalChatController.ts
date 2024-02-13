@@ -179,7 +179,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.rawValue?.updateProgress();
 			return;
 		}
-		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
+		const firstCodeBlockContent = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw;
+		const regex = /```(?<language>\w+)\n(?<content>[\s\S]*?)```/g;
+		const match = regex.exec(firstCodeBlockContent);
+		const codeBlock = match?.groups?.content;
+		// TODO: map to editor known language, set editor language
+		// const language = match?.groups?.language;
 		this._accessibilityRequestId++;
 		if (cancellationToken.isCancellationRequested) {
 			return;
