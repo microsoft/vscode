@@ -53,6 +53,10 @@
       vote: undefined,
       agent: {
         id: "ChatProviderWithUsedContext",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
         metadata: {  }
       },
       slashCommand: undefined,

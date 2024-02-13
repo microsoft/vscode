@@ -4258,20 +4258,28 @@ export class ChatResponseReferencePart {
 
 
 export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
+	agentId: string;
 	constructor(
 		readonly prompt: string,
-		readonly agentId: string,
 		readonly command: string | undefined,
 		readonly variables: vscode.ChatAgentResolvedVariable[],
-	) { }
+		readonly agent: { extensionId: string; agentId: string },
+	) {
+		this.agentId = agent.agentId;
+	}
 }
 
 export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
+
+	agentId: string;
+
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
 		readonly result: vscode.ChatAgentResult2,
-		readonly agentId: string,
-	) { }
+		readonly agent: { extensionId: string; agentId: string }
+	) {
+		this.agentId = agent.agentId;
+	}
 }
 
 export class LanguageModelSystemMessage {
