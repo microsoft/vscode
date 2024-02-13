@@ -272,7 +272,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 						this._widget.inlineChatWidget.placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 						this._widget.inlineChatWidget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 						this._widget.inlineChatWidget.updateSlashCommands(this._activeSession?.session.slashCommands ?? []);
-						this._widget.focus();
+						this.focusWidget();
 					}
 
 					if (this._widget && input) {
@@ -285,6 +285,20 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				}
 			});
 		});
+	}
+
+	private focusWidget() {
+		if (!this._widget) {
+			return;
+		}
+
+		this._notebookEditor.focusContainer();
+		this._notebookEditor.setSelections([{
+			start: this._widget.afterModelPosition,
+			end: this._widget.afterModelPosition
+		}]);
+
+		this._widget.focus();
 	}
 
 	async acceptInput() {
@@ -522,12 +536,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		switch (direction) {
 			case 'above':
 				if (this._widget?.afterModelPosition === index) {
-					this._widget.focus();
+					this.focusWidget();
 				}
 				break;
 			case 'below':
 				if (this._widget?.afterModelPosition === index + 1) {
-					this._widget.focus();
+					this.focusWidget();
 				}
 				break;
 			default:

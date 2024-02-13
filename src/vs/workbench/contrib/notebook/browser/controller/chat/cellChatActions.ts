@@ -22,7 +22,7 @@ import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/w
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -43,7 +43,7 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
 		NotebookChatController.get(context.notebookEditor)?.acceptInput();
 	}
 });

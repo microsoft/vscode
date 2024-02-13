@@ -1282,6 +1282,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	focusContainer() {
+		// allow focus to be between cells
+		this._viewModel?.updateSelectionsState({
+			kind: SelectionStateType.Handle,
+			primary: null,
+			selections: []
+		}, 'view');
+		this.setFocus([], undefined, true);
+		this.setSelection([], undefined, true);
+
 		super.domFocus();
 	}
 
