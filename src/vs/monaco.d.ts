@@ -4519,6 +4519,10 @@ declare namespace monaco.editor {
 		 * Font family for inline suggestions.
 		 */
 		fontFamily?: string | 'default';
+		/**
+		 * Does not clear active inline suggestions when the editor loses focus.
+		 */
+		keepOnBlur?: boolean;
 		backgroundColoring?: boolean;
 	}
 

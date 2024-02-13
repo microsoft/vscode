@@ -20,6 +20,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { InlineEditHintsWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createStyleSheet2 } from 'vs/base/browser/dom';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class InlineEditWidget implements IDisposable {
 	constructor(public readonly widget: GhostTextWidget, public readonly edit: IInlineEdit) { }
@@ -61,6 +62,7 @@ export class InlineEditController extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -99,6 +101,27 @@ export class InlineEditController extends Disposable {
 			}
 		}));
 
+		//Clear suggestions on lost focus
+		this._register(editor.onDidBlurEditorWidget(() => {
+			// This is a hidden setting very useful for debugging
+			if (this._configurationService.getValue('editor.experimentalInlineEdit.keepOnBlur') || editor.getOption(EditorOption.inlineEdit).keepOnBlur) {
+				return;
+			}
+			this._currentRequestCts?.dispose();
+			this._currentRequestCts = undefined;
+			this.clear();
+		}));
+
+		//Invoke provider on focus
+		this._register(editor.onDidFocusEditorText(async () => {
+			if (!this._enabled.get()) {
+				return;
+			}
+			await this.getInlineEdit(editor, true);
+		}));
+
+
+		//handle changes of font setting
 		const styleElement = this._register(createStyleSheet2());
 		this._register(autorun(reader => {
 			const fontFamily = this._fontFamily.read(reader);
@@ -182,7 +205,7 @@ export class InlineEditController extends Disposable {
 
 	private async getInlineEdit(editor: ICodeEditor, auto: boolean) {
 		this._isCursorAtInlineEditContext.set(false);
-		this.clear(false);
+		this.clear();
 		this._isAccepting = false;
 		const edit = await this.fetchInlineEdit(editor, auto);
 		if (!edit) {
@@ -247,7 +270,7 @@ export class InlineEditController extends Disposable {
 		this.editor.revealPositionInCenterIfOutsideViewport(position);
 	}
 
-	public clear(explcit: boolean) {
+	public clear() {
 		const edit = this._currentEdit.get()?.edit;
 		if (edit && edit?.rejected && !this._isAccepting) {
 			this._commandService.executeCommand(edit.rejected.id, ...edit.rejected.arguments || []);

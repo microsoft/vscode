@@ -145,7 +145,7 @@ export class RejectInlineEdit extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditController.get(editor);
-		controller?.clear(true);
+		controller?.clear();
 	}
 }
 
