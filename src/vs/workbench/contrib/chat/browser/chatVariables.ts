@@ -39,7 +39,7 @@ export class ChatVariablesService implements IChatVariablesService {
 					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
 						jobs.push(data.resolver(prompt.text, part.variableArg, model, token).then(values => {
-							if (values) {
+							if (values?.length) {
 								resolvedVariables.push({ name: part.variableName, range: part.range, values });
 							}
 						}).catch(onUnexpectedExternalError));

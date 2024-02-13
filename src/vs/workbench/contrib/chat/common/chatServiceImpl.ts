@@ -537,13 +537,14 @@ export class ChatService extends Disposable implements IChatService {
 							continue;
 						}
 
+						const promptTextResult = getPromptText(request.message);
 						const historyRequest: IChatAgentRequest = {
 							sessionId,
 							requestId: request.id,
 							agentId: request.response.agent?.id ?? '',
-							message: getPromptText(request.message.parts),
+							message: promptTextResult.message,
 							command: request.response.slashCommand?.name,
-							variables: request.variableData
+							variables: updateRanges(request.variableData, promptTextResult.diff) // TODO bit of a hack
 						};
 						history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
 					}
@@ -553,13 +554,14 @@ export class ChatService extends Disposable implements IChatService {
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
 					request.variableData = variableData;
 
+					const promptTextResult = getPromptText(request.message);
 					const requestProps: IChatAgentRequest = {
 						sessionId,
 						requestId: request.id,
 						agentId: agent.id,
-						message: getPromptText(request.message.parts),
+						message: promptTextResult.message,
 						command: agentSlashCommandPart?.command.name,
-						variables: variableData
+						variables: updateRanges(variableData, promptTextResult.diff) // TODO bit of a hack
 					};
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
@@ -761,4 +763,16 @@ export class ChatService extends Disposable implements IChatService {
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
 	}
+}
+
+function updateRanges(variableData: IChatRequestVariableData, diff: number): IChatRequestVariableData {
+	return {
+		variables: variableData.variables.map(v => ({
+			...v,
+			range: {
+				start: v.range.start - diff,
+				endExclusive: v.range.endExclusive - diff
+			}
+		}))
+	};
 }
