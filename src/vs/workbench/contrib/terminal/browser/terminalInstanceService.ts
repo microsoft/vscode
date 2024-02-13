@@ -57,7 +57,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		if (instance.shellLaunchConfig.name === 'Python') {
 			// If title is Python, manually set the shell type to Python.
 			instance.setShellType(PosixShellType.Python);
-			// instance.shellType = PosixShellType.Python;
 		}
 		instance.target = target;
 		this._onDidCreateInstance.fire(instance);
