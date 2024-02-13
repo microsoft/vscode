@@ -405,16 +405,25 @@ class VoiceChatSessions {
 
 export const VOICE_KEY_HOLD_THRESHOLD = 500;
 
-async function awaitHoldAndAccept(session: IVoiceChatSession, holdMode?: Promise<void>): Promise<void> {
-	if (!holdMode) {
-		return;
-	}
+async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor, target: 'inline' | 'quick' | 'view' | 'focused', context?: IChatExecuteActionContext): Promise<void> {
+	const instantiationService = accessor.get(IInstantiationService);
+	const keybindingService = accessor.get(IKeybindingService);
+
+	const holdMode = keybindingService.enableKeybindingHoldMode(id);
 
 	let acceptVoice = false;
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
 		session.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for 250ms
 	}, VOICE_KEY_HOLD_THRESHOLD);
+
+	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
+	if (!controller) {
+		handle.dispose();
+		return;
+	}
+
+	const session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
 
 	await holdMode;
 	handle.dispose();
@@ -430,20 +439,8 @@ class VoiceChatWithHoldModeAction extends Action2 {
 		super(desc);
 	}
 
-	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-		const keybindingService = accessor.get(IKeybindingService);
-
-		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
-
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, this.target);
-		if (!controller) {
-			return;
-		}
-
-		const session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-
-		awaitHoldAndAccept(session, holdMode);
+	run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		return startVoiceChatWithHoldMode(this.desc.id, accessor, this.target, context);
 	}
 }
 
@@ -534,11 +531,6 @@ export class StartVoiceChatAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-		const keybindingService = accessor.get(IKeybindingService);
-
-		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
-
 		const widget = context?.widget;
 		if (widget) {
 			// if we already get a context when the action is executed
@@ -551,14 +543,7 @@ export class StartVoiceChatAction extends Action2 {
 			widget.focusInput();
 		}
 
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
-		if (!controller) {
-			return;
-		}
-
-		const session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-
-		awaitHoldAndAccept(session, holdMode);
+		return startVoiceChatWithHoldMode(this.desc.id, accessor, 'focused', context);
 	}
 }
 
