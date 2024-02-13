@@ -93,6 +93,7 @@ export function registerNotebookIndentationActions() {
 			disposable.dispose();
 			return false;
 		}
+		disposable.dispose();
 		return true;
 	});
 
@@ -167,6 +168,7 @@ export function registerNotebookIndentationActions() {
 			disposable.dispose();
 			return false;
 		}
+		disposable.dispose();
 		return true;
 	});
 
