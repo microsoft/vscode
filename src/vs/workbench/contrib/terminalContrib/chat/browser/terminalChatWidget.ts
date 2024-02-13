@@ -87,7 +87,7 @@ export class TerminalChatWidget extends Disposable {
 
 		this._focusTracker = this._register(trackFocus(this._widgetContainer));
 	}
-	renderTerminalCommand(codeBlock: string, requestId: number): void {
+	renderTerminalCommand(codeBlock: string, requestId: number, shellType?: string): void {
 		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
 		this._responseElement.classList.remove('hide');
 		if (!this._responseWidget) {
@@ -139,6 +139,20 @@ export class TerminalChatWidget extends Disposable {
 			});
 		} else {
 			this._responseWidget.setValue(codeBlock);
+		}
+		this._responseWidget.getModel()?.setLanguage(this._getLanguageFromShell(shellType));
+	}
+
+	private _getLanguageFromShell(shell?: string): string {
+		switch (shell) {
+			case 'sh':
+			case 'bash':
+			case 'zsh':
+				return 'shellscript';
+			case 'pwsh':
+				return 'powershell';
+			default:
+				return 'plaintext';
 		}
 	}
 

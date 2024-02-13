@@ -183,15 +183,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const regex = /```(?<language>\w+)\n(?<content>[\s\S]*?)```/g;
 		const match = regex.exec(firstCodeBlockContent);
 		const codeBlock = match?.groups?.content;
-		// TODO: map to editor known language, set editor language
-		// const language = match?.groups?.language;
+		const shellType = match?.groups?.language;
 		this._accessibilityRequestId++;
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
 		if (codeBlock) {
 			// TODO: check the SR experience
-			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._accessibilityRequestId);
+			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._accessibilityRequestId, shellType);
 		} else {
 			this._chatWidget?.rawValue?.renderMessage(message, this._accessibilityRequestId, requestId);
 			this._ctxLastResponseType.set(InlineChatResponseTypes.OnlyMessages);
