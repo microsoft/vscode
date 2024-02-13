@@ -23,6 +23,7 @@ export interface IGhostTextWidgetModel {
 	readonly ghostText: IObservable<GhostText | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
 	readonly range: IObservable<IRange | undefined>;
+	readonly backgroundColoring: IObservable<boolean>;
 }
 
 export class GhostTextWidget extends Disposable {
@@ -133,6 +134,7 @@ export class GhostTextWidget extends Disposable {
 			targetTextModel: textModel,
 			range,
 			isSingleLine,
+			backgroundColoring: this.model.backgroundColoring.read(reader)
 		};
 	});
 
@@ -166,10 +168,11 @@ export class GhostTextWidget extends Disposable {
 					ranges.push(range);
 				}
 			}
+			const className = uiState.backgroundColoring ? 'inline-edit-remove backgroundColoring' : 'inline-edit-remove';
 			for (const range of ranges) {
 				decorations.push({
 					range,
-					options: { inlineClassName: 'inline-edit-remove', description: 'inline-edit-remove', }
+					options: { inlineClassName: className, description: 'inline-edit-remove', }
 				});
 			}
 		}

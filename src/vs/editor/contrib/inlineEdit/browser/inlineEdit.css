@@ -7,7 +7,10 @@
 	background-color: var(--vscode-editorGhostText-background);
 	font-style: italic;
 	text-decoration: line-through;
-	text-decoration-skip: leading-spaces trailing-spaces;
+}
+
+.monaco-editor .inline-edit-remove.backgroundColoring {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
 }
 
 .monaco-editor .inline-edit-hidden {
@@ -31,3 +34,5 @@
 	background-color: var(--vscode-editorGhostText-background);
 	border: 1px solid var(--vscode-editorGhostText-border);
 }
+
+
