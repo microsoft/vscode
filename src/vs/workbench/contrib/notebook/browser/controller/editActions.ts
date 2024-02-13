@@ -20,7 +20,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, executeNotebookCondition, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellEditState, CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE, getNotebookEditorFromEditorPane, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -32,7 +32,12 @@ import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-
+import { Language } from 'vs/base/common/platform';
+import { IEditorAction } from 'vs/editor/common/editorCommon';
+import { assertIsDefined } from 'vs/base/common/types';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ChangeTabDisplaySize, IndentUsingSpaces, IndentUsingTabs, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
+import { registerNotebookIndentationActions } from 'vs/workbench/contrib/notebook/browser/controller/notebookIndentationActions';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -560,3 +565,69 @@ async function setCellToLanguage(languageId: string, context: IChangeCellContext
 		);
 	}
 }
+
+registerAction2(class SelectNotebookIndentation extends NotebookAction {
+	constructor() {
+		super({
+			id: SELECT_NOTEBOOK_INDENTATION_ID,
+			title: localize2('selectNotebookIndentation', 'Select Indentation'),
+			f1: true,
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		await this.showNotebookIndentationPicker(accessor, context);
+	}
+
+	private async showNotebookIndentationPicker(accessor: ServicesAccessor, context: INotebookActionContext): Promise<unknown> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const editorService = accessor.get(IEditorService);
+		// const configurationService = accessor.get(IConfigurationService);
+
+		const activeNotebook = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		if (!activeNotebook || activeNotebook.isDisposed) {
+			return quickInputService.pick([{ label: localize('noNotebookEditor', "No notebook editor active at this time") }]);
+		}
+
+		if (activeNotebook.isReadOnly) {
+			return quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+		}
+
+		// get active focused cell to check for actions
+		const activeCodeEditor = activeNotebook.activeCodeEditor;
+		if (!activeCodeEditor) {
+			return quickInputService.pick([{ label: localize('noFocusedCell', "There is no actively focused cell to interact with.") }]); // TODO@Yoyokrazy better message here i think
+		}
+
+
+		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
+			assertIsDefined(activeCodeEditor.getAction(IndentUsingSpaces.id)), // indent using spaces
+			assertIsDefined(activeCodeEditor.getAction(IndentUsingTabs.id)), // indent using tabs
+			assertIsDefined(activeCodeEditor.getAction(ChangeTabDisplaySize.id)), // change tab display size
+			assertIsDefined(activeCodeEditor.getAction(IndentationToSpacesAction.id)), // convert indentation to spaces
+			assertIsDefined(activeCodeEditor.getAction(IndentationToTabsAction.id)), // convert indentation to tabs
+			// assertIsDefined(activeCodeEditor.getAction(DetectIndentation.ID)),
+		].map((a: IEditorAction) => {
+			return {
+				id: a.id,
+				label: a.label,
+				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
+				run: () => {
+					activeCodeEditor?.focus();
+					a.run();
+				}
+			};
+
+
+		});
+
+		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "convert file") });
+		picks.unshift({ type: 'separator', label: localize('indentView', "change view") });
+
+		const action = await quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
+		return action?.run();
+	}
+});
+
+registerNotebookIndentationActions();
