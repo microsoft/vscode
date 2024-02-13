@@ -277,7 +277,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			this._sessionCtor = createCancelablePromise<void>(async token => {
 
 				if (fakeParentEditor.hasModel()) {
-					this._startSession(fakeParentEditor, token);
+					await this._startSession(fakeParentEditor, token);
 
 					if (this._widget) {
 						this._widget.inlineChatWidget.placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
