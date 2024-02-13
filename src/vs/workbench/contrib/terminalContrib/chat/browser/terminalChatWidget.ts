@@ -28,7 +28,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private readonly _inlineChatWidget: InlineChatWidget;
 	private _responseWidget: CodeEditorWidget | undefined;
-	private _responseContainer: HTMLElement | undefined;
+	private _responseElement: HTMLElement;
 	private readonly _focusTracker: IFocusTracker;
 
 
@@ -48,6 +48,10 @@ export class TerminalChatWidget extends Disposable {
 		this._widgetContainer = document.createElement('div');
 		this._widgetContainer.classList.add('terminal-inline-chat');
 		this._container.appendChild(this._widgetContainer);
+
+		this._responseElement = document.createElement('div');
+		this._responseElement.classList.add('terminal-inline-chat-response');
+		this._widgetContainer.prepend(this._responseElement);
 
 		// The inline chat widget requires a parent editor that it bases the diff view on, since the
 		// terminal doesn't use that feature we can just pass in an unattached editor instance.
@@ -77,24 +81,28 @@ export class TerminalChatWidget extends Disposable {
 
 		this._focusTracker = this._register(trackFocus(this._widgetContainer));
 	}
-	renderResponse(codeBlock: string, requestId: number): void {
+	renderTerminalCommand(codeBlock: string, requestId: number): void {
+		this._responseElement.classList.remove('message', 'hide');
 		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
 		if (!this._responseWidget) {
-			this._responseContainer = document.createElement('div');
-			this._responseContainer.classList.add('terminal-inline-chat-response');
-			this._responseWidget = this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseContainer, {}, { isSimpleWidget: true });
+			this._responseWidget = this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {}, { isSimpleWidget: true });
 			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: codeBlock })).then((model) => {
 				if (!model || !this._responseWidget) {
 					return;
 				}
 				this._responseWidget.setModel(model);
 				this._responseWidget.layout(new Dimension(400, 150));
-				this._widgetContainer.prepend(this._responseContainer!);
 			});
 		} else {
 			this._responseWidget.setValue(codeBlock);
 		}
-		this._responseContainer?.classList.remove('hide');
+	}
+
+	renderMessage(message: string, requestId: number): void {
+		this._responseElement?.classList.remove('hide');
+		this._responseElement.classList.add('message');
+		this._chatAccessibilityService.acceptResponse(message, requestId);
+		this._responseElement.textContent = message;
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
@@ -113,7 +121,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.focus();
 	}
 	hide(): void {
-		this._responseContainer?.classList.add('hide');
+		this._responseElement?.classList.add('hide');
 		this._widgetContainer.classList.add('hide');
 		this._chatWidgetFocused.set(false);
 		this._chatWidgetVisible.set(false);
@@ -128,7 +136,7 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 		if (!value) {
-			this._responseContainer?.classList.add('hide');
+			this._responseElement?.classList.add('hide');
 		}
 	}
 	// async acceptInput(): Promise<void> {

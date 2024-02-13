@@ -139,9 +139,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		// TODO: use token
 		await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], CancellationToken.None);
 		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
+		this._requestId++;
 		if (codeBlock) {
 			// TODO: check the SR experience
-			this._chatWidget?.rawValue?.renderResponse(codeBlock, this._requestId++);
+			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._requestId);
+		} else {
+			this._chatWidget?.rawValue?.renderMessage(message, this._requestId);
 		}
 	}
 
