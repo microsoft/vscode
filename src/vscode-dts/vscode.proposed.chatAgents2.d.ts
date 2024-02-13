@@ -41,6 +41,8 @@ declare module 'vscode' {
 		/**
 		 * The ID of the chat agent to which this request was directed.
 		 */
+		// TODO@API NAME agent
+		// TODO@API TYPE {agent:string, extension:string}
 		readonly agentId: string;
 
 		/**
@@ -286,7 +288,7 @@ declare module 'vscode' {
 		// TODO@API
 		// notify(request: ChatResponsePart, reference: string): boolean;
 		// BETTER
-		// requestResponseStream(callback: (stream: ChatAgentResponseStream) => void, why?: string): void;
+		// requestResponseStream(result: ChatAgentResult, callback: (stream: ChatAgentResponseStream) => void, why?: string): void;
 
 		// TODO@API
 		// clear NEVER happens
@@ -367,6 +369,7 @@ declare module 'vscode' {
 		 * @param value A plain text value.
 		 * @returns This stream.
 		 */
+		// TODO@API remove?
 		text(value: string): ChatAgentResponseStream;
 
 		/**
@@ -377,6 +380,7 @@ declare module 'vscode' {
 		 * @param value A markdown string or a string that should be interpreted as markdown.
 		 * @returns This stream.
 		 */
+		// TODO@API NAME: content
 		markdown(value: string | MarkdownString): ChatAgentResponseStream;
 
 		/**
