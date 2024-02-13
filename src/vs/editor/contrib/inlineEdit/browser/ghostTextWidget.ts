@@ -64,6 +64,9 @@ export class GhostTextWidget extends Disposable {
 		//rather than replacing whole lines
 		const isSingleLine = (range ? range.startLineNumber === range.endLineNumber : true) && ghostText.parts.length === 1 && ghostText.parts[0].lines.length === 1;
 
+		//check if we're just removing code
+		const isPureRemove = ghostText.parts.length === 1 && ghostText.parts[0].lines.every(l => l.length === 0);
+
 		const inlineTexts: { column: number; text: string; preview: boolean }[] = [];
 		const additionalLines: LineData[] = [];
 
@@ -89,35 +92,37 @@ export class GhostTextWidget extends Disposable {
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
-		for (const part of ghostText.parts) {
-			let lines = part.lines;
-			//If remove range is set, we want to push all new liens to virtual area
-			if (range && !isSingleLine) {
-				addToAdditionalLines(lines, INLINE_EDIT_DESCRIPTION);
-				lines = [];
-			}
-			if (hiddenTextStartColumn === undefined) {
-				inlineTexts.push({
-					column: part.column,
-					text: lines[0],
-					preview: part.preview,
-				});
-				lines = lines.slice(1);
-			} else {
-				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
-			}
-
-			if (lines.length > 0) {
-				addToAdditionalLines(lines, INLINE_EDIT_DESCRIPTION);
-				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
-					hiddenTextStartColumn = part.column;
+		if (!isPureRemove) {
+			for (const part of ghostText.parts) {
+				let lines = part.lines;
+				//If remove range is set, we want to push all new liens to virtual area
+				if (range && !isSingleLine) {
+					addToAdditionalLines(lines, INLINE_EDIT_DESCRIPTION);
+					lines = [];
 				}
-			}
+				if (hiddenTextStartColumn === undefined) {
+					inlineTexts.push({
+						column: part.column,
+						text: lines[0],
+						preview: part.preview,
+					});
+					lines = lines.slice(1);
+				} else {
+					addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
+				}
 
-			lastIdx = part.column - 1;
-		}
-		if (hiddenTextStartColumn !== undefined) {
-			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
+				if (lines.length > 0) {
+					addToAdditionalLines(lines, INLINE_EDIT_DESCRIPTION);
+					if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
+						hiddenTextStartColumn = part.column;
+					}
+				}
+
+				lastIdx = part.column - 1;
+			}
+			if (hiddenTextStartColumn !== undefined) {
+				addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
+			}
 		}
 
 		const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
@@ -134,6 +139,7 @@ export class GhostTextWidget extends Disposable {
 			targetTextModel: textModel,
 			range,
 			isSingleLine,
+			isPureRemove,
 			backgroundColoring: this.model.backgroundColoring.read(reader)
 		};
 	});
@@ -158,9 +164,19 @@ export class GhostTextWidget extends Disposable {
 			if (uiState.isSingleLine) {
 				ranges.push(uiState.range);
 			}
+			else if (uiState.isPureRemove) {
+				const lines = uiState.range.endLineNumber - uiState.range.startLineNumber;
+				for (let i = 0; i < lines; i++) {
+					const line = uiState.range.startLineNumber + i;
+					const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
+					const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
+					const range = new Range(line, firstNonWhitespace, line, lastNonWhitespace);
+					ranges.push(range);
+				}
+			}
 			else {
-				const liens = uiState.range.endLineNumber - uiState.range.startLineNumber;
-				for (let i = 0; i <= liens; i++) {
+				const lines = uiState.range.endLineNumber - uiState.range.startLineNumber;
+				for (let i = 0; i <= lines; i++) {
 					const line = uiState.range.startLineNumber + i;
 					const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
 					const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
@@ -199,7 +215,7 @@ export class GhostTextWidget extends Disposable {
 			derived(reader => {
 				/** @description lines */
 				const uiState = this.uiState.read(reader);
-				return uiState ? {
+				return uiState && !uiState.isPureRemove ? {
 					lineNumber: uiState.lineNumber,
 					additionalLines: uiState.additionalLines,
 					minReservedLineCount: uiState.additionalReservedLineCount,
