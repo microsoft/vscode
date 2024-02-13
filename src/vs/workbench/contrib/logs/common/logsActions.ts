@@ -12,7 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { IOutputChannelDescriptor, IOutputService } from 'vs/workbench/services/output/common/output';
 import { extensionTelemetryLogChannelId, telemetryLogId } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 import { Codicon } from 'vs/base/common/codicons';
@@ -36,8 +36,8 @@ export class SetLogLevelAction extends Action {
 		super(id, label);
 	}
 
-	override async run(): Promise<void> {
-		const logLevelOrChannel = await this.selectLogLevelOrChannel();
+	override async run(channelId?: string): Promise<void> {
+		const logLevelOrChannel = await this.getLogLevelOrChannel(channelId);
 		if (logLevelOrChannel !== null) {
 			if (isLogLevel(logLevelOrChannel)) {
 				this.loggerService.setLogLevel(logLevelOrChannel);
@@ -47,16 +47,19 @@ export class SetLogLevelAction extends Action {
 		}
 	}
 
-	private async selectLogLevelOrChannel(): Promise<LogChannelQuickPickItem | LogLevel | null> {
+	private async getLogLevelOrChannel(channelId?: string): Promise<LogChannelQuickPickItem | LogLevel | null> {
 		const defaultLogLevels = await this.defaultLogLevelsService.getDefaultLogLevels();
 		const extensionLogs: LogChannelQuickPickItem[] = [], logs: LogChannelQuickPickItem[] = [];
 		const logLevel = this.loggerService.getLogLevel();
 		for (const channel of this.outputService.getChannelDescriptors()) {
-			if (!channel.log || !channel.file || channel.id === telemetryLogId || channel.id === extensionTelemetryLogChannelId) {
+			if (!SetLogLevelAction.isLevelSettable(channel) || !channel.file) {
 				continue;
 			}
 			const channelLogLevel = this.loggerService.getLogLevel(channel.file) ?? logLevel;
 			const item: LogChannelQuickPickItem = { id: channel.id, resource: channel.file, label: channel.label, description: channelLogLevel !== logLevel ? this.getLabel(channelLogLevel) : undefined, extensionId: channel.extensionId };
+			if (channelId && channel.id === channelId) {
+				return item;
+			}
 			if (channel.extensionId) {
 				extensionLogs.push(item);
 			} else {
@@ -94,6 +97,10 @@ export class SetLogLevelAction extends Action {
 			}));
 			quickPick.show();
 		});
+	}
+
+	static isLevelSettable(channel: IOutputChannelDescriptor): boolean {
+		return channel.log && channel.file !== undefined && channel.id !== telemetryLogId && channel.id !== extensionTelemetryLogChannelId;
 	}
 
 	private async setLogLevelForChannel(logChannel: LogChannelQuickPickItem): Promise<void> {

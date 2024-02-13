@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -30,6 +30,8 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -99,6 +101,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerOpenActiveOutputFileInAuxWindowAction();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
+		this.registerConfigureActiveOutputLogLevelAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -332,6 +335,38 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 		}
 		return null;
+	}
+
+	private registerConfigureActiveOutputLogLevelAction(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.configureActiveOutputLogLevel`,
+					title: nls.localize2('configureActiveOutputLogLevel', "Configure Log Level..."),
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: 'navigation',
+						order: 6,
+						isHiddenByDefault: true
+					}],
+					icon: Codicon.gear,
+					precondition: CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				that.configureActiveOutputLogLevel(commandService);
+			}
+		}));
+	}
+
+	private async configureActiveOutputLogLevel(commandService: ICommandService): Promise<void> {
+		const channel = this.outputService.getActiveChannel();
+		if (channel) {
+			await commandService.executeCommand(SetLogLevelAction.ID, channel.id);
+		}
 	}
 
 	private registerShowLogsAction(): void {

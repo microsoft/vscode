@@ -9,7 +9,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT } from 'vs/workbench/services/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE } from 'vs/workbench/services/output/common/output';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
@@ -21,6 +21,7 @@ import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -74,6 +75,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private readonly activeOutputChannelContext: IContextKey<string>;
 	private readonly activeFileOutputChannelContext: IContextKey<boolean>;
+	private readonly activeOutputChannelLevelSettableContext: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -91,6 +93,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this._register(this.onActiveOutputChannel(channel => this.activeOutputChannelContext.set(channel)));
 
 		this.activeFileOutputChannelContext = CONTEXT_ACTIVE_FILE_OUTPUT.bindTo(contextKeyService);
+		this.activeOutputChannelLevelSettableContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE.bindTo(contextKeyService);
 
 		// Register as text model content provider for output
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
@@ -196,7 +199,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private setActiveChannel(channel: OutputChannel | undefined): void {
 		this.activeChannel = channel;
-		this.activeFileOutputChannelContext.set(!!channel?.outputChannelDescriptor?.file);
+		const descriptor = channel?.outputChannelDescriptor;
+		this.activeFileOutputChannelContext.set(!!descriptor?.file);
+		this.activeOutputChannelLevelSettableContext.set(descriptor !== undefined && SetLogLevelAction.isLevelSettable(descriptor));
 
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
