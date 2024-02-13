@@ -27,7 +27,7 @@ export interface IParsedChatRequestPart {
 }
 
 export function getPromptText(request: ReadonlyArray<IParsedChatRequestPart>): string {
-	return request.map(r => r.promptText).join('');
+	return request.map(r => r.promptText).join('').trim();
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {

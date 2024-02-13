@@ -42,10 +42,7 @@
         ],
         text: "@ChatProviderWithUsedContext test request"
       },
-      variableData: {
-        message: "@ChatProviderWithUsedContext test request",
-        variables: {  }
-      },
+      variableData: { variables: [  ] },
       response: [  ],
       result: { metadata: { metadataKey: "value" } },
       followups: undefined,
