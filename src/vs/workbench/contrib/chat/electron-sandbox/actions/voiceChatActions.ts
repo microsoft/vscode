@@ -661,7 +661,6 @@ class BaseStopListeningAction extends Action2 {
 	}
 }
 
-
 export class StopListeningAction extends BaseStopListeningAction {
 
 	static readonly ID = 'workbench.action.chat.stopListening';
