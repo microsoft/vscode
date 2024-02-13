@@ -288,6 +288,11 @@ export interface IEditorOptions {
 	 * applied when opening the editor.
 	 */
 	viewState?: object;
+
+	/**
+	 * Force this editor to start in preview mode, regardless if the user has set workbench.editor.enablePreview to false.
+	 */
+	forcePreview?: boolean;
 }
 
 export interface ITextEditorSelection {
