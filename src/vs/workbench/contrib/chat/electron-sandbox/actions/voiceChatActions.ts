@@ -11,22 +11,22 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -51,6 +51,7 @@ import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -84,6 +85,7 @@ class VoiceChatSessionControllerFactory {
 	static create(accessor: ServicesAccessor, context: 'quick'): Promise<IVoiceChatSessionController | undefined>;
 	static create(accessor: ServicesAccessor, context: 'view'): Promise<IVoiceChatSessionController | undefined>;
 	static create(accessor: ServicesAccessor, context: 'focused'): Promise<IVoiceChatSessionController | undefined>;
+	static create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined>;
 	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
@@ -254,7 +256,7 @@ class VoiceChatSessions {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	async start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): Promise<void> {
+	start(controller: IVoiceChatSessionController, context?: IChatExecuteActionContext): void {
 		this.stop();
 
 		const sessionId = ++this.voiceChatSessionIds;
@@ -383,31 +385,53 @@ class VoiceChatSessions {
 	}
 }
 
-export class VoiceChatInChatViewAction extends Action2 {
+async function awaitHoldAndAccept(instantiationService: IInstantiationService, holdMode?: Promise<void>): Promise<void> {
+	const now = Date.now();
+	await holdMode;
+	if (Date.now() - now > 250) {
+		VoiceChatSessions.getInstance(instantiationService).accept();
+	}
+}
+
+class VoiceChatWithHoldModeAction extends Action2 {
+
+	constructor(desc: Readonly<IAction2Options>, private readonly target: 'inline' | 'quick' | 'view' | 'focused') {
+		super(desc);
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
+
+		const controller = await VoiceChatSessionControllerFactory.create(accessor, this.target);
+		if (!controller) {
+			return;
+		}
+
+		VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+
+		awaitHoldAndAccept(instantiationService, holdMode);
+	}
+}
+
+export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 
 	static readonly ID = 'workbench.action.chat.voiceChatInChatView';
 
 	constructor() {
 		super({
 			id: VoiceChatInChatViewAction.ID,
-			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in Chat View"),
+			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in View"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'view');
-		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-		}
+		}, 'view');
 	}
 }
 
-export class InlineVoiceChatAction extends Action2 {
+export class InlineVoiceChatAction extends VoiceChatWithHoldModeAction {
 
 	static readonly ID = 'workbench.action.chat.inlineVoiceChat';
 
@@ -418,20 +442,11 @@ export class InlineVoiceChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, ActiveEditorContext, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'inline');
-		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-		}
+		}, 'inline');
 	}
 }
 
-export class QuickVoiceChatAction extends Action2 {
+export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 
 	static readonly ID = 'workbench.action.chat.quickVoiceChat';
 
@@ -442,16 +457,7 @@ export class QuickVoiceChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'quick');
-		if (controller) {
-			VoiceChatSessions.getInstance(instantiationService).start(controller, context);
-		}
+		}, 'quick');
 	}
 }
 
@@ -462,8 +468,24 @@ export class StartVoiceChatAction extends Action2 {
 	constructor() {
 		super({
 			id: StartVoiceChatAction.ID,
-			title: localize2('workbench.action.chat.startVoiceChat.label', "Use Microphone"),
+			title: localize2('workbench.action.chat.startVoiceChat.label', "Start Voice Chat"),
 			category: CHAT_CATEGORY,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 100,
+				when: ContextKeyExpr.and(
+					HasSpeechProvider,
+					ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT),
+					CONTEXT_VOICE_CHAT_GETTING_READY.negate(),
+					CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
+					CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate(),
+					CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(),
+					CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(),
+					CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate(),
+					CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI
+			},
 			icon: Codicon.mic,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate()),
 			menu: [{
@@ -483,6 +505,9 @@ export class StartVoiceChatAction extends Action2 {
 	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
 
 		const widget = context?.widget;
 		if (widget) {
@@ -503,6 +528,8 @@ export class StartVoiceChatAction extends Action2 {
 			// fallback to Quick Voice Chat command
 			commandService.executeCommand(QuickVoiceChatAction.ID, context);
 		}
+
+		awaitHoldAndAccept(instantiationService, holdMode);
 	}
 }
 
@@ -517,8 +544,7 @@ export class InstallVoiceChatAction extends Action2 {
 	constructor() {
 		super({
 			id: InstallVoiceChatAction.ID,
-			title: localize2('workbench.action.chat.startVoiceChat.label', "Use Microphone"),
-			f1: false,
+			title: localize2('workbench.action.chat.startVoiceChat.label', "Start Voice Chat"),
 			category: CHAT_CATEGORY,
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
@@ -728,6 +754,15 @@ export class StopListeningAndSubmitAction extends Action2 {
 			title: localize2('workbench.action.chat.stopListeningAndSubmit.label', "Stop Listening and Submit"),
 			category: CHAT_CATEGORY,
 			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 100,
+				when: ContextKeyExpr.and(
+					HasSpeechProvider,
+					ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT),
+					CONTEXT_VOICE_CHAT_IN_PROGRESS
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI
+			},
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS)
 		});
 	}
@@ -807,6 +842,8 @@ function supportsKeywordActivation(configurationService: IConfigurationService, 
 }
 
 export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.keywordActivation';
 
 	static SETTINGS_VALUE = {
 		OFF: 'off',
