@@ -16,6 +16,7 @@ export interface IWhitespace {
 	 */
 	afterPosition: number;
 	size: number;
+	priority: number;
 }
 export class NotebookCellsLayout implements IRangeMap {
 	private _items: IItem[] = [];
@@ -72,10 +73,11 @@ export class NotebookCellsLayout implements IRangeMap {
 		const newSizes = [];
 		for (let i = 0; i < inserts.length; i++) {
 			const insertIndex = i + index;
-			const existingWhitespace = this._whitespace.find(ws => ws.afterPosition === insertIndex + 1);
+			const existingWhitespaces = this._whitespace.filter(ws => ws.afterPosition === insertIndex + 1);
 
-			if (existingWhitespace) {
-				newSizes.push(inserts[i].size + existingWhitespace.size);
+
+			if (existingWhitespaces.length > 0) {
+				newSizes.push(inserts[i].size + existingWhitespaces.reduce((acc, ws) => acc + ws.size, 0));
 			} else {
 				newSizes.push(inserts[i].size);
 			}
@@ -85,9 +87,9 @@ export class NotebookCellsLayout implements IRangeMap {
 		// Now that the items array has been updated, and the whitespaces are updated elsewhere, if an item is removed/inserted, the accumlated size of the items are all updated.
 		// Loop through all items from the index where the splice started, to the end
 		for (let i = index; i < this._items.length; i++) {
-			const existingWhitespace = this._whitespace.find(ws => ws.afterPosition === i + 1);
-			if (existingWhitespace) {
-				this._prefixSumComputer.setValue(i, this._items[i].size + existingWhitespace.size);
+			const existingWhitespaces = this._whitespace.filter(ws => ws.afterPosition === i + 1);
+			if (existingWhitespaces.length > 0) {
+				this._prefixSumComputer.setValue(i, this._items[i].size + existingWhitespaces.reduce((acc, ws) => acc + ws.size, 0));
 			} else {
 				this._prefixSumComputer.setValue(i, this._items[i].size);
 			}
@@ -95,14 +97,20 @@ export class NotebookCellsLayout implements IRangeMap {
 	}
 
 	insertWhitespace(id: string, afterPosition: number, size: number): void {
-		const existingWhitespace = this._whitespace.find(ws => ws.afterPosition === afterPosition);
-		if (existingWhitespace) {
-			throw new Error('Whitespace already exists at the specified position');
+		let priority = 0;
+		const existingWhitespaces = this._whitespace.filter(ws => ws.afterPosition === afterPosition);
+		if (existingWhitespaces.length > 0) {
+			priority = Math.max(...existingWhitespaces.map(ws => ws.priority)) + 1;
 		}
 
-		this._whitespace.push({ id, afterPosition: afterPosition, size });
+		this._whitespace.push({ id, afterPosition: afterPosition, size, priority });
 		this._size += size; // Update the total size to include the whitespace
-		this._whitespace.sort((a, b) => a.afterPosition - b.afterPosition); // Keep the whitespace sorted by index
+		this._whitespace.sort((a, b) => {
+			if (a.afterPosition === b.afterPosition) {
+				return a.priority - b.priority;
+			}
+			return a.afterPosition - b.afterPosition;
+		});
 
 		// find item size of index
 		if (afterPosition > 0) {
@@ -150,7 +158,8 @@ export class NotebookCellsLayout implements IRangeMap {
 			if (whitespace.afterPosition > 0) {
 				const index = whitespace.afterPosition - 1;
 				const itemSize = this._items[index].size;
-				const accSize = itemSize;
+				const remainingWhitespaces = this._whitespace.filter(ws => ws.afterPosition === whitespace.afterPosition);
+				const accSize = itemSize + remainingWhitespaces.reduce((acc, ws) => acc + ws.size, 0);
 				this._prefixSumComputer.setValue(index, accSize);
 			}
 		}
@@ -169,16 +178,20 @@ export class NotebookCellsLayout implements IRangeMap {
 
 		const afterPosition = whitespace.afterPosition;
 		if (afterPosition === 0) {
-			return this.paddingTop;
+			// find all whitespaces at the same position but with higher priority (smaller number)
+			const whitespaces = this._whitespace.filter(ws => ws.afterPosition === afterPosition && ws.priority < whitespace.priority);
+			return whitespaces.reduce((acc, ws) => acc + ws.size, 0) + this.paddingTop;
 		}
 
-		const whitespaceBeforeFirstItem = this._whitespace.length > 0 && this._whitespace[0].afterPosition === 0 ? this._whitespace[0].size : 0;
+		const whitespaceBeforeFirstItem = this._whitespace.filter(ws => ws.afterPosition === 0).reduce((acc, ws) => acc + ws.size, 0);
 
 		// previous item index
 		const index = afterPosition - 1;
 		const previousItemPosition = this._prefixSumComputer.getPrefixSum(index);
 		const previousItemSize = this._items[index].size;
-		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop;
+		const previousWhitespace = this._whitespace.filter(ws => ws.afterPosition === afterPosition - 1);
+		const whitespaceBefore = previousWhitespace.reduce((acc, ws) => acc + ws.size, 0);
+		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop + whitespaceBefore;
 	}
 
 	indexAt(position: number): number {
@@ -186,7 +199,7 @@ export class NotebookCellsLayout implements IRangeMap {
 			return -1;
 		}
 
-		const whitespaceBeforeFirstItem = this._whitespace.length > 0 && this._whitespace[0].afterPosition === 0 ? this._whitespace[0].size : 0;
+		const whitespaceBeforeFirstItem = this._whitespace.filter(ws => ws.afterPosition === 0).reduce((acc, ws) => acc + ws.size, 0);
 
 		const offset = position - (this._paddingTop + whitespaceBeforeFirstItem);
 		if (offset <= 0) {
@@ -219,7 +232,7 @@ export class NotebookCellsLayout implements IRangeMap {
 			return -1;
 		}
 
-		const whitespaceBeforeFirstItem = this._whitespace.length > 0 && this._whitespace[0].afterPosition === 0 ? this._whitespace[0].size : 0;
+		const whitespaceBeforeFirstItem = this._whitespace.filter(ws => ws.afterPosition === 0).reduce((acc, ws) => acc + ws.size, 0);
 		return this._prefixSumComputer.getPrefixSum(index/** count */) + this._paddingTop + whitespaceBeforeFirstItem;
 	}
 }
