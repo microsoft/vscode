@@ -108,6 +108,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatAccessibilityService.acceptRequest();
 		this._ctxHasActiveRequest.set(true);
 		const cancellationToken = this._cancellationTokenSource.token;
+		const agentId = 'terminal';
 		const progressCallback = (progress: IChatProgress) => {
 			if (cancellationToken.isCancellationRequested) {
 				return;
@@ -122,14 +123,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const requestProps: IChatAgentRequest = {
 			sessionId: generateUuid(),
 			requestId: generateUuid(),
-			agentId: 'terminal',
+			agentId,
 			message: this._chatWidget?.rawValue?.input() || '',
 			variables: resolvedVariables,
 			variables2: { message: this._chatWidget?.rawValue?.input() || '', variables: [] }
 		};
 		this._chatWidget?.rawValue?.setValue();
 
-		await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], cancellationToken);
+		await this._chatAgentService.invokeAgent(agentId, requestProps, progressCallback, [], cancellationToken);
 		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
 		this._requestId++;
 		if (cancellationToken.isCancellationRequested) {
