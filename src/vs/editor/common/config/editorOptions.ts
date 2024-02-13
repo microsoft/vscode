@@ -4097,7 +4097,7 @@ export type InternalInlineEditOptions = Readonly<Required<IInlineEditOptions>>;
 class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInlineEditOptions, InternalInlineEditOptions> {
 	constructor() {
 		const defaults: InternalInlineEditOptions = {
-			enabled: true,
+			enabled: false,
 			showToolbar: 'onHover',
 			fontFamily: 'default',
 			backgroundColoring: false
