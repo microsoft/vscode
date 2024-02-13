@@ -52,6 +52,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -600,147 +601,82 @@ export class InstallVoiceChatAction extends Action2 {
 	}
 }
 
-export class StopListeningAction extends Action2 {
+class BaseStopListeningAction extends Action2 {
+
+	constructor(
+		desc: { id: string; icon?: ThemeIcon; f1?: boolean },
+		private readonly target: 'inline' | 'quick' | 'view' | 'editor' | undefined,
+		context: RawContextKey<boolean>,
+		menu: MenuId | undefined,
+		group: 'navigation' | 'main' = 'navigation'
+	) {
+		super({
+			...desc,
+			title: localize2('workbench.action.chat.stopListening.label', "Stop Listening"),
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 100,
+				when: ContextKeyExpr.and(HasSpeechProvider, context),
+				primary: KeyCode.Escape
+			},
+			precondition: ContextKeyExpr.and(HasSpeechProvider, context),
+			menu: menu ? [{
+				id: menu,
+				when: ContextKeyExpr.and(HasSpeechProvider, context),
+				group,
+				order: -1
+			}] : undefined
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, this.target);
+	}
+}
+
+
+export class StopListeningAction extends BaseStopListeningAction {
 
 	static readonly ID = 'workbench.action.chat.stopListening';
 
 	constructor() {
-		super({
-			id: StopListeningAction.ID,
-			title: localize2('workbench.action.chat.stopListening.label', "Stop Listening"),
-			category: CHAT_CATEGORY,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS),
-				primary: KeyCode.Escape
-			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS)
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
+		super({ id: StopListeningAction.ID, f1: true }, undefined, CONTEXT_VOICE_CHAT_IN_PROGRESS, undefined);
 	}
 }
 
-export class StopListeningInChatViewAction extends Action2 {
+export class StopListeningInChatViewAction extends BaseStopListeningAction {
 
 	static readonly ID = 'workbench.action.chat.stopListeningInChatView';
 
 	constructor() {
-		super({
-			id: StopListeningInChatViewAction.ID,
-			title: localize2('workbench.action.chat.stopListeningInChatView.label', "Stop Listening"),
-			category: CHAT_CATEGORY,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS),
-				primary: KeyCode.Escape
-			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS),
-			icon: spinningLoading,
-			menu: [{
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS),
-				group: 'navigation',
-				order: -1
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'view');
+		super({ id: StopListeningInChatViewAction.ID, icon: spinningLoading }, 'view', CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS, MenuId.ChatExecute);
 	}
 }
 
-export class StopListeningInChatEditorAction extends Action2 {
+export class StopListeningInChatEditorAction extends BaseStopListeningAction {
 
 	static readonly ID = 'workbench.action.chat.stopListeningInChatEditor';
 
 	constructor() {
-		super({
-			id: StopListeningInChatEditorAction.ID,
-			title: localize2('workbench.action.chat.stopListeningInChatEditor.label', "Stop Listening"),
-			category: CHAT_CATEGORY,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS),
-				primary: KeyCode.Escape
-			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS),
-			icon: spinningLoading,
-			menu: [{
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS),
-				group: 'navigation',
-				order: -1
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'editor');
+		super({ id: StopListeningInChatEditorAction.ID, icon: spinningLoading }, 'editor', CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS, MenuId.ChatExecute);
 	}
 }
 
-export class StopListeningInQuickChatAction extends Action2 {
+export class StopListeningInQuickChatAction extends BaseStopListeningAction {
 
 	static readonly ID = 'workbench.action.chat.stopListeningInQuickChat';
 
 	constructor() {
-		super({
-			id: StopListeningInQuickChatAction.ID,
-			title: localize2('workbench.action.chat.stopListeningInQuickChat.label', "Stop Listening"),
-			category: CHAT_CATEGORY,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS),
-				primary: KeyCode.Escape
-			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS),
-			icon: spinningLoading,
-			menu: [{
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS),
-				group: 'navigation',
-				order: -1
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'quick');
+		super({ id: StopListeningInQuickChatAction.ID, icon: spinningLoading }, 'quick', CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS, MenuId.ChatExecute);
 	}
 }
 
-export class StopListeningInInlineChatAction extends Action2 {
+export class StopListeningInInlineChatAction extends BaseStopListeningAction {
 
 	static readonly ID = 'workbench.action.chat.stopListeningInInlineChat';
 
 	constructor() {
-		super({
-			id: StopListeningInInlineChatAction.ID,
-			title: localize2('workbench.action.chat.stopListeningInInlineChat.label', "Stop Listening"),
-			category: CHAT_CATEGORY,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
-				primary: KeyCode.Escape
-			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
-			icon: spinningLoading,
-			menu: [{
-				id: MENU_INLINE_CHAT_INPUT,
-				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
-				group: 'main',
-				order: -1
-			}]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop(undefined, 'inline');
+		super({ id: StopListeningInInlineChatAction.ID, icon: spinningLoading }, 'inline', CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS, MENU_INLINE_CHAT_INPUT, 'main');
 	}
 }
 
