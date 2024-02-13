@@ -1,10 +1,10 @@
 [CustomMessages]
-AddContextMenuFiles=�G�N�X�v���[���[�̃t�@�C�� �R���e�L�X�g ���j���[�� [%1 �ŊJ��] �A�N�V�������ǉ�����
-AddContextMenuFolders=�G�N�X�v���[���[�̃f�B���N�g�� �R���e�L�X�g ���j���[�� [%1 �ŊJ��] �A�N�V�������ǉ�����
-AssociateWithFiles=�T�|�[�g�����Ă����t�@�C���̎��ނ̃G�f�B�^�[�Ƃ��āA%1 ���o�^����
-AddToPath=PATH �ւ̒ǉ��i�ċN�����Ɏg�p�\�j
-RunAfter=�C���X�g�[������ %1 �����s����
-Other=���̑�:
-SourceFile=%1 �\�[�X �t�@�C��
-OpenWithCodeContextMenu=%1 �ŊJ��
+AddContextMenuFiles=エクスプローラーのファイル コンテキスト メニューに [%1 で開く] アクションを追加する
+AddContextMenuFolders=エクスプローラーのディレクトリ コンテキスト メニューに [%1 で開く] アクションを追加する
+AssociateWithFiles=サポートされているファイルの種類のエディターとして、%1 を登録する
+AddToPath=PATH への追加（再起動後に使用可能）
+RunAfter=インストール後に %1 を実行する
+Other=その他:
+SourceFile=%1 ソース ファイル
+OpenWithCodeContextMenu=%1 で開く
 UpdatingVisualStudioCode=Visual Studio Code �̃��X�g�[�����s�����Ă���...
