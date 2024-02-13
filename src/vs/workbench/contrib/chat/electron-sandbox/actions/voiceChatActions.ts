@@ -135,7 +135,7 @@ class VoiceChatSessionControllerFactory {
 		}
 
 		// View Chat
-		if (context === 'view') {
+		if (context === 'view' || context === 'focused' /* fallback in case 'focused' was not successful */) {
 			const provider = firstOrDefault(chatService.getProviderInfos());
 			if (provider) {
 				const chatView = await chatWidgetService.revealViewForProvider(provider.id);
@@ -403,6 +403,8 @@ class VoiceChatSessions {
 	}
 }
 
+export const VOICE_KEY_HOLD_THRESHOLD = 500;
+
 async function awaitHoldAndAccept(session: IVoiceChatSession, holdMode?: Promise<void>): Promise<void> {
 	if (!holdMode) {
 		return;
@@ -412,7 +414,7 @@ async function awaitHoldAndAccept(session: IVoiceChatSession, holdMode?: Promise
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
 		session.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for 250ms
-	}, 250);
+	}, VOICE_KEY_HOLD_THRESHOLD);
 
 	await holdMode;
 	handle.dispose();
@@ -424,7 +426,7 @@ async function awaitHoldAndAccept(session: IVoiceChatSession, holdMode?: Promise
 
 class VoiceChatWithHoldModeAction extends Action2 {
 
-	constructor(desc: Readonly<IAction2Options>, private readonly target: 'inline' | 'quick' | 'view' | 'focused') {
+	constructor(desc: Readonly<IAction2Options>, private readonly target: 'inline' | 'quick' | 'view') {
 		super(desc);
 	}
 
@@ -549,10 +551,7 @@ export class StartVoiceChatAction extends Action2 {
 			widget.focusInput();
 		}
 
-		let controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
-		if (!controller) {
-			controller = await instantiationService.invokeFunction(accessor => VoiceChatSessionControllerFactory.create(accessor, 'view'));
-		}
+		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
 		if (!controller) {
 			return;
 		}
