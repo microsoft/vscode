@@ -134,6 +134,8 @@ export class TerminalChatWidget extends Disposable {
 	hide(): void {
 		this._responseElement?.classList.add('hide');
 		this._widgetContainer.classList.add('hide');
+		this._inlineChatWidget.value = '';
+		this._responseWidget?.setValue('');
 		this._ctxChatWidgetFocused.set(false);
 		this._ctxChatWidgetVisible.set(false);
 		this._instance.focus();
