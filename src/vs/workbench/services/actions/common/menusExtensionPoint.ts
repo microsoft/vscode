@@ -400,7 +400,7 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.InlineEditActions,
 		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
 		supportsSubmenus: false,
-		// proposed: 'inlineEdit'
+		proposed: 'inlineEdit'
 	},
 	{
 		key: 'editor/content',
