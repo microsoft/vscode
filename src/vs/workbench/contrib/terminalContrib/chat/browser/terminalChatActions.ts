@@ -87,8 +87,6 @@ registerActiveXtermAction({
 		group: 'main',
 		order: 1,
 		when: TerminalContextKeys.chatRequestActive.negate(),
-		// TODO:
-		// when: CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.isEqualTo(false)
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {

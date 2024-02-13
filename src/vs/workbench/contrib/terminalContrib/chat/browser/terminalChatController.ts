@@ -123,21 +123,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._ctxHasActiveRequest.set(true);
 		const cancellationToken = this._cancellationTokenSource.token;
 		const progressCallback = (progress: IChatProgress) => {
-			// if (token.isCancellationRequested) {
-			// 	return;
-			// }
-
-
-			// gotProgress = true;
-
-			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
-				// this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
-				message += progress.content;
-			} else {
-				// this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
+			if (cancellationToken.isCancellationRequested) {
+				return;
 			}
 
-			// model.acceptResponseProgress(request, progress);
+			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
+				message += progress.content;
+			}
 		};
 		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 
@@ -151,7 +143,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		};
 		this._chatWidget?.rawValue?.setValue();
 
-		// TODO: use token
 		await this._chatAgentService.invokeAgent('terminal', requestProps, progressCallback, [], cancellationToken);
 		const codeBlock = marked.lexer(message).filter(token => token.type === 'code')?.[0]?.raw.replaceAll('```', '');
 		this._requestId++;
