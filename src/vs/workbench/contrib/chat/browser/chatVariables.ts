@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
@@ -30,7 +31,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData> {
-		const resolvedVariables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[] = [];
+		let resolvedVariables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[] = [];
 		const jobs: Promise<any>[] = [];
 
 		prompt.parts
@@ -40,16 +41,18 @@ export class ChatVariablesService implements IChatVariablesService {
 					if (data) {
 						jobs.push(data.resolver(prompt.text, part.variableArg, model, token).then(values => {
 							if (values?.length) {
-								resolvedVariables.push({ name: part.variableName, range: part.range, values });
+								resolvedVariables[i] = { name: part.variableName, range: part.range, values };
 							}
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables.push({ name: part.referenceText, range: part.range, values: part.data });
+					resolvedVariables[i] = { name: part.referenceText, range: part.range, values: part.data };
 				}
 			});
 
 		await Promise.allSettled(jobs);
+
+		resolvedVariables = coalesce(resolvedVariables);
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range.start - a.range.start);

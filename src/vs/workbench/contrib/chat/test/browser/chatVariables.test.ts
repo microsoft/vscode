@@ -48,37 +48,37 @@ suite('ChatVariables', function () {
 		{
 			const data = await resolveVariables('Hello #foo and#far');
 			assert.strictEqual(data.variables.length, 1);
-			assert.deepEqual(data.variables.map(v => v.name).sort(), ['foo']);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('#foo Hello');
 			assert.strictEqual(data.variables.length, 1);
-			assert.deepEqual(data.variables.map(v => v.name).sort(), ['foo']);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo');
 			assert.strictEqual(data.variables.length, 1);
-			assert.deepEqual(data.variables.map(v => v.name).sort(), ['foo']);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo?');
 			assert.strictEqual(data.variables.length, 1);
-			assert.deepEqual(data.variables.map(v => v.name).sort(), ['foo']);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo and#far #foo');
-			assert.strictEqual(data.variables.length, 1);
-			assert.deepEqual(data.variables.map(v => v.name).sort(), ['foo']);
+			assert.strictEqual(data.variables.length, 2);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo', 'foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo and #far #foo');
-			assert.strictEqual(data.variables.length, 2);
-			assert.deepEqual(data.variables.map(v => v.name).sort(), ['far', 'foo']);
+			assert.strictEqual(data.variables.length, 3);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo', 'far', 'foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo and #far #foo #unknown');
-			assert.strictEqual(data.variables.length, 2);
-			assert.deepEqual(data.variables.map(v => v.name).sort(), ['far', 'foo']);
+			assert.strictEqual(data.variables.length, 3);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo', 'far', 'foo']);
 		}
 
 		v1.dispose();
