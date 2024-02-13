@@ -72,7 +72,8 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.chatRequestActive.negate()
+		TerminalContextKeys.chatRequestActive.negate(),
+		TerminalContextKeys.chatAgentRegistered
 	),
 	icon: Codicon.send,
 	keybinding: {
@@ -103,6 +104,7 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatRequestActive,
+		TerminalContextKeys.chatAgentRegistered
 	),
 	icon: Codicon.debugStop,
 	menu: {

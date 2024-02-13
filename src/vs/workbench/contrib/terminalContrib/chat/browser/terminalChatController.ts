@@ -41,6 +41,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
 	private readonly _ctxHasActiveRequest!: IContextKey<boolean>;
+	private readonly _ctxHasTerminalAgent!: IContextKey<boolean>;
 
 	private _cancellationTokenSource!: CancellationTokenSource;
 
@@ -60,6 +61,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		this._ctxHasActiveRequest = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
+		this._ctxHasTerminalAgent = TerminalContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
+		if (!this._chatAgentService.hasAgent('terminal')) {
+			this._register(this._chatAgentService.onDidChangeAgents(() => {
+				if (this._chatAgentService.getAgent('terminal')) {
+					this._ctxHasTerminalAgent.set(true);
+				}
+			}));
+		} else {
+			this._ctxHasTerminalAgent.set(true);
+		}
 		this._cancellationTokenSource = new CancellationTokenSource();
 	}
 
