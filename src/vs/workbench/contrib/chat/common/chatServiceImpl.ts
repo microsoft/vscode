@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, IChatRequestVariableData2, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestVariablePart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestVariablePart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatAgentCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -776,6 +776,9 @@ function asVariablesData2(parsedRequest: IParsedChatRequest, variableData: IChat
 		if (part instanceof ChatRequestVariablePart) {
 			const values = variableData.variables[part.variableName];
 			res.variables.push({ name: part.variableName, range: part.range, values });
+		} else if (part instanceof ChatRequestDynamicVariablePart) {
+			// Need variable without `#`
+			res.variables.push({ name: part.referenceText, range: part.range, values: part.data });
 		}
 	}
 
