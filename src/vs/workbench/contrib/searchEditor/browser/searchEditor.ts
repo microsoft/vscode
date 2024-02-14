@@ -64,6 +64,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
 import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { LegacySearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -481,8 +482,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.searchResultEditor.focus();
 	}
 
-	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
+	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number }) {
 		const options = { resetCursor: true, delay: 0, ..._options };
+		const focusResults = (this.priorConfig as LegacySearchEditorArgs).focusResults;
 
 		if (!this.pauseSearching) {
 			await this.runSearchDelayer.trigger(async () => {
@@ -492,8 +494,10 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 				}
-				if (options.focusResults) {
+				if (focusResults) {
 					this.searchResultEditor.focus();
+				} else {
+					this.focusSearchInput();
 				}
 			}, options.delay);
 		}
