@@ -90,7 +90,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		});
 		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
 			if (!this.isRunning) {
-				this.isRunning = true;
 				const extensionId = arg.extensionId;
 
 				// creates menu from contributed
@@ -102,6 +101,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					try {
 						if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
 							this.foundExtension = true;
+							this.isRunning = true;
 							await action.run();
 						}
 					} catch (error) {
