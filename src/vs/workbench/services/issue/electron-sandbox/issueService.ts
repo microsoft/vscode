@@ -37,7 +37,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
-	private issueReporterData!: IssueReporterData;
 	private foundExtension = false;
 
 	constructor(
@@ -179,9 +178,8 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			githubAccessToken
 		}, dataOverrides);
 
-		this.issueReporterData = issueReporterData;
 		if (this.foundExtension) {
-			ipcRenderer.send('vscode:triggerReporterMenuResponse', this.issueReporterData);
+			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
 		}
 		return this.issueMainService.openReporter(issueReporterData);
 	}
