@@ -6,7 +6,7 @@
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Barrier, Queue, raceCancellation, raceCancellationError } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -135,6 +135,8 @@ export class InlineChatController implements IEditorContribution {
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 
+	private _sessionEnabled: true | { reason: string } | undefined;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -160,10 +162,17 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
 
+		this._store.add(this._inlineChatSessionService.onDidChangeSessionEnablementStatus(() => {
+			// Todo check enablement status
+		}));
 		this._store.add(this._editor.onDidChangeModel(async e => {
 			if (this._session || !e.newModelUrl) {
 				return;
 			}
+			this._sessionEnabled = undefined;
+			this._inlineChatSessionService.provideEnablementStatus(e.newModelUrl, CancellationToken.None).then(status => {
+				this._sessionEnabled = status;
+			});
 
 			const existingSession = this._inlineChatSessionService.getSession(this._editor, e.newModelUrl);
 			if (!existingSession) {

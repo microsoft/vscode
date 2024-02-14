@@ -154,6 +154,10 @@ suite('InteractiveChatController', function () {
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -206,6 +210,10 @@ suite('InteractiveChatController', function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -235,6 +243,10 @@ suite('InteractiveChatController', function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -285,6 +297,10 @@ suite('InteractiveChatController', function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -327,6 +343,10 @@ suite('InteractiveChatController', function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -354,6 +374,10 @@ suite('InteractiveChatController', function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -400,6 +424,10 @@ suite('InteractiveChatController', function () {
 			const d = inlineChatService.addProvider({
 				debugName: 'Unit Test',
 				label: 'Unit Test',
+				onDidChangeEnablementStatus: Event.None,
+				provideEnablementStatus(resource, token) {
+					return true;
+				},
 				prepareInlineChatSession() {
 					return {
 						id: Math.random(),
@@ -487,6 +515,10 @@ suite('InteractiveChatController', function () {
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -533,6 +565,10 @@ suite('InteractiveChatController', function () {
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
+			onDidChangeEnablementStatus: Event.None,
+			provideEnablementStatus(resource, token) {
+				return true;
+			},
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()

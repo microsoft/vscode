@@ -120,6 +120,10 @@ export interface IInlineChatSessionProvider {
 	label: string;
 	supportIssueReporting?: boolean;
 
+	onDidChangeEnablementStatus: Event<void>;
+
+	provideEnablementStatus(resource: URI, token: CancellationToken): ProviderResult<true | { reason: string }>;
+
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
@@ -139,6 +143,7 @@ export interface InlineChatProviderChangeEvent {
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
+	onDidChangeProvidersEnablementStatus: Event<void>;
 	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;

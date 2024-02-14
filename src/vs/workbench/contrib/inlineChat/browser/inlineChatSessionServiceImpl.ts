@@ -49,6 +49,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _onDidStashSession = new Emitter<IInlineChatSessionEvent>();
 	readonly onDidStashSession: Event<IInlineChatSessionEvent> = this._onDidStashSession.event;
 
+	readonly onDidChangeSessionEnablementStatus: Event<void>;
+
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 	private _recordings: Recording[] = [];
@@ -62,7 +64,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-	) { }
+	) {
+		this.onDidChangeSessionEnablementStatus = this._inlineChatService.onDidChangeProvidersEnablementStatus;
+	}
 
 	dispose() {
 		this._onWillStartSession.dispose();
@@ -171,6 +175,24 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}
 		this._sessions.set(key, { session, editor, store });
 		return session;
+	}
+
+	async provideEnablementStatus(resource: URI, token: CancellationToken): Promise<true | { reason: string }> {
+		const provider = Iterable.first(this._inlineChatService.getAllProvider());
+		if (!provider) {
+			this._logService.trace('[IE] NO provider found');
+			return { reason: 'no provider' };
+		}
+
+		const enablementResult = await raceCancellation(
+			Promise.resolve(provider.provideEnablementStatus(resource, token)),
+			token
+		);
+
+		if (enablementResult === undefined || enablementResult === null || enablementResult === true) {
+			return true;
+		}
+		return enablementResult;
 	}
 
 	moveSession(session: Session, target: ICodeEditor): void {

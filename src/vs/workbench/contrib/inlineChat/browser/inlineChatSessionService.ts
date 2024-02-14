@@ -42,6 +42,7 @@ export interface IInlineChatSessionService {
 	onDidMoveSession: Event<IInlineChatSessionEvent>;
 	onDidStashSession: Event<IInlineChatSessionEvent>;
 	onDidEndSession: Event<IInlineChatSessionEndEvent>;
+	onDidChangeSessionEnablementStatus: Event<void>;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
@@ -56,6 +57,8 @@ export interface IInlineChatSessionService {
 	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession;
 
 	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
+
+	provideEnablementStatus(uri: URI, token: CancellationToken): Promise<true | { reason: string }>;
 
 	//
 	recordings(): readonly Recording[];
