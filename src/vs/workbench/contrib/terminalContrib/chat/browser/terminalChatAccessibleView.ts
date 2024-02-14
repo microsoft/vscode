@@ -1,0 +1,41 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
+
+export class TerminalInlineChatAccessibleViewContribution extends Disposable {
+	static ID: 'terminalInlineChatAccessibleViewContribution';
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(105, 'terminalInlineChat', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const terminalService = accessor.get(ITerminalService);
+			const controller: TerminalChatController | undefined = terminalService.activeInstance?.getContribution(TerminalChatController.ID) ?? undefined;
+			if (!controller?.lastResponseContent) {
+				return false;
+			}
+			const responseContent = controller.lastResponseContent;
+			accessibleViewService.show({
+				id: AccessibleViewProviderId.TerminalInlineChat,
+				verbositySettingKey: AccessibilityVerbositySettingId.TerminalInlineChat,
+				provideContent(): string { return responseContent; },
+				onClose() {
+					controller.focus();
+				},
+
+				options: { type: AccessibleViewType.View }
+			});
+			return true;
+		}, ContextKeyExpr.and(TerminalContextKeys.chatFocused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
+	}
+}

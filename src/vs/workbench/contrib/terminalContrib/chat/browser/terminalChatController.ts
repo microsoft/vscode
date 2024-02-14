@@ -62,6 +62,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private _lastInput: string | undefined;
 	private _lastResponseContent: string | undefined;
+	get lastResponseContent(): string | undefined { return this._lastResponseContent; }
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);

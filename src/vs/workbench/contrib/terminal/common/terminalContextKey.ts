@@ -183,4 +183,7 @@ export namespace TerminalContextKeys {
 
 	/** Whether the chat response editor is focused */
 	export const chatResponseEditorFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatResponseEditorFocused, false, localize('chatResponseEditorFocusedContextKey', "Whether the chat response editor is focused."));
+
+	/** Whether the chat response editor is focused */
+	export const chatResponseMessageFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatResponseEditorFocused, false, localize('chatResponseMessageFocusedContextKey', "Whether the chat response message is focused."));
 }
