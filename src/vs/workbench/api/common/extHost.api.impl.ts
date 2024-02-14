@@ -1460,8 +1460,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Breakpoint: extHostTypes.Breakpoint,
 			TerminalOutputAnchor: extHostTypes.TerminalOutputAnchor,
 			ChatAgentResultFeedbackKind: extHostTypes.ChatAgentResultFeedbackKind,
-			ChatMessage: extHostTypes.ChatMessage,
-			ChatMessageRole: extHostTypes.ChatMessageRole,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
 			ChatAgentCompletionItem: extHostTypes.ChatAgentCompletionItem,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
