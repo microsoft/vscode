@@ -1192,14 +1192,16 @@ export class IssueReporter extends Disposable {
 						if (openReporterData) {
 							this.configuration.data = openReporterData;
 						} else {
-							// case when previous extension had command
+							// if not using command, should have no configuration data in fields we care about and check later.
 							this.configuration.data.issueBody = undefined;
 							this.configuration.data.data = undefined;
+							this.configuration.data.uri = undefined;
 
 							// case when previous extension was opened from normal openIssueReporter command
 							selectedExtension.data = undefined;
 							selectedExtension.uri = undefined;
 						}
+						// repopulates the fields with the new data given the selected extension.
 						this.updateExtensionStatus(selectedExtension);
 					}
 				} else {
