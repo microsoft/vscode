@@ -4196,24 +4196,6 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Bug = 4
 }
 
-export enum ChatMessageRole {
-	System = 0,
-	User = 1,
-	Assistant = 2,
-}
-
-export class ChatMessage implements vscode.ChatMessage {
-
-	role: ChatMessageRole;
-	content: string;
-	name?: string;
-
-	constructor(role: ChatMessageRole, content: string) {
-		this.role = role;
-		this.content = content;
-	}
-}
-
 export enum ChatAgentResultFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
