@@ -93,6 +93,11 @@ export interface EditorGroupLayout {
 	readonly groups: GroupLayoutArgument[];
 }
 
+export interface IEditorWorkingSet {
+	readonly main: unknown;
+	readonly auxiliary: unknown;
+}
+
 export const enum MergeGroupMode {
 	COPY_EDITORS,
 	MOVE_EDITORS
@@ -531,6 +536,19 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Closes all editors and groups to apply the editor working set.
+	 *
+	 * @returns `true` when the working set was applied.
+	 */
+	applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean>;
+
+	/**
+	 * Save a new editor working set from the currently opened
+	 * editors and editor group layout.
+	 */
+	getWorkingSet(): IEditorWorkingSet;
 }
 
 export const enum OpenEditorContext {

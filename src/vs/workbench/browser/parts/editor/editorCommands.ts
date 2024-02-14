@@ -36,7 +36,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, isEditorGroup, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorWorkingSet, isEditorGroup, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -368,7 +368,53 @@ function registerEditorGroupsLayoutCommands(): void {
 		metadata: {
 			description: 'Get Editor Layout',
 			args: [],
-			returns: 'An editor layout object, in the same format as vscode.setEditorLayout'
+			returns: 'An editor layout object, in the same format as vscode.setEditorLayout() expects.'
+		}
+	});
+}
+
+function registerEditorWorkingSetCommands(): void {
+
+	function applyEditorWorkingSet(accessor: ServicesAccessor, workingSet: IEditorWorkingSet): Promise<boolean> {
+		if (!workingSet || typeof workingSet !== 'object') {
+			return Promise.resolve(false);
+		}
+
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		return editorGroupService.applyWorkingSet(workingSet);
+	}
+
+	// API Commands
+	CommandsRegistry.registerCommand({
+		id: 'vscode.setEditorWorkingSet',
+		handler: (accessor: ServicesAccessor, args: IEditorWorkingSet) => applyEditorWorkingSet(accessor, args),
+		metadata: {
+			description: 'Set Editor Working Set',
+			args: [{
+				name: 'args',
+				schema: {
+					'type': 'object',
+					'required': ['main', 'auxiliary'],
+					'properties': {
+						'main': { 'type': 'object' },
+						'auxiliary': { 'type': 'object' }
+					}
+				}
+			}]
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: 'vscode.getEditorWorkingSet',
+		handler: (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			return editorGroupService.getWorkingSet();
+		},
+		metadata: {
+			description: 'Get Editor Working Set',
+			args: [],
+			returns: 'An editor working set object, in the same format as vscode.setEditorWorkingSet() expects.'
 		}
 	});
 }
@@ -1655,6 +1701,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 export function setup(): void {
 	registerActiveEditorMoveCopyCommand();
 	registerEditorGroupsLayoutCommands();
+	registerEditorWorkingSetCommands();
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();
 	registerOpenEditorAtIndexCommands();

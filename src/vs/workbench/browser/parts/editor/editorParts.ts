@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -336,6 +336,41 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		await this.restoreState(state);
 
 		return true;
+	}
+
+	//#endregion
+
+	//#region Working Sets
+
+	async applyWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> {
+
+		// Apply main state
+		let applied = await this.mainPart.applyState(workingSet.main as IEditorPartUIState);
+		if (!applied) {
+			return false;
+		}
+
+		// Apply auxiliary state
+		applied = await this.applyState(workingSet.auxiliary as IEditorPartsUIState);
+		if (!applied) {
+			return false;
+		}
+
+		// Restore Focus
+		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+		if (mostRecentActivePart) {
+			await mostRecentActivePart.whenReady;
+			mostRecentActivePart.activeGroup.focus();
+		}
+
+		return true;
+	}
+
+	getWorkingSet(): IEditorWorkingSet {
+		return {
+			main: this.mainPart.createState(),
+			auxiliary: this.createState()
+		};
 	}
 
 	//#endregion
