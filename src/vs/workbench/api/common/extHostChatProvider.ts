@@ -10,7 +10,7 @@ import { ExtHostChatProviderShape, IMainContext, MainContext, MainThreadChatProv
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -97,7 +97,6 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	private readonly _languageModels = new Map<number, LanguageModelData>();
 	private readonly _languageModelIds = new Set<string>(); // these are ALL models, not just the one in this EH
-	private readonly _accesslist = new ExtensionIdentifierMap<boolean>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelRequest }>();
 
@@ -197,18 +196,6 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		return Array.from(this._languageModelIds);
 	}
 
-	$updateAccesslist(data: { extension: ExtensionIdentifier; enabled: boolean }[]): void {
-		const updated = new ExtensionIdentifierSet();
-		for (const { extension, enabled } of data) {
-			const oldValue = this._accesslist.get(extension);
-			if (oldValue !== enabled) {
-				this._accesslist.set(extension, enabled);
-				updated.add(extension);
-			}
-		}
-		this._onDidChangeAccess.fire(updated);
-	}
-
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void {
 		const updated = new Array<{ from: ExtensionIdentifier; to: ExtensionIdentifier }>();
 		for (const { from, to, enabled } of data) {
@@ -230,23 +217,15 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	async requestLanguageModelAccess(extension: IExtensionDescription, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
 		const from = extension.identifier;
-		// check if the extension is in the access list and allowed to make chat requests
-		if (this._accesslist.get(from) === false) {
-			throw new Error('Extension is NOT allowed to make chat requests');
-		}
-
 		const justification = options?.justification;
 		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, justification);
 
 		if (!metadata) {
-			if (!this._accesslist.get(from)) {
-				throw new Error('Extension is NOT allowed to make chat requests');
-			}
 			throw new Error(`Language model '${languageModelId}' NOT found`);
 		}
 
-		if (metadata.auth) {
-			await this._checkAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth?.providerLabel }, justification);
+		if (this._isUsingAuth(from, metadata)) {
+			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, justification);
 		}
 
 		const that = this;
@@ -256,9 +235,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				return metadata.model;
 			},
 			get isRevoked() {
-				return !that._accesslist.get(from)
-					|| (metadata.auth && !that._modelAccessList.get(from)?.has(metadata.extension))
-					|| !that._languageModelIds.has(languageModelId);
+				return (that._isUsingAuth(from, metadata) && !that._modelAccessList.get(from)?.has(metadata.extension)) || !that._languageModelIds.has(languageModelId);
 			},
 			get onDidChangeAccess() {
 				const onDidChangeAccess = Event.filter(that._onDidChangeAccess.event, set => set.has(from));
@@ -267,7 +244,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				return Event.signal(Event.any(onDidChangeAccess, onDidRemoveLM, onDidChangeModelAccess));
 			},
 			makeChatRequest(messages, options, token) {
-				if (!that._accesslist.get(from) || (metadata.auth && !that._modelAccessList.get(from)?.has(metadata.extension))) {
+				if (that._isUsingAuth(from, metadata) && !that._modelAccessList.get(from)?.has(metadata.extension)) {
 					throw new Error('Access to chat has been revoked');
 				}
 				if (!that._languageModelIds.has(languageModelId)) {
@@ -297,7 +274,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	}
 
 	// BIG HACK: Using AuthenticationProviders to check access to Language Models
-	private async _checkAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string }, detail?: string): Promise<void> {
+	private async _getAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string }, detail?: string): Promise<void> {
 		// This needs to be done in both MainThread & ExtHost ChatProvider
 		const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + to.identifier.value;
 		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true });
@@ -314,5 +291,12 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		}
 
 		this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
+	}
+
+	private _isUsingAuth(from: ExtensionIdentifier, toMetadata: IChatResponseProviderMetadata): toMetadata is IChatResponseProviderMetadata & { auth: NonNullable<IChatResponseProviderMetadata['auth']> } {
+		// If the 'to' extension uses an auth check
+		return !!toMetadata.auth
+			// And we're asking from a different extension
+			&& !ExtensionIdentifier.equals(toMetadata.extension, from);
 	}
 }
