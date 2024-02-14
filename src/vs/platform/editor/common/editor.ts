@@ -293,10 +293,14 @@ export interface IEditorOptions {
 }
 
 /**
- * Takes a value for `IEditorOptions.pinned` and turns it into a boolean
+ * Takes a value for `IEditorOptions` and returns its `pinned` as a boolean
  */
-export function resolvePinnedToBoolean(pinned: boolean | 'forcedDisable'): boolean {
-	return pinned === 'forcedDisable' ? false : pinned;
+export function resolvePinnedOption(options?: IEditorOptions): boolean | undefined {
+	if (options?.pinned) {
+		return options.pinned === 'forcedDisable' ? false : options.pinned;
+	} else {
+		return undefined;
+	}
 }
 
 export interface ITextEditorSelection {
