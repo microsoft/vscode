@@ -50,32 +50,6 @@ export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ val
 	return observable;
 }
 
-export function waitForState<T, TState extends T>(observable: IObservable<T>, predicate: (state: T) => state is TState): Promise<TState>;
-export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T>;
-export function waitForState<T>(observable: IObservable<T>, predicate: (state: T) => boolean): Promise<T> {
-	return new Promise(resolve => {
-		let didRun = false;
-		let shouldDispose = false;
-		const stateObs = observable.map(state => ({ isFinished: predicate(state), state }));
-		const d = autorun(reader => {
-			/** @description waitForState */
-			const { isFinished, state } = stateObs.read(reader);
-			if (isFinished) {
-				if (!didRun) {
-					shouldDispose = true;
-				} else {
-					d.dispose();
-				}
-				resolve(state);
-			}
-		});
-		didRun = true;
-		if (shouldDispose) {
-			d.dispose();
-		}
-	});
-}
-
 export function observableFromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T
