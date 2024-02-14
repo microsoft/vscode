@@ -128,7 +128,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					this._historyService.shouldIgnoreActiveEditorChange = true;
 					await this._editorService.openEditor({
 						resource: itemMatch.parent().resource,
-						options: { forcePreview: true, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+						options: { pinned: 'forcedDisable', preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
 					});
 					this._historyService.shouldIgnoreActiveEditorChange = false;
 				});

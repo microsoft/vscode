@@ -21,7 +21,7 @@ const EditorOpenPositioning = {
 };
 
 export interface IEditorOpenOptions {
-	readonly pinned?: boolean;
+	readonly pinned?: boolean | 'forcedDisable';
 	sticky?: boolean;
 	active?: boolean;
 	readonly index?: number;

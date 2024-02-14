@@ -1033,9 +1033,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Determine options
 		const pinned = options?.sticky
-			|| (this.groupsView.partOptions.enablePreview ? false : !options?.forcePreview) // if we don't have preview enabled, check whether we should force preview
+			|| (this.groupsView.partOptions.enablePreview ? false : options?.pinned !== 'forcedDisable') // if we don't have preview enabled, check whether we should force preview
 			|| editor.isDirty()
-			|| (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */)
+			|| (options?.pinned ?? options?.pinned !== 'forcedDisable' ? false : typeof options?.index === 'number') /* unless specified, prefer to pin when opening with index */
 			|| (typeof options?.index === 'number' && this.model.isSticky(options.index))
 			|| editor.hasCapability(EditorInputCapabilities.Scratchpad);
 		const openEditorOptions: IEditorOpenOptions = {
