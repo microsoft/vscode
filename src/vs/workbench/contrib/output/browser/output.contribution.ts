@@ -409,7 +409,8 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const fileConfigurationService = accessor.get(IFilesConfigurationService);
 
 				const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
-					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, description: channel.extensionId, channel }));
 
 				const argName = args && typeof args === 'string' ? args : undefined;
 				let entry: IOutputChannelQuickPickItem | undefined;
