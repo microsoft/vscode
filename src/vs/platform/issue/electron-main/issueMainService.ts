@@ -193,7 +193,7 @@ export class IssueMainService implements IIssueMainService {
 		}
 
 		else if (this.issueReporterWindow) {
-			this.issueReporterWindow.focus();
+			this.focusWindow(this.issueReporterWindow);
 		}
 	}
 

@@ -38,6 +38,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private foundExtension = false;
+	private isRunning = false;
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -88,20 +89,35 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			ipcRenderer.send('vscode:triggerReporterStatusResponse', result);
 		});
 		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
-			const extensionId = arg.extensionId;
+			if (!this.isRunning) {
+				this.isRunning = true;
+				const extensionId = arg.extensionId;
 
-			// creates menu from contributed
-			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+				// creates menu from contributed
+				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
-			// render menu and dispose
-			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-			actions.forEach(async action => {
-				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-					this.foundExtension = true;
-					await action.run();
+				// render menu and dispose
+				const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+				actions.forEach(async action => {
+					try {
+						if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+							this.foundExtension = true;
+							await action.run();
+						}
+					} catch (error) {
+						console.error(error);
+					} finally {
+						this.isRunning = false;
+					}
+				});
+
+				if (!this.foundExtension) {
+					// send undefined to indicate no action was taken
+					ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
 				}
-			});
-			menu.dispose();
+
+				menu.dispose();
+			}
 		});
 	}
 
