@@ -41,7 +41,7 @@ import { hash } from 'vs/base/common/hash';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, IEditorOptions, resolvePinnedToBoolean } from 'vs/platform/editor/common/editor';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { URI } from 'vs/base/common/uri';
@@ -1243,13 +1243,23 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Move within same group
 		if (this === target) {
-			this.doMoveEditorInsideGroup(editor, options);
+			this.doMoveEditorInsideGroup(editor, this.editorOptionsToOpenOptions(options));
 		}
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, this.editorOptionsToOpenOptions(options), { ...internalOptions, keepCopy: false });
 		}
+	}
+
+	/**
+	 * Converts an IEditorOptions to IEditorOpenOptions by correcting the `pinned` field
+	 */
+	private editorOptionsToOpenOptions(options?: IEditorOptions): IEditorOpenOptions | undefined {
+		if (!options) {
+			return undefined;
+		}
+		return { ...options, pinned: options.pinned === undefined ? undefined : resolvePinnedToBoolean(options.pinned) };
 	}
 
 	private doMoveEditorInsideGroup(candidate: EditorInput, options?: IEditorOpenOptions): void {
@@ -1351,12 +1361,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Move within same group because we do not support to show the same editor
 		// multiple times in the same group
 		if (this === target) {
-			this.doMoveEditorInsideGroup(editor, options);
+			this.doMoveEditorInsideGroup(editor, this.editorOptionsToOpenOptions(options));
 		}
 
 		// Copy across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: true });
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, this.editorOptionsToOpenOptions(options), { ...internalOptions, keepCopy: true });
 		}
 	}
 

@@ -292,6 +292,13 @@ export interface IEditorOptions {
 	viewState?: object;
 }
 
+/**
+ * Takes a value for `IEditorOptions.pinned` and turns it into a boolean
+ */
+export function resolvePinnedToBoolean(pinned: boolean | 'forcedDisable'): boolean {
+	return pinned === 'forcedDisable' ? false : pinned;
+}
+
 export interface ITextEditorSelection {
 	readonly startLineNumber: number;
 	readonly startColumn: number;
