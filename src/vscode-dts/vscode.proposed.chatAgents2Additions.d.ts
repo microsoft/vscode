@@ -158,13 +158,13 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentExtendedRequestHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
+		export function createChatAgent(name: string, handler: ChatAgentExtendedRequestHandler): ChatAgent2;
 	}
 
 	/*
