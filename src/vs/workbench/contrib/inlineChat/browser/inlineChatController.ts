@@ -291,7 +291,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private async _getProviderEnablementStatus(editor: ICodeEditor, provider: IInlineChatSessionProvider) {
 
-		const currentFileURI = this._editor.getModel()?.uri;
+		const currentFileURI = editor.getModel()?.uri;
 		if (!currentFileURI) {
 			return { reason: 'No file open' };
 		}
