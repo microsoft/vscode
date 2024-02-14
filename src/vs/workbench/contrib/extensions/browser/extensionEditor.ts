@@ -912,7 +912,7 @@ export class ExtensionEditor extends EditorPane {
 		}
 		if (resources.length || extension.publisherSponsorLink) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));
-			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Extension Resources")));
+			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
 				this.transientDisposables.add(onClick(append(resourcesElement, $('a.resource', { title: uri.toString(), tabindex: '0' }, label)), () => this.openerService.open(uri)));
