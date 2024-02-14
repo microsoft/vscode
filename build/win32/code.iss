@@ -47,19 +47,19 @@ DefaultDirName={pf}\{#DirName}
 #endif
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl,{#RepoDir}\build\win32\i18n\messages.en.isl" {#LocalizedLanguageFile}
-Name: "german"; MessagesFile: "compiler:Languages\German.isl,{#RepoDir}\build\win32\i18n\messages.de.isl" {#LocalizedLanguageFile("deu")}
-Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl,{#RepoDir}\build\win32\i18n\messages.es.isl" {#LocalizedLanguageFile("esp")}
-Name: "french"; MessagesFile: "compiler:Languages\French.isl,{#RepoDir}\build\win32\i18n\messages.fr.isl" {#LocalizedLanguageFile("fra")}
-Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl,{#RepoDir}\build\win32\i18n\messages.it.isl" {#LocalizedLanguageFile("ita")}
-Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl,{#RepoDir}\build\win32\i18n\messages.ja.isl" {#LocalizedLanguageFile("jpn")}
-Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl,{#RepoDir}\build\win32\i18n\messages.ru.isl" {#LocalizedLanguageFile("rus")}
-Name: "korean"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.ko.isl,{#RepoDir}\build\win32\i18n\messages.ko.isl" {#LocalizedLanguageFile("kor")}
-Name: "simplifiedChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh-cn.isl,{#RepoDir}\build\win32\i18n\messages.zh-cn.isl" {#LocalizedLanguageFile("chs")}
-Name: "traditionalChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh-tw.isl,{#RepoDir}\build\win32\i18n\messages.zh-tw.isl" {#LocalizedLanguageFile("cht")}
-Name: "brazilianPortuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl,{#RepoDir}\build\win32\i18n\messages.pt-br.isl" {#LocalizedLanguageFile("ptb")}
-Name: "hungarian"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.hu.isl,{#RepoDir}\build\win32\i18n\messages.hu.isl" {#LocalizedLanguageFile("hun")}
-Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl,{#RepoDir}\build\win32\i18n\messages.tr.isl" {#LocalizedLanguageFile("trk")}
+Name: "english"; MessagesFile: "compiler:Default.islu,{#RepoDir}\build\win32\i18n\messages.en.islu" {#LocalizedLanguageFile}
+Name: "german"; MessagesFile: "compiler:Languages\German.islu,{#RepoDir}\build\win32\i18n\messages.de.islu" {#LocalizedLanguageFile("deu")}
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.islu,{#RepoDir}\build\win32\i18n\messages.es.islu" {#LocalizedLanguageFile("esp")}
+Name: "french"; MessagesFile: "compiler:Languages\French.islu,{#RepoDir}\build\win32\i18n\messages.fr.islu" {#LocalizedLanguageFile("fra")}
+Name: "italian"; MessagesFile: "compiler:Languages\Italian.islu,{#RepoDir}\build\win32\i18n\messages.it.islu" {#LocalizedLanguageFile("ita")}
+Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.islu,{#RepoDir}\build\win32\i18n\messages.ja.islu" {#LocalizedLanguageFile("jpn")}
+Name: "russian"; MessagesFile: "compiler:Languages\Russian.islu,{#RepoDir}\build\win32\i18n\messages.ru.islu" {#LocalizedLanguageFile("rus")}
+Name: "korean"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.ko.islu,{#RepoDir}\build\win32\i18n\messages.ko.islu" {#LocalizedLanguageFile("kor")}
+Name: "simplifiedChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh-cn.islu,{#RepoDir}\build\win32\i18n\messages.zh-cn.islu" {#LocalizedLanguageFile("chs")}
+Name: "traditionalChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh-tw.islu,{#RepoDir}\build\win32\i18n\messages.zh-tw.islu" {#LocalizedLanguageFile("cht")}
+Name: "brazilianPortuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.islu,{#RepoDir}\build\win32\i18n\messages.pt-br.islu" {#LocalizedLanguageFile("ptb")}
+Name: "hungarian"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.hu.islu,{#RepoDir}\build\win32\i18n\messages.hu.islu" {#LocalizedLanguageFile("hun")}
+Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.islu,{#RepoDir}\build\win32\i18n\messages.tr.islu" {#LocalizedLanguageFile("trk")}
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\resources\app\out"; Check: IsNotBackgroundUpdate
