@@ -90,7 +90,6 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	private static _idPool = 1;
 
 	private readonly _proxy: MainThreadChatProviderShape;
-	private readonly _onDidChangeAccess = new Emitter<ExtensionIdentifierSet>();
 	private readonly _onDidChangeModelAccess = new Emitter<{ from: ExtensionIdentifier; to: ExtensionIdentifier }>();
 	private readonly _onDidChangeProviders = new Emitter<vscode.LanguageModelChangeEvent>();
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
@@ -110,7 +109,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	}
 
 	dispose(): void {
-		this._onDidChangeAccess.dispose();
+		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
 	}
 
@@ -150,13 +149,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
 		});
 
-		if (data.provider.provideLanguageModelResponse2) {
-			return data.provider.provideLanguageModelResponse2(messages.map(typeConvert.LanguageModelMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
-		} else {
-			// TODO@jrieken remove
-			return data.provider.provideLanguageModelResponse(messages.map(typeConvert.ChatMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
-		}
-
+		return data.provider.provideLanguageModelResponse2(messages.map(typeConvert.LanguageModelMessage.to), options, ExtensionIdentifier.toKey(from), progress, token);
 	}
 
 	//#region --- making request
@@ -238,10 +231,9 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				return (that._isUsingAuth(from, metadata) && !that._modelAccessList.get(from)?.has(metadata.extension)) || !that._languageModelIds.has(languageModelId);
 			},
 			get onDidChangeAccess() {
-				const onDidChangeAccess = Event.filter(that._onDidChangeAccess.event, set => set.has(from));
 				const onDidRemoveLM = Event.filter(that._onDidChangeProviders.event, e => e.removed.includes(languageModelId));
 				const onDidChangeModelAccess = Event.filter(that._onDidChangeModelAccess.event, e => ExtensionIdentifier.equals(e.from, from) && ExtensionIdentifier.equals(e.to, metadata.extension));
-				return Event.signal(Event.any(onDidChangeAccess, onDidRemoveLM, onDidChangeModelAccess));
+				return Event.signal(Event.any(onDidRemoveLM, onDidChangeModelAccess));
 			},
 			makeChatRequest(messages, options, token) {
 				if (that._isUsingAuth(from, metadata) && !that._modelAccessList.get(from)?.has(metadata.extension)) {

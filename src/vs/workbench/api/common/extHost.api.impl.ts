@@ -1421,7 +1421,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
-			createChatAgent(name: string, handler: vscode.ChatAgentExtendedHandler) {
+			createChatAgent(name: string, handler: vscode.ChatAgentExtendedRequestHandler) {
 				checkProposedApiEnabled(extension, 'chatAgents2');
 				return extHostChatAgents2.createChatAgent(extension, name, handler);
 			},
@@ -1460,8 +1460,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Breakpoint: extHostTypes.Breakpoint,
 			TerminalOutputAnchor: extHostTypes.TerminalOutputAnchor,
 			ChatAgentResultFeedbackKind: extHostTypes.ChatAgentResultFeedbackKind,
-			ChatMessage: extHostTypes.ChatMessage,
-			ChatMessageRole: extHostTypes.ChatMessageRole,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
 			ChatAgentCompletionItem: extHostTypes.ChatAgentCompletionItem,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,

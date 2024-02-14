@@ -5,27 +5,6 @@
 
 declare module 'vscode' {
 
-	// TODO@API NAME: ChatMessageKind?
-	export enum ChatMessageRole {
-		System = 0,
-		User = 1,
-		// TODO@API name: align with ChatAgent (or whatever we'll rename that to)
-		Assistant = 2,
-	}
-
-	/**
-	 * A chat message that is used to make chat request against a language model.
-	 */
-	export class ChatMessage {
-
-		readonly role: ChatMessageRole;
-
-		readonly content: string;
-
-		constructor(role: ChatMessageRole, content: string);
-	}
-
-
 	export interface ChatResponseFragment {
 		index: number;
 		part: string;
@@ -37,8 +16,7 @@ declare module 'vscode' {
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	 */
 	export interface ChatResponseProvider {
-		provideLanguageModelResponse(messages: ChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
-		provideLanguageModelResponse2?(messages: LanguageModelMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse2(messages: LanguageModelMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 	}
 
 	export interface ChatResponseProviderMetadata {
