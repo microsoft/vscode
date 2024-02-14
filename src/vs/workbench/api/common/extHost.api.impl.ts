@@ -208,7 +208,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostChatProvider = rpcProtocol.set(ExtHostContext.ExtHostChatProvider, new ExtHostChatProvider(rpcProtocol, extHostLogService, extHostAuthentication));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostChatProvider, extHostLogService, extHostCommands));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
@@ -1421,7 +1421,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
-			createChatAgent(name: string, handler: vscode.ChatAgentExtendedHandler) {
+			createChatAgent(name: string, handler: vscode.ChatAgentExtendedRequestHandler) {
 				checkProposedApiEnabled(extension, 'chatAgents2');
 				return extHostChatAgents2.createChatAgent(extension, name, handler);
 			},
@@ -1460,8 +1460,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Breakpoint: extHostTypes.Breakpoint,
 			TerminalOutputAnchor: extHostTypes.TerminalOutputAnchor,
 			ChatAgentResultFeedbackKind: extHostTypes.ChatAgentResultFeedbackKind,
-			ChatMessage: extHostTypes.ChatMessage,
-			ChatMessageRole: extHostTypes.ChatMessageRole,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
 			ChatAgentCompletionItem: extHostTypes.ChatAgentCompletionItem,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
@@ -1672,6 +1670,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelSystemMessage: extHostTypes.LanguageModelSystemMessage,
 			LanguageModelUserMessage: extHostTypes.LanguageModelUserMessage,
 			LanguageModelAssistantMessage: extHostTypes.LanguageModelAssistantMessage,
+			NewSymbolName: extHostTypes.NewSymbolName,
+			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 		};
 	};
 }

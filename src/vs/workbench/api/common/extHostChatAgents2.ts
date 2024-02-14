@@ -11,12 +11,12 @@ import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
@@ -164,14 +164,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	constructor(
 		mainContext: IMainContext,
-		private readonly _extHostChatProvider: ExtHostChatProvider,
 		private readonly _logService: ILogService,
 		private readonly commands: ExtHostCommands,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2 {
+	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedRequestHandler): vscode.ChatAgent2 {
 		const handle = ExtHostChatAgents2._idPool++;
 		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
@@ -185,8 +184,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
-
-		this._extHostChatProvider.$updateAccesslist([{ extension: agent.extension.identifier, enabled: true }]);
 
 		// Init session disposables
 		let sessionDisposables = this._sessionDisposables.get(request.sessionId);
@@ -224,7 +221,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		} finally {
 			stream.close();
-			this._extHostChatProvider.$updateAccesslist([{ extension: agent.extension.identifier, enabled: false }]);
 		}
 	}
 
@@ -363,7 +359,7 @@ class ExtHostChatAgent {
 		public readonly id: string,
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
-		private readonly _callback: vscode.ChatAgentExtendedHandler,
+		private _requestHandler: vscode.ChatAgentExtendedRequestHandler,
 	) { }
 
 	acceptFeedback(feedback: vscode.ChatAgentResult2Feedback) {
@@ -512,6 +508,13 @@ class ExtHostChatAgent {
 				that._iconPath = v;
 				updateMetadataSoon();
 			},
+			get requestHandler() {
+				return that._requestHandler;
+			},
+			set requestHandler(v) {
+				assertType(typeof v === 'function', 'Invalid request handler');
+				that._requestHandler = v;
+			},
 			get commandProvider() {
 				return that._commandProvider;
 			},
@@ -590,6 +593,7 @@ class ExtHostChatAgent {
 				return that._onDidReceiveFeedback.event;
 			},
 			set agentVariableProvider(v) {
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
 				that._agentVariableProvider = v;
 				if (v) {
 					if (!v.triggerCharacters.length) {
@@ -602,13 +606,16 @@ class ExtHostChatAgent {
 				}
 			},
 			get agentVariableProvider() {
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
 				return that._agentVariableProvider;
 			},
 			set welcomeMessageProvider(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
 				that._welcomeMessageProvider = v;
 				updateMetadataSoon();
 			},
 			get welcomeMessageProvider() {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
 				return that._welcomeMessageProvider;
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
@@ -626,6 +633,6 @@ class ExtHostChatAgent {
 	}
 
 	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, response: vscode.ChatAgentExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
-		return this._callback(request, context, response, token);
+		return this._requestHandler(request, context, response, token);
 	}
 }

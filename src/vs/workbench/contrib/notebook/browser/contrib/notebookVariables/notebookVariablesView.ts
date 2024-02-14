@@ -140,7 +140,7 @@ export class NotebookVariablesView extends ViewPane {
 	private setActiveNotebook() {
 		const current = this.activeNotebook;
 		const activeEditorPane = this.editorService.activeEditorPane;
-		if (activeEditorPane && activeEditorPane.getId() === 'workbench.editor.notebook') {
+		if (activeEditorPane?.getId() === 'workbench.editor.notebook') {
 			const notebookDocument = getNotebookEditorFromEditorPane(activeEditorPane)?.getViewModel()?.notebookDocument;
 			this.activeNotebook = notebookDocument;
 		}

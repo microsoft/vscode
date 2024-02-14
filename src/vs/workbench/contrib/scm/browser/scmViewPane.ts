@@ -3119,7 +3119,7 @@ export class SCMViewPane extends ViewPane {
 			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 
-			const onDidChangeHistoryProvider = () => {
+			repositoryDisposables.add(Event.runAndSubscribe(repository.provider.onDidChangeHistoryProvider, () => {
 				if (!repository.provider.historyProvider) {
 					this.logService.debug('SCMViewPane:onDidChangeVisibleRepositories - no history provider present');
 					return;
@@ -3131,10 +3131,7 @@ export class SCMViewPane extends ViewPane {
 				}));
 
 				this.logService.debug('SCMViewPane:onDidChangeVisibleRepositories - onDidChangeCurrentHistoryItemGroup listener added');
-			};
-
-			repositoryDisposables.add(repository.provider.onDidChangeHistoryProvider(onDidChangeHistoryProvider));
-			onDidChangeHistoryProvider();
+			}));
 
 			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
 
@@ -3783,7 +3780,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		for (const repository of added) {
 			const repositoryDisposables = new DisposableStore();
 
-			const onDidChangeHistoryProvider = () => {
+			repositoryDisposables.add(Event.runAndSubscribe(repository.provider.onDidChangeHistoryProvider, () => {
 				if (!repository.provider.historyProvider) {
 					this.logService.debug('SCMTreeDataSource:onDidChangeVisibleRepositories - no history provider present');
 					return;
@@ -3795,10 +3792,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				}));
 
 				this.logService.debug('SCMTreeDataSource:onDidChangeVisibleRepositories - onDidChangeCurrentHistoryItemGroup listener added');
-			};
-
-			repositoryDisposables.add(repository.provider.onDidChangeHistoryProvider(onDidChangeHistoryProvider));
-			onDidChangeHistoryProvider();
+			}));
 
 			this.repositoryDisposables.set(repository, repositoryDisposables);
 		}

@@ -1183,7 +1183,6 @@ export interface MainThreadChatProviderShape extends IDisposable {
 
 export interface ExtHostChatProviderShape {
 	$updateLanguageModels(data: { added?: string[]; removed?: string[] }): void;
-	$updateAccesslist(data: { extension: ExtensionIdentifier; enabled: boolean }[]): void;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
@@ -2108,7 +2107,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<IWorkspaceEditDto & { rejectReason?: string } | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined>;
-	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<string[] | undefined>;
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined>;
 	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
 	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void;
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null>;
