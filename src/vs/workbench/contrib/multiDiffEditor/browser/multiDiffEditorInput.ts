@@ -25,7 +25,7 @@ import { localize } from 'vs/nls';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
 import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
@@ -38,35 +38,29 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		if (!input.multiDiffSource && !input.resources) {
 			throw new BugIndicatingError('MultiDiffEditorInput requires either multiDiffSource or resources');
 		}
-		const toMultiDiffEditorItem = (resource: IResourceDiffEditorInput): MultiDiffEditorItem => {
-			return new MultiDiffEditorItem(
-				resource.original.resource,
-				resource.modified.resource,
-			);
-		};
 		const multiDiffSource = input.multiDiffSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
 		return instantiationService.createInstance(
 			MultiDiffEditorInput,
 			multiDiffSource,
 			input.label,
-			input.resources?.map(toMultiDiffEditorItem),
-			input.revealResource ? toMultiDiffEditorItem(input.revealResource) : undefined,
+			input.resources?.map(resource => {
+				return new MultiDiffEditorItem(
+					resource.original.resource,
+					resource.modified.resource,
+				);
+			}),
 		);
 	}
 
 	public static fromSerialized(data: ISerializedMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
-		const toMultiDiffEditorItem = (resource: { originalUri: string | undefined; modifiedUri: string | undefined }): MultiDiffEditorItem => {
-			return new MultiDiffEditorItem(
-				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
-				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
-			);
-		};
 		return instantiationService.createInstance(
 			MultiDiffEditorInput,
 			URI.parse(data.multiDiffSourceUri),
 			data.label,
-			data.resources?.map(toMultiDiffEditorItem),
-			data.revealResource ? toMultiDiffEditorItem(data.revealResource) : undefined
+			data.resources?.map(resource => new MultiDiffEditorItem(
+				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
+				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
+			))
 		);
 	}
 
@@ -87,7 +81,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		public readonly multiDiffSource: URI,
 		public readonly label: string | undefined,
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
-		public readonly initialResourceToReveal: MultiDiffEditorItem | undefined,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -113,10 +106,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				originalUri: resource.original?.toString(),
 				modifiedUri: resource.modified?.toString(),
 			})),
-			revealResource: this.initialResourceToReveal ? {
-				originalUri: this.initialResourceToReveal.original?.toString(),
-				modifiedUri: this.initialResourceToReveal.modified?.toString(),
-			} : undefined
 		};
 	}
 
@@ -234,7 +223,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return true;
 		}
 
-		if (otherInput instanceof MultiDiffEditorInput && !this.initialResourceToReveal && !otherInput.initialResourceToReveal) {
+		if (otherInput instanceof MultiDiffEditorInput) {
 			return this.multiDiffSource.toString() === otherInput.multiDiffSource.toString();
 		}
 
@@ -366,10 +355,6 @@ interface ISerializedMultiDiffEditorInput {
 		originalUri: string | undefined;
 		modifiedUri: string | undefined;
 	}[] | undefined;
-	revealResource: {
-		originalUri: string | undefined;
-		modifiedUri: string | undefined;
-	} | undefined;
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {

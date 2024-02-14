@@ -85,16 +85,19 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
-		const resourceToReveal = input.initialResourceToReveal;
-		if (resourceToReveal) {
-			let resource: IMultiDiffResource | undefined = undefined;
-			if (resourceToReveal.original) {
-				resource = { original: resourceToReveal.original };
-			} else if (resourceToReveal.modified) {
-				resource = { modified: resourceToReveal.modified };
-			}
-			if (resource) {
-				this.reveal(resource, 1);
+		this._reveal(options);
+	}
+
+	override setOptions(options: IEditorOptions | undefined): void {
+		this._reveal(options);
+	}
+
+	private _reveal(options: IEditorOptions | undefined): void {
+		const optionsViewState = options?.viewState;
+		if (optionsViewState && 'revealData' in optionsViewState) {
+			const revealData = optionsViewState.revealData as { resource: IMultiDiffResource; lineNumber: number };
+			if (revealData && 'lineNumber' in revealData) {
+				this.reveal(revealData.resource, revealData.lineNumber);
 			}
 		}
 	}

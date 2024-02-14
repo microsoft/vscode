@@ -324,6 +324,8 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
+		console.log('options : ', options);
+		// todo@aiday-mar, we may not need the following options
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;
@@ -338,20 +340,18 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		let resources: IResourceDiffEditorInput[];
-		if (this._fileOperations === fileOperations && this._resources) {
-			resources = this._resources;
-		} else {
-			resources = await this._getResources(fileOperations);
-		}
-		this._fileOperations = fileOperations;
-		this._resources = resources;
-		const revealResource = resources.find(r => r.original.resource!.toString() === fileElement.edit.uri.toString());
+		const resources = await this._resolveResources(fileOperations);
+		options.viewState = {
+			revealData: {
+				resource: { original: fileElement.edit.uri },
+				lineNumber: 1
+			}
+		};
+		console.log('options : ', options);
 		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
 		this._editorService.openEditor({
 			multiDiffSource,
-			revealResource,
 			resources,
 			label,
 			description: label,
@@ -359,7 +359,10 @@ export class BulkEditPane extends ViewPane {
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private async _getResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
+	private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
+		if (this._fileOperations === fileOperations && this._resources) {
+			return this._resources;
+		}
 		const resources: IResourceDiffEditorInput[] = [];
 		for (const operation of fileOperations) {
 			const operationUri = operation.uri;
@@ -386,6 +389,8 @@ export class BulkEditPane extends ViewPane {
 				});
 			}
 		}
+		this._fileOperations = fileOperations;
+		this._resources = resources;
 		return resources;
 	}
 

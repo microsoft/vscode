@@ -505,11 +505,6 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
 	 */
 	readonly resources?: IResourceDiffEditorInput[];
-
-	/**
-	 * Reveal the following resource on editor open
-	 */
-	readonly revealResource?: IResourceDiffEditorInput;
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };

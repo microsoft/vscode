@@ -191,17 +191,47 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public reveal(resource: IMultiDiffResource, lineNumber: number): void {
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
-		if (isMultiDiffOriginalResourceUri(resource)) {
+		if ('original' in resource) {
 			searchCallback = (item) => item.viewModel.originalUri?.toString() === resource.original.toString();
 		} else {
 			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
 		}
 		const index = viewItems.findIndex(searchCallback);
-		const scrollTopWithinItem = (lineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
+		/*
+		// How to find the size of the current editor window?
+		const scrollTopViewport = this._scrollableElement.getScrollPosition().scrollTop;
+		const scrollBottomViewport = scrollTopViewport + this._sizeObserver.height.get();
+
+		const scrollTopWithinViewport = (scrollTop: number) => {
+			return scrollTop >= scrollTopViewport && scrollTop <= scrollBottomViewport;
+		}
+
+		console.log('scrollTopViewport', scrollTopViewport);
+		console.log('scrollBottomViewport', scrollBottomViewport);
+
+		let scrollTopOfResource = 0;
+		for (let i = 0; i < index; i++) {
+			scrollTopOfResource += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
+		}
+		const lineHeight = this._configurationService.getValue<number>('editor.lineHeight');
+		const scrollTopOfRange = scrollTopOfResource + (range.startLineNumber - 1) * lineHeight;
+		const scrollBottomOfRange = scrollTopOfResource + (range.endLineNumber) * lineHeight;
+
+		console.log('scrollTopOfRange', scrollTopOfRange);
+		console.log('scrollBottomOfRange', scrollBottomOfRange);
+
+		if (scrollTopWithinViewport(scrollTopOfRange) && scrollTopWithinViewport(scrollBottomOfRange)) {
+			// Early return because the range is already visible
+			return;
+		}
+
+		// The range is not visible, hence jump to the top of the top of the range
+		this._scrollableElement.setScrollPosition({ scrollTop: scrollTopOfRange });
+		*/
+
 		// todo@aiday-mar: need to find the actual scroll top given the line number specific to the original or modified uri
 		// following does not neccessarily correspond to the appropriate scroll top within the editor
-		const maxScroll = viewItems[index].template.get()?.maxScroll.get().maxScroll;
-		let scrollTop = (maxScroll && scrollTopWithinItem < maxScroll) ? scrollTopWithinItem : 0;
+		let scrollTop = (lineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}
@@ -301,19 +331,7 @@ interface IMultiDiffDocState {
 	selections?: ISelection[];
 }
 
-interface IMultiDiffOriginalResource {
-	original: URI;
-}
-
-interface IMultiDiffModifiedResource {
-	modified: URI;
-}
-
-function isMultiDiffOriginalResourceUri(obj: any): obj is IMultiDiffOriginalResource {
-	return 'original' in obj && obj.original instanceof URI;
-}
-
-export type IMultiDiffResource = IMultiDiffOriginalResource | IMultiDiffModifiedResource;
+export type IMultiDiffResource = { original: URI } | { modified: URI };
 
 class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
