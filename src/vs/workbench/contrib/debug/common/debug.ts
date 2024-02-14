@@ -634,8 +634,9 @@ export interface IViewModel extends ITreeElement {
 	 */
 	readonly focusedStackFrame: IStackFrame | undefined;
 
-	setVisualizedExpression(original: IExpression, visualized: IExpression | undefined): void;
-	getVisualizedExpression(expression: IExpression): IExpression | undefined;
+	setVisualizedExpression(original: IExpression, visualized: IExpression & { treeId: string } | undefined): void;
+	/** Returns the visualized expression if loaded, or a tree it should be visualized with, or undefined */
+	getVisualizedExpression(expression: IExpression): IExpression | string | undefined;
 	getSelectedExpression(): { expression: IExpression; settingWatch: boolean } | undefined;
 	setSelectedExpression(expression: IExpression | undefined, settingWatch: boolean): void;
 	updateViews(): void;
@@ -1265,7 +1266,7 @@ export interface IReplOptions {
 
 export interface IDebugVisualizationContext {
 	variable: DebugProtocol.Variable;
-	containerId?: string;
+	containerId?: number;
 	frameId?: number;
 	threadId: number;
 	sessionId: string;

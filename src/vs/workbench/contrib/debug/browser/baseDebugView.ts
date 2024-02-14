@@ -10,17 +10,18 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { IDebugService, IExpression, IExpressionValue } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -146,24 +147,31 @@ export interface IExpressionTemplateData {
 }
 
 export abstract class AbstractExpressionDataSource<Input, Element extends IExpression> implements IAsyncDataSource<Input, Element> {
-	constructor(@IDebugService protected debugService: IDebugService) { }
+	constructor(
+		@IDebugService protected debugService: IDebugService,
+		@IDebugVisualizerService protected debugVisualizer: IDebugVisualizerService,
+	) { }
 
 	public abstract hasChildren(element: Input | Element): boolean;
 
-	public getChildren(element: Input | Element): Promise<Element[]> {
+	public async getChildren(element: Input | Element): Promise<Element[]> {
 		const vm = this.debugService.getViewModel();
-		return this.doGetChildren(element).then(r => {
-			let dup: Element[] | undefined;
-			for (let i = 0; i < r.length; i++) {
-				const visualized = vm.getVisualizedExpression(r[i] as IExpression);
-				if (visualized) {
-					dup ||= r.slice();
-					dup[i] = visualized as Element;
+		const children = await this.doGetChildren(element);
+		return Promise.all(children.map(async r => {
+			const vizOrTree = vm.getVisualizedExpression(r as IExpression);
+			if (typeof vizOrTree === 'string') {
+				const viz = await this.debugVisualizer.getVisualizedNodeFor(vizOrTree, r);
+				if (viz) {
+					vm.setVisualizedExpression(r, viz);
+					return viz as IExpression as Element;
 				}
+			} else if (vizOrTree) {
+				return vizOrTree as Element;
 			}
 
-			return dup || r;
-		});
+
+			return r;
+		}));
 	}
 
 	protected abstract doGetChildren(element: Input | Element): Promise<Element[]>;

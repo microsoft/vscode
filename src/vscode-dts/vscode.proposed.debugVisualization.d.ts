@@ -150,7 +150,7 @@ declare module 'vscode' {
 		 * that came from user evaluations in the Debug Console.
 		 * @see https://microsoft.github.io/debug-adapter-protocol/specification#Types_Variable
 		 */
-		containerId?: string;
+		containerId?: number;
 		/**
 		 * The ID of the Debug Adapter Protocol StackFrame in which the variable was found,
 		 * for variables that came from scopes in a stack frame.
