@@ -99,6 +99,12 @@ export enum NotebookExecutionState {
 	Executing = 3
 }
 
+export interface NotebookCellExecutionProgress {
+	total?: number;
+	increment?: number;
+	progress?: number;
+}
+
 export interface INotebookCellPreviousExecutionResult {
 	executionOrder?: number;
 	success?: boolean;
@@ -120,6 +126,9 @@ export interface NotebookCellInternalMetadata {
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
 	renderDuration?: { [key: string]: number };
+	total?: number;
+	increment?: number;
+	progress?: number;
 }
 
 export interface NotebookCellCollapseState {

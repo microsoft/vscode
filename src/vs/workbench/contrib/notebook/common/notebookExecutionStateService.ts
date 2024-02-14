@@ -7,10 +7,10 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookCellExecutionState, NotebookExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { NotebookCellExecutionState, NotebookCellExecutionProgress, NotebookExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit, ICellExecuteProgress } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 
-export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate;
+export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate | ICellExecuteProgress;
 
 export interface ICellExecutionStateUpdate {
 	editType: CellExecutionUpdateType.ExecutionState;
@@ -77,6 +77,7 @@ export interface INotebookCellExecution {
 	readonly state: NotebookCellExecutionState;
 	readonly didPause: boolean;
 	readonly isPaused: boolean;
+	readonly progress?: NotebookCellExecutionProgress;
 
 	confirm(): void;
 	update(updates: ICellExecuteUpdate[]): void;
