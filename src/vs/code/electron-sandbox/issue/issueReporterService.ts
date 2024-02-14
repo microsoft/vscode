@@ -299,6 +299,16 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
+		try {
+			const data = await this.issueMainService.$sendReporterMenu(extension.id, extension.name);
+			return data;
+		} catch (e) {
+			console.error(e);
+			return undefined;
+		}
+	}
+
 	private setEventHandlers(): void {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
@@ -1174,10 +1184,24 @@ export class IssueReporter extends Disposable {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 					if (selectedExtension) {
-						selectedExtension.data = undefined;
-						selectedExtension.uri = undefined;
+						const iconElement = document.createElement('span');
+						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+						this.setLoading(iconElement);
+						const openReporterData = await this.sendReporterMenu(selectedExtension);
+						this.removeLoading(iconElement);
+						if (openReporterData) {
+							this.configuration.data = openReporterData;
+						} else {
+							// case when previous extension had command
+							this.configuration.data.issueBody = undefined;
+							this.configuration.data.data = undefined;
+
+							// case when previous extension was opened from normal openIssueReporter command
+							selectedExtension.data = undefined;
+							selectedExtension.uri = undefined;
+						}
+						this.updateExtensionStatus(selectedExtension);
 					}
-					this.updateExtensionStatus(matches[0]);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
@@ -1199,6 +1223,8 @@ export class IssueReporter extends Disposable {
 
 	private async updateExtensionStatus(extension: IssueReporterExtensionData) {
 		this.issueReporterModel.update({ selectedExtension: extension });
+
+		// uses this.configuuration.data to ensure that data is coming from `openReporter` command.
 		const template = this.configuration.data.issueBody;
 		if (template) {
 			const descriptionTextArea = this.getElementById('description')!;
@@ -1212,13 +1238,16 @@ export class IssueReporter extends Disposable {
 
 		const data = this.configuration.data.data;
 		if (data) {
+			this.issueReporterModel.update({ extensionData: data });
+			extension.data = data;
 			const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
 			show(extensionDataBlock);
-			this.issueReporterModel.update({ extensionData: data });
+			this.renderBlocks();
 		}
 
 		const uri = this.configuration.data.uri;
 		if (uri) {
+			extension.uri = uri;
 			this.updateIssueReporterUri(extension);
 		}
 
@@ -1227,7 +1256,6 @@ export class IssueReporter extends Disposable {
 			const toActivate = await this.getReporterStatus(extension);
 			extension.hasIssueDataProviders = toActivate[0];
 			extension.hasIssueUriRequestHandler = toActivate[1];
-			this.renderBlocks();
 		}
 
 		if (extension.hasIssueUriRequestHandler && extension.hasIssueDataProviders) {
@@ -1273,12 +1301,11 @@ export class IssueReporter extends Disposable {
 			this.setLoading(iconElement);
 			await this.getIssueDataFromExtension(extension);
 			this.removeLoading(iconElement);
-		} else {
-			this.validateSelectedExtension();
-			this.issueReporterModel.update({ extensionData: extension.data ?? undefined });
-			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-			this.searchExtensionIssues(title);
 		}
+
+		this.validateSelectedExtension();
+		const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
+		this.searchExtensionIssues(title);
 
 		this.updatePreviewButtonState();
 		this.renderBlocks();

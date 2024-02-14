@@ -28,6 +28,8 @@ import { IIntegrityService } from 'vs/workbench/services/integrity/common/integr
 import { ILogService } from 'vs/platform/log/common/log';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { mainWindow } from 'vs/base/browser/window';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -35,6 +37,8 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
+	private issueReporterData!: IssueReporterData;
+	private foundExtension = false;
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -49,6 +53,8 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
@@ -81,6 +87,24 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			}
 			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
 			ipcRenderer.send('vscode:triggerReporterStatusResponse', result);
+		});
+		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
+			const extensionId = arg.extensionId;
+
+			// creates menu from contributed
+			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+
+			// render menu and dispose
+			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+			actions.forEach(action => {
+				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+					this.foundExtension = true;
+					action.run();
+				} else {
+					ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
+				}
+			});
+			menu.dispose();
 		});
 	}
 
@@ -154,6 +178,11 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			isUnsupported,
 			githubAccessToken
 		}, dataOverrides);
+
+		this.issueReporterData = issueReporterData;
+		if (this.foundExtension) {
+			ipcRenderer.send('vscode:triggerReporterMenuResponse', this.issueReporterData);
+		}
 		return this.issueMainService.openReporter(issueReporterData);
 	}
 
