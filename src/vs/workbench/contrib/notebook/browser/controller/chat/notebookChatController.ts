@@ -354,6 +354,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		this._notebookEditor.focusContainer(true);
+		this._notebookEditor.setFocus({ start: this._widget.afterModelPosition, end: this._widget.afterModelPosition });
 		this._notebookEditor.setSelections([{
 			start: this._widget.afterModelPosition,
 			end: this._widget.afterModelPosition
