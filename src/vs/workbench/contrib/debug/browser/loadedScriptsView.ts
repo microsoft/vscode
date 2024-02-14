@@ -43,6 +43,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { resolvePinnedToBoolean } from 'vs/platform/editor/common/editor';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -504,7 +505,7 @@ export class LoadedScriptsView extends ViewPane {
 				const source = e.element.getSource();
 				if (source && source.available) {
 					const nullRange = { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
-					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
+					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned ? resolvePinnedToBoolean(e.editorOptions.pinned) : undefined);
 				}
 			}
 		}));

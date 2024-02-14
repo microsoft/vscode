@@ -39,6 +39,7 @@ import { CommentController } from 'vs/workbench/contrib/comments/browser/comment
 import { Range } from 'vs/editor/common/core/range';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { resolvePinnedToBoolean } from 'vs/platform/editor/common/editor';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -343,7 +344,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}));
 
 		this._register(this.tree.onDidOpen(e => {
-			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
+			this.openFile(e.element, e.editorOptions.pinned ? resolvePinnedToBoolean(e.editorOptions.pinned) : undefined, e.editorOptions.preserveFocus, e.sideBySide);
 		}));
 
 

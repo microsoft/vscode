@@ -57,6 +57,7 @@ import { isOfflineError } from 'vs/base/parts/request/common/request';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { resolvePinnedToBoolean } from 'vs/platform/editor/common/editor';
 
 export const NONE_CATEGORY = 'none';
 
@@ -207,7 +208,7 @@ export class ExtensionsListView extends ViewPane {
 		this._register(extensionsViewState);
 
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
-			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
+			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions, pinned: options.editorOptions.pinned ? resolvePinnedToBoolean(options.editorOptions.pinned) : undefined });
 		}));
 
 		this.bodyTemplate = {
