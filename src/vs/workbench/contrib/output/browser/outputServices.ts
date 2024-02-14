@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -21,6 +22,8 @@ import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -83,6 +86,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, '');
@@ -126,11 +131,20 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return null;
 	}
 
-	async showChannel(id: string, preserveFocus?: boolean): Promise<void> {
+	async showChannel(id: string, preserveFocus?: boolean, force?: boolean): Promise<void> {
 		const channel = this.getChannel(id);
 		if (this.activeChannel?.id !== channel?.id) {
 			this.setActiveChannel(channel);
 			this._onActiveOutputChannel.fire(id);
+		}
+		if (channel && !force && !this.viewsService.isViewVisible(OUTPUT_VIEW_ID) && this.configurationService.getValue('output.showQuietly')) {
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize('output.showQuietly', "Output channel '{0}' requested your attention", channel.label),
+				[{ label: nls.localize('output.showQuietly.show', "Show Output"), run: () => this.showChannel(channel.id, preserveFocus, true) }],
+				{ priority: NotificationPriority.SILENT }
+			);
+			return;
 		}
 		const outputView = await this.viewsService.openView<OutputViewPane>(OUTPUT_VIEW_ID, !preserveFocus);
 		if (outputView && channel) {
