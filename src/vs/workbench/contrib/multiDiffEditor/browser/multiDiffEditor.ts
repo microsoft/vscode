@@ -85,6 +85,18 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
+		const resourceToReveal = input.initialResourceToReveal;
+		if (resourceToReveal) {
+			let resource: { original: URI } | { modified: URI } | undefined = undefined;
+			if (resourceToReveal.original) {
+				resource = { original: resourceToReveal.original };
+			} else if (resourceToReveal.modified) {
+				resource = { modified: resourceToReveal.modified };
+			}
+			if (resource) {
+				this.reveal(resource, 1);
+			}
+		}
 	}
 
 	override async clearInput(): Promise<void> {

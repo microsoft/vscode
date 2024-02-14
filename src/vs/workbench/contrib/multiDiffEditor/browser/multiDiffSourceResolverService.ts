@@ -51,6 +51,14 @@ export class MultiDiffEditorItem {
 			throw new BugIndicatingError('Invalid arguments');
 		}
 	}
+
+	equals(other: MultiDiffEditorItem): boolean {
+		if (this.original?.toString() === other.original?.toString()
+			&& this.modified?.toString() === other.modified?.toString()) {
+			return true;
+		}
+		return false;
+	}
 }
 
 export class MultiDiffSourceResolverService implements IMultiDiffSourceResolverService {

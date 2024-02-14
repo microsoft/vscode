@@ -49,6 +49,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					resource.modified.resource,
 				);
 			}),
+			input.revealResource ? new MultiDiffEditorItem(
+				input.revealResource.original.resource,
+				input.revealResource.modified.resource
+			) : undefined,
 		);
 	}
 
@@ -60,7 +64,11 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			data.resources?.map(resource => new MultiDiffEditorItem(
 				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
 				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
-			))
+			)),
+			data.revealResource ? new MultiDiffEditorItem(
+				data.revealResource.originalUri ? URI.parse(data.revealResource.originalUri) : undefined,
+				data.revealResource.modifiedUri ? URI.parse(data.revealResource.modifiedUri) : undefined,
+			) : undefined
 		);
 	}
 
@@ -81,6 +89,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		public readonly multiDiffSource: URI,
 		public readonly label: string | undefined,
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
+		public readonly initialResourceToReveal: MultiDiffEditorItem | undefined,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -106,6 +115,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				originalUri: resource.original?.toString(),
 				modifiedUri: resource.modified?.toString(),
 			})),
+			revealResource: this.initialResourceToReveal ? {
+				originalUri: this.initialResourceToReveal.original?.toString(),
+				modifiedUri: this.initialResourceToReveal.modified?.toString(),
+			} : undefined
 		};
 	}
 
@@ -224,7 +237,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		}
 
 		if (otherInput instanceof MultiDiffEditorInput) {
-			return this.multiDiffSource.toString() === otherInput.multiDiffSource.toString();
+			const initialResourcesEqual = (this.initialResourceToReveal && otherInput.initialResourceToReveal
+				&& this.initialResourceToReveal.equals(otherInput.initialResourceToReveal))
+				|| (!this.initialResourceToReveal && !otherInput.initialResourceToReveal);
+			return (this.multiDiffSource.toString() === otherInput.multiDiffSource.toString()) && initialResourcesEqual;
 		}
 
 		return false;
@@ -355,6 +371,10 @@ interface ISerializedMultiDiffEditorInput {
 		originalUri: string | undefined;
 		modifiedUri: string | undefined;
 	}[] | undefined;
+	revealResource: {
+		originalUri: string | undefined;
+		modifiedUri: string | undefined;
+	} | undefined;
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {
