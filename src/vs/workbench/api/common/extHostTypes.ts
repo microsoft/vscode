@@ -3100,6 +3100,23 @@ export class InlineValueContext implements vscode.InlineValueContext {
 	}
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export class NewSymbolName implements vscode.NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;
+
+	constructor(
+		newSymbolName: string,
+		tags?: readonly NewSymbolNameTag[]
+	) {
+		this.newSymbolName = newSymbolName;
+		this.tags = tags;
+	}
+}
+
 //#region file api
 
 export enum FileChangeType {
@@ -4179,24 +4196,6 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Bug = 4
 }
 
-export enum ChatMessageRole {
-	System = 0,
-	User = 1,
-	Assistant = 2,
-}
-
-export class ChatMessage implements vscode.ChatMessage {
-
-	role: ChatMessageRole;
-	content: string;
-	name?: string;
-
-	constructor(role: ChatMessageRole, content: string) {
-		this.role = role;
-		this.content = content;
-	}
-}
-
 export enum ChatAgentResultFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
@@ -4242,6 +4241,13 @@ export class ChatResponseProgressPart {
 	}
 }
 
+export class ChatResponseCommandButtonPart {
+	value: vscode.Command;
+	constructor(value: vscode.Command) {
+		this.value = value;
+	}
+}
+
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location;
 	constructor(value: vscode.Uri | vscode.Location) {
@@ -4249,6 +4255,57 @@ export class ChatResponseReferencePart {
 	}
 }
 
+
+export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
+	agentId: string;
+	constructor(
+		readonly prompt: string,
+		readonly command: string | undefined,
+		readonly variables: vscode.ChatAgentResolvedVariable[],
+		readonly agent: { extensionId: string; agentId: string },
+	) {
+		this.agentId = agent.agentId;
+	}
+}
+
+export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
+
+	agentId: string;
+
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		readonly result: vscode.ChatAgentResult2,
+		readonly agent: { extensionId: string; agentId: string }
+	) {
+		this.agentId = agent.agentId;
+	}
+}
+
+export class LanguageModelSystemMessage {
+	content: string;
+
+	constructor(content: string) {
+		this.content = content;
+	}
+}
+
+export class LanguageModelUserMessage {
+	content: string;
+	name: string | undefined;
+
+	constructor(content: string, name?: string) {
+		this.content = content;
+		this.name = name;
+	}
+}
+
+export class LanguageModelAssistantMessage {
+	content: string;
+
+	constructor(content: string) {
+		this.content = content;
+	}
+}
 
 //#endregion
 

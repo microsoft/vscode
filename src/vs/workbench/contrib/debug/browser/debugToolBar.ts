@@ -254,7 +254,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const positionPercentage = isMainWindow
 				? Number(this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.PROFILE))
 				: this.auxWindowCoordinates.get(currentWindow)?.x;
-			x = positionPercentage !== undefined
+			x = positionPercentage !== undefined && !isNaN(positionPercentage)
 				? positionPercentage * currentWindow.innerWidth
 				: (0.5 * currentWindow.innerWidth - 0.5 * widgetWidth);
 		}

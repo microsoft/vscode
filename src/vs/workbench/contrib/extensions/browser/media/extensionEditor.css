@@ -616,6 +616,10 @@
 	padding: 2px 16px 2px 4px;
 }
 
+.extension-editor > .body > .content table td {
+	vertical-align: top;
+}
+
 .extension-editor > .body > .content table th:last-child,
 .extension-editor > .body > .content table td:last-child {
 	padding: 2px 4px;
@@ -874,11 +878,6 @@
 	align-items: center;
 }
 
-.extension-editor .subcontent.feature-contributions .extension-feature-content .feature-body .feature-body-content pre {
-	white-space: pre-wrap;
-	word-wrap: break-word;
-}
-
 .extension-editor .subcontent.feature-contributions .extension-feature-content .feature-body .feature-body-content .feature-content.markdown .codicon {
-	vertical-align: bottom;
+	vertical-align: sub;
 }

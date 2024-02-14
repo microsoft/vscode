@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { CancellationToken, chat, ChatAgentRequest, ChatVariableLevel, Disposable, interactive, InteractiveSession, ProviderResult } from 'vscode';
+import { CancellationToken, chat, ChatAgentRequest, ChatAgentResult2, ChatVariableLevel, Disposable, interactive, InteractiveSession, ProviderResult } from 'vscode';
 import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -37,8 +37,8 @@ suite('chat', () => {
 			return null;
 		});
 		agent.isDefault = true;
-		agent.subCommandProvider = {
-			provideSubCommands: (_token) => {
+		agent.commandProvider = {
+			provideCommands: (_token) => {
 				return [{ name: 'hello', description: 'Hello' }];
 			}
 		};
@@ -50,7 +50,7 @@ suite('chat', () => {
 		const deferred = getDeferredForRequest();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
 		const request = await deferred.p;
-		assert.deepStrictEqual(request.subCommand, 'hello');
+		assert.deepStrictEqual(request.command, 'hello');
 		assert.strictEqual(request.prompt, 'friend');
 	});
 
@@ -64,7 +64,40 @@ suite('chat', () => {
 		const deferred = getDeferredForRequest();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent hi #myVar' });
 		const request = await deferred.p;
-		assert.strictEqual(request.prompt, 'hi [#myVar](values:myVar)');
-		assert.strictEqual(request.variables['myVar'][0].value, 'myValue');
+		assert.strictEqual(request.prompt, 'hi #myVar');
+		assert.strictEqual(request.variables[0].values[0].value, 'myValue');
+	});
+
+	test('result metadata is returned to the followup provider', async () => {
+		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
+			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
+				return {
+					requester: { name: 'test' },
+					responder: { name: 'test' },
+				};
+			},
+		}));
+
+		const deferred = new DeferredPromise<ChatAgentResult2>();
+		const agent = chat.createChatAgent('agent', (_request, _context, _progress, _token) => {
+			return { metadata: { key: 'value' } };
+		});
+		agent.isDefault = true;
+		agent.commandProvider = {
+			provideCommands: (_token) => {
+				return [{ name: 'hello', description: 'Hello' }];
+			}
+		};
+		agent.followupProvider = {
+			provideFollowups(result, _token) {
+				deferred.complete(result);
+				return [];
+			},
+		};
+		disposables.push(agent);
+
+		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
+		const result = await deferred.p;
+		assert.deepStrictEqual(result.metadata, { key: 'value' });
 	});
 });

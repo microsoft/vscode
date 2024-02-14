@@ -32,12 +32,14 @@ import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
@@ -84,7 +86,8 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 
 const quitEditCondition = ContextKeyExpr.and(
 	NOTEBOOK_EDITOR_FOCUSED,
-	InputFocusedContext
+	InputFocusedContext,
+	CTX_INLINE_CHAT_FOCUSED.toNegated()
 );
 registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	constructor() {

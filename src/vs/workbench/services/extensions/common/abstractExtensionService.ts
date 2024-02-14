@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as perf from 'vs/base/common/performance';
 import { isCI } from 'vs/base/common/platform';
@@ -20,7 +18,6 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -1354,80 +1351,28 @@ class ActivationFeatureMarkdowneRenderer extends Disposable implements IExtensio
 
 	readonly type = 'markdown';
 
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService
-	) {
-		super();
-	}
-
 	shouldRender(manifest: IExtensionManifest): boolean {
-		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		if (this._extensionService.extensions.some(e => ExtensionIdentifier.equals(e.identifier, extensionId))) {
-			return !!manifest.main || !!manifest.browser;
-		}
 		return !!manifest.activationEvents;
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
-		const disposables = new DisposableStore();
-		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		const emitter = disposables.add(new Emitter<IMarkdownString>());
-		this._extensionService.onDidChangeExtensionsStatus(e => {
-			if (e.some(extension => ExtensionIdentifier.equals(extension, extensionId))) {
-				emitter.fire(this.getActivationData(manifest));
-			}
-		});
-		return {
-			onDidChange: emitter.event,
-			data: this.getActivationData(manifest),
-			dispose: () => disposables.dispose()
-		};
-	}
-
-	private getActivationData(manifest: IExtensionManifest): IMarkdownString {
+		const activationEvents = manifest.activationEvents || [];
 		const data = new MarkdownString();
-		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		const status = this._extensionService.getExtensionsStatus()[extensionId.value];
-		if (this._extensionService.extensions.some(extension => ExtensionIdentifier.equals(extension.identifier, extensionId))) {
-			if (status.activationTimes) {
-				if (status.activationTimes.activationReason.startup) {
-					data.appendText('Activated on startup in `')
-						.appendText(`${status.activationTimes.activateCallTime}ms`)
-						.appendText('`');
-				} else {
-					data.appendMarkdown('Activated in `' + status.activationTimes.activateCallTime + 'ms` by `' + status.activationTimes.activationReason.activationEvent + '` event.');
-				}
-			} else {
-				data.appendMarkdown('Not yet activated');
-			}
-			if (status.runtimeErrors.length) {
-				data.appendMarkdown(`\n ### ${nls.localize('uncaught errors', "Uncaught Errors ({0})", status.runtimeErrors.length)}\n`);
-				for (const error of status.runtimeErrors) {
-					data.appendMarkdown(`$(${Codicon.error.id})&nbsp;${getErrorMessage(error)}\n\n`);
-				}
-			}
-			if (status.messages.length) {
-				data.appendMarkdown(`\n ### ${nls.localize('messaages', "Messages ({0})", status.messages.length)}\n`);
-				for (const message of status.messages) {
-					data.appendMarkdown(`$(${(message.type === Severity.Error ? Codicon.error : message.type === Severity.Warning ? Codicon.warning : Codicon.info).id})&nbsp;${message.message}\n\n`);
-				}
-			}
-		} else {
-			const activationEvents = manifest.activationEvents || [];
-			if (activationEvents.length) {
-				data.appendMarkdown(`### ${nls.localize('activation events', "Activation Events")}\n\n`);
-				for (const activationEvent of activationEvents) {
-					data.appendMarkdown(`- \`${activationEvent}\`\n`);
-				}
+		if (activationEvents.length) {
+			for (const activationEvent of activationEvents) {
+				data.appendMarkdown(`- \`${activationEvent}\`\n`);
 			}
 		}
-		return data;
+		return {
+			data,
+			dispose: () => { }
+		};
 	}
 }
 
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-	id: 'activation',
-	label: nls.localize('activation', "Activation"),
+	id: 'activationEvents',
+	label: nls.localize('activation', "Activation Events"),
 	access: {
 		canToggle: false
 	},

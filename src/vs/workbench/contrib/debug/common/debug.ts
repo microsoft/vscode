@@ -87,6 +87,8 @@ export const CONTEXT_VARIABLE_IS_READONLY = new RawContextKey<boolean>('variable
 export const CONTEXT_VARIABLE_VALUE = new RawContextKey<boolean>('variableValue', false, { type: 'string', description: nls.localize('variableValue', "Value of the variable, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_TYPE = new RawContextKey<boolean>('variableType', false, { type: 'string', description: nls.localize('variableType', "Type of the variable, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_NAME = new RawContextKey<boolean>('variableName', false, { type: 'string', description: nls.localize('variableName', "Name of the variable, present for debug visualization clauses.") });
+export const CONTEXT_VARIABLE_LANGUAGE = new RawContextKey<boolean>('variableLanguage', false, { type: 'string', description: nls.localize('variableLanguage', "Language of the variable source, present for debug visualization clauses.") });
+export const CONTEXT_VARIABLE_EXTENSIONID = new RawContextKey<boolean>('variableExtensionId', false, { type: 'string', description: nls.localize('variableExtensionId', "Extension ID of the variable source, present for debug visualization clauses.") });
 export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exceptionWidgetVisible', false, { type: 'boolean', description: nls.localize('exceptionWidgetVisible', "True when the exception widget is visible.") });
 export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false, { type: 'boolean', description: nls.localize('multiSessionRepl', "True when there is more than 1 debug console.") });
 export const CONTEXT_MULTI_SESSION_DEBUG = new RawContextKey<boolean>('multiSessionDebug', false, { type: 'boolean', description: nls.localize('multiSessionDebug', "True when there is more than 1 active debug session.") });
@@ -632,6 +634,9 @@ export interface IViewModel extends ITreeElement {
 	 */
 	readonly focusedStackFrame: IStackFrame | undefined;
 
+	setVisualizedExpression(original: IExpression, visualized: IExpression & { treeId: string } | undefined): void;
+	/** Returns the visualized expression if loaded, or a tree it should be visualized with, or undefined */
+	getVisualizedExpression(expression: IExpression): IExpression | string | undefined;
 	getSelectedExpression(): { expression: IExpression; settingWatch: boolean } | undefined;
 	setSelectedExpression(expression: IExpression | undefined, settingWatch: boolean): void;
 	updateViews(): void;
@@ -643,6 +648,11 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>;
 	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
 	onDidEvaluateLazyExpression: Event<IExpressionContainer>;
+	/**
+	 * Fired when `setVisualizedExpression`, to migrate elements currently
+	 * rendered as `original` to the `replacement`.
+	 */
+	onDidChangeVisualization: Event<{ original: IExpression; replacement: IExpression }>;
 	onWillUpdateViews: Event<void>;
 
 	evaluateLazyExpression(expression: IExpressionContainer): void;
@@ -1256,7 +1266,7 @@ export interface IReplOptions {
 
 export interface IDebugVisualizationContext {
 	variable: DebugProtocol.Variable;
-	containerId?: string;
+	containerId?: number;
 	frameId?: number;
 	threadId: number;
 	sessionId: string;
@@ -1267,9 +1277,31 @@ export const enum DebugVisualizationType {
 	Tree,
 }
 
-export type MainThreadDebugVisualization = {
-	type: DebugVisualizationType.Command;
-};  // todo: tree
+export type MainThreadDebugVisualization =
+	| { type: DebugVisualizationType.Command }
+	| { type: DebugVisualizationType.Tree; id: string };
+
+
+export const enum DebugTreeItemCollapsibleState {
+	None = 0,
+	Collapsed = 1,
+	Expanded = 2
+}
+
+export interface IDebugVisualizationTreeItem {
+	id: number;
+	label: string;
+	description?: string;
+	collapsibleState: DebugTreeItemCollapsibleState;
+	contextValue?: string;
+	canEdit?: boolean;
+}
+
+export namespace IDebugVisualizationTreeItem {
+	export type Serialized = IDebugVisualizationTreeItem;
+	export const deserialize = (v: Serialized): IDebugVisualizationTreeItem => v;
+	export const serialize = (item: IDebugVisualizationTreeItem): Serialized => item;
+}
 
 export interface IDebugVisualization {
 	id: number;

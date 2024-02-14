@@ -580,7 +580,7 @@ export class ExtensionEditor extends EditorPane {
 			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
-		if ((<IExtensionEditorOptions>this.options).tab) {
+		if ((<IExtensionEditorOptions | undefined>this.options)?.tab) {
 			template.navbar.switch((<IExtensionEditorOptions>this.options).tab!);
 		}
 		if (template.navbar.currentId) {
@@ -966,7 +966,7 @@ export class ExtensionEditor extends EditorPane {
 			return null;
 		}
 
-		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest, (<IExtensionEditorOptions>this.options).feature));
+		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest, (<IExtensionEditorOptions | undefined>this.options)?.feature));
 		const layout = () => extensionFeaturesTab.layout(template.content.clientHeight, template.content.clientWidth);
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
