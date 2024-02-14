@@ -592,6 +592,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return modelIndex;
 		}
 
+		if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+			// it's already after the last hidden range
+			return this.hiddenRangesPrefixSum.getTotalSum();
+		}
+
 		return this.hiddenRangesPrefixSum.getIndexOf(modelIndex).index;
 	}
 
@@ -1018,19 +1023,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const element = this.view.element(viewIndex);
 
 		if (element.editorAttached) {
-			this._revealRangeCommon(viewIndex, range, false, false);
+			this._revealRangeCommon(viewIndex, range);
 		} else {
 			const elementHeight = this.view.elementHeight(viewIndex);
-			let upwards = false;
+			let alignHint: 'top' | 'bottom' | undefined = undefined;
 
 			if (elementTop + elementHeight <= scrollTop) {
-				// scroll downwards
+				// scroll up
 				this.view.setScrollTop(elementTop);
-				upwards = false;
+				alignHint = 'top';
 			} else if (elementTop >= wrapperBottom) {
-				// scroll upwards
+				// scroll down
 				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
-				upwards = true;
+				alignHint = 'bottom';
 			}
 
 			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
@@ -1040,7 +1045,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			});
 
 			return editorAttachedPromise.then(() => {
-				this._revealRangeCommon(viewIndex, range, true, upwards);
+				this._revealRangeCommon(viewIndex, range, alignHint);
 			});
 		}
 	}
@@ -1107,7 +1112,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	private _revealRangeCommon(viewIndex: number, range: Selection | Range, newlyCreated: boolean, alignToBottom: boolean) {
+	private _revealRangeCommon(viewIndex: number, range: Selection | Range, alignHint?: 'top' | 'bottom' | undefined) {
 		const element = this.view.element(viewIndex);
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
@@ -1129,16 +1134,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.view.setScrollTop(positionTop - 30);
 		} else if (positionTop > wrapperBottom) {
 			this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
-		} else if (newlyCreated) {
-			// newly scrolled into view
-			if (alignToBottom) {
-				// align to the bottom
-				this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
-			} else {
-				// align to to top
-				this.view.setScrollTop(positionTop - 30);
-			}
+		} else if (alignHint === 'bottom') {
+			// Scrolled into view from below
+			this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
+		} else if (alignHint === 'top') {
+			// Scrolled into view from above
+			this.view.setScrollTop(positionTop - 30);
 		}
+
 
 		element.revealRangeInCenter(range);
 	}
@@ -1163,6 +1166,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
 				this.view.setScrollTop(elementTop + rangeOffset - this.view.renderHeight / 2);
 			}
+		}
+	}
+
+	revealOffsetInCenterIfOutsideViewport(offset: number) {
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+
+		if (offset < scrollTop || offset > wrapperBottom) {
+			this.view.setScrollTop(offset - this.view.renderHeight / 2);
 		}
 	}
 
@@ -1276,7 +1288,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.domFocus();
 	}
 
-	focusContainer() {
+	focusContainer(clearSelection: boolean) {
+		if (clearSelection) {
+			// allow focus to be between cells
+			this._viewModel?.updateSelectionsState({
+				kind: SelectionStateType.Handle,
+				primary: null,
+				selections: []
+			}, 'view');
+			this.setFocus([], undefined, true);
+			this.setSelection([], undefined, true);
+		}
+
 		super.domFocus();
 	}
 

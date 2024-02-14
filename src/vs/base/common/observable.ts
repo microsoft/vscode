@@ -45,9 +45,15 @@ export {
 	observableFromPromise,
 	observableSignal,
 	observableSignalFromEvent,
-	waitForState,
 	wasEventTriggeredRecently,
 } from 'vs/base/common/observableInternal/utils';
+export {
+	ObservableLazy,
+	ObservableLazyStatefulPromise,
+	ObservablePromise,
+	PromiseResult,
+	waitForState,
+} from 'vs/base/common/observableInternal/promise';
 
 import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableInternal/logging';
 

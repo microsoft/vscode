@@ -47,6 +47,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
 
+	// Can be set to temporarily ignore messages from the editor service that indicate a new active editor.
+	// Used for ignoring some editors for history.
+	public shouldIgnoreActiveEditorChange: boolean = false;
+
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -77,10 +81,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.registerMouseNavigationListener();
 
 		// Editor changes
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
+		this._register(this.editorService.onDidActiveEditorChange((e) => {
+			if (!this.shouldIgnoreActiveEditorChange) {
+				this.onDidActiveEditorChange();
+			}
+		}));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
-		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
+		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => {
+			if (!this.shouldIgnoreActiveEditorChange) {
+				this.handleEditorEventInRecentEditorsStack();
+			}
+		}));
 
 		// Editor group changes
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e)));
@@ -177,7 +189,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Listen to selection changes if the editor pane
 		// is having a selection concept.
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
+			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
+				if (!this.shouldIgnoreActiveEditorChange) {
+					this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e);
+				}
+			}
+			));
 		}
 
 		// Context keys

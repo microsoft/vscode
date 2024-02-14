@@ -21,7 +21,6 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_VARIABLE_VIEW_ENABLED } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariableContextKeys';
 
-
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
 	private listeners: IDisposable[] = [];
 	private configListener: IDisposable;
@@ -40,8 +39,8 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 
 		this.viewEnabled = NOTEBOOK_VARIABLE_VIEW_ENABLED.bindTo(contextKeyService);
 
-		this.listeners.push(this.editorService.onDidEditorsChange(() => this.handleInitEvent()));
-		this.listeners.push(this.notebookExecutionStateService.onDidChangeExecution(() => this.handleInitEvent()));
+		this.listeners.push(this.editorService.onDidActiveEditorChange(() => this.handleInitEvent()));
+		this.listeners.push(this.notebookExecutionStateService.onDidChangeExecution((e) => this.handleInitEvent()));
 
 		this.configListener = configurationService.onDidChangeConfiguration((e) => this.handleConfigChange(e));
 	}
@@ -62,11 +61,8 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 		if (this.configurationService.getValue(NotebookSetting.notebookVariablesView)
 			&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
 
-			if (this.hasVariableProvider()) {
+			if (this.hasVariableProvider() && !this.initialized && this.initializeView()) {
 				this.viewEnabled.set(true);
-			}
-
-			if (!this.initialized && this.initializeView()) {
 				this.initialized = true;
 				this.listeners.forEach(listener => listener.dispose());
 			}

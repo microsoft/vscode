@@ -22,9 +22,10 @@ import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
+import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -241,6 +242,52 @@ function handleSetResponse(expression: ExpressionContainer, response: DebugProto
 		expression.namedVariables = response.body.namedVariables;
 		expression.indexedVariables = response.body.indexedVariables;
 		// todo @weinand: the set responses contain most properties, but not memory references. Should they?
+	}
+}
+
+export class VisualizedExpression implements IExpression {
+	public errorMessage?: string;
+	private readonly id = generateUuid();
+
+	evaluateLazy(): Promise<void> {
+		return Promise.resolve();
+	}
+	getChildren(): Promise<IExpression[]> {
+		return this.visualizer.getVisualizedChildren(this.treeId, this.treeItem.id);
+	}
+
+	getId(): string {
+		return this.id;
+	}
+
+	get name() {
+		return this.treeItem.label;
+	}
+
+	get value() {
+		return this.treeItem.description || '';
+	}
+
+	get hasChildren() {
+		return this.treeItem.collapsibleState !== DebugTreeItemCollapsibleState.None;
+	}
+
+	constructor(
+		private readonly visualizer: IDebugVisualizerService,
+		public readonly treeId: string,
+		public readonly treeItem: IDebugVisualizationTreeItem,
+		public readonly original?: Variable,
+	) { }
+
+	/** Edits the value, sets the {@link errorMessage} and returns false if unsuccessful */
+	public async edit(newValue: string) {
+		try {
+			await this.visualizer.editTreeItem(this.treeId, this.treeItem, newValue);
+			return true;
+		} catch (e) {
+			this.errorMessage = e.message;
+			return false;
+		}
 	}
 }
 

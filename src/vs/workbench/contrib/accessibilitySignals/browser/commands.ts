@@ -21,6 +21,9 @@ export class ShowSignalSoundHelp extends Action2 {
 			id: ShowSignalSoundHelp.ID,
 			title: localize2('signals.sound.help', "Help: List Signal Sounds"),
 			f1: true,
+			metadata: {
+				description: localize('accessibility.sound.help.description', "List all accessibility sounds / audio cues and configure their settings")
+			}
 		});
 	}
 
@@ -41,7 +44,7 @@ export class ShowSignalSoundHelp extends Action2 {
 		}));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
-		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
+		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
 		qp.onDidAccept(() => {
 			const enabledSounds = qp.selectedItems.map(i => i.signal);
 			const disabledSounds = qp.items.map(i => (i as any).signal).filter(i => !enabledSounds.includes(i));
@@ -82,6 +85,9 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 			id: ShowAccessibilityAnnouncementHelp.ID,
 			title: localize2('accessibility.announcement.help', "Help: List Signal Announcements"),
 			f1: true,
+			metadata: {
+				description: localize('accessibility.announcement.help.description', "List all accessibility announcements / alerts and configure their settings")
+			}
 		});
 	}
 
@@ -102,7 +108,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 		}));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
 		qp.items = items;
-		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal) || configurationService.getValue(i.signal.settingsKey + '.announcement') !== 'never');
+		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.announcement') !== 'never');
 		qp.onDidAccept(() => {
 			const enabledAnnouncements = qp.selectedItems.map(i => i.signal);
 			const disabledAnnouncements = AccessibilitySignal.allAccessibilitySignals.filter(cue => !enabledAnnouncements.includes(cue));

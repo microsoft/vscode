@@ -10,10 +10,12 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProviderResult } from 'vs/editor/common/languages';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IChatAgent, IChatAgentCommand, IChatAgentHistoryEntry, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('VoiceChat', () => {
 
@@ -22,6 +24,9 @@ suite('VoiceChat', () => {
 	}
 
 	class TestChatAgent implements IChatAgent {
+
+		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
+
 		constructor(readonly id: string, readonly lastSlashCommands: IChatAgentCommand[]) { }
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]> { throw new Error('Method not implemented.'); }
@@ -250,6 +255,43 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
 		assert.strictEqual(event?.text, options.usesAgents ? '@workspace for at workspace' : 'At workspace, for at workspace');
 		assert.strictEqual(event?.waitingForInput, false);
+
+		// Slash command detected after agent recognized
+		if (options.usesAgents) {
+			createSession(options);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'At workspace' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '@workspace');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'slash' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+			assert.strictEqual(event?.text, 'slash');
+			assert.strictEqual(event?.waitingForInput, false);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'slash fix' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
+			assert.strictEqual(event?.text, '/fix');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'slash fix' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '/fix');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			createSession(options);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'At workspace' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '@workspace');
+			assert.strictEqual(event?.waitingForInput, true);
+
+			emitter.fire({ status: SpeechToTextStatus.Recognized, text: 'slash fix' });
+			assert.strictEqual(event?.status, SpeechToTextStatus.Recognized);
+			assert.strictEqual(event?.text, '/fix');
+			assert.strictEqual(event?.waitingForInput, true);
+		}
 	}
 
 	test('waiting for input', async () => {

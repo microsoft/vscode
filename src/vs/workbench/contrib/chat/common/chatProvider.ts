@@ -30,6 +30,10 @@ export interface IChatResponseProviderMetadata {
 	readonly extension: ExtensionIdentifier;
 	readonly model: string;
 	readonly description?: string;
+	readonly auth?: {
+		readonly providerLabel: string;
+		readonly accountLabel?: string;
+	};
 }
 
 export interface IChatResponseProvider {
