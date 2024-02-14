@@ -1264,9 +1264,8 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('mouse', configurationService, hoverService);
+		super('mouse', true, configurationService, hoverService);
 
-		this.enableInstantHoverAfterRecentlyShown();
 		this.setOptions((options) => this.setOverrideOptions(options));
 	}
 

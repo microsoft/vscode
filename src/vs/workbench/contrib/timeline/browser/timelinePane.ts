@@ -55,7 +55,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { ILocalizedString } from 'vs/platform/action/common/action';
-import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 const ItemHeight = 22;
 
@@ -1151,7 +1151,7 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 		super();
 
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse'));
+		this._hoverDelegate = getDefaultHoverDelegate('element');
 	}
 
 	private uri: URI | undefined;

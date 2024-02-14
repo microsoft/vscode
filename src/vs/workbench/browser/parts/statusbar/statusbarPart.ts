@@ -154,8 +154,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
-		this.hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate, 'element');
-		this.hoverDelegate.enableInstantHoverAfterRecentlyShown();
+		this.hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true);
 		this.hoverDelegate.setOptions((_, focus?: boolean) => {
 			return {
 				persistence: {

@@ -25,9 +25,9 @@ import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workben
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -130,7 +130,7 @@ export class DocumentSymbolRenderer extends Disposable implements ITreeRenderer<
 	) {
 		super();
 
-		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, target === OutlineTarget.Breadcrumbs ? 'element' : 'mouse'));
+		this._hoverDelegate = getDefaultHoverDelegate(target === OutlineTarget.Breadcrumbs ? 'element' : 'mouse');
 	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {

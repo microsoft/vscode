@@ -40,6 +40,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { clamp } from 'vs/base/common/numbers';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -89,7 +90,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.activeActions = [];
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options: IBaseActionViewItemOptions) => {
 				if (action.id === FOCUS_SESSION_ID) {
 					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
 				} else if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
@@ -100,7 +101,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 					}
 				}
 
-				return createActionViewItem(this.instantiationService, action);
+				return createActionViewItem(this.instantiationService, action, options);
 			}
 		}));
 

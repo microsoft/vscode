@@ -23,7 +23,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -236,7 +236,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView?.layout(width, height);
 	}
 
-	override getActionViewItem(action: Action): IActionViewItem | undefined {
+	override getActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
@@ -257,7 +257,7 @@ export class TerminalViewPane extends ViewPane {
 						return;
 					}
 				};
-				return new ActionViewItem(action, panelOnlySplitAction, { icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
+				return new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
 			}
 			case TerminalCommandId.SwitchTerminal: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
@@ -279,7 +279,7 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}
-		return super.getActionViewItem(action);
+		return super.getActionViewItem(action, options);
 	}
 
 	private _getDefaultProfileName(): string {

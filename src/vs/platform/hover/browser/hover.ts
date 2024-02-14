@@ -233,7 +233,6 @@ export interface IHoverTarget extends IDisposable {
 
 export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
 
-	private instantHoverAfterRecentlyShown = false;
 	private lastHoverHideTime = Number.MAX_VALUE;
 	private timeLimit = 200;
 
@@ -241,7 +240,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 
 	private _delay: number;
 	get delay(): number {
-		if (this.instantHoverAfterRecentlyShown && Date.now() - this.lastHoverHideTime < this.timeLimit) {
+		if (this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit) {
 			return 0; // show instantly when a hover was recently shown
 		}
 		return this._delay;
@@ -249,6 +248,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 
 	constructor(
 		public readonly placement: 'mouse' | 'element',
+		private readonly instantHover: boolean,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
@@ -277,13 +277,8 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 		this.overrideOptions = options;
 	}
 
-	enableInstantHoverAfterRecentlyShown(timeLimit: number = 200): void {
-		this.timeLimit = timeLimit;
-		this.instantHoverAfterRecentlyShown = true;
-	}
-
 	onDidHideHover(): void {
-		if (this.instantHoverAfterRecentlyShown) {
+		if (this.instantHover) {
 			this.lastHoverHideTime = Date.now();
 		}
 	}

@@ -56,7 +56,7 @@ import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
-import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
@@ -355,7 +355,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	) {
 		super();
 
-		this._hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse'));
+		this._hoverDelegate = getDefaultHoverDelegate('mouse', true);
 	}
 
 	set actionRunner(actionRunner: ActionRunner) {
@@ -372,7 +372,8 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			});
 		const actionsContainer = dom.append(cell, dom.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+			hoverDelegate: this._hoverDelegate
 		});
 		return { label, icon, actionBar, container: cell, elementDisposable: Disposable.None };
 	}
