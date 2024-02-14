@@ -45,7 +45,6 @@ export const enum TerminalContextKeyStrings {
 	ChatInputHasText = 'terminalChatInputHasText',
 	ChatAgentRegistered = 'terminalChatAgentRegistered',
 	ChatResponseEditorFocused = 'terminalChatResponseEditorFocused',
-	ChatLastResponseType = 'terminalChatLastResponseType'
 }
 
 export namespace TerminalContextKeys {
