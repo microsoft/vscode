@@ -176,6 +176,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private _strategy: EditStrategy | undefined;
 	private _sessionCtor: CancelablePromise<void> | undefined;
 	private _activeSession?: Session;
+	private _warmupRequestCts?: CancellationTokenSource;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
@@ -275,6 +276,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		inlineChatWidget.placeholder = localize('default.placeholder', "Ask a question");
 		inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		widgetContainer.appendChild(inlineChatWidget.domNode);
+		this._widgetDisposableStore.add(inlineChatWidget.onDidChangeInput(() => {
+			this._warmupRequestCts?.dispose(true);
+			this._warmupRequestCts = undefined;
+		}));
 
 		this._notebookEditor.changeViewZones(accessor => {
 			const notebookViewZone = {
@@ -307,6 +312,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 				if (fakeParentEditor.hasModel()) {
 					await this._startSession(fakeParentEditor, token);
+					this._warmupRequestCts = new CancellationTokenSource();
+					this._startInitialFolowups(fakeParentEditor, this._warmupRequestCts.token);
 
 					if (this._widget) {
 						this._widget.inlineChatWidget.placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
@@ -368,6 +375,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	async acceptInput() {
 		assertType(this._activeSession);
 		assertType(this._widget);
+		this._warmupRequestCts?.dispose(true);
+		this._warmupRequestCts = undefined;
 		this._activeSession.addInput(new SessionPrompt(this._widget.inlineChatWidget.value));
 
 		assertType(this._activeSession.lastInput);
@@ -557,6 +566,50 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		this._activeSession = session;
 		this._strategy = new EditStrategy(session);
+	}
+
+	private async _startInitialFolowups(editor: IActiveCodeEditor, token: CancellationToken) {
+		if (!this._activeSession || !this._activeSession.provider.provideFollowups) {
+			return;
+		}
+
+		const request: IInlineChatRequest = {
+			requestId: generateUuid(),
+			prompt: '',
+			attempt: 0,
+			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
+			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			live: true,
+			previewDocument: editor.getModel().uri,
+			withIntentDetection: true
+		};
+
+		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => { });
+		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, token);
+		const reply = await raceCancellationError(Promise.resolve(task), token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		if (!reply) {
+			return;
+		}
+
+		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
+		const response = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), [], request.requestId);
+		const followups = await this._activeSession.provider.provideFollowups(this._activeSession.session, response.raw, token);
+		if (followups && this._widget) {
+			const widget = this._widget;
+			widget.inlineChatWidget.updateFollowUps(followups, async followup => {
+				if (followup.kind === 'reply') {
+					widget.inlineChatWidget.value = followup.message;
+					this.acceptInput();
+				} else {
+					await this.acceptSession();
+					this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+				}
+			});
+		}
 	}
 
 	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
