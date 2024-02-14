@@ -13,7 +13,6 @@ import { Schemas } from 'vs/base/common/network';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -40,11 +39,12 @@ import { IInlineChatMessageAppender, InlineChatWidget } from 'vs/workbench/contr
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { INotebookEditor, INotebookEditorContribution, INotebookViewZone, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 
 
@@ -100,10 +100,21 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		this.inlineChatWidget.focus();
 	}
 
-	async getEditingCellEditor() {
+	getEditingCell() {
+		return this._editingCell;
+	}
+
+	async getOrCreateEditingCell(): Promise<{ cell: CellViewModel; editor: IActiveCodeEditor } | undefined> {
 		if (this._editingCell) {
 			await this._notebookEditor.focusNotebookCell(this._editingCell, 'editor');
-			return this._notebookEditor.activeCodeEditor;
+			if (this._notebookEditor.activeCodeEditor?.hasModel()) {
+				return {
+					cell: this._editingCell,
+					editor: this._notebookEditor.activeCodeEditor
+				};
+			} else {
+				return undefined;
+			}
 		}
 
 		if (!this._notebookEditor.hasModel()) {
@@ -117,7 +128,14 @@ class NotebookChatWidget extends Disposable implements INotebookViewZone {
 		}
 
 		await this._notebookEditor.focusNotebookCell(this._editingCell, 'editor', { revealBehavior: ScrollToRevealBehavior.firstLine });
-		return this._notebookEditor.activeCodeEditor;
+		if (this._notebookEditor.activeCodeEditor?.hasModel()) {
+			return {
+				cell: this._editingCell,
+				editor: this._notebookEditor.activeCodeEditor
+			};
+		}
+
+		return undefined;
 	}
 
 	async discardChange() {
@@ -160,6 +178,8 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private _activeSession?: Session;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
+	private readonly _ctxUserDidEdit: IContextKey<boolean>;
+	private readonly _userEditingDisposables = this._register(new DisposableStore());
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private _widget: NotebookChatWidget | undefined;
 	private _widgetDisposableStore = this._register(new DisposableStore());
@@ -174,12 +194,14 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		@IInlineChatSavingService private readonly _inlineChatSavingService: IInlineChatSavingService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@INotebookExecutionStateService private _executionStateService: INotebookExecutionStateService,
 
 	) {
 		super();
 		this._ctxHasActiveRequest = CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.bindTo(this._contextKeyService);
 		this._ctxCellWidgetFocused = CTX_NOTEBOOK_CELL_CHAT_FOCUSED.bindTo(this._contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(this._contextKeyService);
+		this._ctxUserDidEdit = CTX_NOTEBOOK_CHAT_USER_DID_EDIT.bindTo(this._contextKeyService);
 	}
 
 	run(index: number, input: string | undefined, autoSend: boolean | undefined): void {
@@ -206,6 +228,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	}
 
 	private _createWidget(index: number, input: string | undefined, autoSend: boolean | undefined) {
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
 		// Clear the widget if it's already there
 		this._widgetDisposableStore.clear();
 
@@ -230,8 +256,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			{ isSimpleWidget: true }
 		));
 
-		const inputBoxPath = `/notebook-chat-input-${NotebookChatController.counter++}`;
-		const inputUri = URI.from({ scheme: Schemas.untitled, path: inputBoxPath });
+		const inputBoxFragment = `notebook-chat-input-${NotebookChatController.counter++}`;
+		const notebookUri = this._notebookEditor.textModel.uri;
+		const inputUri = notebookUri.with({ scheme: Schemas.untitled, fragment: inputBoxFragment });
 		const result: ITextModel = this._modelService.createModel('', null, inputUri, false);
 		fakeParentEditor.setModel(result);
 
@@ -270,8 +297,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				this._languageService
 			);
 
+			this._ctxCellWidgetFocused.set(true);
+
 			disposableTimeout(() => {
-				this._ctxCellWidgetFocused.set(true);
 				this._focusWidget();
 			}, 0, this._store);
 
@@ -330,6 +358,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		this._notebookEditor.focusContainer(true);
+		this._notebookEditor.setFocus({ start: this._widget.afterModelPosition, end: this._widget.afterModelPosition });
 		this._notebookEditor.setSelections([{
 			start: this._widget.afterModelPosition,
 			end: this._widget.afterModelPosition
@@ -476,6 +505,22 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 						});
 					}
 				}
+
+				this._userEditingDisposables.clear();
+				// monitor user edits
+				const editingCell = this._widget.getEditingCell();
+				if (editingCell) {
+					this._userEditingDisposables.add(editingCell.model.onDidChangeContent(() => this._updateUserEditingState()));
+					this._userEditingDisposables.add(editingCell.model.onDidChangeLanguage(() => this._updateUserEditingState()));
+					this._userEditingDisposables.add(editingCell.model.onDidChangeMetadata(() => this._updateUserEditingState()));
+					this._userEditingDisposables.add(editingCell.model.onDidChangeInternalMetadata(() => this._updateUserEditingState()));
+					this._userEditingDisposables.add(editingCell.model.onDidChangeOutputs(() => this._updateUserEditingState()));
+					this._userEditingDisposables.add(this._executionStateService.onDidChangeExecution(e => {
+						if (e.type === NotebookExecutionType.cell && e.affectsCell(editingCell.uri)) {
+							this._updateUserEditingState();
+						}
+					}));
+				}
 			}
 		} catch (e) {
 			response = new ErrorResponse(e);
@@ -519,11 +564,13 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		assertType(this._strategy);
 		assertType(this._widget);
 
-		const editor = await this._widget.getEditingCellEditor();
+		const editingCell = await this._widget.getOrCreateEditingCell();
 
-		if (!editor || !editor.hasModel()) {
+		if (!editingCell) {
 			return;
 		}
+
+		const editor = editingCell.editor;
 
 		const moreMinimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(editor.getModel().uri, edits);
 		// this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, edits, moreMinimalEdits);
@@ -549,6 +596,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		} finally {
 			// this._ignoreModelContentChanged = false;
 		}
+	}
+
+	private _updateUserEditingState() {
+		this._ctxUserDidEdit.set(true);
 	}
 
 	async acceptSession() {
@@ -615,6 +666,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	discard() {
 		this._strategy?.cancel();
 		this._widget?.discardChange();
+		this.dismiss();
 	}
 
 	async feedbackLast(kind: InlineChatResponseFeedbackKind) {
@@ -627,6 +679,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 	dismiss() {
 		this._ctxCellWidgetFocused.set(false);
+		this._ctxUserDidEdit.set(false);
 		this._sessionCtor?.cancel();
 		this._sessionCtor = undefined;
 		this._widget?.dispose();

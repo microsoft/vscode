@@ -3100,6 +3100,23 @@ export class InlineValueContext implements vscode.InlineValueContext {
 	}
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export class NewSymbolName implements vscode.NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;
+
+	constructor(
+		newSymbolName: string,
+		tags?: readonly NewSymbolNameTag[]
+	) {
+		this.newSymbolName = newSymbolName;
+		this.tags = tags;
+	}
+}
+
 //#region file api
 
 export enum FileChangeType {
@@ -4258,20 +4275,54 @@ export class ChatResponseReferencePart {
 
 
 export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
+	agentId: string;
 	constructor(
 		readonly prompt: string,
-		readonly agentId: string,
 		readonly command: string | undefined,
 		readonly variables: vscode.ChatAgentResolvedVariable[],
-	) { }
+		readonly agent: { extensionId: string; agentId: string },
+	) {
+		this.agentId = agent.agentId;
+	}
 }
 
 export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
+
+	agentId: string;
+
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
 		readonly result: vscode.ChatAgentResult2,
-		readonly agentId: string,
-	) { }
+		readonly agent: { extensionId: string; agentId: string }
+	) {
+		this.agentId = agent.agentId;
+	}
+}
+
+export class LanguageModelSystemMessage {
+	content: string;
+
+	constructor(content: string) {
+		this.content = content;
+	}
+}
+
+export class LanguageModelUserMessage {
+	content: string;
+	name: string | undefined;
+
+	constructor(content: string, name?: string) {
+		this.content = content;
+		this.name = name;
+	}
+}
+
+export class LanguageModelAssistantMessage {
+	content: string;
+
+	constructor(content: string) {
+		this.content = content;
+	}
 }
 
 //#endregion

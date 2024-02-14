@@ -31,19 +31,22 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables2}.
+		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables}.
 		 *
 		 * *Note* that the {@link ChatAgent2.name name} of the agent and the {@link ChatAgentCommand.name command}
 		 * are not part of the prompt.
 		 */
 		readonly prompt: string;
 
+		// TODO@API NAME agent
+		// TODO@API TYPE {agent:string, extension:string}
+		/** @deprecated */
+		readonly agentId: string;
+
 		/**
 		 * The ID of the chat agent to which this request was directed.
 		 */
-		// TODO@API NAME agent
-		// TODO@API TYPE {agent:string, extension:string}
-		readonly agentId: string;
+		readonly agent: { extensionId: string; agentId: string };
 
 		/**
 		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
@@ -51,12 +54,11 @@ declare module 'vscode' {
 		readonly command: string | undefined;
 
 		/**
-		 *
+		 * The variables that were referenced in this message.
 		 */
-		// TODO@API is this needed?
 		readonly variables: ChatAgentResolvedVariable[];
 
-		private constructor(prompt: string, agentId: string, command: string | undefined, variables: ChatAgentResolvedVariable[],);
+		private constructor(prompt: string, command: string | undefined, variables: ChatAgentResolvedVariable[], agent: { extensionId: string; agentId: string });
 	}
 
 	// TODO@API name: Turn?
@@ -72,24 +74,19 @@ declare module 'vscode' {
 		 */
 		readonly result: ChatAgentResult2;
 
+		/** @deprecated */
 		readonly agentId: string;
 
-		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: string);
+		readonly agent: { extensionId: string; agentId: string };
+
+		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: { extensionId: string; agentId: string });
 	}
 
 	export interface ChatAgentContext {
 		/**
-		 * @deprecated
-		 */
-		history: ChatAgentHistoryEntry[];
-
-		// location:
-
-		/**
 		 * All of the chat messages so far in the current chat session.
 		 */
-		// TODO@API name: histroy
-		readonly history2: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
+		readonly history: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
 	}
 
 	/**
@@ -209,15 +206,18 @@ declare module 'vscode' {
 	export interface ChatAgentFollowup {
 		/**
 		 * The message to send to the chat.
-		 * TODO@API is it ok for variables to resolved from the text of this prompt, using the `#` syntax?
 		 */
 		prompt: string;
 
 		/**
-		 * By default, the followup goes to the same agent/command. But these properties can be set to override that.
+		 * By default, the followup goes to the same agent/command. But this property can be set to invoke a different agent.
+		 * TODO@API do extensions need to specify the extensionID of the agent here as well?
 		 */
 		agentId?: string;
 
+		/**
+		 * By default, the followup goes to the same agent/command. But this property can be set to invoke a different command.
+		 */
 		command?: string;
 
 		/**
@@ -323,40 +323,24 @@ declare module 'vscode' {
 	export interface ChatAgentRequest {
 
 		/**
-		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentCommand.name command}
-		 * are not part of the prompt.
-		 *
-		 * @see {@link ChatAgentRequest.command}
-		 */
-		prompt: string;
-
-		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables2}.
+		 * Information about variables used in this request are is stored in {@link ChatAgentRequest.variables}.
 		 *
 		 * *Note* that the {@link ChatAgent2.name name} of the agent and the {@link ChatAgentCommand.name command}
 		 * are not part of the prompt.
 		 */
-		prompt2: string;
-
-		/**
-		 * The ID of the chat agent to which this request was directed.
-		 */
-		agentId: string;
+		prompt: string;
 
 		/**
 		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
 		 */
 		command?: string;
 
-		/** @deprecated */
-		variables: Record<string, ChatVariableValue[]>;
-
 		/**
-		 *
+		 * The list of variables that are referenced in the prompt.
 		 */
-		variables2: ChatAgentResolvedVariable[];
+		variables: ChatAgentResolvedVariable[];
 	}
 
 	export interface ChatAgentResponseStream {

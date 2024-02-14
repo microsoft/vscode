@@ -9,6 +9,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 export const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
+export const CTX_NOTEBOOK_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('notebookChatUserDidEdit', false, localize('notebookChatUserDidEdit', "Whether the user did changes ontop of the notebook cell chat"));
 export const MENU_CELL_CHAT_INPUT = MenuId.for('cellChatInput');
 export const MENU_CELL_CHAT_WIDGET = MenuId.for('cellChatWidget');
 export const MENU_CELL_CHAT_WIDGET_STATUS = MenuId.for('cellChatWidget.status');

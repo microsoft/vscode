@@ -104,6 +104,7 @@ import { IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar, WorkbenchToolBar } 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp } from 'vs/base/common/numbers';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -2753,6 +2754,7 @@ export class SCMViewPane extends ViewPane {
 		options: IViewPaneOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
@@ -3117,9 +3119,22 @@ export class SCMViewPane extends ViewPane {
 			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 
-			if (repository.provider.historyProvider) {
-				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.updateChildren(repository)));
-			}
+			const onDidChangeHistoryProvider = () => {
+				if (!repository.provider.historyProvider) {
+					this.logService.debug('SCMViewPane:onDidChangeVisibleRepositories - no history provider present');
+					return;
+				}
+
+				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
+					this.updateChildren(repository);
+					this.logService.debug('SCMViewPane:onDidChangeCurrentHistoryItemGroup - update children');
+				}));
+
+				this.logService.debug('SCMViewPane:onDidChangeVisibleRepositories - onDidChangeCurrentHistoryItemGroup listener added');
+			};
+
+			repositoryDisposables.add(repository.provider.onDidChangeHistoryProvider(onDidChangeHistoryProvider));
+			onDidChangeHistoryProvider();
 
 			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
 
@@ -3411,6 +3426,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	constructor(
 		private readonly viewMode: () => ViewMode,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
@@ -3559,7 +3575,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let incomingHistoryItemGroup = historyProviderCacheEntry?.incomingHistoryItemGroup;
 		let outgoingHistoryItemGroup = historyProviderCacheEntry?.outgoingHistoryItemGroup;
 
-		if (!incomingHistoryItemGroup || !outgoingHistoryItemGroup) {
+		if (!incomingHistoryItemGroup && !outgoingHistoryItemGroup) {
 			// Common ancestor, ahead, behind
 			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
 			if (!ancestor) {
@@ -3767,9 +3783,22 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		for (const repository of added) {
 			const repositoryDisposables = new DisposableStore();
 
-			if (repository.provider.historyProvider) {
-				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.historyProviderCache.delete(repository)));
-			}
+			const onDidChangeHistoryProvider = () => {
+				if (!repository.provider.historyProvider) {
+					this.logService.debug('SCMTreeDataSource:onDidChangeVisibleRepositories - no history provider present');
+					return;
+				}
+
+				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
+					this.historyProviderCache.delete(repository);
+					this.logService.debug('SCMTreeDataSource:onDidChangeCurrentHistoryItemGroup - cache cleared');
+				}));
+
+				this.logService.debug('SCMTreeDataSource:onDidChangeVisibleRepositories - onDidChangeCurrentHistoryItemGroup listener added');
+			};
+
+			repositoryDisposables.add(repository.provider.onDidChangeHistoryProvider(onDidChangeHistoryProvider));
+			onDidChangeHistoryProvider();
 
 			this.repositoryDisposables.set(repository, repositoryDisposables);
 		}

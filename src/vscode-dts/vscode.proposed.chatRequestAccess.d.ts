@@ -14,8 +14,30 @@ declare module 'vscode' {
 		// TODO@API define this type!
 		result: Thenable<unknown>;
 
+		// TODO@API doc what to expect here
 		stream: AsyncIterable<string>;
 	}
+
+	//TODO@API see https://learn.microsoft.com/en-us/dotnet/api/azure.ai.openai.chatrequestmessage?view=azure-dotnet-preview
+	// this allows to grow message by type, e.g add more content types to User message to support multimodal language models
+
+	export class LanguageModelSystemMessage {
+		content: string;
+		constructor(content: string);
+	}
+
+	export class LanguageModelUserMessage {
+		content: string;
+		name: string | undefined;
+		constructor(content: string, name?: string);
+	}
+
+	export class LanguageModelAssistantMessage {
+		content: string;
+		constructor(content: string);
+	}
+
+	export type LanguageModelMessage = LanguageModelSystemMessage | LanguageModelUserMessage | LanguageModelAssistantMessage;
 
 	/**
 	 * Represents access to using a language model. Access can be revoked at any time and extension
@@ -31,6 +53,7 @@ declare module 'vscode' {
 		/**
 		 * An event that is fired when the access the language model has has been revoked or re-granted.
 		 */
+		// TODO@API NAME?
 		readonly onDidChangeAccess: Event<void>;
 
 		/**
@@ -49,7 +72,7 @@ declare module 'vscode' {
 		 * @param messages
 		 * @param options
 		 */
-		makeChatRequest(messages: ChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
+		makeChatRequest(messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
 	}
 
 	export interface LanguageModelAccessOptions {
@@ -73,7 +96,7 @@ declare module 'vscode' {
 		readonly removed: readonly string[];
 	}
 
-	//@API DEFINE the namespace for this: env, lm, ai?
+	//@API DEFINE the namespace for this: lm (languageModels), copilot, ai, env,?
 	export namespace chat {
 
 		/**

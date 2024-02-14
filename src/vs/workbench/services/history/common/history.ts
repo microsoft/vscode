@@ -60,6 +60,7 @@ export const enum GoScope {
 export interface IHistoryService {
 
 	readonly _serviceBrand: undefined;
+	shouldIgnoreActiveEditorChange: boolean;
 
 	/**
 	 * Navigate forwards in editor navigation history.

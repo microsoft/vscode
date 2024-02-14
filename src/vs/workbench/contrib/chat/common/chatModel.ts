@@ -20,16 +20,6 @@ import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, 
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableData {
-	/**
-	 * The user's message with variable references for extension API.
-	 */
-	message: string;
-
-	variables: Record<string, IChatRequestVariableValue[]>;
-}
-
-export interface IChatRequestVariableData2 {
-	message: string;
 	variables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[];
 }
 
@@ -574,8 +564,10 @@ export class ChatModel extends Disposable implements IChatModel {
 						? this.getParsedRequestFromString(raw.message)
 						: reviveParsedChatRequest(raw.message);
 
-				// Only old messages don't have variableData
-				const variableData: IChatRequestVariableData = raw.variableData ?? { message: parsedRequest.text, variables: {} };
+				// Old messages don't have variableData, or have it in the wrong (non-array) shape
+				const variableData: IChatRequestVariableData = raw.variableData && Array.isArray(raw.variableData.variables)
+					? raw.variableData :
+					{ variables: [] };
 				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
@@ -788,7 +780,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent ? { id: r.response.agent.id, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
+					agent: r.response?.agent ? { id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences

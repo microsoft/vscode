@@ -149,6 +149,7 @@ export class TestStorageService extends InMemoryStorageService {
 export class TestHistoryService implements IHistoryService {
 
 	declare readonly _serviceBrand: undefined;
+	declare shouldIgnoreActiveEditorChange: boolean;
 
 	constructor(private root?: URI) { }
 
