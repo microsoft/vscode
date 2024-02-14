@@ -18,6 +18,7 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
@@ -44,8 +45,8 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
-	public reveal(resource: IMultiDiffResource, lineNumber: number): void {
-		this._widgetImpl.get().reveal(resource, lineNumber);
+	public reveal(resource: IMultiDiffResource, range: Range): void {
+		this._widgetImpl.get().reveal(resource, range);
 	}
 
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {

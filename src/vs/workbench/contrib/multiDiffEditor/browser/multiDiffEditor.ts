@@ -27,6 +27,7 @@ import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEdit
 import { IMultiDiffEditorViewState, IMultiDiffResource, isIMultiDiffResource } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -72,8 +73,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		}));
 	}
 
-	public reveal(resource: IMultiDiffResource, lineNumber: number): void {
-		this._multiDiffEditorWidget?.reveal(resource, lineNumber);
+	public reveal(resource: IMultiDiffResource, range: Range): void {
+		this._multiDiffEditorWidget?.reveal(resource, range);
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

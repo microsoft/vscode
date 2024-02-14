@@ -26,6 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -188,7 +189,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
-	public reveal(resource: IMultiDiffResource, lineNumber: number): void {
+	// todo@aiday-mar need to reveal the range instead of just the start line number
+	public reveal(resource: IMultiDiffResource, range: Range): void {
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
 		if ('original' in resource) {
@@ -197,40 +199,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
 		}
 		const index = viewItems.findIndex(searchCallback);
-		/*
-		// How to find the size of the current editor window?
-		const scrollTopViewport = this._scrollableElement.getScrollPosition().scrollTop;
-		const scrollBottomViewport = scrollTopViewport + this._sizeObserver.height.get();
-
-		const scrollTopWithinViewport = (scrollTop: number) => {
-			return scrollTop >= scrollTopViewport && scrollTop <= scrollBottomViewport;
-		}
-
-		console.log('scrollTopViewport', scrollTopViewport);
-		console.log('scrollBottomViewport', scrollBottomViewport);
-
-		let scrollTopOfResource = 0;
-		for (let i = 0; i < index; i++) {
-			scrollTopOfResource += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
-		}
-		const lineHeight = this._configurationService.getValue<number>('editor.lineHeight');
-		const scrollTopOfRange = scrollTopOfResource + (range.startLineNumber - 1) * lineHeight;
-		const scrollBottomOfRange = scrollTopOfResource + (range.endLineNumber) * lineHeight;
-
-		console.log('scrollTopOfRange', scrollTopOfRange);
-		console.log('scrollBottomOfRange', scrollBottomOfRange);
-
-		if (scrollTopWithinViewport(scrollTopOfRange) && scrollTopWithinViewport(scrollBottomOfRange)) {
-			// Early return because the range is already visible
-			return;
-		}
-		// The range is not visible, hence jump to the top of the top of the range
-		this._scrollableElement.setScrollPosition({ scrollTop: scrollTopOfRange });
-		*/
-
-		// todo@aiday-mar: need to find the actual scroll top given the line number specific to the original or modified uri
-		// following does not neccessarily correspond to the appropriate scroll top within the editor
-		let scrollTop = (lineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
+		let scrollTop = (range.startLineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}
