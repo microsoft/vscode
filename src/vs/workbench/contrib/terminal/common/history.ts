@@ -109,7 +109,7 @@ export function clearShellFileHistory() {
 	shellFileHistory.clear();
 }
 
-export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> { // ARE THESE STORED PER SHELL TYPE?
+export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
 	private readonly _entries: LRUCache<string, T>;
 	private _timestamp: number = 0;
 	private _isReady = false;
