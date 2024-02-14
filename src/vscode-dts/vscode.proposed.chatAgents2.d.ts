@@ -22,7 +22,7 @@ declare module 'vscode' {
 		 * The ID of the chat agent to which this request was directed.
 		 */
 		// TODO@API NAME: agentId shouldbe agentName or just agent (because it is ChatAgent#name)
-		readonly agent: { readonly extensionId: string; readonly agentId: string };
+		readonly agent: { readonly extensionId: string; readonly agent: string; readonly agentId: string };
 
 		/**
 		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
@@ -51,7 +51,7 @@ declare module 'vscode' {
 		readonly result: ChatAgentResult2;
 
 		// TODO@API NAME: agentId shouldbe agentName or just agent (because it is ChatAgent#name)
-		readonly agent: { readonly extensionId: string; readonly agentId: string };
+		readonly agent: { readonly extensionId: string; readonly agent: string; readonly agentId: string };
 
 		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: { extensionId: string; agentId: string });
 	}
