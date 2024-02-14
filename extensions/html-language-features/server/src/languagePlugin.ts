@@ -1,4 +1,5 @@
-import type { LanguagePlugin, VirtualCode } from '@volar/language-server';
+import type { ExtraServiceScript, LanguagePlugin, VirtualCode } from '@volar/language-server';
+import { forEachEmbeddedCode } from '@volar/language-core';
 import type * as ts from 'typescript';
 import { getLanguageService } from 'vscode-html-languageservice';
 import { getDocumentRegions } from './modes/embeddedSupport';
@@ -14,6 +15,26 @@ export const htmlLanguagePlugin: LanguagePlugin = {
 	},
 	updateVirtualCode(_fileId, _virtualCode, newSnapshot) {
 		return createHtmlVirtualCode(newSnapshot);
+	},
+	typescript: {
+		extraFileExtensions: [],
+		getScript() {
+			return undefined;
+		},
+		getExtraScripts(fileName, rootCode) {
+			const extraScripts: ExtraServiceScript[] = [];
+			for (const code of forEachEmbeddedCode(rootCode)) {
+				if (code.id.startsWith('javascript_')) {
+					extraScripts.push({
+						fileName: fileName + '.' + code.id.split('_')[1] + '.js',
+						code,
+						extension: '.js',
+						scriptKind: 1,
+					});
+				}
+			}
+			return extraScripts
+		},
 	},
 }
 
