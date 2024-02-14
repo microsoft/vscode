@@ -26,6 +26,7 @@ import { GitEditor } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
+import { GitBranchWorkingSetManager } from './workingSet';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -113,6 +114,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitTimelineProvider(model, cc),
+		new GitBranchWorkingSetManager(model),
 		new GitEditSessionIdentityProvider(model)
 	);
 
