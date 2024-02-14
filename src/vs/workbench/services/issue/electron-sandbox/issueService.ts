@@ -95,12 +95,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 
 			// render menu and dispose
 			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-			actions.forEach(action => {
+			actions.forEach(async action => {
 				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
 					this.foundExtension = true;
-					action.run();
-				} else {
-					ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
+					await action.run();
 				}
 			});
 			menu.dispose();
@@ -179,6 +177,8 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}, dataOverrides);
 
 		if (this.foundExtension) {
+			console.log('found in open reporter');
+			console.log(issueReporterData);
 			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
 		}
 		return this.issueMainService.openReporter(issueReporterData);
