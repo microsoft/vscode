@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
@@ -44,10 +44,12 @@ import { EmptyResponse, ErrorResponse, ExpansionState, ReplyResponse, Session, S
 import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, IEditObserver, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, IInlineChatService, IInlineChatSessionProvider, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StashedSession } from './inlineChatSession';
 import { IValidEditOperation } from 'vs/editor/common/model';
+import { isInlineSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -135,12 +137,14 @@ export class InlineChatController implements IEditorContribution {
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 
-	private _sessionEnabled: true | { reason: string } | undefined;
+	private _enabledProvider: IInlineChatSessionProvider | { reason: string } | undefined;
+	private _providerEnablementEvents: DisposableMap<IInlineChatSessionProvider> = this._store.add(new DisposableMap());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
+		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInlineChatSavingService private readonly _inlineChatSavingService: IInlineChatSavingService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
@@ -162,17 +166,14 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
 
-		this._store.add(this._inlineChatSessionService.onDidChangeSessionEnablementStatus(() => {
-			// Todo check enablement status
-		}));
+		this._installProviderEnablementListeners();
+		this._refreshAllProviderEnablements(this._editor);
+
 		this._store.add(this._editor.onDidChangeModel(async e => {
 			if (this._session || !e.newModelUrl) {
 				return;
 			}
-			this._sessionEnabled = undefined;
-			this._inlineChatSessionService.provideEnablementStatus(e.newModelUrl, CancellationToken.None).then(status => {
-				this._sessionEnabled = status;
-			});
+			this._refreshAllProviderEnablements(this._editor);
 
 			const existingSession = this._inlineChatSessionService.getSession(this._editor, e.newModelUrl);
 			if (!existingSession) {
@@ -241,6 +242,64 @@ export class InlineChatController implements IEditorContribution {
 
 	getId(): string {
 		return INLINE_CHAT_ID;
+	}
+
+	private _installProviderEnablementListeners() {
+		this._store.add(this._inlineChatService.onDidChangeProviders((e) => {
+			if (e.added) {
+				this._providerEnablementEvents.set(e.added, e.added.onDidChangeEnablementStatus(async () => {
+					if (this._enabledProvider === e.added) {
+						if (this._session?.provider === e.added) {
+							await this.cancelSession();
+						}
+						this._enabledProvider = undefined;
+					}
+					// TODO @lramos15 why can e.added be undefined
+					this._getProviderEnablementStatus(this._editor, e.added!).then(status => {
+						if (status === true) {
+							this._enabledProvider = e.added;
+						} else {
+							if (!isInlineSessionProvider(this._enabledProvider)) {
+								this._enabledProvider = status;
+							}
+						}
+					});
+
+				}));
+			}
+			if (e.removed) {
+				if (this._enabledProvider === e.removed) {
+					this._enabledProvider = undefined;
+				}
+				this._providerEnablementEvents.deleteAndDispose(e.removed);
+			}
+		}));
+
+	}
+
+	private async _refreshAllProviderEnablements(editor: ICodeEditor) {
+		this._enabledProvider = undefined;
+		for (const provider of this._inlineChatService.getAllProvider()) {
+			const status = await this._getProviderEnablementStatus(editor, provider);
+			if (status === true) {
+				this._enabledProvider = provider;
+				break;
+			}
+			this._enabledProvider = status;
+		}
+	}
+
+	private async _getProviderEnablementStatus(editor: ICodeEditor, provider: IInlineChatSessionProvider) {
+
+		const currentFileURI = this._editor.getModel()?.uri;
+		if (!currentFileURI) {
+			return { reason: 'No file open' };
+		}
+		const enablementStatus = await provider.provideEnablementStatus(currentFileURI, CancellationToken.None);
+		if (enablementStatus === null || enablementStatus === undefined || enablementStatus === true) {
+			return true;
+		}
+		return enablementStatus;
 	}
 
 	private _getMode(): EditMode {
@@ -329,7 +388,18 @@ export class InlineChatController implements IEditorContribution {
 				}
 			});
 
+			if (!this._enabledProvider) {
+				this._dialogService.info(localize('create.failSlowExtHost', "Failed to start editor chat due to slow extension host"), localize('create.fail.detail', "Please consult the error log and try again later."));
+				return State.CANCEL;
+			}
+
+			if (!(isInlineSessionProvider(this._enabledProvider))) {
+				MessageController.get(this._editor)?.showMessage(this._enabledProvider.reason, this._editor.getPosition());
+				return State.CANCEL;
+			}
+
 			session = await this._inlineChatSessionService.createSession(
+				this._enabledProvider,
 				this._editor,
 				{ editMode: this._getMode(), wholeRange: options.initialRange },
 				createSessionCts.token

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { EditMode, IInlineChatSession, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSession, IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -14,7 +14,6 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
 import { raceCancellation } from 'vs/base/common/async';
 import { Recording, IInlineChatSessionService, ISessionKeyComputer, IInlineChatSessionEvent, IInlineChatSessionEndEvent } from './inlineChatSessionService';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
@@ -49,8 +48,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private readonly _onDidStashSession = new Emitter<IInlineChatSessionEvent>();
 	readonly onDidStashSession: Event<IInlineChatSessionEvent> = this._onDidStashSession.event;
 
-	readonly onDidChangeSessionEnablementStatus: Event<void>;
-
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 	private _recordings: Recording[] = [];
@@ -64,9 +61,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-	) {
-		this.onDidChangeSessionEnablementStatus = this._inlineChatService.onDidChangeProvidersEnablementStatus;
-	}
+	) { }
 
 	dispose() {
 		this._onWillStartSession.dispose();
@@ -75,14 +70,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
-
-		const provider = Iterable.first(this._inlineChatService.getAllProvider());
-		if (!provider) {
-			this._logService.trace('[IE] NO provider found');
-			return undefined;
-		}
-
+	async createSession(provider: IInlineChatSessionProvider, editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 		this._onWillStartSession.fire(editor);
 
 		const textModel = editor.getModel();
@@ -175,24 +163,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}
 		this._sessions.set(key, { session, editor, store });
 		return session;
-	}
-
-	async provideEnablementStatus(resource: URI, token: CancellationToken): Promise<true | { reason: string }> {
-		const provider = Iterable.first(this._inlineChatService.getAllProvider());
-		if (!provider) {
-			this._logService.trace('[IE] NO provider found');
-			return { reason: 'no provider' };
-		}
-
-		const enablementResult = await raceCancellation(
-			Promise.resolve(provider.provideEnablementStatus(resource, token)),
-			token
-		);
-
-		if (enablementResult === undefined || enablementResult === null || enablementResult === true) {
-			return true;
-		}
-		return enablementResult;
 	}
 
 	moveSession(session: Session, target: ICodeEditor): void {

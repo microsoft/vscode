@@ -45,3 +45,7 @@ export class InlineChatServiceImpl implements IInlineChatService {
 		return [...this._entries].reverse();
 	}
 }
+
+export function isInlineSessionProvider(obj: unknown): obj is IInlineChatSessionProvider {
+	return (obj as IInlineChatSessionProvider)?.prepareInlineChatSession !== undefined;
+}

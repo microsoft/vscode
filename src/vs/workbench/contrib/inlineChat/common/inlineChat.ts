@@ -143,7 +143,6 @@ export interface InlineChatProviderChangeEvent {
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
-	onDidChangeProvidersEnablementStatus: Event<void>;
 	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;

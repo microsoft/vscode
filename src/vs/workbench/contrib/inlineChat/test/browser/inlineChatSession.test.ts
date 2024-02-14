@@ -186,7 +186,8 @@ suite('InlineChatSession', function () {
 
 	test('Create, release', async function () {
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 		inlineChatSessionService.releaseSession(session);
 	});
@@ -195,7 +196,8 @@ suite('InlineChatSession', function () {
 
 		const decorationCountThen = model.getAllDecorations().length;
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 		assert.ok(session.textModelN === model);
 
@@ -221,7 +223,8 @@ suite('InlineChatSession', function () {
 
 	test('HunkData, accept', async function () {
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
@@ -242,7 +245,8 @@ suite('InlineChatSession', function () {
 
 	test('HunkData, reject', async function () {
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
@@ -265,7 +269,8 @@ suite('InlineChatSession', function () {
 
 		model.setValue('one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\ntwelwe\nthirteen\nfourteen\nfifteen\nsixteen\nseventeen\neighteen\nnineteen\n');
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		assert.ok(session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
@@ -314,7 +319,8 @@ suite('InlineChatSession', function () {
 
 		const lines = ['one', 'two', 'three'];
 		model.setValue(lines.join('\n'));
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI WAS HERE\n')]);
@@ -331,7 +337,8 @@ suite('InlineChatSession', function () {
 		const lines = ['one', 'two', 'three', 'four', 'five'];
 		model.setValue(lines.join('\n'));
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI_EDIT\n')]);
@@ -356,7 +363,8 @@ suite('InlineChatSession', function () {
 
 		const lines = ['one', 'two', 'three'];
 		model.setValue(lines.join('\n'));
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI WAS HERE\n')]);
@@ -372,7 +380,8 @@ suite('InlineChatSession', function () {
 
 		const lines = ['one', 'two', 'three'];
 		model.setValue(lines.join('\n'));
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI WAS HERE\n')]);
@@ -395,7 +404,8 @@ suite('InlineChatSession', function () {
 		const lines = ['one', 'two', 'three', 'four', 'five'];
 		model.setValue(lines.join('\n'));
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI_EDIT\n')]);
@@ -422,7 +432,8 @@ suite('InlineChatSession', function () {
 		const lines = ['one', 'two', 'three', 'four', 'five'];
 		model.setValue(lines.join('\n'));
 
-		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assert.ok(inlineChatService.getAllProvider().length > 0);
+		const session = await inlineChatSessionService.createSession(inlineChatService.getAllProvider()[0], editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
 		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI_EDIT\n')]);

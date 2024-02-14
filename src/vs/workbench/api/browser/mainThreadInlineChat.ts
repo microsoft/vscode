@@ -58,7 +58,6 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 				return {
 					...session,
 					dispose: () => {
-						onDidChangeEnablement.dispose();
 						this._proxy.$releaseSession(handle, session.id);
 					}
 				};
@@ -92,7 +91,7 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	async $unregisterInteractiveEditorProvider(handle: number): Promise<void> {
 		this._registrations.deleteAndDispose(handle);
-		// Already disposed above, so all set
+		this._changeEvents.get(handle)?.dispose();
 		this._changeEvents.delete(handle);
 	}
 }
