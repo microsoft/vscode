@@ -126,7 +126,7 @@ export class VariablesView extends ViewPane {
 				new ScopesRenderer(),
 				new ScopeErrorRenderer(),
 			],
-			new VariablesDataSource(this.debugService), {
+			this.instantiationService.createInstance(VariablesDataSource), {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
@@ -171,7 +171,7 @@ export class VariablesView extends ViewPane {
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			const variable = e?.expression;
-			if (variable instanceof Variable && !e?.settingWatch) {
+			if (variable && this.tree.hasNode(variable)) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
@@ -210,10 +210,22 @@ export class VariablesView extends ViewPane {
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
-		const session = this.debugService.getViewModel().focusedSession;
-		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly') && !e.element.presentationHint?.lazy) {
+		if (this.canSetExpressionValue(e.element)) {
 			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
+	}
+
+	private canSetExpressionValue(e: IExpression | IScope | null): e is IExpression {
+		const session = this.debugService.getViewModel().focusedSession;
+		if (!session) {
+			return false;
+		}
+
+		if (e instanceof VisualizedExpression) {
+			return !!e.treeItem.canEdit;
+		}
+
+		return e instanceof Variable && !e.presentationHint?.attributes?.includes('readOnly') && !e.presentationHint?.lazy;
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
@@ -415,7 +427,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	 */
 	public static rendererOnVisualizationRange(model: IViewModel, tree: AsyncDataTree<any, any, any>): IDisposable {
 		return model.onDidChangeVisualization(({ original }) => {
-			if (!tree.hasElement(original)) {
+			if (!tree.hasNode(original)) {
 				return;
 			}
 
@@ -461,24 +473,21 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected override getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {
-		const variable = <Variable>expression;
+		const viz = <VisualizedExpression>expression;
 		return {
 			initialValue: expression.value,
 			ariaLabel: localize('variableValueAriaLabel', "Type new variable value"),
 			validationOptions: {
-				validation: () => variable.errorMessage ? ({ content: variable.errorMessage }) : null
+				validation: () => viz.errorMessage ? ({ content: viz.errorMessage }) : null
 			},
 			onFinish: (value: string, success: boolean) => {
-				variable.errorMessage = undefined;
-				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (success && variable.value !== value && focusedStackFrame) {
-					variable.setVariable(value, focusedStackFrame)
-						// Need to force watch expressions and variables to update since a variable change can have an effect on both
-						.then(() => {
-							// Do not refresh scopes due to a node limitation #15520
-							forgetScopes = false;
-							this.debugService.getViewModel().updateViews();
-						});
+				viz.errorMessage = undefined;
+				if (success) {
+					viz.edit(value).then(() => {
+						// Do not refresh scopes due to a node limitation #15520
+						forgetScopes = false;
+						this.debugService.getViewModel().updateViews();
+					});
 				}
 			}
 		};
@@ -494,7 +503,10 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
 
 		if (viz.original) {
-			primary.push(new Action('debugViz', localize('removeVisualizer', 'Remove Visualizer'), ThemeIcon.asClassName(Codicon.close), undefined, () => this.debugService.getViewModel().setVisualizedExpression(viz.original!, undefined)));
+			const action = new Action('debugViz', localize('removeVisualizer', 'Remove Visualizer'), ThemeIcon.asClassName(Codicon.eye), true, () => this.debugService.getViewModel().setVisualizedExpression(viz.original!, undefined));
+			action.checked = true;
+			primary.push(action);
+			actionBar.domNode.style.display = 'initial';
 		}
 		actionBar.clear();
 		actionBar.context = context;
@@ -601,7 +613,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 			if (resolved.type === DebugVisualizationType.Command) {
 				viz.execute();
 			} else {
-				const replacement = await this.visualization.setVisualizedNodeFor(resolved.id, expression);
+				const replacement = await this.visualization.getVisualizedNodeFor(resolved.id, expression);
 				if (replacement) {
 					this.debugService.getViewModel().setVisualizedExpression(expression, replacement);
 				}

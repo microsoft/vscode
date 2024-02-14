@@ -3100,6 +3100,23 @@ export class InlineValueContext implements vscode.InlineValueContext {
 	}
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export class NewSymbolName implements vscode.NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly vscode.NewSymbolNameTag[] | undefined;
+
+	constructor(
+		newSymbolName: string,
+		tags?: readonly NewSymbolNameTag[]
+	) {
+		this.newSymbolName = newSymbolName;
+		this.tags = tags;
+	}
+}
+
 //#region file api
 
 export enum FileChangeType {
@@ -4177,24 +4194,6 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Undone = 2,
 	Accepted = 3,
 	Bug = 4
-}
-
-export enum ChatMessageRole {
-	System = 0,
-	User = 1,
-	Assistant = 2,
-}
-
-export class ChatMessage implements vscode.ChatMessage {
-
-	role: ChatMessageRole;
-	content: string;
-	name?: string;
-
-	constructor(role: ChatMessageRole, content: string) {
-		this.role = role;
-		this.content = content;
-	}
 }
 
 export enum ChatAgentResultFeedbackKind {

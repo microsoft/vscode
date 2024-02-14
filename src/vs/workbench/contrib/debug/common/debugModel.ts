@@ -246,9 +246,7 @@ function handleSetResponse(expression: ExpressionContainer, response: DebugProto
 }
 
 export class VisualizedExpression implements IExpression {
-	public readonly name: string;
-	public readonly hasChildren: boolean;
-	public readonly value: string;
+	public errorMessage?: string;
 	private readonly id = generateUuid();
 
 	evaluateLazy(): Promise<void> {
@@ -262,15 +260,34 @@ export class VisualizedExpression implements IExpression {
 		return this.id;
 	}
 
+	get name() {
+		return this.treeItem.label;
+	}
+
+	get value() {
+		return this.treeItem.description || '';
+	}
+
+	get hasChildren() {
+		return this.treeItem.collapsibleState !== DebugTreeItemCollapsibleState.None;
+	}
+
 	constructor(
 		private readonly visualizer: IDebugVisualizerService,
-		private readonly treeId: string,
+		public readonly treeId: string,
 		public readonly treeItem: IDebugVisualizationTreeItem,
 		public readonly original?: Variable,
-	) {
-		this.name = treeItem.label;
-		this.hasChildren = treeItem.collapsibleState !== DebugTreeItemCollapsibleState.None;
-		this.value = treeItem.description || '';
+	) { }
+
+	/** Edits the value, sets the {@link errorMessage} and returns false if unsuccessful */
+	public async edit(newValue: string) {
+		try {
+			await this.visualizer.editTreeItem(this.treeId, this.treeItem, newValue);
+			return true;
+		} catch (e) {
+			this.errorMessage = e.message;
+			return false;
+		}
 	}
 }
 
