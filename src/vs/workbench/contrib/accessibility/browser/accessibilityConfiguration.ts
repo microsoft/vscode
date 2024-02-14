@@ -53,7 +53,6 @@ export const enum AccessibilityVerbositySettingId {
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	Comments = 'accessibility.verbosity.comments',
-	TerminalInlineChat = 'accessibility.verbosity.terminalInlineChat'
 }
 
 export const enum AccessibleViewProviderId {
@@ -168,10 +167,6 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
-			...baseVerbosityProperty
-		},
-		[AccessibilityVerbositySettingId.TerminalInlineChat]: {
-			description: localize('verbosity.terminalInlineChat', 'Provide information about actions that can be taken in the terminal inline chat widget.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {

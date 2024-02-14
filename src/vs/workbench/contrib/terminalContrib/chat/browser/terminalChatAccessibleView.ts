@@ -27,12 +27,11 @@ export class TerminalInlineChatAccessibleViewContribution extends Disposable {
 			const responseContent = controller.lastResponseContent;
 			accessibleViewService.show({
 				id: AccessibleViewProviderId.TerminalInlineChat,
-				verbositySettingKey: AccessibilityVerbositySettingId.TerminalInlineChat,
+				verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
 				provideContent(): string { return responseContent; },
 				onClose() {
 					controller.focus();
 				},
-
 				options: { type: AccessibleViewType.View }
 			});
 			return true;

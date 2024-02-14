@@ -6,7 +6,7 @@
 import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const enum TerminalChatCommandId {
-	Focus = 'workbench.action.terminal.chat.focus',
+	Start = 'workbench.action.terminal.chat.start',
 	Hide = 'workbench.action.terminal.chat.close',
 	MakeRequest = 'workbench.action.terminal.chat.makeRequest',
 	Cancel = 'workbench.action.terminal.chat.cancel',
