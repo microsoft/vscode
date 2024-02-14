@@ -91,7 +91,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 	renderTerminalCommand(codeBlock: string, requestId: number, shellType?: string): void {
 		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
-		this._responseElement.classList.remove('hide');
+		this.showTerminalCommandEditor();
 		if (!this._responseWidget) {
 			this._responseWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {
 				padding: { top: 2, bottom: 2 },
@@ -163,7 +163,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	renderMessage(message: string, accessibilityRequestId: number, requestId: string): void {
-		this._responseElement.classList.add('hide');
+		this.hideTerminalCommandEditor();
 		this._inlineChatWidget.updateChatMessage({ message: new MarkdownString(message), requestId, providerId: 'terminal' });
 		this._chatAccessibilityService.acceptResponse(message, accessibilityRequestId);
 	}
@@ -183,7 +183,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.focus();
 	}
 	hide(): void {
-		this._responseElement?.classList.add('hide');
+		this.hideTerminalCommandEditor();
 		this._widgetContainer.classList.add('hide');
 		this._inlineChatWidget.value = '';
 		this._responseWidget?.setValue('');
@@ -207,7 +207,7 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 		if (!value) {
-			this._responseElement?.classList.add('hide');
+			this.hideTerminalCommandEditor();
 		}
 	}
 	acceptCommand(): void {
@@ -223,5 +223,11 @@ export class TerminalChatWidget extends Disposable {
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
+	}
+	hideTerminalCommandEditor(): void {
+		this._responseElement.classList.add('hide');
+	}
+	showTerminalCommandEditor(): void {
+		this._responseElement.classList.remove('hide');
 	}
 }
