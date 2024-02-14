@@ -53,7 +53,7 @@ if [ "$OS_ID" != "alpine" ]; then
         libstdcpp_paths=$(/sbin/ldconfig -p | grep 'libstdc++.so.6')
 
         if [ "$(echo "$libstdcpp_paths" | wc -l)" -gt 1 ]; then
-            libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
+            libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}' | head -n1)
         else
             libstdcpp_path=$(echo "$libstdcpp_paths" | awk '{print $NF}')
         fi
