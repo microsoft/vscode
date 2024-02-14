@@ -224,7 +224,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			// Early return because the range is already visible
 			return;
 		}
-
 		// The range is not visible, hence jump to the top of the top of the range
 		this._scrollableElement.setScrollPosition({ scrollTop: scrollTopOfRange });
 		*/
@@ -332,6 +331,14 @@ interface IMultiDiffDocState {
 }
 
 export type IMultiDiffResource = { original: URI } | { modified: URI };
+
+export function isIMultiDiffResource(obj: any): obj is IMultiDiffResource {
+	if (('original' in obj && obj.original instanceof URI)
+		|| ('modified' in obj && obj.modified instanceof URI)) {
+		return true;
+	}
+	return false;
+}
 
 class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));

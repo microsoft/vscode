@@ -24,7 +24,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
-import { IMultiDiffEditorViewState, IMultiDiffResource } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, IMultiDiffResource, isIMultiDiffResource } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 
@@ -93,12 +93,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	private _reveal(options: IEditorOptions | undefined): void {
-		const optionsViewState = options?.viewState;
-		if (optionsViewState && 'revealData' in optionsViewState) {
-			const revealData = optionsViewState.revealData as { resource: IMultiDiffResource; lineNumber: number };
-			if (revealData && 'lineNumber' in revealData) {
-				this.reveal(revealData.resource, revealData.lineNumber);
-			}
+		const viewState = options?.viewState;
+		if (!viewState || !('revealData' in viewState)) {
+			return;
+		}
+		const revealData: any = viewState.revealData;
+		if ('lineNumber' in revealData && typeof revealData.lineNumber === 'number'
+			&& 'resource' in revealData && isIMultiDiffResource(revealData.resource)) {
+			this.reveal(revealData.resource, revealData.lineNumber);
 		}
 	}
 

@@ -323,39 +323,34 @@ export class BulkEditPane extends ViewPane {
 		if (!fileOperations) {
 			return;
 		}
-		const options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
-		console.log('options : ', options);
-		// todo@aiday-mar, we may not need the following options
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;
-			options.selection = e.element.edit.textEdit.textEdit.range;
-
 		} else if (e.element instanceof FileElement) {
 			fileElement = e.element;
-			options.selection = e.element.edit.textEdits[0]?.textEdit.textEdit.range;
-
 		} else {
 			// invalid event
 			return;
 		}
 
 		const resources = await this._resolveResources(fileOperations);
-		options.viewState = {
-			revealData: {
-				resource: { original: fileElement.edit.uri },
-				lineNumber: 1
+		const options: Mutable<ITextEditorOptions> = {
+			...e.editorOptions,
+			viewState: {
+				revealData: {
+					resource: { original: fileElement.edit.uri },
+					lineNumber: 1
+				}
 			}
 		};
-		console.log('options : ', options);
 		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
 		this._editorService.openEditor({
 			multiDiffSource,
 			resources,
 			label,
-			description: label,
 			options,
+			description: label
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 

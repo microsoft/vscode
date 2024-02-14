@@ -216,7 +216,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			}
 			return new Selection(position.lineNumber, position.column, position.lineNumber, position.column);
 		});
-		this._editor.revealLineInCenterIfOutsideViewport();
+
 		this._editor.setSelections(newSelections);
 		this._editor.revealRange(newSelections[0]);
 	}
