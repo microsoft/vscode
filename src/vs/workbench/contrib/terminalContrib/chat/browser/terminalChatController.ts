@@ -169,7 +169,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 				responseContent += progress.content;
 			}
-			this._chatWidget?.rawValue?.updateProgress(progress);
 		};
 		const requestId = generateUuid();
 		const requestProps: IChatAgentRequest = {
