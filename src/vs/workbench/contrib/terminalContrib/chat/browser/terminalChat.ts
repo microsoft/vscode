@@ -14,6 +14,7 @@ export const enum TerminalChatCommandId {
 	FeedbackUnhelpful = 'workbench.action.terminal.chat.feedbackUnhelpful',
 	FeedbackReportIssue = 'workbench.action.terminal.chat.feedbackReportIssue',
 	AcceptCommand = 'workbench.action.terminal.chat.acceptCommand',
+	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
 }
 
 export const MENU_TERMINAL_CHAT_INPUT = MenuId.for('terminalChatInput');

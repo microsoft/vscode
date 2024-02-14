@@ -91,7 +91,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 0,
-		when: CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.Empty),
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.Empty), TerminalContextKeys.chatRequestActive.negate()),
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -99,6 +99,32 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand();
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.ViewInChat,
+	title: localize2('viewInChat', 'View in Chat'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalContextKeys.chatRequestActive.negate(),
+		TerminalContextKeys.chatAgentRegistered,
+		CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages)
+	),
+	icon: Codicon.commentDiscussion,
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 1,
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages), TerminalContextKeys.chatRequestActive.negate()),
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.viewInChat();
 	}
 });
 
@@ -222,3 +248,4 @@ registerActiveXtermAction({
 		// TODO: Impl
 	}
 });
+

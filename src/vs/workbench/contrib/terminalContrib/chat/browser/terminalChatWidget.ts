@@ -163,6 +163,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	renderMessage(message: string, accessibilityRequestId: number, requestId: string): void {
+		this._responseElement.classList.add('hide');
 		this._inlineChatWidget.updateChatMessage({ message: new MarkdownString(message), requestId, providerId: 'terminal' });
 		this._chatAccessibilityService.acceptResponse(message, accessibilityRequestId);
 	}
