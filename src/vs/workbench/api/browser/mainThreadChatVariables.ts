@@ -29,11 +29,11 @@ export class MainThreadChatVariables implements MainThreadChatVariablesShape {
 
 	$registerVariable(handle: number, data: IChatVariableData): void {
 		const registration = this._chatVariablesService.registerVariable(data, async (messageText, _arg, model, progress, token) => {
-			// TODO new id
+			const varRequestId = `${model.sessionId}-${handle}`;
 			this._pendingProgress.set(model.sessionId, progress);
-			const result = revive<IChatRequestVariableValue[]>(await this._proxy.$resolveVariable(handle, model.sessionId, messageText, token));
+			const result = revive<IChatRequestVariableValue[]>(await this._proxy.$resolveVariable(handle, varRequestId, messageText, token));
 
-			this._pendingProgress.delete(model.sessionId);
+			this._pendingProgress.delete(varRequestId);
 			return result;
 		});
 		this._variables.set(handle, registration);

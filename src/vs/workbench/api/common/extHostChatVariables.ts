@@ -62,7 +62,6 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 	}
 }
 
-// TODO Could deduplicate this with ChatAgentResponseStream, although they are slightly different
 class ChatVariableResolverResponseStream {
 
 	private _isClosed: boolean = false;
