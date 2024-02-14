@@ -38,6 +38,7 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
 import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { Range } from 'vs/editor/common/core/range';
 
 const enum State {
 	Data = 'data',
@@ -339,7 +340,7 @@ export class BulkEditPane extends ViewPane {
 			viewState: {
 				revealData: {
 					resource: { original: fileElement.edit.uri },
-					lineNumber: 1
+					range: new Range(1, 1, 1, 1)
 				}
 			}
 		};

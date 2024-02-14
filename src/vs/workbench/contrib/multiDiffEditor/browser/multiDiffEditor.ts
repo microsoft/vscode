@@ -27,7 +27,7 @@ import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEdit
 import { IMultiDiffEditorViewState, IMultiDiffResource, isIMultiDiffResource } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -73,7 +73,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		}));
 	}
 
-	public reveal(resource: IMultiDiffResource, range: Range): void {
+	public reveal(resource: IMultiDiffResource, range: IRange): void {
 		this._multiDiffEditorWidget?.reveal(resource, range);
 	}
 
@@ -99,9 +99,9 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			return;
 		}
 		const revealData: any = viewState.revealData;
-		if ('lineNumber' in revealData && typeof revealData.lineNumber === 'number'
+		if ('range' in revealData && Range.isIRange(revealData.range)
 			&& 'resource' in revealData && isIMultiDiffResource(revealData.resource)) {
-			this.reveal(revealData.resource, revealData.lineNumber);
+			this.reveal(revealData.resource, revealData.range);
 		}
 	}
 

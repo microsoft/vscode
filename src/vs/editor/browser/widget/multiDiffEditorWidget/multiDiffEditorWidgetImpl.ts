@@ -26,7 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -190,7 +190,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	// todo@aiday-mar need to reveal the range instead of just the start line number
-	public reveal(resource: IMultiDiffResource, range: Range): void {
+	public reveal(resource: IMultiDiffResource, range: IRange): void {
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
 		if ('original' in resource) {
