@@ -13,7 +13,6 @@ import { Schemas } from 'vs/base/common/network';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -229,6 +228,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	}
 
 	private _createWidget(index: number, input: string | undefined, autoSend: boolean | undefined) {
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
 		// Clear the widget if it's already there
 		this._widgetDisposableStore.clear();
 
@@ -253,8 +256,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			{ isSimpleWidget: true }
 		));
 
-		const inputBoxPath = `/notebook-chat-input-${NotebookChatController.counter++}`;
-		const inputUri = URI.from({ scheme: Schemas.untitled, path: inputBoxPath });
+		const inputBoxFragment = `notebook-chat-input-${NotebookChatController.counter++}`;
+		const notebookUri = this._notebookEditor.textModel.uri;
+		const inputUri = notebookUri.with({ scheme: Schemas.untitled, fragment: inputBoxFragment });
 		const result: ITextModel = this._modelService.createModel('', null, inputUri, false);
 		fakeParentEditor.setModel(result);
 
