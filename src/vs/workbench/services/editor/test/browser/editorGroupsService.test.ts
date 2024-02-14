@@ -1817,5 +1817,45 @@ suite('EditorGroupsService', () => {
 		maxiizeGroupEventDisposable.dispose();
 	});
 
+	test('forced unpin: no enablePreview setting to override', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const inputPinned = createTestFileEditorInput(URI.file('foo/bar/pinned'), TEST_EDITOR_INPUT_ID);
+		const inputUnpinned = createTestFileEditorInput(URI.file('foo/bar/unpinned'), TEST_EDITOR_INPUT_ID);
+		const inputForced = createTestFileEditorInput(URI.file('foo/bar/forcedDisable'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(inputPinned, { pinned: true });
+		assert.strictEqual(group.isPinned(inputPinned), true);
+
+		await group.openEditor(inputUnpinned, { pinned: false });
+		assert.strictEqual(group.isPinned(inputUnpinned), false);
+
+		await group.openEditor(inputForced, { pinned: 'forcedDisable' });
+		assert.strictEqual(group.isPinned(inputForced), false);
+
+	});
+	test('forced unpin: enablePreview setting to override', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('workbench', { 'editor': { 'enablePreview': false } });
+		instantiationService.stub(IConfigurationService, configurationService);
+		const [part] = await createPart(instantiationService);
+		const group = part.activeGroup;
+
+		const inputPinned = createTestFileEditorInput(URI.file('foo/bar/pinned'), TEST_EDITOR_INPUT_ID);
+		const inputUnpinned = createTestFileEditorInput(URI.file('foo/bar/unpinned'), TEST_EDITOR_INPUT_ID);
+		const inputForced = createTestFileEditorInput(URI.file('foo/bar/forcedDisable'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(inputPinned, { pinned: true });
+		assert.strictEqual(group.isPinned(inputPinned), true);
+
+		await group.openEditor(inputUnpinned, { pinned: false });
+		assert.strictEqual(group.isPinned(inputUnpinned), true);
+
+		await group.openEditor(inputForced, { pinned: 'forcedDisable' });
+		assert.strictEqual(group.isPinned(inputForced), false);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
