@@ -24,7 +24,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
-import { IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, IMultiDiffResource } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 
@@ -72,7 +72,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		}));
 	}
 
-	public reveal(resource: { original: URI } | { modified: URI }, lineNumber: number): void {
+	public reveal(resource: IMultiDiffResource, lineNumber: number): void {
 		this._multiDiffEditorWidget?.reveal(resource, lineNumber);
 	}
 
@@ -87,7 +87,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		}
 		const resourceToReveal = input.initialResourceToReveal;
 		if (resourceToReveal) {
-			let resource: { original: URI } | { modified: URI } | undefined = undefined;
+			let resource: IMultiDiffResource | undefined = undefined;
 			if (resourceToReveal.original) {
 				resource = { original: resourceToReveal.original };
 			} else if (resourceToReveal.modified) {

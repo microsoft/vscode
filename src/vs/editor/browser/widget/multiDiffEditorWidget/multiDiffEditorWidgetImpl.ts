@@ -313,7 +313,7 @@ function isMultiDiffOriginalResourceUri(obj: any): obj is IMultiDiffOriginalReso
 	return 'original' in obj && obj.original instanceof URI;
 }
 
-type IMultiDiffResource = IMultiDiffOriginalResource | IMultiDiffModifiedResource;
+export type IMultiDiffResource = IMultiDiffOriginalResource | IMultiDiffModifiedResource;
 
 class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));

@@ -507,7 +507,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly resources?: IResourceDiffEditorInput[];
 
 	/**
-	 * Reveal the following resource on open
+	 * Reveal the following resource on editor open
 	 */
 	readonly revealResource?: IResourceDiffEditorInput;
 }

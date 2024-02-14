@@ -11,6 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -36,7 +37,6 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 
 const enum State {
@@ -344,6 +344,8 @@ export class BulkEditPane extends ViewPane {
 		} else {
 			resources = await this._getResources(fileOperations);
 		}
+		this._fileOperations = fileOperations;
+		this._resources = resources;
 		const revealResource = resources.find(r => r.original.resource!.toString() === fileElement.edit.uri.toString());
 		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';

@@ -25,7 +25,7 @@ import { localize } from 'vs/nls';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
 import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
@@ -38,37 +38,35 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		if (!input.multiDiffSource && !input.resources) {
 			throw new BugIndicatingError('MultiDiffEditorInput requires either multiDiffSource or resources');
 		}
+		const toMultiDiffEditorItem = (resource: IResourceDiffEditorInput): MultiDiffEditorItem => {
+			return new MultiDiffEditorItem(
+				resource.original.resource,
+				resource.modified.resource,
+			);
+		};
 		const multiDiffSource = input.multiDiffSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
 		return instantiationService.createInstance(
 			MultiDiffEditorInput,
 			multiDiffSource,
 			input.label,
-			input.resources?.map(resource => {
-				return new MultiDiffEditorItem(
-					resource.original.resource,
-					resource.modified.resource,
-				);
-			}),
-			input.revealResource ? new MultiDiffEditorItem(
-				input.revealResource.original.resource,
-				input.revealResource.modified.resource
-			) : undefined,
+			input.resources?.map(toMultiDiffEditorItem),
+			input.revealResource ? toMultiDiffEditorItem(input.revealResource) : undefined,
 		);
 	}
 
 	public static fromSerialized(data: ISerializedMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
+		const toMultiDiffEditorItem = (resource: { originalUri: string | undefined; modifiedUri: string | undefined }): MultiDiffEditorItem => {
+			return new MultiDiffEditorItem(
+				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
+				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
+			);
+		};
 		return instantiationService.createInstance(
 			MultiDiffEditorInput,
 			URI.parse(data.multiDiffSourceUri),
 			data.label,
-			data.resources?.map(resource => new MultiDiffEditorItem(
-				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
-				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
-			)),
-			data.revealResource ? new MultiDiffEditorItem(
-				data.revealResource.originalUri ? URI.parse(data.revealResource.originalUri) : undefined,
-				data.revealResource.modifiedUri ? URI.parse(data.revealResource.modifiedUri) : undefined,
-			) : undefined
+			data.resources?.map(toMultiDiffEditorItem),
+			data.revealResource ? toMultiDiffEditorItem(data.revealResource) : undefined
 		);
 	}
 
@@ -236,11 +234,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return true;
 		}
 
-		if (otherInput instanceof MultiDiffEditorInput) {
-			const initialResourcesEqual = (this.initialResourceToReveal && otherInput.initialResourceToReveal
-				&& this.initialResourceToReveal.equals(otherInput.initialResourceToReveal))
-				|| (!this.initialResourceToReveal && !otherInput.initialResourceToReveal);
-			return (this.multiDiffSource.toString() === otherInput.multiDiffSource.toString()) && initialResourcesEqual;
+		if (otherInput instanceof MultiDiffEditorInput && !this.initialResourceToReveal && !otherInput.initialResourceToReveal) {
+			return this.multiDiffSource.toString() === otherInput.multiDiffSource.toString();
 		}
 
 		return false;
