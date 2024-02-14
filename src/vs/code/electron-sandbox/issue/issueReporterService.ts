@@ -302,7 +302,6 @@ export class IssueReporter extends Disposable {
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
 			const data = await this.issueMainService.$sendReporterMenu(extension.id, extension.name);
-			console.log('send reporter data: ', data);
 			return data;
 		} catch (e) {
 			console.error(e);
@@ -1185,7 +1184,6 @@ export class IssueReporter extends Disposable {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 					if (selectedExtension) {
-						console.log('reaching selected extension');
 						const iconElement = document.createElement('span');
 						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 						this.setLoading(iconElement);
@@ -1207,7 +1205,6 @@ export class IssueReporter extends Disposable {
 						this.updateExtensionStatus(selectedExtension);
 					}
 				} else {
-					console.log('not reaching selected extension');
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
 					this.validateSelectedExtension();

@@ -177,8 +177,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}, dataOverrides);
 
 		if (this.foundExtension) {
-			console.log('found in open reporter');
-			console.log(issueReporterData);
 			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
 		}
 		return this.issueMainService.openReporter(issueReporterData);
