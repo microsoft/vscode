@@ -420,7 +420,8 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 			} catch {
 				// getLayoutMap can throw if invoked from a nested browsing context
 			}
-		} else if (keyboardEvent && !keyboardEvent.shiftKey && !keyboardEvent.altKey && !keyboardEvent.metaKey && !keyboardEvent.metaKey) {
+		}
+		if (keyboardEvent && !keyboardEvent.shiftKey && !keyboardEvent.altKey && !keyboardEvent.metaKey && !keyboardEvent.metaKey) {
 			const ret: IKeyboardMapping = {};
 			const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
 			ret[standardKeyboardEvent.browserEvent.code] = {
