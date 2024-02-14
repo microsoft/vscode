@@ -15200,26 +15200,25 @@ declare module 'vscode' {
 		executionOrder: number | undefined;
 
 		/**
-		 * Set total of the execution progress, will be used for progress of cell progress bar.
-		 * If not given, an infinite progress bar would be shown.
+		 * Set the total of the execution progress, will be used to present cell progress bar.
 		 *
-		 * @param value The value of total progress.
+		 * @param value The value of total progress to the cell execution.
 		 */
 		setTotalProgress(value: number): void;
 
 		/**
 		 * Set progress increment of the execution. If {@link setTotalProgress} not set,
-		 * a progress bar with a total of 100 would be shown.
+		 * a progress bar with a total progress of 100 would be shown.
 		 *
-		 * @param value The value of total, default to 100
+		 * @param value The value of the progress to be incremented.
 		 */
 		setIncrementProgress(value: number): void;
 
 		/**
 		 * Set current progress of the execution. If {@link setTotalProgress} not set,
-		 * a progress bar with a total of 100 would be shown.
+		 * a progress bar with a total progress of 100 would be shown.
 		 *
-		 * @param value The value of current progress.
+		 * @param value The value of the current progress.
 		 */
 		setProgress(value: number): void;
 
