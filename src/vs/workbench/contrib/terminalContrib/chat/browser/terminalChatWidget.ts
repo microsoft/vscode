@@ -24,21 +24,24 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 export class TerminalChatWidget extends Disposable {
-	private readonly _scopedInstantiationService: IInstantiationService;
-	private readonly _widgetContainer: HTMLElement;
-	private readonly _ctxChatWidgetFocused: IContextKey<boolean>;
-	private readonly _ctxChatWidgetVisible: IContextKey<boolean>;
-	private readonly _ctxResponseEditorFocused!: IContextKey<boolean>;
+
+	private readonly _container: HTMLElement;
 
 	private readonly _inlineChatWidget: InlineChatWidget;
-	private readonly _responseElement: HTMLElement;
-	private readonly _focusTracker: IFocusTracker;
-	private _responseWidget: CodeEditorWidget | undefined;
-
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
 
+	private readonly _terminalCommandWidgetContainer: HTMLElement;
+	private _terminalCommandWidget: CodeEditorWidget | undefined;
+
+	private readonly _focusTracker: IFocusTracker;
+
+	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _focusedContextKey: IContextKey<boolean>;
+	private readonly _visibleContextKey: IContextKey<boolean>;
+	private readonly _responseEditorFocusedContextKey!: IContextKey<boolean>;
+
 	constructor(
-		private readonly _container: HTMLElement,
+		terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -47,19 +50,19 @@ export class TerminalChatWidget extends Disposable {
 		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
-		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
+		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(terminalElement));
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-		this._ctxChatWidgetFocused = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
-		this._ctxChatWidgetVisible = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
-		this._ctxResponseEditorFocused = TerminalContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
+		this._focusedContextKey = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
+		this._visibleContextKey = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
+		this._responseEditorFocusedContextKey = TerminalContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
 
-		this._widgetContainer = document.createElement('div');
-		this._widgetContainer.classList.add('terminal-inline-chat');
-		this._container.appendChild(this._widgetContainer);
+		this._container = document.createElement('div');
+		this._container.classList.add('terminal-inline-chat');
+		terminalElement.appendChild(this._container);
 
-		this._responseElement = document.createElement('div');
-		this._responseElement.classList.add('terminal-inline-chat-response');
-		this._widgetContainer.prepend(this._responseElement);
+		this._terminalCommandWidgetContainer = document.createElement('div');
+		this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
+		this._container.prepend(this._terminalCommandWidgetContainer);
 
 		// The inline chat widget requires a parent editor that it bases the diff view on, since the
 		// terminal doesn't use that feature we can just pass in an unattached editor instance.
@@ -85,15 +88,16 @@ export class TerminalChatWidget extends Disposable {
 		);
 		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
 		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
-		this._widgetContainer.appendChild(this._inlineChatWidget.domNode);
+		this._container.appendChild(this._inlineChatWidget.domNode);
 
-		this._focusTracker = this._register(trackFocus(this._widgetContainer));
+		this._focusTracker = this._register(trackFocus(this._container));
 	}
-	renderTerminalCommand(codeBlock: string, requestId: number, shellType?: string): void {
-		this._chatAccessibilityService.acceptResponse(codeBlock, requestId);
-		this.showTerminalCommandEditor();
-		if (!this._responseWidget) {
-			this._responseWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._responseElement, {
+
+	renderTerminalCommand(command: string, requestId: number, shellType?: string): void {
+		this._chatAccessibilityService.acceptResponse(command, requestId);
+		this.showTerminalCommandWidget();
+		if (!this._terminalCommandWidget) {
+			this._terminalCommandWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
 				padding: { top: 2, bottom: 2 },
 				overviewRulerLanes: 0,
 				glyphMargin: false,
@@ -128,21 +132,21 @@ export class TerminalChatWidget extends Disposable {
 					showStatusBar: false,
 				},
 			}, { isSimpleWidget: true }));
-			this._register(this._responseWidget.onDidFocusEditorText(() => this._ctxResponseEditorFocused.set(true)));
-			this._register(this._responseWidget.onDidBlurEditorText(() => this._ctxResponseEditorFocused.set(false)));
-			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: codeBlock })).then((model) => {
-				if (!model || !this._responseWidget) {
+			this._register(this._terminalCommandWidget.onDidFocusEditorText(() => this._responseEditorFocusedContextKey.set(true)));
+			this._register(this._terminalCommandWidget.onDidBlurEditorText(() => this._responseEditorFocusedContextKey.set(false)));
+			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: command })).then((model) => {
+				if (!model || !this._terminalCommandWidget) {
 					return;
 				}
-				this._responseWidget.layout(new Dimension(400, 0));
-				this._responseWidget.setModel(model);
-				const height = this._responseWidget.getContentHeight();
-				this._responseWidget.layout(new Dimension(400, height));
+				this._terminalCommandWidget.layout(new Dimension(400, 0));
+				this._terminalCommandWidget.setModel(model);
+				const height = this._terminalCommandWidget.getContentHeight();
+				this._terminalCommandWidget.layout(new Dimension(400, height));
 			});
 		} else {
-			this._responseWidget.setValue(codeBlock);
+			this._terminalCommandWidget.setValue(command);
 		}
-		this._responseWidget.getModel()?.setLanguage(this._getLanguageFromShell(shellType));
+		this._terminalCommandWidget.getModel()?.setLanguage(this._getLanguageFromShell(shellType));
 	}
 
 	private _getLanguageFromShell(shell?: string): string {
@@ -163,7 +167,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	renderMessage(message: string, accessibilityRequestId: number, requestId: string): void {
-		this.hideTerminalCommandEditor();
+		this.hideTerminalCommandWidget();
 		this._inlineChatWidget.updateChatMessage({ message: new MarkdownString(message), requestId, providerId: 'terminal' });
 		this._chatAccessibilityService.acceptResponse(message, accessibilityRequestId);
 	}
@@ -177,18 +181,18 @@ export class TerminalChatWidget extends Disposable {
 	}
 	reveal(): void {
 		this._inlineChatWidget.layout(new Dimension(400, 150));
-		this._widgetContainer.classList.remove('hide');
-		this._ctxChatWidgetFocused.set(true);
-		this._ctxChatWidgetVisible.set(true);
+		this._container.classList.remove('hide');
+		this._focusedContextKey.set(true);
+		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
 	}
 	hide(): void {
-		this.hideTerminalCommandEditor();
-		this._widgetContainer.classList.add('hide');
+		this.hideTerminalCommandWidget();
+		this._container.classList.add('hide');
 		this._inlineChatWidget.value = '';
-		this._responseWidget?.setValue('');
-		this._ctxChatWidgetFocused.set(false);
-		this._ctxChatWidgetVisible.set(false);
+		this._terminalCommandWidget?.setValue('');
+		this._focusedContextKey.set(false);
+		this._visibleContextKey.set(false);
 		this._instance.focus();
 	}
 	cancel(): void {
@@ -207,11 +211,11 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 		if (!value) {
-			this.hideTerminalCommandEditor();
+			this.hideTerminalCommandWidget();
 		}
 	}
 	acceptCommand(): void {
-		const value = this._responseWidget?.getValue();
+		const value = this._terminalCommandWidget?.getValue();
 		if (!value) {
 			return;
 		}
@@ -224,10 +228,10 @@ export class TerminalChatWidget extends Disposable {
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
 	}
-	hideTerminalCommandEditor(): void {
-		this._responseElement.classList.add('hide');
+	hideTerminalCommandWidget(): void {
+		this._terminalCommandWidgetContainer.classList.add('hide');
 	}
-	showTerminalCommandEditor(): void {
-		this._responseElement.classList.remove('hide');
+	showTerminalCommandWidget(): void {
+		this._terminalCommandWidgetContainer.classList.remove('hide');
 	}
 }
