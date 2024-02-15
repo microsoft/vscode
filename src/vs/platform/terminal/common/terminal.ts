@@ -141,7 +141,6 @@ export const enum PosixShellType {
 	Ksh = 'ksh',
 	Zsh = 'zsh',
 	Python = 'python'
-
 }
 export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
