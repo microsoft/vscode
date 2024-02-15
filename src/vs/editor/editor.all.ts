@@ -65,3 +65,5 @@ import 'vs/editor/contrib/diffEditorBreadcrumbs/browser/contribution';
 import 'vs/editor/common/standaloneStrings';
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicons are defined here and must be loaded
+
+import 'vs/editor/browser/playgroundDemo/index';
