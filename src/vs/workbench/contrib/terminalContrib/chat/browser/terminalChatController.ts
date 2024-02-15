@@ -285,8 +285,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		return !!this._chatWidget?.rawValue?.hasFocus();
 	}
 
-	acceptCommand(): void {
-		this._chatWidget?.rawValue?.acceptCommand();
+	acceptCommand(shouldExecute: boolean): void {
+		this._chatWidget?.rawValue?.acceptCommand(shouldExecute);
 	}
 
 	reveal(): void {

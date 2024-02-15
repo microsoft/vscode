@@ -48,7 +48,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	const keybindingService = accessor.get(IKeybindingService);
 	const content = [];
 	const openAccessibleViewKeybinding = keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
-	const acceptCommandKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.AcceptCommand)?.getAriaLabel();
+	const acceptCommandKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.RunCommand)?.getAriaLabel();
 	const makeRequestKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.MakeRequest)?.getAriaLabel();
 	//TODO: using this instead of the terminal command bc by definition the inline terminal chat is focused when this dialog is invoked.
 	const startChatKeybinding = keybindingService.lookupKeybinding('inlineChat.start')?.getAriaLabel();

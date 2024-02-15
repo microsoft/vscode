@@ -233,12 +233,12 @@ export class TerminalChatWidget extends Disposable {
 			this.hideTerminalCommandWidget();
 		}
 	}
-	acceptCommand(): void {
+	acceptCommand(shouldExecute: boolean): void {
 		const value = this._terminalCommandWidget?.getValue();
 		if (!value) {
 			return;
 		}
-		this._instance.sendText(value, false, true);
+		this._instance.runCommand(value, shouldExecute);
 		this.hide();
 	}
 	updateProgress(progress?: IChatProgress): void {

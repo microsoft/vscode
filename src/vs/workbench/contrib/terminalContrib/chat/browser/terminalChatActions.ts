@@ -71,9 +71,9 @@ registerActiveXtermAction({
 
 
 registerActiveXtermAction({
-	id: TerminalChatCommandId.AcceptCommand,
-	title: localize2('acceptCommand', 'Terminal: Accept Chat Command'),
-	shortTitle: localize2('accept', 'Accept'),
+	id: TerminalChatCommandId.RunCommand,
+	title: localize2('runCommand', 'Terminal: Run Chat Command'),
+	shortTitle: localize2('run', 'Run'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -83,8 +83,8 @@ registerActiveXtermAction({
 	),
 	icon: Codicon.check,
 	keybinding: {
-		when: ContextKeyExpr.and(TerminalContextKeys.chatResponseEditorFocused, TerminalContextKeys.chatRequestActive.negate()),
-		weight: KeybindingWeight.EditorCore + 7,
+		when: TerminalContextKeys.chatRequestActive.negate(),
+		weight: KeybindingWeight.WorkbenchContrib + 7,
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	},
 	menu: {
@@ -98,7 +98,39 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand();
+		contr?.acceptCommand(true);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.InsertCommand,
+	title: localize2('insertCommand', 'Terminal: Insert Chat Command'),
+	shortTitle: localize2('insert', 'Insert'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalContextKeys.chatRequestActive.negate(),
+		TerminalContextKeys.chatAgentRegistered,
+		CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.Empty)
+	),
+	icon: Codicon.check,
+	keybinding: {
+		when: TerminalContextKeys.chatRequestActive.negate(),
+		weight: KeybindingWeight.WorkbenchContrib + 7,
+		primary: KeyMod.Alt | KeyCode.Enter,
+	},
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 1,
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.Empty), TerminalContextKeys.chatRequestActive.negate()),
+	},
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.acceptCommand(false);
 	}
 });
 
