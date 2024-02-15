@@ -792,8 +792,6 @@ export class IssueReporter extends Disposable {
 		const descriptionTextArea = this.getElementById('description')!;
 		const extensionDataTextArea = this.getElementById('extension-data')!;
 
-		const extensionDropdown = this.getElementById('extension-selector')!;
-
 		// Hide all by default
 		hide(blockContainer);
 		hide(systemBlock);
@@ -846,13 +844,8 @@ export class IssueReporter extends Disposable {
 				if (this.openReporter) {
 					show(extensionDataBlock);
 				}
-			}, 250);
+			}, 100);
 		}
-
-		if (fileOnExtension && this.loadingExtensionData) {
-			(extensionDropdown as HTMLSelectElement).disabled = true;
-		}
-
 
 		if (issueType === IssueType.Bug) {
 			if (!fileOnMarketplace) {
@@ -1207,7 +1200,7 @@ export class IssueReporter extends Disposable {
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-					if (selectedExtension) {
+					if (selectedExtension && !this.loadingExtensionData) {
 						const iconElement = document.createElement('span');
 						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 						this.setLoading(iconElement);
@@ -1226,13 +1219,15 @@ export class IssueReporter extends Disposable {
 							selectedExtension.data = undefined;
 							selectedExtension.uri = undefined;
 						}
-						// repopulates the fields with the new data given the selected extension.
-						this.updateExtensionStatus(selectedExtension);
 					}
+					// repopulates the fields with the new data given the selected extension.
+					this.updateExtensionStatus(matches[0]);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
+					this.clearExtensionData();
 					this.validateSelectedExtension();
+					this.updateExtensionStatus(matches[0]);
 				}
 			});
 		}
@@ -1397,9 +1392,6 @@ export class IssueReporter extends Disposable {
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
 		hideLoading.removeChild(element);
-
-		const extensionDropdown = this.getElementById('extension-selector')!;
-		(extensionDropdown as HTMLSelectElement).disabled = false;
 
 		this.renderBlocks();
 	}

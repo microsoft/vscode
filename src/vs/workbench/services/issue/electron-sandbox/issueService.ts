@@ -10,7 +10,7 @@ import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -37,7 +37,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
-	private runningExtensions: string[] = [];
+	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 	private isRunning = false;
 
 	constructor(
@@ -100,7 +100,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				actions.forEach(async action => {
 					try {
 						if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-							this.runningExtensions.push(extensionId);
+							this.extensionIdentifierSet.add(ExtensionIdentifier.toKey(extensionId));
 							this.isRunning = true;
 							await action.run();
 						}
@@ -111,7 +111,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					}
 				});
 
-				if (this.runningExtensions.length === 0) {
+				if (this.extensionIdentifierSet.size === 0) {
 					// send undefined to indicate no action was taken
 					ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
 				}
@@ -192,9 +192,9 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			githubAccessToken
 		}, dataOverrides);
 
-		if (issueReporterData.extensionId && this.runningExtensions.includes(issueReporterData.extensionId)) {
+		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(ExtensionIdentifier.toKey(issueReporterData.extensionId))) {
 			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
-			this.runningExtensions = this.runningExtensions.filter(id => id !== issueReporterData.extensionId);
+			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
 		}
 		return this.issueMainService.openReporter(issueReporterData);
 	}
