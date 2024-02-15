@@ -11,6 +11,10 @@
 	height: auto !important;
 }
 
+.terminal-inline-chat .inline-chat {
+	margin-top: 0 !important;
+}
+
 .terminal-inline-chat .terminal-inline-chat-response {
 	border: 1px solid var(--vscode-input-border, transparent);
 	/* TODO: Make themeable */
@@ -28,6 +32,5 @@
 }
 
 .terminal-inline-chat .terminal-inline-chat-response {
-	margin: 0 0 8px 0;
 	padding-left: 8px;
 }
