@@ -280,7 +280,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow, editorGroupsContainer));
 
-		this.hoverDelegate = getDefaultHoverDelegate('element', true);
+		this.hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
 
 		this.registerListeners(getWindowId(targetWindow));
 	}

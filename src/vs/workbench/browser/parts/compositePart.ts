@@ -96,7 +96,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super(id, options, themeService, storageService, layoutService);
 
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
-		this.hoverDelegate = getDefaultHoverDelegate('element', true);
+		this.hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {

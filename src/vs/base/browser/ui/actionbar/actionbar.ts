@@ -119,7 +119,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
 		};
 
-		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('element', true);
+		this._hoverDelegate = options.hoverDelegate ?? this._register(getDefaultHoverDelegate('element', true));
 
 		if (this.options.actionRunner) {
 			this._actionRunner = this.options.actionRunner;

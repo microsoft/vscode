@@ -60,7 +60,7 @@ export class ToolBar extends Disposable {
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
 
-		options.hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('element', true);
+		options.hoverDelegate = options.hoverDelegate ?? this._register(getDefaultHoverDelegate('element', true));
 		this.options = options;
 		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
 
