@@ -7,9 +7,9 @@ import { IHoverDelegate, IScopedHoverDelegate } from 'vs/base/browser/ui/iconLab
 import { Lazy } from 'vs/base/common/lazy';
 
 const nullHoverDelegateFactory = () => ({
-	get delay(): number { throw new Error('This should not be used'); },
+	get delay(): number { return -1; },
 	dispose: () => { },
-	showHover: () => { throw new Error('This should not be used'); }
+	showHover: () => { return undefined; },
 });
 
 let hoverDelegateFactory: (placement: 'mouse' | 'element', enableInstantHover: boolean) => IScopedHoverDelegate = nullHoverDelegateFactory;
