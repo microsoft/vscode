@@ -57,7 +57,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _requestActiveContextKey!: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
 	private readonly _lastResponseTypeContextKey!: IContextKey<undefined | InlineChatResponseTypes>;
-	private _accessibilityRequestId: number = 0;
+	private _requestId: number = 0;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
@@ -216,7 +216,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			variables: { variables: [] },
 		};
 		// TODO: fix requester usrname, responder username
-		this._model?.initialize({ id: this._accessibilityRequestId, requesterUsername: 'userGesture', responderUsername: 'terminal' }, undefined);
+		this._model?.initialize({ id: this._requestId, requesterUsername: 'userGesture', responderUsername: 'terminal' }, undefined);
 		const request: IParsedChatRequest = {
 			text: this._lastInput,
 			parts: []
@@ -250,15 +250,15 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const match = regex.exec(firstCodeBlockContent);
 		const codeBlock = match?.groups?.content.trim();
 		const shellType = match?.groups?.language;
-		this._accessibilityRequestId++;
+		this._requestId++;
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
 		if (codeBlock) {
-			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._accessibilityRequestId, shellType);
+			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._requestId, shellType);
 			this._lastResponseTypeContextKey.set(InlineChatResponseTypes.Empty);
 		} else {
-			this._chatWidget?.rawValue?.renderMessage(responseContent, this._accessibilityRequestId, requestId);
+			this._chatWidget?.rawValue?.renderMessage(responseContent, this._requestId, requestId);
 			this._lastResponseTypeContextKey.set(InlineChatResponseTypes.OnlyMessages);
 		}
 		this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
