@@ -6,7 +6,7 @@
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/terminalChatWidget';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -33,29 +33,24 @@ export class TerminalChatWidget extends Disposable {
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
 
 	private _terminalCommandWidgetContainer: HTMLElement | undefined;
-	private _terminalCommandWidget: CodeEditorWidget | undefined;
+	private _responseEditor: TerminalChatResponseEditor | undefined;
 
 	private readonly _focusTracker: IFocusTracker;
 
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _visibleContextKey: IContextKey<boolean>;
-	private readonly _responseEditorFocusedContextKey!: IContextKey<boolean>;
 
 	constructor(
 		terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
 
 		this._focusedContextKey = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
 		this._visibleContextKey = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
-		this._responseEditorFocusedContextKey = TerminalContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
@@ -90,105 +85,13 @@ export class TerminalChatWidget extends Disposable {
 		this._focusTracker = this._register(trackFocus(this._container));
 	}
 
-
-	private _getAriaLabel(): string {
-		const verbose = this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
-		if (verbose) {
-			// TODO: Add verbose description
-		}
-		return localize('terminalChatInput', "Terminal Chat Input");
-	}
-
 	async renderTerminalCommand(command: string, requestId: number, shellType?: string): Promise<void> {
 		this._chatAccessibilityService.acceptResponse(command, requestId);
 		this.showTerminalCommandWidget();
-		let model: ITextModel | null | void = null;
-		if (!this._terminalCommandWidget) {
-			this._terminalCommandWidgetContainer = document.createElement('div');
-			this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
-			this._container.prepend(this._terminalCommandWidgetContainer);
-			const widget = this._terminalCommandWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
-				readOnly: false,
-				ariaLabel: this._getAriaLabel(),
-				fontSize: 13,
-				lineHeight: 20,
-				padding: { top: 8, bottom: 8 },
-				overviewRulerLanes: 0,
-				glyphMargin: false,
-				lineNumbers: 'off',
-				folding: false,
-				hideCursorInOverviewRuler: true,
-				selectOnLineNumbers: false,
-				selectionHighlight: false,
-				scrollbar: {
-					useShadows: false,
-					vertical: 'hidden',
-					horizontal: 'hidden',
-					alwaysConsumeMouseWheel: false
-				},
-				lineDecorationsWidth: 0,
-				overviewRulerBorder: false,
-				scrollBeyondLastLine: false,
-				renderLineHighlight: 'none',
-				fixedOverflowWidgets: true,
-				dragAndDrop: false,
-				revealHorizontalRightPadding: 5,
-				minimap: { enabled: false },
-				guides: { indentation: false },
-				rulers: [],
-				renderWhitespace: 'none',
-				dropIntoEditor: { enabled: true },
-				quickSuggestions: false,
-				suggest: {
-					showIcons: false,
-					showSnippets: false,
-					showWords: true,
-					showStatusBar: false,
-				},
-				wordWrap: 'on'
-			}, { isSimpleWidget: true }));
-			this._register(this._terminalCommandWidget.onDidFocusEditorText(() => this._responseEditorFocusedContextKey.set(true)));
-			this._register(this._terminalCommandWidget.onDidBlurEditorText(() => this._responseEditorFocusedContextKey.set(false)));
-			this._register(Event.any(this._terminalCommandWidget.onDidChangeModelContent, this._terminalCommandWidget.onDidChangeModelDecorations)(() => {
-				const height = widget.getContentHeight();
-				widget.layout(new Dimension(640, height));
-			}));
-			model = await this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: command })).then((model) => {
-				if (!model) {
-					return;
-				}
-				widget.layout(new Dimension(640, 0));
-				widget.setModel(model);
-				const height = widget.getContentHeight();
-				widget.layout(new Dimension(640, height));
-			});
-		} else {
-			this._terminalCommandWidget.setValue(command);
+		if (!this._responseEditor) {
+			this._responseEditor = this._instantiationService.createInstance(TerminalChatResponseEditor, command, shellType, this._container, this._instance);
 		}
-		if (!model) {
-			model = this._terminalCommandWidget.getModel();
-		}
-		if (model) {
-			const languageId = this._getLanguageFromShell(shellType);
-			model.setLanguage(languageId);
-		}
-	}
-
-	private _getLanguageFromShell(shell?: string): string {
-		switch (shell) {
-			case 'fish':
-				return this._languageService.isRegisteredLanguageId('fish') ? 'fish' : 'shellscript';
-			case 'zsh':
-				return this._languageService.isRegisteredLanguageId('zsh') ? 'zsh' : 'shellscript';
-			case 'bash':
-				return this._languageService.isRegisteredLanguageId('bash') ? 'bash' : 'shellscript';
-			case 'sh':
-				return 'shellscript';
-			case 'pwsh':
-				return 'powershell';
-			default:
-				return 'plaintext';
-		}
+		this._responseEditor.setValue(command);
 	}
 
 	renderMessage(message: string, accessibilityRequestId: number, requestId: string): void {
@@ -197,13 +100,6 @@ export class TerminalChatWidget extends Disposable {
 		this._chatAccessibilityService.acceptResponse(message, accessibilityRequestId);
 	}
 
-	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
-		if (existing && !existing.isDisposed()) {
-			return existing;
-		}
-		return this._modelService.createModel(resource.fragment, null, resource, false);
-	}
 	reveal(): void {
 		this._inlineChatWidget.layout(new Dimension(640, 150));
 		this._container.classList.remove('hide');
@@ -215,7 +111,8 @@ export class TerminalChatWidget extends Disposable {
 		this.hideTerminalCommandWidget();
 		this._container.classList.add('hide');
 		this._inlineChatWidget.value = '';
-		this._terminalCommandWidget?.setValue('');
+		this._responseEditor?.dispose();
+		this._responseEditor = undefined;
 		this._inlineChatWidget.updateChatMessage(undefined);
 		this._inlineChatWidget.updateFollowUps(undefined);
 		this._inlineChatWidget.updateProgress(false);
@@ -245,7 +142,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 	acceptCommand(shouldExecute: boolean): void {
 		// Trim command to remove any whitespace, otherwise this may execute the command
-		const value = this._terminalCommandWidget?.getValue().trim();
+		const value = this._responseEditor?.getValue().trim();
 		if (!value) {
 			return;
 		}
@@ -263,5 +160,142 @@ export class TerminalChatWidget extends Disposable {
 	}
 	showTerminalCommandWidget(): void {
 		this._terminalCommandWidgetContainer?.classList.remove('hide');
+	}
+}
+
+class TerminalChatResponseEditor extends Disposable {
+	private readonly _editorContainer: HTMLElement;
+	private readonly _editor: CodeEditorWidget;
+
+	private readonly _responseEditorFocusedContextKey: IContextKey<boolean>;
+
+	readonly model: Promise<ITextModel | null>;
+
+	constructor(
+		initialCommandResponse: string,
+		shellType: string | undefined,
+		private readonly _container: HTMLElement,
+		private readonly _instance: ITerminalInstance,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IModelService private readonly _modelService: IModelService,
+	) {
+		super();
+
+		this._responseEditorFocusedContextKey = TerminalContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
+
+		this._editorContainer = document.createElement('div');
+		this._editorContainer.classList.add('terminal-inline-chat-response');
+		this._container.prepend(this._editorContainer);
+		this._register(toDisposable(() => this._editorContainer.remove()));
+		const editor = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, {
+			readOnly: false,
+			ariaLabel: this._getAriaLabel(),
+			fontSize: 13,
+			lineHeight: 20,
+			padding: { top: 8, bottom: 8 },
+			overviewRulerLanes: 0,
+			glyphMargin: false,
+			lineNumbers: 'off',
+			folding: false,
+			hideCursorInOverviewRuler: true,
+			selectOnLineNumbers: false,
+			selectionHighlight: false,
+			scrollbar: {
+				useShadows: false,
+				vertical: 'hidden',
+				horizontal: 'hidden',
+				alwaysConsumeMouseWheel: false
+			},
+			lineDecorationsWidth: 0,
+			overviewRulerBorder: false,
+			scrollBeyondLastLine: false,
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true,
+			dragAndDrop: false,
+			revealHorizontalRightPadding: 5,
+			minimap: { enabled: false },
+			guides: { indentation: false },
+			rulers: [],
+			renderWhitespace: 'none',
+			dropIntoEditor: { enabled: true },
+			quickSuggestions: false,
+			suggest: {
+				showIcons: false,
+				showSnippets: false,
+				showWords: true,
+				showStatusBar: false,
+			},
+			wordWrap: 'on'
+		}, { isSimpleWidget: true }));
+		this._editor = editor;
+		this._register(editor.onDidFocusEditorText(() => this._responseEditorFocusedContextKey.set(true)));
+		this._register(editor.onDidBlurEditorText(() => this._responseEditorFocusedContextKey.set(false)));
+		this._register(Event.any(editor.onDidChangeModelContent, editor.onDidChangeModelDecorations)(() => {
+			const height = editor.getContentHeight();
+			editor.layout(new Dimension(640, height));
+		}));
+
+		this.model = this._getTextModel(URI.from({
+			path: `terminal-inline-chat-${this._instance.instanceId}`,
+			scheme: 'terminal-inline-chat',
+			fragment: initialCommandResponse
+		}));
+		this.model.then(model => {
+			if (model) {
+				// Initial layout
+				editor.layout(new Dimension(640, 0));
+				editor.setModel(model);
+				const height = editor.getContentHeight();
+				editor.layout(new Dimension(640, height));
+
+				// Initialize language
+				const languageId = this._getLanguageFromShell(shellType);
+				model.setLanguage(languageId);
+			}
+		});
+	}
+
+	private _getAriaLabel(): string {
+		const verbose = this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
+		if (verbose) {
+			// TODO: Add verbose description
+		}
+		return localize('terminalChatInput', "Terminal Chat Input");
+	}
+
+	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing && !existing.isDisposed()) {
+			return existing;
+		}
+		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
+
+	private _getLanguageFromShell(shell?: string): string {
+		switch (shell) {
+			case 'fish':
+				return this._languageService.isRegisteredLanguageId('fish') ? 'fish' : 'shellscript';
+			case 'zsh':
+				return this._languageService.isRegisteredLanguageId('zsh') ? 'zsh' : 'shellscript';
+			case 'bash':
+				return this._languageService.isRegisteredLanguageId('bash') ? 'bash' : 'shellscript';
+			case 'sh':
+				return 'shellscript';
+			case 'pwsh':
+				return 'powershell';
+			default:
+				return 'plaintext';
+		}
+	}
+
+	setValue(value: string) {
+		this._editor.setValue(value);
+	}
+
+	getValue(): string {
+		return this._editor.getValue();
 	}
 }
