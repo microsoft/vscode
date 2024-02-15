@@ -322,7 +322,6 @@ export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<It
 	return result.values();
 }
 
-
 export async function fetchPwshHistory(accessor: ServicesAccessor) {
 	const fileService: Pick<IFileService, 'readFile'> = accessor.get(IFileService);
 	const remoteAgentService: Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'> = accessor.get(IRemoteAgentService);

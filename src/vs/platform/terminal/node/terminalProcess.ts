@@ -413,8 +413,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-
-
 	shutdown(immediate: boolean): void {
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('TerminalProcess#shutdown', new Error().stack?.replace(/^Error/, ''));
