@@ -138,18 +138,22 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!providerId || !this._currentRequest || !this._model) {
 			return;
 		}
-		this._chatService.notifyUserAction({
-			providerId,
-			sessionId: this._model?.sessionId,
-			requestId: this._currentRequest.id,
-			agentId: this._terminalAgentId,
-			//TODO: fill in error details if any etc.
-			result: {},
-			action: {
-				kind: 'vote',
-				direction: helpful ? InteractiveSessionVoteDirection.Up : InteractiveSessionVoteDirection.Down
-			},
-		});
+		// TODO:extract into helper method
+		for (const request of this._model.getRequests()) {
+			if (request.response?.response.value || request.response?.result) {
+				this._chatService.notifyUserAction({
+					providerId,
+					sessionId: request.session.sessionId,
+					requestId: request.id,
+					agentId: request.response?.agent?.id,
+					result: request.response?.result,
+					action: {
+						kind: 'vote',
+						direction: helpful ? InteractiveSessionVoteDirection.Up : InteractiveSessionVoteDirection.Down
+					},
+				});
+			}
+		}
 	}
 
 	cancel(): void {
