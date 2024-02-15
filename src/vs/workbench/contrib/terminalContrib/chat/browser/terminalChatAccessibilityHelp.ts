@@ -18,6 +18,7 @@ import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 export class TerminalInlineChatAccessibilityHelpContribution extends Disposable {
+	static ID: 'terminalInlineChatAccessibilityHelpContribution';
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(106, 'terminalInlineChat', accessor => {
