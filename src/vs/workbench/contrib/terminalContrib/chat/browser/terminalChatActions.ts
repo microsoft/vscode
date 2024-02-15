@@ -144,15 +144,20 @@ registerActiveXtermAction({
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalContextKeys.chatRequestActive.negate(),
 		TerminalContextKeys.chatAgentRegistered,
-		CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages)
 	),
 	icon: Codicon.commentDiscussion,
-	menu: {
+	menu: [{
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 1,
 		when: ContextKeyExpr.and(CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages), TerminalContextKeys.chatRequestActive.negate()),
 	},
+	{
+		id: MENU_TERMINAL_CHAT_WIDGET,
+		group: 'main',
+		order: 1,
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_EMPTY.negate(), CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.Empty), TerminalContextKeys.chatRequestActive.negate()),
+	}],
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
