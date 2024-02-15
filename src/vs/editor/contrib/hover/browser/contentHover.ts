@@ -32,7 +32,7 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private _currentResult: HoverResult | null = null;
-
+	private _showExtendedHover: boolean = false;
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -88,7 +88,7 @@ export class ContentHoverController extends Disposable {
 		mouseEvent: IEditorMouseEvent | null,
 		extended: boolean = false
 	): boolean {
-		console.log('inside of _startShowingOrUpdateHover with extended: ', extended);
+		console.log('inside of _startShowingOrUpdateHover with extended: ', extended, ' and focus : ', focus);
 		if (!this._widget.position || !this._currentResult) {
 			// The hover is not visible
 			if (anchor) {
@@ -140,12 +140,13 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean, extended: boolean = false): void {
-		console.log('inside of _startHoverOperationIfNecessary with extended : ', extended);
-		// if (this._computer.anchor && this._computer.anchor.equals(anchor)) {
-		// 	// We have to start a hover operation at the exact same anchor as before, so no work is needed
-		// 	return;
-		// }
+		console.log('inside of _startHoverOperationIfNecessary with extended : ', extended, ' and focus : ', focus);
+		if (this._computer.anchor && this._showExtendedHover === extended && this._computer.anchor.equals(anchor)) {
+			// We have to start a hover operation at the exact same anchor as before, so no work is needed
+			return;
+		}
 		this._hoverOperation.cancel();
+		this._showExtendedHover = extended;
 		this._computer.anchor = anchor;
 		this._computer.shouldFocus = focus;
 		this._computer.source = source;

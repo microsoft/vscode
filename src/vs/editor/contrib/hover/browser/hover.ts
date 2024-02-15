@@ -49,7 +49,7 @@ interface IHoverState {
 	// TODO @aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
 	activatedByDecoratorClick: boolean;
-	showExtendedHover: boolean;
+	showExtendedHover: boolean | undefined;
 }
 
 export class HoverController extends Disposable implements IEditorContribution {
@@ -69,7 +69,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		mouseDown: false,
 		contentHoverFocused: false,
 		activatedByDecoratorClick: false,
-		showExtendedHover: false
+		showExtendedHover: undefined
 	};
 
 	constructor(
@@ -362,6 +362,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 		this._hoverState.activatedByDecoratorClick = false;
 		this._hoverState.contentHoverFocused = false;
+		this._hoverState.showExtendedHover = undefined;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}
@@ -392,7 +393,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		activatedByColorDecoratorClick: boolean = false,
 		extended: boolean = false
 	): void {
-		console.log('showContentHover with extended: ', extended);
+		console.log('showContentHover with extended: ', extended, ' and focus : ', focus);
 		this._hoverState.showExtendedHover = extended;
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus, extended);
@@ -444,6 +445,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	public get isHoverVisible(): boolean | undefined {
 		return this._contentWidget?.isVisible;
+	}
+
+	public get isExtendedHover(): boolean | undefined {
+		return this._hoverState.showExtendedHover;
 	}
 
 	public override dispose(): void {
@@ -560,16 +565,18 @@ function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
 	}
 
 	const showContentHover = (focus: boolean) => {
+		console.log('before showing the hover');
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		console.log('hover inside of showContentHover');
 		controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus, false, extended);
 	};
 
 	const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
+	console.log('controller.isHoverVisible : ', controller.isHoverVisible);
 	if (controller.isHoverVisible) {
-		if (focusOption !== HoverFocusBehavior.NoAutoFocus) {
+		if (focusOption !== HoverFocusBehavior.NoAutoFocus && controller.isExtendedHover === extended) {
+			console.log('before focusing the hover');
 			controller.focus();
 		} else {
 			showContentHover(accessibilitySupportEnabled);
