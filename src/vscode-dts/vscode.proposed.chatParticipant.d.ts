@@ -242,7 +242,7 @@ declare module 'vscode' {
 		/**
 		 * A human-readable description explaining what this participant does.
 		 */
-		description?: string;
+		readonly description?: string;
 
 		/**
 		 * Icon for the participant shown in UI.

@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatModel, IChatProgressResponseContent, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -114,7 +115,8 @@ export interface IChatAgentService {
 	registerAgent(agent: IChatAgent): IDisposable;
 	invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
-	getAgents(): Array<IChatAgent>;
+	getAgents(): Array<IChatAgentData>;
+	getActivatedAgents(): Array<IChatAgent>;
 	getAgent(id: string): IChatAgent | undefined;
 	getDefaultAgent(): IChatAgent | undefined;
 	getSecondaryAgent(): IChatAgent | undefined;
@@ -132,6 +134,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
+
+	constructor(
+		@IChatContributionService private chatContributionService: IChatContributionService
+	) {
+		super();
+	}
 
 	override dispose(): void {
 		super.dispose();
@@ -169,7 +177,16 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return Iterable.find(this._agents.values(), a => !!a.agent.metadata.isSecondary)?.agent;
 	}
 
-	getAgents(): Array<IChatAgent> {
+	getAgents(): Array<IChatAgentData> {
+		return this.chatContributionService.registeredParticipants.map(p => (
+			{
+				extensionId: p.extensionId,
+				id: p.name,
+				metadata: { description: p.description }
+			} satisfies IChatAgentData));
+	}
+
+	getActivatedAgents(): Array<IChatAgent> {
 		return Array.from(this._agents.values(), v => v.agent);
 	}
 

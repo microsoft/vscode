@@ -171,7 +171,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, extension.identifier, name, {});
+		this._proxy.$registerAgent(handle, extension.identifier, name, {}, isProposedApiEnabled(extension, 'chatParticipantAdditions'));
 		return agent.apiAgent;
 	}
 
@@ -506,11 +506,7 @@ class ExtHostChatAgent {
 				return that.id;
 			},
 			get description() {
-				return that._description ?? '';
-			},
-			set description(v) {
-				that._description = v;
-				updateMetadataSoon();
+				return that._description;
 			},
 			get fullName() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');

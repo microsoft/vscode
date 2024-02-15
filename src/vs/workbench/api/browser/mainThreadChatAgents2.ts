@@ -21,10 +21,12 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { IChatAgentCommand, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 type AgentData = {
 	dispose: () => void;
@@ -49,6 +51,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatContributionService private readonly _chatContributionService: IChatContributionService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -76,13 +80,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata): void {
+	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata, allowDynamic: boolean): void {
+		const staticAgentRegistration = this._chatContributionService.registeredParticipants.find(p => p.extensionId.value === extension.value && p.name === name);
+		if (!staticAgentRegistration && !allowDynamic) {
+			throw new Error(`chatParticipant must be declared in package.json: ${name}`);
+		}
+
 		const lastSlashCommands: WeakMap<IChatModel, IChatAgentCommand[]> = new WeakMap();
 		const d = this._chatAgentService.registerAgent({
 			id: name,
 			extensionId: extension,
 			metadata: revive(metadata),
 			invoke: async (request, progress, history, token) => {
+				await this._extensionService.activateByEvent(`onChatParticipant:${request.agentId}`);
 				this._pendingProgress.set(request.requestId, progress);
 				try {
 					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};

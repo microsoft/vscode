@@ -87,7 +87,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	private createPhrases(model?: IChatModel): Map<string, IPhraseValue> {
 		const phrases = new Map<string, IPhraseValue>();
 
-		for (const agent of this.chatAgentService.getAgents()) {
+		for (const agent of this.chatAgentService.getActivatedAgents()) {
 			const agentPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]} ${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
 			phrases.set(agentPhrase, { agent: agent.id });
 

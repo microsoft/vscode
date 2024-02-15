@@ -432,7 +432,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getAgents();
+				const agents = this.chatAgentService.getActivatedAgents();
 				const all = agents.map(agent => agent.provideSlashCommands(viewModel.model, getHistoryEntriesFromModel(viewModel.model), token));
 				const commands = await raceCancellation(Promise.all(all), token);
 
