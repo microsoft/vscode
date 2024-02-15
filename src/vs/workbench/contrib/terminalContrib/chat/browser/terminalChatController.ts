@@ -246,7 +246,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
 		const regex = /```(?<language>\w+)\n(?<content>[\s\S]*?)```/g;
 		const match = regex.exec(firstCodeBlockContent);
-		const codeBlock = match?.groups?.content;
+		const codeBlock = match?.groups?.content.trim();
 		const shellType = match?.groups?.language;
 		this._accessibilityRequestId++;
 		if (cancellationToken.isCancellationRequested) {
