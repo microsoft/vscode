@@ -64,7 +64,10 @@ export class CellProgressBar extends CellContentPart {
 		const progressBar = element.isInputCollapsed ? this._collapsedProgressBar : this._progressBar;
 		if (exeState?.state === NotebookCellExecutionState.Executing && (!exeState.didPause || element.isInputCollapsed)) {
 			showProgressBar(progressBar);
-		} else {
+		} else if (progressBar.hasTotal()) {
+			progressBar.done();
+		}
+		else {
 			progressBar.hide();
 		}
 	}
@@ -80,18 +83,18 @@ function showProgressBar(progressBar: ProgressBar): void {
 }
 
 function setProgressBar(progressBar: ProgressBar, progress: NotebookCellExecutionProgress | undefined): void {
-	if (progress?.total) {
+	if (typeof progress?.total === 'number') {
 		progressBar.total(progress.total);
 	}
 
-	if (!progressBar.hasTotal() && (progress?.increment !== undefined || progress?.progress !== undefined)) {
+	if (!progressBar.hasTotal() && (typeof progress?.increment === 'number' || typeof progress?.progress === 'number')) {
 		progressBar.total(100);
 	}
 
-	if (progress?.progress) {
+	if (typeof progress?.progress === 'number') {
 		progressBar.setWorked(progress?.progress);
 	}
-	if (progress?.increment) {
+	if (typeof progress?.increment === 'number') {
 		progressBar.worked(progress?.increment);
 	}
 }
