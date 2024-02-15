@@ -18,7 +18,7 @@ suite('DebugModel', () => {
 
 	suite('FunctionBreakpoint', () => {
 		test('Id is saved', () => {
-			const fbp = new FunctionBreakpoint('function', true, 'hit condition', 'condition', 'log message');
+			const fbp = new FunctionBreakpoint({ name: 'function', enabled: true, hitCondition: 'hit condition', condition: 'condition', logMessage: 'log message' });
 			const strigified = JSON.stringify(fbp);
 			const parsed = JSON.parse(strigified);
 			assert.equal(parsed.id, fbp.getId());
@@ -27,10 +27,17 @@ suite('DebugModel', () => {
 
 	suite('ExceptionBreakpoint', () => {
 		test('Restored matches new', () => {
-			const ebp = new ExceptionBreakpoint('id', 'label', true, true, 'condition', 'description', 'condition description', false);
+			const ebp = new ExceptionBreakpoint({
+				conditionDescription: 'condition description',
+				description: 'description',
+				filter: 'condition',
+				label: 'label',
+				supportsCondition: true,
+				enabled: true,
+			}, 'id');
 			const strigified = JSON.stringify(ebp);
 			const parsed = JSON.parse(strigified);
-			const newEbp = new ExceptionBreakpoint(parsed.filter, parsed.label, parsed.enabled, parsed.supportsCondition, parsed.condition, parsed.description, parsed.conditionDescription, !!parsed.fallback);
+			const newEbp = new ExceptionBreakpoint(parsed);
 			assert.ok(ebp.matches(newEbp));
 		});
 	});
