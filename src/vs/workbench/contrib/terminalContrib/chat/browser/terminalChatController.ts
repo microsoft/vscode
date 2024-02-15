@@ -19,11 +19,10 @@ import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/cont
 import { IChatAgentService, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService, IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
-import { InlineChatResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalChatResponseTypes, TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 
@@ -56,7 +55,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private readonly _requestActiveContextKey!: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
-	private readonly _lastResponseTypeContextKey!: IContextKey<undefined | InlineChatResponseTypes>;
+	private readonly _responseTypeContextKey!: IContextKey<TerminalChatResponseTypes | undefined>;
 	private _requestId: number = 0;
 
 	private _messages = this._store.add(new Emitter<Message>());
@@ -97,7 +96,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		this._requestActiveContextKey = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
-		this._lastResponseTypeContextKey = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(this._contextKeyService);
+		this._responseTypeContextKey = TerminalContextKeys.chatResponseType.bindTo(this._contextKeyService);
 
 		if (!this._chatAgentService.hasAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
@@ -257,10 +256,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		if (codeBlock) {
 			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._requestId, shellType);
-			this._lastResponseTypeContextKey.set(InlineChatResponseTypes.Empty);
+			this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
 		} else {
 			this._chatWidget?.rawValue?.renderMessage(responseContent, this._requestId, requestId);
-			this._lastResponseTypeContextKey.set(InlineChatResponseTypes.OnlyMessages);
+			this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
 		}
 		this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
 		this._messages.fire(Message.ACCEPT_INPUT);
