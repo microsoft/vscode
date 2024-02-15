@@ -26,6 +26,9 @@ import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/fol
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { isNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -44,7 +47,11 @@ export class ToggleNotebookStickyScroll extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.NotebookStickyScrollContext }
+				{
+					id: MenuId.NotebookStickyScrollContext,
+					group: 'notebookView',
+					order: 2
+				}
 			]
 		});
 	}
@@ -53,6 +60,43 @@ export class ToggleNotebookStickyScroll extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const newValue = !configurationService.getValue('notebook.stickyScroll.enabled');
 		return configurationService.updateValue('notebook.stickyScroll.enabled', newValue);
+	}
+}
+
+export class RunInSectionStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.action.runInSection',
+			title: {
+				...localize2('runInSectionStickyScroll', "Run Section"),
+				mnemonicTitle: localize({ key: 'mirunInSectionStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Run Section"),
+			},
+			menu: [
+				{
+					id: MenuId.NotebookStickyScrollContext,
+					group: 'notebookExecution',
+					order: 1
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const notebookEditorService = accessor.get(INotebookEditorService);
+
+		const activeInput = editorService.activeEditorPane?.input;
+		const isNotebook = isNotebookEditorInput(activeInput);
+		if (!isNotebook) {
+			return;
+		}
+		const notebookEditor = notebookEditorService.retrieveExistingWidgetFromURI(activeInput.resource)?.value;
+		if (!notebookEditor) {
+			return;
+		}
+
+		const notebookStickyScrollComponent = notebookEditor.notebookStickyScroll;
+		notebookStickyScrollComponent.executeStickySection();
 	}
 }
 
@@ -77,14 +121,6 @@ export class NotebookStickyLine extends Disposable {
 				this.toggleFoldRange(currentFoldingState);
 			}
 		}));
-
-		// folding icon hovers
-		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OVER, () => {
-		// 	this.foldingIcon.setVisible(true);
-		// }));
-		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OUT, () => {
-		// 	this.foldingIcon.setVisible(false);
-		// }));
 
 	}
 
@@ -145,6 +181,7 @@ export class NotebookStickyScroll extends Disposable {
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 
+	private targetStickyElement: HTMLElement | null = null;
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -209,6 +246,30 @@ export class NotebookStickyScroll extends Disposable {
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
 		});
+		this.targetStickyElement = event.target;
+	}
+
+	public executeStickySection() {
+		// get the cells that are in the section
+		if (!this.targetStickyElement) {
+			return;
+		}
+
+		const selectedElement = this.targetStickyElement.parentElement;
+		const selectedOutlineEntry = Array.from(this.currentStickyLines.values()).find(entry => entry.line.element.contains(selectedElement))?.line.entry;
+		if (!selectedOutlineEntry) {
+			return;
+		}
+
+		const flatList: OutlineEntry[] = [];
+		selectedOutlineEntry.asFlatList(flatList);
+
+		// execute cells with INotebookEditor executeNotebookCells
+		const cellViewModels = flatList.map(entry => entry.cell);
+		this.notebookEditor.executeNotebookCells(cellViewModels);
+
+		// clear stickyElement target
+		this.targetStickyElement = null;
 	}
 
 	private updateConfig(e: NotebookOptionsChangeEvent) {
@@ -384,6 +445,7 @@ export class NotebookStickyScroll extends Disposable {
 		stickyHeader.innerText = entry.label;
 
 		stickyElement.append(stickyFoldingIcon.domNode, stickyHeader);
+
 		return new NotebookStickyLine(stickyElement, stickyFoldingIcon, stickyHeader, entry, notebookEditor);
 	}
 
@@ -490,3 +552,4 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 }
 
 registerAction2(ToggleNotebookStickyScroll);
+registerAction2(RunInSectionStickyScroll);
