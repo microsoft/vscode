@@ -35,7 +35,7 @@ export class FoldedCellHint extends CellContentPart {
 		} else if (element.foldingState === CellFoldingState.Collapsed) {
 			const idx = this._notebookEditor.getViewModel().getCellIndex(element);
 			const length = this._notebookEditor.getViewModel().getFoldedLength(idx);
-			DOM.reset(this._container, this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
+			DOM.reset(this._container, this.getRunFoldedSectionButton(element, idx, length), this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
 			DOM.show(this._container);
 
 			const foldHintTop = element.layoutInfo.previewHeight;
@@ -65,6 +65,19 @@ export class FoldedCellHint extends CellContentPart {
 		}));
 
 		return expandIcon;
+	}
+
+	private getRunFoldedSectionButton(element: MarkupCellViewModel, idx: number, length: number): HTMLElement {
+		const runAllIcon = DOM.$('span.folded-cell-run-all-button');
+		runAllIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.playCircle));
+
+		this._register(DOM.addDisposableListener(runAllIcon, DOM.EventType.CLICK, () => {
+			const cellRange = this._notebookEditor.getCellRangeFromViewRange(idx, idx + length);
+			const cells = this._notebookEditor.getCellsInRange(cellRange);
+			this._notebookEditor.executeNotebookCells(cells);
+		}));
+
+		return runAllIcon;
 	}
 
 	override updateInternalLayoutNow(element: MarkupCellViewModel) {

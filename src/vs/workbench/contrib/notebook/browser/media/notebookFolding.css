@@ -46,6 +46,8 @@
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folded-hint {
 	position: absolute;
 	user-select: none;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folded-hint-label {
@@ -54,6 +56,16 @@
 	font-style: italic;
 	opacity: 0.7;
 }
+
+.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-all-button {
+	padding-right: 8px;
+	margin: 4px;
+}
+.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-all-button:hover {
+	background-color: 'var(--vscode-editorStickyScrollHover-background)';
+	cursor: 'pointer';
+}
+
 
 .monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-expanded,
 .monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
