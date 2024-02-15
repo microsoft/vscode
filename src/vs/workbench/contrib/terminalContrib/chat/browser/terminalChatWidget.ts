@@ -78,11 +78,15 @@ export class TerminalChatWidget extends Disposable {
 				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK
 			}
 		);
-		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
-		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
+		this._reset();
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+	}
+
+	private _reset() {
+		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
+		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
 	}
 
 	async renderTerminalCommand(command: string, requestId: number, shellType?: string): Promise<void> {
@@ -110,7 +114,7 @@ export class TerminalChatWidget extends Disposable {
 	hide(): void {
 		this.hideTerminalCommandWidget();
 		this._container.classList.add('hide');
-		this._inlineChatWidget.value = '';
+		this._reset();
 		this._responseEditor?.dispose();
 		this._responseEditor = undefined;
 		this._inlineChatWidget.updateChatMessage(undefined);
