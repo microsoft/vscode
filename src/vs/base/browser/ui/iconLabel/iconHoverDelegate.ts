@@ -64,6 +64,8 @@ export interface IHoverDelegate {
 	placement?: 'mouse' | 'element';
 }
 
+export interface IScopedHoverDelegate extends IHoverDelegate, IDisposable { }
+
 export interface IHoverWidget extends IDisposable {
 	readonly isDisposed: boolean;
 }
