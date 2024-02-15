@@ -266,17 +266,16 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 	}
 
 	// BIG HACK: Using AuthenticationProviders to check access to Language Models
-	private async _getAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string }, detail?: string): Promise<void> {
+	private async _getAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string }, justification?: string): Promise<void> {
 		// This needs to be done in both MainThread & ExtHost ChatProvider
 		const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + to.identifier.value;
 		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true });
 		if (!session) {
 			try {
-				await this._extHostAuthentication.getSession(from, providerId, [], {
-					forceNewSession: {
-						detail: detail ?? localize('chatAccess', "To allow access to the language models provided by {0}", to.displayName),
-					}
-				});
+				const detail = justification
+					? localize('chatAccessWithJustification', "To allow access to the language models provided by {0}. Justification:\n\n{1}", to.displayName, justification)
+					: localize('chatAccess', "To allow access to the language models provided by {0}", to.displayName);
+				await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail } });
 			} catch (err) {
 				throw new Error('Access to language models has not been granted');
 			}

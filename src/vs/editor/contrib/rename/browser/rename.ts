@@ -399,12 +399,6 @@ registerAction2(class FocusNextRenameSuggestion extends Action2 {
 			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 			keybinding: [
 				{
-					when: CONTEXT_RENAME_INPUT_FOCUSED,
-					primary: KeyCode.Tab,
-					weight: KeybindingWeight.EditorContrib + 99,
-				},
-				{
-					when: CONTEXT_RENAME_INPUT_FOCUSED.toNegated(),
 					primary: KeyCode.Tab,
 					secondary: [KeyCode.DownArrow],
 					weight: KeybindingWeight.EditorContrib + 99,

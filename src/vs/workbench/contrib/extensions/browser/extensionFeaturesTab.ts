@@ -473,7 +473,7 @@ class ExtensionFeatureView extends Disposable {
 								return $('td', undefined, ...data.map(item => {
 									const result: Node[] = [];
 									if (isMarkdownString(rowData)) {
-										const element = $('td', undefined);
+										const element = $('', undefined);
 										this.renderMarkdown(rowData, element);
 										result.push(element);
 									} else if (item instanceof ResolvedKeybinding) {

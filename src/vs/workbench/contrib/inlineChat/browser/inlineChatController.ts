@@ -1136,6 +1136,11 @@ export class InlineChatController implements IEditorContribution {
 		return this._zone.value.widget.hasFocus();
 	}
 
+	moveHunk(next: boolean) {
+		this.focus();
+		this._strategy?.move?.(next);
+	}
+
 	populateHistory(up: boolean) {
 		const len = InlineChatController._promptHistory.length;
 		if (len === 0) {

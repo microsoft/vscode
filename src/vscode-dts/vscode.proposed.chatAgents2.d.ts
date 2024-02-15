@@ -19,9 +19,9 @@ declare module 'vscode' {
 		readonly prompt: string;
 
 		/**
-		 * The ID of the chat agent to which this request was directed.
+		 * The name of the chat agent and contributing extension to which this request was directed.
 		 */
-		readonly agent: { readonly extensionId: string; readonly agentId: string };
+		readonly agent: { readonly extensionId: string; readonly agent: string };
 
 		/**
 		 * The name of the {@link ChatAgentCommand command} that was selected for this request.
@@ -33,7 +33,7 @@ declare module 'vscode' {
 		 */
 		readonly variables: ChatAgentResolvedVariable[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatAgentResolvedVariable[], agent: { extensionId: string; agentId: string });
+		private constructor(prompt: string, command: string | undefined, variables: ChatAgentResolvedVariable[], agent: { extensionId: string; agent: string });
 	}
 
 	// TODO@API name: Turn?
@@ -49,9 +49,12 @@ declare module 'vscode' {
 		 */
 		readonly result: ChatAgentResult2;
 
-		readonly agent: { readonly extensionId: string; readonly agentId: string };
+		/**
+		 * The name of the chat agent and contributing extension to which this request was directed.
+		 */
+		readonly agent: { readonly extensionId: string; readonly agent: string };
 
-		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: { extensionId: string; agentId: string });
+		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: { extensionId: string; agent: string });
 	}
 
 	export interface ChatAgentContext {
@@ -289,9 +292,28 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	/**
+	 * A resolved variable value is a name-value pair as well as the range in the prompt where a variable was used.
+	 */
 	export interface ChatAgentResolvedVariable {
+
+		/**
+		 * The name of the variable.
+		 *
+		 * *Note* that the name doesn't include the leading `#`-character,
+		 * e.g `selection` for `#selection`.
+		 */
 		readonly name: string;
+
+		/**
+		 * The start and end index of the variable in the {@link ChatAgentRequest.prompt prompt}.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
 		readonly range: [start: number, end: number];
+
+		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
 		readonly values: ChatVariableValue[];
 	}
 
@@ -313,8 +335,15 @@ declare module 'vscode' {
 		readonly command: string | undefined;
 
 		/**
-		 * The list of variables that are referenced in the prompt.
+		 * The list of variables and their values that are referenced in the prompt.
+		 *
+		 * *Note* that the prompt contains varibale references as authored and that it is up to the agent
+		 * to further modify the prompt, for instance by inlining variable values or creating links to
+		 * headings which contain the resolved values. vvariables are sorted in reverse by their range
+		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
+		 * string-manipulation of the prompt.
 		 */
+		// TODO@API Q? are there implicit variables that are not part of the prompt?
 		readonly variables: readonly ChatAgentResolvedVariable[];
 	}
 
@@ -435,6 +464,7 @@ declare module 'vscode' {
 
 	export class ChatResponseProgressPart {
 		value: string;
+		// TODO@API inline
 		constructor(value: string);
 	}
 
@@ -448,9 +478,11 @@ declare module 'vscode' {
 		constructor(value: Command);
 	}
 
+	/**
+	 * Represents the different chat response types.
+	 */
 	export type ChatResponsePart = ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
 		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
-
 
 
 	export namespace chat {
@@ -458,8 +490,9 @@ declare module 'vscode' {
 		/**
 		 * Create a new {@link ChatAgent2 chat agent} instance.
 		 *
-		 * @param name Short name by which this agent is referred to in the UI
-		 * @param handler The reply-handler of the agent.
+		 * @param name Short name by which the agent is referred to in the UI. The name must be unique for the extension
+		 * contributing the agent but can collide with names from other extensions.
+		 * @param handler A request handler for the agent.
 		 * @returns A new chat agent
 		 */
 		export function createChatAgent(name: string, handler: ChatAgentRequestHandler): ChatAgent2;

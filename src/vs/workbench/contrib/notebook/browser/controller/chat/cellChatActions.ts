@@ -14,7 +14,7 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -232,6 +232,15 @@ registerAction2(class extends NotebookAction {
 						when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_USER_DID_EDIT),
 						weight: KeybindingWeight.EditorCore + 10,
 						primary: KeyCode.Escape
+					},
+					{
+						when: ContextKeyExpr.and(
+							NOTEBOOK_EDITOR_FOCUSED,
+							ContextKeyExpr.not(InputFocusedContextKey),
+							CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('below')
+						),
+						primary: KeyMod.CtrlCmd | KeyCode.Enter,
+						weight: KeybindingWeight.WorkbenchContrib
 					}
 				],
 				menu: [
@@ -482,4 +491,83 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 		CTX_INLINE_CHAT_HAS_PROVIDER,
 		ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
 	)
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super({
+			id: 'notebook.cell.chat.focus',
+			title: localize('focusNotebookChat', 'Focus Chat'),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						ContextKeyExpr.not(InputFocusedContextKey),
+						CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('above')
+					),
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				{
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						ContextKeyExpr.not(InputFocusedContextKey),
+						CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.isEqualTo('below')
+					),
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			],
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		NotebookChatController.get(context.notebookEditor)?.focus();
+	}
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super({
+			id: 'notebook.cell.chat.focusNextCell',
+			title: localize('focusNextCell', 'Focus Next Cell'),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						CTX_NOTEBOOK_CELL_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_FOCUSED,
+					),
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			],
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		NotebookChatController.get(context.notebookEditor)?.focusNext();
+	}
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super({
+			id: 'notebook.cell.chat.focusPreviousCell',
+			title: localize('focusPreviousCell', 'Focus Previous Cell'),
+			keybinding: [
+				{
+					when: ContextKeyExpr.and(
+						CTX_NOTEBOOK_CELL_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_FOCUSED,
+					),
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			],
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		NotebookChatController.get(context.notebookEditor)?.focusAbove();
+	}
 });
