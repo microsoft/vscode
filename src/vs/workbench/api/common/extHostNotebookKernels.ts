@@ -669,8 +669,8 @@ class NotebookCellExecutionTask extends Disposable {
 			},
 
 			setTotalProgress(value: number): void {
-				if (that._state === NotebookCellExecutionTaskState.Resolved) {
-					throw new Error('Cannot set total progress on a resolved cell');
+				if (that._state !== NotebookCellExecutionTaskState.Started) {
+					throw new Error('Cannot set progress on a cell that is not being executed');
 				}
 
 				that.update({
@@ -680,8 +680,8 @@ class NotebookCellExecutionTask extends Disposable {
 			},
 
 			setIncrementProgress(value: number): void {
-				if (that._state === NotebookCellExecutionTaskState.Resolved) {
-					throw new Error('Cannot increment progress on a resolved cell');
+				if (that._state !== NotebookCellExecutionTaskState.Started) {
+					throw new Error('Cannot set progress on a cell that is not being executed');
 				}
 
 				that.update({
@@ -691,8 +691,8 @@ class NotebookCellExecutionTask extends Disposable {
 			},
 
 			setProgress(value: number): void {
-				if (that._state === NotebookCellExecutionTaskState.Resolved) {
-					throw new Error('Cannot set progress on a resolved cell');
+				if (that._state !== NotebookCellExecutionTaskState.Started) {
+					throw new Error('Cannot set progress on a cell that is not being executed');
 				}
 
 				that.update({
