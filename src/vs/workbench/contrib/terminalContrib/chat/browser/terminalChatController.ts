@@ -316,6 +316,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				}
 			}
 			widget.focusLastMessage();
+		} else if (!this._model) {
+			widget?.focusInput();
 		}
 	}
 
