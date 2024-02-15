@@ -139,6 +139,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (this._currentRequest) {
 			this._model?.cancelRequest(this._currentRequest);
 		}
+		this._requestActiveContextKey.set(false);
+		this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
+		this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
+		this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
