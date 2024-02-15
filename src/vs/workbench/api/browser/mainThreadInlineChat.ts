@@ -16,7 +16,7 @@ import { Emitter } from 'vs/base/common/event';
 export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	private readonly _registrations = new DisposableMap<number>();
-	private readonly _changeEvents = new Map<number, Emitter<void>>();
+	private readonly _changeEvents = new DisposableMap<number, Emitter<void>>();
 	private readonly _proxy: ExtHostInlineChatShape;
 
 	private readonly _progresses = new Map<string, IProgress<IInlineChatProgressItem>>();
@@ -31,6 +31,7 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	dispose(): void {
 		this._registrations.dispose();
+		this._changeEvents.dispose();
 	}
 
 	$onDidChangeEnablement(handle: number): void {
@@ -91,7 +92,6 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	async $unregisterInteractiveEditorProvider(handle: number): Promise<void> {
 		this._registrations.deleteAndDispose(handle);
-		this._changeEvents.get(handle)?.dispose();
-		this._changeEvents.delete(handle);
+		this._changeEvents.deleteAndDispose(handle);
 	}
 }
