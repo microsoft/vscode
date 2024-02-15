@@ -100,7 +100,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				actions.forEach(async action => {
 					try {
 						if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-							this.extensionIdentifierSet.add(ExtensionIdentifier.toKey(extensionId));
+							this.extensionIdentifierSet.add(extensionId);
 							this.isRunning = true;
 							await action.run();
 						}
@@ -192,7 +192,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			githubAccessToken
 		}, dataOverrides);
 
-		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(ExtensionIdentifier.toKey(issueReporterData.extensionId))) {
+		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
 			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
 		}
