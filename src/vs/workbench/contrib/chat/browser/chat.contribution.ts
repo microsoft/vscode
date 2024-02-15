@@ -188,6 +188,7 @@ class ChatAccessibleViewContribution extends Disposable {
 				if (!responseContent) {
 					return false;
 				}
+
 				const responses = verifiedWidget.viewModel?.getItems().filter(i => isResponseVM(i));
 				const length = responses?.length;
 				const responseIndex = responses?.findIndex(i => i === focusedItem);
@@ -245,7 +246,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent();
-			const agents = chatAgentService.getAgents();
+			const agents = chatAgentService.getActivatedAgents();
 			if (defaultAgent?.metadata.helpTextPrefix) {
 				if (isMarkdownString(defaultAgent.metadata.helpTextPrefix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'markdownContent' });

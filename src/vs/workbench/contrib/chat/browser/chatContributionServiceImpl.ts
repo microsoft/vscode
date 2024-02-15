@@ -18,9 +18,8 @@ import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chat
 import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { IChatContributionService, IChatParticipantContribution, IChatProviderContribution, IRawChatParticipantContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-
 
 const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
 	extensionPoint: 'interactiveSession',
@@ -59,6 +58,39 @@ const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 	},
 });
 
+const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
+	extensionPoint: 'chatParticipant',
+	jsonSchema: {
+		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a Chat Participant'),
+		type: 'array',
+		items: {
+			additionalProperties: false,
+			type: 'object',
+			defaultSnippets: [{ body: { id: '', program: '', runtime: '' } }],
+			required: ['name'],
+			properties: {
+				name: {
+					description: localize('chatParticipantName', "Unique name for this Chat Participant."),
+					type: 'string'
+				},
+				description: {
+					description: localize('chatParticipantDescription', "A description of this Chat Participant, shown in the UI."),
+					type: 'string'
+				},
+				icon: {
+					description: localize('chatParticipantIcon', "An icon for this Chat Participant."),
+					type: 'string'
+				},
+			}
+		}
+	},
+	activationEventsGenerator: (contributions: IRawChatParticipantContribution[], result: { push(item: string): void }) => {
+		for (const contrib of contributions) {
+			result.push(`onChatParticipant:${contrib.name}`);
+		}
+	},
+});
+
 export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
@@ -93,6 +125,29 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 				for (const providerDescriptor of extension.value) {
 					this._chatContributionService.deregisterChatProvider(providerDescriptor.id);
+				}
+			}
+		});
+
+		chatParticipantExtensionPoint.setHandler((extensions, delta) => {
+			for (const extension of delta.added) {
+				// TODO remove this disposables
+				const extensionDisposable = new DisposableStore();
+				for (const providerDescriptor of extension.value) {
+					this._chatContributionService.registerChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
+				}
+				this._registrationDisposables.set(extension.description.identifier.value, extensionDisposable);
+			}
+
+			for (const extension of delta.removed) {
+				const registration = this._registrationDisposables.get(extension.description.identifier.value);
+				if (registration) {
+					registration.dispose();
+					this._registrationDisposables.delete(extension.description.identifier.value);
+				}
+
+				for (const providerDescriptor of extension.value) {
+					this._chatContributionService.deregisterChatParticipant({ ...providerDescriptor, extensionId: extension.description.identifier });
 				}
 			}
 		});
@@ -156,10 +211,15 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 
+function getParticipantKey(participant: IChatParticipantContribution): string {
+	return `${participant.extensionId.value}_${participant.name}`;
+}
+
 export class ChatContributionService implements IChatContributionService {
 	declare _serviceBrand: undefined;
 
 	private _registeredProviders = new Map<string, IChatProviderContribution>();
+	private _registeredParticipants = new Map<string, IChatParticipantContribution>();
 
 	constructor(
 	) { }
@@ -176,7 +236,19 @@ export class ChatContributionService implements IChatContributionService {
 		this._registeredProviders.delete(providerId);
 	}
 
+	public registerChatParticipant(participant: IChatParticipantContribution): void {
+		this._registeredParticipants.set(getParticipantKey(participant), participant);
+	}
+
+	public deregisterChatParticipant(participant: IChatParticipantContribution): void {
+		this._registeredParticipants.delete(getParticipantKey(participant));
+	}
+
 	public get registeredProviders(): IChatProviderContribution[] {
 		return Array.from(this._registeredProviders.values());
+	}
+
+	public get registeredParticipants(): IChatParticipantContribution[] {
+		return Array.from(this._registeredParticipants.values());
 	}
 }

@@ -234,11 +234,13 @@ declare module 'vscode' {
 
 		/**
 		 * The full name of this agent.
+		 * TODO@API only used for default agent!
 		 */
 		fullName: string;
 
 		/**
 		 * A human-readable description explaining what this agent does.
+		 * TODO@API overwrite statically defined props?
 		 */
 		description: string;
 
