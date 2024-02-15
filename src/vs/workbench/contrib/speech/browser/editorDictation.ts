@@ -23,6 +23,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 
@@ -32,7 +35,7 @@ export class EditorDictationStartAction extends EditorAction2 {
 		super({
 			id: 'workbench.action.editorDictation.start',
 			title: localize2('startDictation', "Start Dictation in Editor"),
-			// category: AbstractInlineChatAction.category,
+			category: localize2('voiceCategory', "Voice"),
 			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS.toNegated(), EditorContextKeys.readOnly.toNegated()),
 			f1: true
 		});
@@ -64,7 +67,7 @@ export class EditorDictationStopAction extends EditorAction2 {
 		super({
 			id: 'workbench.action.editorDictation.stop',
 			title: localize2('stopDictation', "Stop Dictation in Editor"),
-			// category: AbstractInlineChatAction.category,
+			category: localize2('voiceCategory', "Voice"),
 			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS),
 			f1: true
 		});
@@ -81,7 +84,7 @@ export class EditorDictationCancelAction extends EditorAction2 {
 		super({
 			id: 'workbench.action.editorDictation.cancel',
 			title: localize2('cancelDictation', "Cancel Dictation in Editor"),
-			// category: AbstractInlineChatAction.category,
+			category: localize2('voiceCategory', "Voice"),
 			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS),
 			keybinding: {
 				primary: KeyCode.Escape,
@@ -90,7 +93,7 @@ export class EditorDictationCancelAction extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
 		EditorDictation.get(editor)?.cancel();
 	}
 }
@@ -101,12 +104,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = true;
 
 	private readonly domNode = document.createElement('div');
-	private readonly elements = h('.inline-chat-quick-voice@main', [
-		h('span@mic'),
-		h('span', [
-			h('span.message@message'),
-			h('span.preview@preview'),
-		])
+	private readonly elements = h('.editor-dictation-widget@main', [
+		h('span@mic')
 	]);
 
 	private focusTracker: IFocusTracker | undefined;
@@ -138,7 +137,6 @@ export class DictationWidget extends Disposable implements IContentWidget {
 			return null;
 		}
 		const selection = this._editor.getSelection();
-		// const position = this._editor.getPosition();
 		return {
 			position: selection.getPosition(),
 			preference: [
@@ -152,14 +150,14 @@ export class DictationWidget extends Disposable implements IContentWidget {
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const width = this._editor.getLayoutInfo().contentWidth * 0.7;
 
-		this.elements.main.style.setProperty('--vscode-inline-chat-quick-voice-height', `${lineHeight}px`);
-		this.elements.main.style.setProperty('--vscode-inline-chat-quick-voice-width', `${width}px`);
+		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
+		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-width', `${width}px`);
 
 		return null;
 	}
 
 	afterRender(): void {
-		this.domNode.focus();
+		// this.domNode.focus();
 		this.focusTracker?.dispose();
 		this.focusTracker = trackFocus(this.domNode);
 		this.focusTracker.onDidBlur(() => this._onDidBlur.fire());
@@ -175,8 +173,6 @@ export class DictationWidget extends Disposable implements IContentWidget {
 
 	hide() {
 		this.elements.main.classList.remove('recording');
-		this.elements.message.textContent = '';
-		this.elements.preview.textContent = '';
 		this._editor.removeContentWidget(this);
 		this.focusTracker?.dispose();
 	}
@@ -208,7 +204,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	) {
 		super();
 
-		this._register(this.widget.onDidBlur(() => this.finishCallback?.(true)));
+		//this._register(this.widget.onDidBlur(() => this.finishCallback?.(true)));
 	}
 
 	start() {
@@ -216,11 +212,12 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 
 		const cts = new CancellationTokenSource();
 		this.widget.show();
+		this.editor.focus();
 		this.editorDictationInProgress.set(true);
 
-		let message: string | undefined;
 		let preview: string | undefined;
 		const session = this.speechService.createSpeechToTextSession(cts.token);
+		let position: Position;
 		const listener = session.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -229,19 +226,29 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
 					this.widget.active();
+					position = this.editor.getPosition()!;
 					break;
 				case SpeechToTextStatus.Stopped:
 					break;
-				case SpeechToTextStatus.Recognizing:
+				case SpeechToTextStatus.Recognizing: {
+					preview = e.text;
+
 					this.editor.executeEdits('editorDictation', [
-						EditOperation.insert(this.editor.getPosition()!, e.text!)
-					]);
+						EditOperation.replace(new Range(position!.lineNumber, position!.column, position!.lineNumber, position!.column + preview!.length), preview!)
+					], [new Selection(position!.lineNumber, position!.column + preview!.length, position!.lineNumber, position!.column + preview!.length)]);
 
 					break;
+				}
 				case SpeechToTextStatus.Recognized:
-					message = !message ? e.text : `${message} ${e.text}`;
-					preview = '';
-					break;
+					{
+						const result = `${e.text} `;
+						this.editor.executeEdits('editorDictation', [
+							EditOperation.replace(new Range(position!.lineNumber, position!.column, position!.lineNumber, position!.column + preview!.length), result)
+						], [new Selection(position!.lineNumber, position!.column + result.length, position!.lineNumber, position!.column + result.length)]);
+
+						position = this.editor.getPosition()!;
+						break;
+					}
 			}
 		});
 
