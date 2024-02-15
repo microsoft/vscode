@@ -101,6 +101,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					return {
 						name: variable.name,
 						value: variable.value,
+						type: variable.type,
 						editable: false
 					};
 				});
