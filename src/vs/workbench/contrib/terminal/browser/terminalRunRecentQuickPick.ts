@@ -46,8 +46,8 @@ export async function showRunRecentQuickPick(
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
 	const accessibleViewService = accessor.get(IAccessibleViewService);
-	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 
+	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
 	type Item = IQuickPickItem & { command?: ITerminalCommand; rawLabel: string };
 	let items: (Item | IQuickPickItem & { rawLabel: string } | IQuickPickSeparator)[] = [];
