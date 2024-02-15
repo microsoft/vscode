@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
@@ -127,7 +129,8 @@ class ColumnHeader<TRow, TCell> implements IView {
 	readonly onDidLayout = this._onDidLayout.event;
 
 	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {
-		this.element = $('.monaco-table-th', { 'data-col-index': index, title: column.tooltip }, column.label);
+		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
+		setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, column.tooltip);
 	}
 
 	layout(size: number): void {
