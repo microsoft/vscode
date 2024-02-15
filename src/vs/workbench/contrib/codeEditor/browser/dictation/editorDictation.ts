@@ -143,6 +143,10 @@ export class DictationWidget extends Disposable implements IContentWidget {
 		this.editor.addContentWidget(this);
 	}
 
+	position(): void {
+		this.editor.layoutContentWidget(this);
+	}
+
 	active(): void {
 		this.elements.main.classList.add('recording');
 	}
@@ -188,6 +192,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			const selectionAfterReplace = Selection.fromPositions(new Position(previewStart.lineNumber, previewStart.column + text.length));
 
 			this.editor.executeEdits(EditorDictation.ID, [EditOperation.replace(rangeToReplace, text)], [selectionAfterReplace]);
+
+			this.widget.position();
 		};
 
 		const cts = new CancellationTokenSource();
