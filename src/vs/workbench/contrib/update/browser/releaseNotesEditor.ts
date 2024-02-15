@@ -262,7 +262,7 @@ export class ReleaseNotesManager {
 						color: var(--vscode-button-foreground);
 						background-color: var(--vscode-button-background);
 						width: fit-content;
-						padding: 1px 1px 0px 1px;
+						padding: 0px 1px 1px 0px;
 						font-size: 12px;
 						overflow: hidden;
 						text-overflow: ellipsis;
@@ -272,11 +272,11 @@ export class ReleaseNotesManager {
 						text-align: center;
 						cursor: pointer;
 						border: 1px solid var(--vscode-button-border, transparent);
-						line-height: 12px;
+						line-height: 9px;
 						outline: 1px solid transparent;
 						display: inline-block;
 						margin-top: 3px;
-						margin-bottom: -6px !important;
+						margin-bottom: -4px !important;
 					}
 					.codesetting:hover {
 						background-color: var(--vscode-button-hoverBackground);
