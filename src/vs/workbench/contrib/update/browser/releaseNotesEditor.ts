@@ -117,7 +117,9 @@ export class ReleaseNotesManager {
 				} else if (e.message.type === 'scroll') {
 					this.scrollPosition = e.message.value.scrollPosition;
 				} else if (e.message.type === 'clickSetting') {
-					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), e.message.value.x, e.message.value.y);
+					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
+					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
+					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), x, y);
 				}
 			}));
 
@@ -377,7 +379,7 @@ export class ReleaseNotesManager {
 						left: 0;
 						right: 0;
 						bottom: 0;
-						background-color: var(--vscode-button-background);
+						background-color: var(--vscode-disabledForeground);
 						transition: .4s;
 						border-radius: 30px;
 					}
@@ -396,6 +398,10 @@ export class ReleaseNotesManager {
 
 					input:checked+.codefeature > .toggle:before {
 						transform: translateX(26px);
+					}
+
+					input:checked+.codefeature > .toggle {
+						background-color: var(--vscode-button-background);
 					}
 
 					.codefeature-container:has(input) .title {
@@ -470,7 +476,7 @@ export class ReleaseNotesManager {
 					window.addEventListener('click', event => {
 						const href = event.target.href ?? event.target.parentElement.href ?? event.target.parentElement.parentElement?.href;
 						if (href && (href.startsWith('${Schemas.codeSetting}') || href.startsWith('${Schemas.codeFeature}'))) {
-							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.screenX, y: event.screenY }});
+							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.clientX, y: event.clientY }});
 							if (href.startsWith('${Schemas.codeFeature}')) {
 								const featureInput = event.target.parentElement.previousSibling;
 								if (featureInput instanceof HTMLInputElement) {
