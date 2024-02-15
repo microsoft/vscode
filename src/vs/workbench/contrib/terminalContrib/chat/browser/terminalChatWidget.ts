@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -144,21 +145,22 @@ export class TerminalChatWidget extends Disposable {
 					showWords: true,
 					showStatusBar: false,
 				},
+				wordWrap: 'on'
 			}, { isSimpleWidget: true }));
 			this._register(this._terminalCommandWidget.onDidFocusEditorText(() => this._responseEditorFocusedContextKey.set(true)));
 			this._register(this._terminalCommandWidget.onDidBlurEditorText(() => this._responseEditorFocusedContextKey.set(false)));
-			this._register(this._terminalCommandWidget.onDidChangeModelContent(e => {
+			this._register(Event.any(this._terminalCommandWidget.onDidChangeModelContent, this._terminalCommandWidget.onDidChangeModelDecorations)(() => {
 				const height = widget.getContentHeight();
 				widget.layout(new Dimension(640, height));
 			}));
 			model = await this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: command })).then((model) => {
-				if (!model || !this._terminalCommandWidget) {
+				if (!model) {
 					return;
 				}
-				this._terminalCommandWidget.layout(new Dimension(640, 0));
-				this._terminalCommandWidget.setModel(model);
-				const height = this._terminalCommandWidget.getContentHeight();
-				this._terminalCommandWidget.layout(new Dimension(640, height));
+				widget.layout(new Dimension(640, 0));
+				widget.setModel(model);
+				const height = widget.getContentHeight();
+				widget.layout(new Dimension(640, height));
 			});
 		} else {
 			this._terminalCommandWidget.setValue(command);
