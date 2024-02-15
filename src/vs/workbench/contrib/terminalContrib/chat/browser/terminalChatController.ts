@@ -167,9 +167,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	clear(): void {
+		if (this._currentRequest) {
+			this._model?.cancelRequest(this._currentRequest);
+		}
 		this._model?.dispose();
 		this._model = undefined;
-		this.updateModel();
 		this._chatWidget?.rawValue?.hide();
 		this._chatWidget?.rawValue?.setValue(undefined);
 	}
