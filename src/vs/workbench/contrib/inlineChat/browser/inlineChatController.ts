@@ -137,7 +137,7 @@ export class InlineChatController implements IEditorContribution {
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 
-	private _enabledProvider: IInlineChatSessionProvider | { reason: string } | undefined;
+	private _enabledProvider: Promise<IInlineChatSessionProvider | { reason: string } | undefined> = Promise.resolve(undefined);
 	private _providerEnablementEvents: DisposableMap<IInlineChatSessionProvider> = this._store.add(new DisposableMap());
 
 	constructor(
@@ -167,13 +167,13 @@ export class InlineChatController implements IEditorContribution {
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
 
 		this._installProviderEnablementListeners();
-		this._refreshAllProviderEnablements(this._editor);
+		this._enabledProvider = this._refreshAllProviderEnablements(this._editor);
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
 			if (this._session || !e.newModelUrl) {
 				return;
 			}
-			this._refreshAllProviderEnablements(this._editor);
+			this._enabledProvider = this._refreshAllProviderEnablements(this._editor);
 
 			const existingSession = this._inlineChatSessionService.getSession(this._editor, e.newModelUrl);
 			if (!existingSession) {
@@ -245,31 +245,21 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _installProviderEnablementListeners() {
-		this._store.add(this._inlineChatService.onDidChangeProviders((e) => {
+		this._store.add(this._inlineChatService.onDidChangeProviders(async (e) => {
 			if (e.added) {
 				this._providerEnablementEvents.set(e.added, e.added.onDidChangeEnablementStatus(async () => {
-					if (this._enabledProvider === e.added) {
+					if ((await this._enabledProvider) === e.added) {
 						if (this._session?.provider === e.added) {
 							await this.cancelSession();
 						}
-						this._enabledProvider = undefined;
 					}
-					// TODO @lramos15 why can e.added be undefined
-					this._getProviderEnablementStatus(this._editor, e.added!).then(status => {
-						if (status === true) {
-							this._enabledProvider = e.added;
-						} else {
-							if (!isInlineSessionProvider(this._enabledProvider)) {
-								this._enabledProvider = status;
-							}
-						}
-					});
+					this._enabledProvider = this._refreshAllProviderEnablements(this._editor);
 
 				}));
 			}
 			if (e.removed) {
-				if (this._enabledProvider === e.removed) {
-					this._enabledProvider = undefined;
+				if ((await this._enabledProvider) === e.removed) {
+					this._enabledProvider = Promise.resolve(undefined);
 				}
 				this._providerEnablementEvents.deleteAndDispose(e.removed);
 			}
@@ -278,15 +268,15 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async _refreshAllProviderEnablements(editor: ICodeEditor) {
-		this._enabledProvider = undefined;
+		let reason: { reason: string } | undefined;
 		for (const provider of this._inlineChatService.getAllProvider()) {
 			const status = await this._getProviderEnablementStatus(editor, provider);
 			if (status === true) {
-				this._enabledProvider = provider;
-				break;
+				return provider;
 			}
-			this._enabledProvider = status;
+			reason = status;
 		}
+		return reason;
 	}
 
 	private async _getProviderEnablementStatus(editor: ICodeEditor, provider: IInlineChatSessionProvider) {
@@ -388,18 +378,19 @@ export class InlineChatController implements IEditorContribution {
 				}
 			});
 
-			if (!this._enabledProvider) {
+			const enabledProvider = await this._enabledProvider;
+			if (!enabledProvider) {
 				this._dialogService.info(localize('create.failSlowExtHost', "Failed to start editor chat due to slow extension host"), localize('create.fail.detail', "Please consult the error log and try again later."));
 				return State.CANCEL;
 			}
 
-			if (!(isInlineSessionProvider(this._enabledProvider))) {
-				MessageController.get(this._editor)?.showMessage(this._enabledProvider.reason, this._editor.getPosition());
+			if (!(isInlineSessionProvider(enabledProvider))) {
+				MessageController.get(this._editor)?.showMessage(enabledProvider.reason, this._editor.getPosition());
 				return State.CANCEL;
 			}
 
 			session = await this._inlineChatSessionService.createSession(
-				this._enabledProvider,
+				enabledProvider,
 				this._editor,
 				{ editMode: this._getMode(), wholeRange: options.initialRange },
 				createSessionCts.token
