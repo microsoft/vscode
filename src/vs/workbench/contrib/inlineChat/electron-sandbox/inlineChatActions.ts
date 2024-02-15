@@ -20,17 +20,16 @@ import { HasSpeechProvider, ISpeechService } from 'vs/workbench/contrib/speech/c
 import { localize2 } from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export class HoldToSpeak extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
 			id: 'inlineChat.holdForSpeech',
-			precondition: ContextKeyExpr.and(HasSpeechProvider, ContextKeyExpr.or(CTX_INLINE_CHAT_VISIBLE, TerminalContextKeys.chatVisible)),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_INLINE_CHAT_VISIBLE),
 			title: localize2('holdForSpeech', "Hold for Speech"),
 			keybinding: {
-				when: ContextKeyExpr.or(EditorContextKeys.textInputFocus, TerminalContextKeys.chatFocused),
+				when: EditorContextKeys.textInputFocus,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 			},
