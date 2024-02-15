@@ -1264,12 +1264,10 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('mouse', true, configurationService, hoverService);
-
-		this.setOptions((options) => this.setOverrideOptions(options));
+		super('mouse', true, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
-	private setOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
+	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
 		// Only show the hover hint if the content is of a decent size
 		const showHoverHint = (
 			options.content instanceof HTMLElement
