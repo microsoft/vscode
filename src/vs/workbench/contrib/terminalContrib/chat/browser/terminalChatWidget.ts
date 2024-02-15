@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
+import { Dimension, IFocusTracker, hide, show, trackFocus } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -32,7 +32,6 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _inlineChatWidget: InlineChatWidget;
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
 
-	private _terminalCommandWidgetContainer: HTMLElement | undefined;
 	private _responseEditor: TerminalChatResponseEditor | undefined;
 
 	private readonly _focusTracker: IFocusTracker;
@@ -91,7 +90,7 @@ export class TerminalChatWidget extends Disposable {
 
 	async renderTerminalCommand(command: string, requestId: number, shellType?: string): Promise<void> {
 		this._chatAccessibilityService.acceptResponse(command, requestId);
-		this.showTerminalCommandWidget();
+		this._responseEditor?.show();
 		if (!this._responseEditor) {
 			this._responseEditor = this._instantiationService.createInstance(TerminalChatResponseEditor, command, shellType, this._container, this._instance);
 		}
@@ -99,7 +98,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	renderMessage(message: string, accessibilityRequestId: number, requestId: string): void {
-		this.hideTerminalCommandWidget();
+		this._responseEditor?.hide();
 		this._inlineChatWidget.updateChatMessage({ message: new MarkdownString(message), requestId, providerId: 'terminal' });
 		this._chatAccessibilityService.acceptResponse(message, accessibilityRequestId);
 	}
@@ -112,7 +111,6 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.focus();
 	}
 	hide(): void {
-		this.hideTerminalCommandWidget();
 		this._container.classList.add('hide');
 		this._reset();
 		this._responseEditor?.dispose();
@@ -137,7 +135,7 @@ export class TerminalChatWidget extends Disposable {
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 		if (!value) {
-			this.hideTerminalCommandWidget();
+			this._responseEditor?.hide();
 		}
 	}
 	acceptCommand(shouldExecute: boolean): void {
@@ -154,12 +152,6 @@ export class TerminalChatWidget extends Disposable {
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
-	}
-	hideTerminalCommandWidget(): void {
-		this._terminalCommandWidgetContainer?.classList.add('hide');
-	}
-	showTerminalCommandWidget(): void {
-		this._terminalCommandWidgetContainer?.classList.remove('hide');
 	}
 }
 
@@ -297,5 +289,13 @@ class TerminalChatResponseEditor extends Disposable {
 
 	getValue(): string {
 		return this._editor.getValue();
+	}
+
+	hide() {
+		hide(this._editorContainer);
+	}
+
+	show() {
+		show(this._editorContainer);
 	}
 }
