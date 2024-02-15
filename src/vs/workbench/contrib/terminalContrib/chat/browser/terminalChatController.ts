@@ -9,42 +9,25 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { generateUuid } from 'vs/base/common/uuid';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { marked } from 'vs/base/common/marked/marked';
+import { IChatAgentService, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatService, IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
+import { InlineChatResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { Emitter, Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { CTX_INLINE_CHAT_RESPONSE_TYPES, EditMode, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EmptyResponse, Session, SessionExchange, SessionPrompt, TerminalResponse } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { assertType } from 'vs/base/common/types';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModel } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ChatRequestModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
+
+
+import { ChatModel, ChatRequestModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 
 const enum Message {
 	NONE = 0,
@@ -74,9 +57,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _requestActiveContextKey!: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
 	private readonly _lastResponseTypeContextKey!: IContextKey<undefined | InlineChatResponseTypes>;
-
-	private _scopedInstantiationService: IInstantiationService | undefined;
-
 	private _accessibilityRequestId: number = 0;
 
 	private _messages = this._store.add(new Emitter<Message>());
@@ -128,7 +108,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		} else {
 			this._terminalAgentRegisteredContextKey.set(true);
 		}
-		this._cancellationTokenSource = new CancellationTokenSource();
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -136,25 +115,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		this._chatWidget = new Lazy(() => {
-			const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._instance.domElement!));
-			this._scopedInstantiationService = this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-			// The inline chat widget requires a parent editor that it bases the diff view on, since the
-			// terminal doesn't use that feature we can just pass in an unattached editor instance.
-			const fakeParentEditorElement = document.createElement('div');
-			this._fakeEditor = this._scopedInstantiationService.createInstance(
-				CodeEditorWidget,
-				fakeParentEditorElement,
-				{
-					extraEditorClassName: 'ignore-panel-bg'
-				},
-				{ isSimpleWidget: true }
-			);
 
-			const path = `terminal-chat-input-${this._instance.instanceId}`;
-			const inputUri = URI.from({ path: path, scheme: Schemas.untitled, fragment: '' });
-			const result: ITextModel = this._modelService.createModel('', null, inputUri, false);
-			this._fakeEditor.setModel(result);
-			const chatWidget = this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._fakeEditor!, this._instance);
+			const chatWidget = this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance);
 			chatWidget.focusTracker.onDidFocus(() => {
 				TerminalChatController.activeChatWidget = this;
 				if (!isDetachedTerminalInstance(this._instance)) {
@@ -228,7 +190,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		this._chatAccessibilityService.acceptRequest();
 		this._requestActiveContextKey.set(true);
-		const cancellationToken = this._cancellationTokenSource.token;
+		const cancellationToken = new CancellationTokenSource().token;
 		let responseContent = '';
 		const progressCallback = (progress: IChatProgress) => {
 			if (cancellationToken.isCancellationRequested) {
