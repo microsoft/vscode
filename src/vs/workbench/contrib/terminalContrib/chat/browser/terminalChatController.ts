@@ -154,6 +154,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				});
 			}
 		}
+		this._chatWidget?.rawValue?.inlineChatWidget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 	}
 
 	cancel(): void {
