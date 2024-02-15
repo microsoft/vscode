@@ -5,14 +5,13 @@
 
 import 'vs/css!./editorDictation';
 import { localize2 } from 'vs/nls';
-import { IDimension, IFocusTracker, h, reset, trackFocus } from 'vs/base/browser/dom';
+import { IDimension, h, reset } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { Emitter } from 'vs/base/common/event';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -74,33 +73,17 @@ export class EditorDictationStopAction extends EditorAction2 {
 			id: 'workbench.action.editorDictation.stop',
 			title: localize2('stopDictation', "Stop Dictation in Editor"),
 			category: VOICE_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS),
-			f1: true
+			precondition: EDITOR_DICTATION_IN_PROGRESS,
+			f1: true,
+			keybinding: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.WorkbenchContrib + 100
+			}
 		});
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		EditorDictation.get(editor)?.stop();
-	}
-}
-
-export class EditorDictationCancelAction extends EditorAction2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.editorDictation.cancel',
-			title: localize2('cancelDictation', "Cancel Dictation in Editor"),
-			category: VOICE_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS),
-			keybinding: {
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		});
-	}
-
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		EditorDictation.get(editor)?.cancel();
 	}
 }
 
@@ -110,22 +93,13 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = true;
 
 	private readonly domNode = document.createElement('div');
-	private readonly elements = h('.editor-dictation-widget@main', [
-		h('span@mic')
-	]);
+	private readonly elements = h('.editor-dictation-widget@main', [h('span@mic')]);
 
-	private focusTracker: IFocusTracker | undefined;
-
-	private readonly _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
-
-	constructor(private readonly _editor: ICodeEditor) {
+	constructor(private readonly editor: ICodeEditor) {
 		super();
 
 		this.domNode.appendChild(this.elements.root);
 		this.domNode.style.zIndex = '1000';
-		this.domNode.tabIndex = -1;
-		this.domNode.style.outline = 'none';
 
 		reset(this.elements.mic, renderIcon(Codicon.micFilled));
 	}
@@ -139,10 +113,12 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		if (!this._editor.hasModel()) {
+		if (!this.editor.hasModel()) {
 			return null;
 		}
-		const selection = this._editor.getSelection();
+
+		const selection = this.editor.getSelection();
+
 		return {
 			position: selection.getPosition(),
 			preference: [
@@ -153,8 +129,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	beforeRender(): IDimension | null {
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const width = this._editor.getLayoutInfo().contentWidth * 0.7;
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
 		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
 		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-width', `${width}px`);
@@ -162,15 +138,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	afterRender(): void {
-		// this.domNode.focus();
-		this.focusTracker?.dispose();
-		this.focusTracker = trackFocus(this.domNode);
-		this.focusTracker.onDidBlur(() => this._onDidBlur.fire());
-	}
-
 	show() {
-		this._editor.addContentWidget(this);
+		this.editor.addContentWidget(this);
 	}
 
 	active(): void {
@@ -179,14 +148,7 @@ export class DictationWidget extends Disposable implements IContentWidget {
 
 	hide() {
 		this.elements.main.classList.remove('recording');
-		this._editor.removeContentWidget(this);
-		this.focusTracker?.dispose();
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this.focusTracker?.dispose();
+		this.editor.removeContentWidget(this);
 	}
 }
 
@@ -201,27 +163,25 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	private readonly widget = this._register(new DictationWidget(this.editor));
 	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
 
-	private finishCallback?: (abort: boolean) => void;
+	private finishCallback: (() => void) | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-
-		//this._register(this.widget.onDidBlur(() => this.finishCallback?.(true)));
 	}
 
 	start() {
-		this.finishCallback?.(true);
+		this.stop();
 
-		const cts = new CancellationTokenSource();
 		this.widget.show();
-		this.editor.focus();
 		this.editorDictationInProgress.set(true);
 
 		let preview: string | undefined;
+
+		const cts = new CancellationTokenSource();
 		const session = this.speechService.createSpeechToTextSession(cts.token);
 		let position: Position;
 		const listener = session.onDidChange(e => {
@@ -235,6 +195,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 					position = this.editor.getPosition()!;
 					break;
 				case SpeechToTextStatus.Stopped:
+					this.finishCallback?.();
 					break;
 				case SpeechToTextStatus.Recognizing: {
 					preview = e.text;
@@ -258,26 +219,24 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			}
 		});
 
-		this.finishCallback = (abort: boolean) => {
+		this.finishCallback = () => {
 			cts.dispose(true);
 			listener.dispose();
 			this.widget.hide();
 			this.editorDictationInProgress.reset();
+
+			this.finishCallback = undefined;
 		};
 	}
 
 	stop(): void {
-		this.finishCallback?.(false);
-	}
-
-	cancel(): void {
-		this.finishCallback?.(true);
+		this.finishCallback?.();
 	}
 
 	override dispose(): void {
 		super.dispose();
 
-		this.finishCallback?.(true);
+		this.finishCallback?.();
 		this.editorDictationInProgress.reset();
 	}
 }
@@ -285,4 +244,3 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 registerEditorContribution(EditorDictation.ID, EditorDictation, EditorContributionInstantiation.Lazy);
 registerAction2(EditorDictationStartAction);
 registerAction2(EditorDictationStopAction);
-registerAction2(EditorDictationCancelAction);
