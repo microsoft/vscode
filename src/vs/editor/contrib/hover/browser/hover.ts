@@ -226,7 +226,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return false;
 	}
 
-	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent, extended: boolean = false): void {
 
 		this._mouseMoveEvent = mouseEvent;
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
@@ -258,10 +258,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 			}
 			return;
 		}
-		this._reactToEditorMouseMove(mouseEvent);
+		this._reactToEditorMouseMove(mouseEvent, extended);
 	}
 
-	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
+	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined, extended: boolean = false): void {
 
 		if (!mouseEvent) {
 			return;
@@ -289,7 +289,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		const contentWidget = this._getOrCreateContentWidget();
 
-		if (contentWidget.showsOrWillShow(mouseEvent)) {
+		if (contentWidget.showsOrWillShow(mouseEvent, extended)) {
 			this._glyphWidget?.hide();
 			return;
 		}
@@ -387,10 +387,11 @@ export class HoverController extends Disposable implements IEditorContribution {
 		mode: HoverStartMode,
 		source: HoverStartSource,
 		focus: boolean,
-		activatedByColorDecoratorClick: boolean = false
+		activatedByColorDecoratorClick: boolean = false,
+		extended: boolean = false
 	): void {
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
-		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
+		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus, extended);
 	}
 
 	public focus(): void {

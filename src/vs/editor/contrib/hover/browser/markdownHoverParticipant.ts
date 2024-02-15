@@ -113,7 +113,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken, extended: boolean = false): AsyncIterableObject<MarkdownHover> {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -125,7 +125,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 
 		const position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
-		return getHover(this._languageFeaturesService.hoverProvider, model, position, token)
+		// Here need to compute async if extended or not
+		return getHover(this._languageFeaturesService.hoverProvider, model, position, token, extended)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;

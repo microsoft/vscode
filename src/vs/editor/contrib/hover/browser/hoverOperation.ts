@@ -15,11 +15,11 @@ export interface IHoverComputer<T> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (token: CancellationToken) => AsyncIterableObject<T>;
+	computeAsync?: (token: CancellationToken, extended?: boolean) => AsyncIterableObject<T>;
 	/**
 	 * This is called after all the hover time
 	 */
-	computeSync?: () => T[];
+	computeSync?: (extended?: boolean) => T[];
 }
 
 const enum HoverOperationState {
@@ -63,6 +63,7 @@ export class HoverOperation<T> extends Disposable {
 	private readonly _onResult = this._register(new Emitter<HoverResult<T>>());
 	public readonly onResult = this._onResult.event;
 
+	// Do we need the extended boolean here or not?
 	private readonly _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
 	private readonly _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
 	private readonly _loadingMessageScheduler = this._register(new RunOnceScheduler(() => this._triggerLoadingMessage(), 0));
@@ -110,13 +111,13 @@ export class HoverOperation<T> extends Disposable {
 		}
 	}
 
-	private _triggerAsyncComputation(): void {
+	private _triggerAsyncComputation(extended: boolean = false): void {
 		this._setState(HoverOperationState.SecondWait);
 		this._secondWaitScheduler.schedule(this._secondWaitTime);
 
 		if (this._computer.computeAsync) {
 			this._asyncIterableDone = false;
-			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token));
+			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token, extended));
 
 			(async () => {
 				try {
@@ -142,9 +143,9 @@ export class HoverOperation<T> extends Disposable {
 		}
 	}
 
-	private _triggerSyncComputation(): void {
+	private _triggerSyncComputation(extended: boolean = false): void {
 		if (this._computer.computeSync) {
-			this._result = this._result.concat(this._computer.computeSync());
+			this._result = this._result.concat(this._computer.computeSync(extended));
 		}
 		this._setState(this._asyncIterableDone ? HoverOperationState.Idle : HoverOperationState.WaitingForAsync);
 	}
@@ -165,7 +166,7 @@ export class HoverOperation<T> extends Disposable {
 		this._onResult.fire(new HoverResult(this._result.slice(0), isComplete, hasLoadingMessage));
 	}
 
-	public start(mode: HoverStartMode): void {
+	public start(mode: HoverStartMode, extended: boolean = false): void {
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === HoverOperationState.Idle) {
 				this._setState(HoverOperationState.FirstWait);
@@ -175,7 +176,7 @@ export class HoverOperation<T> extends Disposable {
 		} else {
 			switch (this._state) {
 				case HoverOperationState.Idle:
-					this._triggerAsyncComputation();
+					this._triggerAsyncComputation(extended);
 					this._secondWaitScheduler.cancel();
 					this._triggerSyncComputation();
 					break;

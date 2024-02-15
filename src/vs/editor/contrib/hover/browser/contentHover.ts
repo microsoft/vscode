@@ -85,13 +85,14 @@ export class ContentHoverController extends Disposable {
 		mode: HoverStartMode,
 		source: HoverStartSource,
 		focus: boolean,
-		mouseEvent: IEditorMouseEvent | null
+		mouseEvent: IEditorMouseEvent | null,
+		extended: boolean = false
 	): boolean {
 
 		if (!this._widget.position || !this._currentResult) {
 			// The hover is not visible
 			if (anchor) {
-				this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
+				this._startHoverOperationIfNecessary(anchor, mode, source, focus, false, extended);
 				return true;
 			}
 			return false;
@@ -109,7 +110,7 @@ export class ContentHoverController extends Disposable {
 			// The mouse is getting closer to the hover, so we will keep the hover untouched
 			// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
 			if (anchor) {
-				this._startHoverOperationIfNecessary(anchor, mode, source, focus, true);
+				this._startHoverOperationIfNecessary(anchor, mode, source, focus, true, extended);
 			}
 			return true;
 		}
@@ -127,18 +128,18 @@ export class ContentHoverController extends Disposable {
 		if (!anchor.canAdoptVisibleHover(this._currentResult.anchor, this._widget.position)) {
 			// The new anchor is not compatible with the previous anchor
 			this._setCurrentResult(null);
-			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
+			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false, extended);
 			return true;
 		}
 
 		// We aren't getting any closer to the hover, so we will filter existing results
 		// and keep those which also apply to the new anchor.
 		this._setCurrentResult(this._currentResult.filter(anchor));
-		this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
+		this._startHoverOperationIfNecessary(anchor, mode, source, focus, false, extended);
 		return true;
 	}
 
-	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean): void {
+	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean, extended: boolean = false): void {
 
 		if (this._computer.anchor && this._computer.anchor.equals(anchor)) {
 			// We have to start a hover operation at the exact same anchor as before, so no work is needed
@@ -149,7 +150,7 @@ export class ContentHoverController extends Disposable {
 		this._computer.shouldFocus = focus;
 		this._computer.source = source;
 		this._computer.insistOnKeepingHoverVisible = insistOnKeepingHoverVisible;
-		this._hoverOperation.start(mode);
+		this._hoverOperation.start(mode, extended);
 	}
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
@@ -307,7 +308,7 @@ export class ContentHoverController extends Disposable {
 	/**
 	 * Returns true if the hover shows now or will show.
 	 */
-	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
+	public showsOrWillShow(mouseEvent: IEditorMouseEvent, extended: boolean = false): boolean {
 
 		if (this._widget.isResizing) {
 			return true;
@@ -342,15 +343,15 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (anchorCandidates.length === 0) {
-			return this._startShowingOrUpdateHover(null, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
+			return this._startShowingOrUpdateHover(null, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent, extended);
 		}
 
 		anchorCandidates.sort((a, b) => b.priority - a.priority);
-		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
+		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent, extended);
 	}
 
-	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
-		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
+	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, extended: boolean = false): void {
+		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null, extended);
 	}
 
 	public getWidgetContent(): string | undefined {
@@ -1061,7 +1062,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		});
 	}
 
-	public computeAsync(token: CancellationToken): AsyncIterableObject<IHoverPart> {
+	public computeAsync(token: CancellationToken, extended: boolean = false): AsyncIterableObject<IHoverPart> {
 		const anchor = this._anchor;
 
 		if (!this._editor.hasModel() || !anchor) {
@@ -1075,12 +1076,12 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 				if (!participant.computeAsync) {
 					return AsyncIterableObject.EMPTY;
 				}
-				return participant.computeAsync(anchor, lineDecorations, token);
+				return participant.computeAsync(anchor, lineDecorations, token, extended);
 			})
 		);
 	}
 
-	public computeSync(): IHoverPart[] {
+	public computeSync(extended: boolean = false): IHoverPart[] {
 		if (!this._editor.hasModel() || !this._anchor) {
 			return [];
 		}
@@ -1089,7 +1090,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(this._anchor, lineDecorations));
+			result = result.concat(participant.computeSync(this._anchor, lineDecorations, extended));
 		}
 
 		return coalesce(result);

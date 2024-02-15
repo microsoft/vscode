@@ -92,16 +92,16 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
-	private _onModelDecorationsChanged(): void {
+	private _onModelDecorationsChanged(extended: boolean = false): void {
 		if (this._isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
-			this._hoverOperation.start(HoverStartMode.Delayed);
+			this._hoverOperation.start(HoverStartMode.Delayed, extended);
 		}
 	}
 
-	public startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
+	public startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber, extended: boolean = false): void {
 		if (this._computer.lineNumber === lineNumber && this._computer.lane === laneOrLine) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
@@ -113,7 +113,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 
 		this._computer.lineNumber = lineNumber;
 		this._computer.lane = laneOrLine;
-		this._hoverOperation.start(HoverStartMode.Delayed);
+		this._hoverOperation.start(HoverStartMode.Delayed, extended);
 	}
 
 	public hide(): void {
