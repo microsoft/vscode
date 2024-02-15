@@ -26,6 +26,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
@@ -179,11 +180,18 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		this.widget.show();
 		this.editorDictationInProgress.set(true);
 
-		let preview: string | undefined;
+		let previewText = '';
+		let previewStart: Position;
+
+		const insertText = (text: string, endColumn = text.length) => {
+			const rangeToReplace = Range.fromPositions(previewStart, previewStart.with(undefined, previewStart.column + endColumn));
+			const selectionAfterReplace = Selection.fromPositions(new Position(previewStart.lineNumber, previewStart.column + text.length));
+
+			this.editor.executeEdits(EditorDictation.ID, [EditOperation.replace(rangeToReplace, text)], [selectionAfterReplace]);
+		};
 
 		const cts = new CancellationTokenSource();
 		const session = this.speechService.createSpeechToTextSession(cts.token);
-		let position: Position;
 		const listener = session.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -192,30 +200,34 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
 					this.widget.active();
-					position = this.editor.getPosition()!;
+					previewStart = assertIsDefined(this.editor.getPosition());
 					break;
 				case SpeechToTextStatus.Stopped:
 					this.finishCallback?.();
 					break;
 				case SpeechToTextStatus.Recognizing: {
-					preview = e.text;
+					if (!e.text) {
+						return;
+					}
 
-					this.editor.executeEdits('editorDictation', [
-						EditOperation.replace(new Range(position!.lineNumber, position!.column, position!.lineNumber, position!.column + preview!.length), preview!)
-					], [new Selection(position!.lineNumber, position!.column + preview!.length, position!.lineNumber, position!.column + preview!.length)]);
+					previewText = e.text;
+					insertText(previewText);
 
 					break;
 				}
-				case SpeechToTextStatus.Recognized:
-					{
-						const result = `${e.text} `;
-						this.editor.executeEdits('editorDictation', [
-							EditOperation.replace(new Range(position!.lineNumber, position!.column, position!.lineNumber, position!.column + preview!.length), result)
-						], [new Selection(position!.lineNumber, position!.column + result.length, position!.lineNumber, position!.column + result.length)]);
+				case SpeechToTextStatus.Recognized: {
+					const previewTextLength = previewText.length;
+					previewText = '';
 
-						position = this.editor.getPosition()!;
-						break;
+					if (!e.text) {
+						return;
 					}
+
+					insertText(`${e.text} `, previewTextLength);
+
+					previewStart = assertIsDefined(this.editor.getPosition());
+					break;
+				}
 			}
 		});
 
