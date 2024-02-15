@@ -150,6 +150,8 @@ export class SignalLineFeatureContribution
 					if (!position) {
 						return false;
 					}
+					feature.trackLineChanged(position);
+
 					return lineFeatureState.read(reader).isPresent(position);
 				}
 			);
@@ -202,12 +204,18 @@ interface LineFeature {
 		editor: ICodeEditor,
 		model: ITextModel
 	): IObservable<LineFeatureState>;
+	trackLineChanged(position: Position): void;
 	getDelay(modality: SignalModality): number;
 }
 
 interface LineFeatureState {
 	isPresent(position: Position): boolean;
 }
+
+type DelayType = {
+	line: number;
+	inline: number;
+};
 
 abstract class BaseLineFeature implements LineFeature {
 	// mandatory properties of the original LineFeature interface
@@ -218,13 +226,33 @@ abstract class BaseLineFeature implements LineFeature {
 	): IObservable<LineFeatureState>;
 
 	// Holds the current delay values associated with this feature
-	protected _modalityDelays: Map<SignalModality, number> = new Map();
+	protected _modalityDelays: Map<SignalModality, DelayType> = new Map();
+	protected setModalityDelays(modality: SignalModality, lineDelay: number, inlineDelay: number) {
+		this._modalityDelays.set(modality, { line: lineDelay, inline: inlineDelay });
+	}
+
+	protected _previousLine: number = 0;
+	protected _lineChanged: boolean = false;
+	public trackLineChanged(position: Position) {
+		this._lineChanged = position.lineNumber !== this._previousLine;
+		this._previousLine = position.lineNumber;
+	}
+
+	constructor() {
+		// set default delays to "info" feature type (longer delays)
+		// TODO: Retrieve values from user-configurable settings
+		this.setModalityDelays(SignalModality.Sound, 300, 600);
+		this.setModalityDelays(SignalModality.Announcement, 600, 1500);
+	}
 
 	public getDelay(modality: SignalModality): number {
 		let minDelay = Infinity;
-		for (const [key, delay] of this._modalityDelays) {
-			if ((modality & key) !== 0 && delay < minDelay) {
-				minDelay = delay;
+		for (const [key, delayObj] of this._modalityDelays) {
+			if ((modality & key) !== 0) {
+				const delay = this._lineChanged ? delayObj.line : delayObj.inline;
+				if (delay < minDelay) {
+					minDelay = delay;
+				}
 			}
 		}
 		return minDelay === Infinity ? 0 : minDelay;
@@ -234,7 +262,6 @@ abstract class BaseLineFeature implements LineFeature {
 class MarkerLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
 
-	private _previousLine: number = 0;
 	constructor(
 		public readonly signal: AccessibilitySignal,
 		private readonly severity: MarkerSeverity,
@@ -243,8 +270,8 @@ class MarkerLineFeature extends BaseLineFeature implements LineFeature {
 	) {
 		super();
 		// TODO: Retrieve values from user-configurable settings
-		this._modalityDelays.set(SignalModality.Sound, 50);
-		this._modalityDelays.set(SignalModality.Announcement, 500);
+		this.setModalityDelays(SignalModality.Sound, 0, 300);
+		this.setModalityDelays(SignalModality.Announcement, 300, 600);
 	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
@@ -254,14 +281,12 @@ class MarkerLineFeature extends BaseLineFeature implements LineFeature {
 			),
 			() => /** @description this.markerService.onMarkerChanged */({
 				isPresent: (position) => {
-					const lineChanged = position.lineNumber !== this._previousLine;
-					this._previousLine = position.lineNumber;
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
 						.some(
 							(m) => {
 								const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
-								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
+								return this._lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
 							});
 					return hasMarker;
 				},
@@ -275,9 +300,6 @@ class FoldedAreaLineFeature extends BaseLineFeature implements LineFeature {
 
 	constructor() {
 		super();
-		// TODO: Retrieve values from user-configurable settings
-		this._modalityDelays.set(SignalModality.Sound, 500);
-		this._modalityDelays.set(SignalModality.Announcement, 1500);
 	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
@@ -309,9 +331,6 @@ class BreakpointLineFeature extends BaseLineFeature implements LineFeature {
 
 	constructor(@IDebugService private readonly debugService: IDebugService) {
 		super();
-		// TODO: Retrieve values from user-configurable settings
-		this._modalityDelays.set(SignalModality.Sound, 400);
-		this._modalityDelays.set(SignalModality.Announcement, 1000);
 	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
