@@ -268,7 +268,7 @@
 
 .monaco-workbench .notebookOverlay .cell .monaco-progress-container {
 	top: -3px;
-	position: absolute;
+	position: relative;
 	left: 0;
 	z-index: var(--z-index-notebook-progress-bar);
 }
