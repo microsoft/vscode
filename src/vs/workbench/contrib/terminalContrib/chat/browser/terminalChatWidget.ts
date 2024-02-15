@@ -98,9 +98,10 @@ export class TerminalChatWidget extends Disposable {
 		return localize('terminalChatInput', "Terminal Chat Input");
 	}
 
-	renderTerminalCommand(command: string, requestId: number, shellType?: string): void {
+	async renderTerminalCommand(command: string, requestId: number, shellType?: string): Promise<void> {
 		this._chatAccessibilityService.acceptResponse(command, requestId);
 		this.showTerminalCommandWidget();
+		let model: ITextModel | null | void = null;
 		if (!this._terminalCommandWidget) {
 			this._terminalCommandWidgetContainer = document.createElement('div');
 			this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
@@ -150,7 +151,7 @@ export class TerminalChatWidget extends Disposable {
 				const height = widget.getContentHeight();
 				widget.layout(new Dimension(640, height));
 			}));
-			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: command })).then((model) => {
+			model = await this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: command })).then((model) => {
 				if (!model || !this._terminalCommandWidget) {
 					return;
 				}
@@ -162,9 +163,13 @@ export class TerminalChatWidget extends Disposable {
 		} else {
 			this._terminalCommandWidget.setValue(command);
 		}
-		const languageId = this._getLanguageFromShell(shellType);
-		console.log('languageId', languageId);
-		this._terminalCommandWidget.getModel()?.setLanguage(languageId);
+		if (!model) {
+			model = this._terminalCommandWidget.getModel();
+		}
+		if (model) {
+			const languageId = this._getLanguageFromShell(shellType);
+			model.setLanguage(languageId);
+		}
 	}
 
 	private _getLanguageFromShell(shell?: string): string {
