@@ -110,9 +110,11 @@ export class HoverController extends Disposable implements IEditorContribution {
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+			this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		} else {
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+			this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		}
 
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
@@ -312,6 +314,17 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hideWidgets();
 	}
 
+	private _onKeyUp(e: IKeyboardEvent): void {
+		// When shift is pressed, we could show the normal hover
+		if (e.keyCode === KeyCode.Shift && this.isHoverVisible) {
+			const contentWidget = this._getOrCreateContentWidget();
+			if (this._mouseMoveEvent && contentWidget.showsOrWillShow(this._mouseMoveEvent, false)) {
+				this._glyphWidget?.hide();
+				return;
+			}
+		}
+	}
+
 	private _onKeyDown(e: IKeyboardEvent): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -329,6 +342,15 @@ export class HoverController extends Disposable implements IEditorContribution {
 				&& this._contentWidget?.isVisible
 			)
 		);
+
+		// When shift is pressed, we could show the expanded hover
+		if (e.keyCode === KeyCode.Shift && this.isHoverVisible) {
+			const contentWidget = this._getOrCreateContentWidget();
+			if (this._mouseMoveEvent && contentWidget.showsOrWillShow(this._mouseMoveEvent, true)) {
+				this._glyphWidget?.hide();
+				return;
+			}
+		}
 
 		if (
 			e.keyCode === KeyCode.Ctrl

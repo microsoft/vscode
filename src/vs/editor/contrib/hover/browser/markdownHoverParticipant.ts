@@ -125,7 +125,6 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		}
 
 		const position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
-		// Here need to compute async if extended or not
 		return getHover(this._languageFeaturesService.hoverProvider, model, position, token, extended)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {

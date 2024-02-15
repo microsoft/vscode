@@ -561,7 +561,7 @@ class LineHoverWidget extends Disposable implements IOverlayWidget {
 	}
 
 	/** Shows the hover widget at the given line */
-	public startShowingAt(lineNumber: number, extended: boolean) {
+	public startShowingAt(lineNumber: number, extended?: boolean) {
 		this.hide();
 		const textModel = this.editor.getModel();
 		if (!textModel) {
