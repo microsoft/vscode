@@ -121,10 +121,6 @@ export class TerminalChatWidget extends Disposable {
 		this._visibleContextKey.set(false);
 		this._instance.focus();
 	}
-	cancel(): void {
-		// TODO: Impl
-		this._inlineChatWidget.value = '';
-	}
 	focus(): void {
 		this._inlineChatWidget.focus();
 	}
