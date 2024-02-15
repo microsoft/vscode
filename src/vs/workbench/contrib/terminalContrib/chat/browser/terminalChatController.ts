@@ -155,9 +155,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	private _getPlaceholderText(): string {
-		return this._forcedPlaceholder ?? '';
-		// TODO: Pass through session placeholder
-		// return this._forcedPlaceholder ?? this._session?.session.placeholder ?? '';
+		return this._forcedPlaceholder ?? this._model?.inputPlaceholder ?? '';
 	}
 
 	setPlaceholder(text: string): void {
