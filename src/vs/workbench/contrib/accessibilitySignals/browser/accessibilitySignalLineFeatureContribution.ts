@@ -43,6 +43,22 @@ export class SignalLineFeatureContribution
 	));
 
 	private readonly modalities: SignalModality[] = [SignalModality.Sound, SignalModality.Announcement];
+	private pendingAccessibilitySignals: Map<SignalModality, NodeJS.Timeout | null> = new Map();
+
+	private cancelAccessibilitySignals(modality: SignalModality) {
+		const pendingSignal = this.pendingAccessibilitySignals.get(modality);
+		if (pendingSignal !== null) {
+			clearTimeout(pendingSignal);
+			this.pendingAccessibilitySignals.set(modality, null);
+		}
+	}
+
+	private delayedAccessibilitySignals(signals: AccessibilitySignal[], modality: SignalModality, delay: number) {
+		const timeout = setTimeout(() => {
+			this.accessibilitySignalService.playAccessibilitySignals(signals, modality);
+		}, delay);
+		this.pendingAccessibilitySignals.set(modality, timeout);
+	}
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -108,6 +124,10 @@ export class SignalLineFeatureContribution
 					// Ignore cursor changes caused by navigation (e.g. which happens when execution is paused).
 					return undefined;
 				}
+				// Ensure that any pending accessibility signal is cancelled immediately whenever the cursor position changes in the editor
+				for (const modality of this.modalities) {
+					this.cancelAccessibilitySignals(modality);
+				}
 				return editor.getPosition();
 			}
 		);
@@ -157,6 +177,12 @@ export class SignalLineFeatureContribution
 		store.add(
 			autorunDelta(state, ({ lastValue, newValue }) => {
 				/** @description Play Accessibility Signal */
+
+				// TODO: Extract the delay values from each LineFeature class
+				const testDelays: Map<SignalModality, number> = new Map();
+				testDelays.set(SignalModality.Sound, 50);
+				testDelays.set(SignalModality.Announcement, 1000);
+
 				const newFeatures = this.features.filter(
 					feature =>
 						newValue?.featureStates.get(feature) &&
@@ -165,7 +191,8 @@ export class SignalLineFeatureContribution
 				if (newFeatures.length) {
 					const newSignals = newFeatures.map(f => f.signal);
 					for (const modality of this.modalities) {
-						this.accessibilitySignalService.playAccessibilitySignals(newSignals, modality);
+						const delay = testDelays.get(modality) || 0;
+						this.delayedAccessibilitySignals(newSignals, modality, delay);
 					}
 				}
 			})
