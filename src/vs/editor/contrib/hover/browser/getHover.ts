@@ -23,8 +23,10 @@ export class HoverProviderResult {
 
 async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, token: CancellationToken, extended: boolean = false): Promise<HoverProviderResult | undefined> {
 	try {
+		console.log('extended in executeProvider: ', extended);
 		let result = undefined;
 		if (extended) {
+			console.log(`typeof provider['provideExtendedHover'] === 'function' : `, typeof provider['provideExtendedHover'] === 'function');
 			if (typeof provider['provideExtendedHover'] === 'function') {
 				result = await Promise.resolve(provider.provideExtendedHover(model, position, token));
 			}
@@ -41,6 +43,7 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 }
 
 export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, extended: boolean = false): AsyncIterableObject<HoverProviderResult> {
+	console.log('inside of getHover with extended: ', extended);
 	const providers = registry.ordered(model);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token, extended));
 	return AsyncIterableObject.fromPromises(promises).coalesce();

@@ -64,8 +64,8 @@ export class HoverOperation<T> extends Disposable {
 	public readonly onResult = this._onResult.event;
 
 	// Do we need the extended boolean here or not?
-	private readonly _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
-	private readonly _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
+	private _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
+	private _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
 	private readonly _loadingMessageScheduler = this._register(new RunOnceScheduler(() => this._triggerLoadingMessage(), 0));
 
 	private _state = HoverOperationState.Idle;
@@ -86,6 +86,16 @@ export class HoverOperation<T> extends Disposable {
 			this._asyncIterable = null;
 		}
 		super.dispose();
+	}
+
+	private _sheduleFirstWaitScheduler(extended?: boolean) {
+		this._firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(extended), 0));
+		this._firstWaitScheduler.schedule(this._firstWaitTime);
+	}
+
+	private _sheduleSecondWaitScheduler(extended?: boolean) {
+		this._secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(extended), 0));
+		this._secondWaitScheduler.schedule(this._secondWaitTime);
 	}
 
 	private get _hoverTime(): number {
@@ -112,8 +122,9 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	private _triggerAsyncComputation(extended: boolean = false): void {
+		console.log('inside of _triggerAsyncComputation with extended: ', extended);
 		this._setState(HoverOperationState.SecondWait);
-		this._secondWaitScheduler.schedule(this._secondWaitTime);
+		this._sheduleSecondWaitScheduler(extended);
 
 		if (this._computer.computeAsync) {
 			this._asyncIterableDone = false;
@@ -167,22 +178,23 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	public start(mode: HoverStartMode, extended: boolean = false): void {
+		console.log('inside of start with extended: ', extended);
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === HoverOperationState.Idle) {
 				this._setState(HoverOperationState.FirstWait);
-				this._firstWaitScheduler.schedule(this._firstWaitTime);
+				this._sheduleFirstWaitScheduler(extended);
 				this._loadingMessageScheduler.schedule(this._loadingMessageTime);
 			}
 		} else {
 			switch (this._state) {
 				case HoverOperationState.Idle:
 					this._triggerAsyncComputation(extended);
-					this._secondWaitScheduler.cancel();
-					this._triggerSyncComputation();
+					this._sheduleSecondWaitScheduler(extended);
+					this._triggerSyncComputation(extended);
 					break;
 				case HoverOperationState.SecondWait:
-					this._secondWaitScheduler.cancel();
-					this._triggerSyncComputation();
+					this._sheduleSecondWaitScheduler(extended);
+					this._triggerSyncComputation(extended);
 					break;
 			}
 		}

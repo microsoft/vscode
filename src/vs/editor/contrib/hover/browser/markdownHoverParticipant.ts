@@ -114,6 +114,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken, extended: boolean = false): AsyncIterableObject<MarkdownHover> {
+		console.log('inside of computeAsync in markdownHoverParticipant with extended: ', extended);
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return AsyncIterableObject.EMPTY;
 		}

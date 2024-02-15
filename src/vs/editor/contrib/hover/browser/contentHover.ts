@@ -88,7 +88,7 @@ export class ContentHoverController extends Disposable {
 		mouseEvent: IEditorMouseEvent | null,
 		extended: boolean = false
 	): boolean {
-
+		console.log('inside of _startShowingOrUpdateHover with extended: ', extended);
 		if (!this._widget.position || !this._currentResult) {
 			// The hover is not visible
 			if (anchor) {
@@ -140,11 +140,11 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean, extended: boolean = false): void {
-
-		if (this._computer.anchor && this._computer.anchor.equals(anchor)) {
-			// We have to start a hover operation at the exact same anchor as before, so no work is needed
-			return;
-		}
+		console.log('inside of _startHoverOperationIfNecessary with extended : ', extended);
+		// if (this._computer.anchor && this._computer.anchor.equals(anchor)) {
+		// 	// We have to start a hover operation at the exact same anchor as before, so no work is needed
+		// 	return;
+		// }
 		this._hoverOperation.cancel();
 		this._computer.anchor = anchor;
 		this._computer.shouldFocus = focus;
@@ -309,7 +309,7 @@ export class ContentHoverController extends Disposable {
 	 * Returns true if the hover shows now or will show.
 	 */
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent, extended: boolean = false): boolean {
-
+		console.log('inside of showsOrWillShow with extended: ', extended);
 		if (this._widget.isResizing) {
 			return true;
 		}
@@ -1063,6 +1063,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	}
 
 	public computeAsync(token: CancellationToken, extended: boolean = false): AsyncIterableObject<IHoverPart> {
+		console.log('inside of computeAsync of ContentHoverComputer with extended : ', extended);
 		const anchor = this._anchor;
 
 		if (!this._editor.hasModel() || !anchor) {
