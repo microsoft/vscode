@@ -217,8 +217,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			// TODO: ?
 			variables: { variables: [] },
 		};
-		// TODO: fix requester usrname, responder username
-		this._model?.initialize({ id: this._requestId, requesterUsername: 'userGesture', responderUsername: 'terminal' }, undefined);
+		await this._model?.waitForInitialization();
 		const request: IParsedChatRequest = {
 			text: this._lastInput,
 			parts: []
