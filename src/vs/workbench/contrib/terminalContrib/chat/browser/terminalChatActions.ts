@@ -35,6 +35,8 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
 		contr?.chatWidget?.reveal();
+		// TODO: Remove this before merging to main
+		contr?.chatWidget?.setValue('list files');
 	}
 });
 

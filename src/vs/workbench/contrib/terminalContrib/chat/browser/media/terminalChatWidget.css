@@ -13,7 +13,8 @@
 
 .terminal-inline-chat .terminal-inline-chat-response {
 	border: 1px solid var(--vscode-input-border, transparent);
-	background-color: var(--vscode-interactive-result-editor-background-color);
+	/* TODO: Make themeable */
+	background-color: #181818;
 }
 
 .terminal-inline-chat .terminal-inline-chat-response:has(.monaco-editor.focused) {

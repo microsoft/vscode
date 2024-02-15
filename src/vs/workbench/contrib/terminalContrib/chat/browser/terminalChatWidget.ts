@@ -122,7 +122,7 @@ export class TerminalChatWidget extends Disposable {
 				scrollbar: {
 					useShadows: false,
 					vertical: 'hidden',
-					horizontal: 'auto',
+					horizontal: 'hidden',
 					alwaysConsumeMouseWheel: false
 				},
 				lineDecorationsWidth: 0,
