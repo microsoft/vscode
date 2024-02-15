@@ -7,7 +7,7 @@ import 'vs/css!./editorDictation';
 import { localize2 } from 'vs/nls';
 import { IDimension, h, reset } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -143,7 +143,7 @@ export class DictationWidget extends Disposable implements IContentWidget {
 		this.editor.addContentWidget(this);
 	}
 
-	position(): void {
+	layout(): void {
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -168,7 +168,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	private readonly widget = this._register(new DictationWidget(this.editor));
 	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
 
-	private finishCallback: (() => void) | undefined;
+	private sessionDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -179,26 +179,60 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	}
 
 	start() {
-		this.stop();
+		const disposables = new DisposableStore();
+		this.sessionDisposables.value = disposables;
 
 		this.widget.show();
+		disposables.add(toDisposable(() => this.widget.hide()));
+
 		this.editorDictationInProgress.set(true);
+		disposables.add(toDisposable(() => this.editorDictationInProgress.reset()));
 
-		let previewText = '';
-		let previewStart: Position;
+		const collection = this.editor.createDecorationsCollection();
+		disposables.add(toDisposable(() => collection.clear()));
 
-		const insertText = (text: string, endColumn = text.length) => {
-			const rangeToReplace = Range.fromPositions(previewStart, previewStart.with(undefined, previewStart.column + endColumn));
-			const selectionAfterReplace = Selection.fromPositions(new Position(previewStart.lineNumber, previewStart.column + text.length));
+		let previewStart: Position | undefined = undefined;
 
-			this.editor.executeEdits(EditorDictation.ID, [EditOperation.replace(rangeToReplace, text)], [selectionAfterReplace]);
+		let lastReplaceTextLength = 0;
+		const replaceText = (text: string, isPreview: boolean) => {
+			if (!previewStart) {
+				previewStart = assertIsDefined(this.editor.getPosition());
+			}
 
-			this.widget.position();
+			this.editor.executeEdits(EditorDictation.ID, [
+				EditOperation.replace(Range.fromPositions(previewStart, previewStart.with(undefined, previewStart.column + lastReplaceTextLength)), text)
+			], [
+				Selection.fromPositions(new Position(previewStart.lineNumber, previewStart.column + text.length))
+			]);
+
+			if (isPreview) {
+				collection.set([
+					{
+						range: Range.fromPositions(previewStart, previewStart.with(undefined, previewStart.column + text.length)),
+						options: {
+							description: 'editor-dictation-preview',
+							inlineClassName: 'ghost-text-decoration-preview'
+						}
+					}
+				]);
+			} else {
+				collection.clear();
+			}
+
+			lastReplaceTextLength = text.length;
+			if (!isPreview) {
+				previewStart = undefined;
+				lastReplaceTextLength = 0;
+			}
+
+			this.widget.layout();
 		};
 
 		const cts = new CancellationTokenSource();
-		const session = this.speechService.createSpeechToTextSession(cts.token);
-		const listener = session.onDidChange(e => {
+		disposables.add(toDisposable(() => cts.dispose(true)));
+
+		const session = disposables.add(this.speechService.createSpeechToTextSession(cts.token));
+		disposables.add(session.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -206,56 +240,32 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
 					this.widget.active();
-					previewStart = assertIsDefined(this.editor.getPosition());
 					break;
 				case SpeechToTextStatus.Stopped:
-					this.finishCallback?.();
+					disposables.dispose();
 					break;
 				case SpeechToTextStatus.Recognizing: {
 					if (!e.text) {
 						return;
 					}
 
-					previewText = e.text;
-					insertText(previewText);
-
+					replaceText(e.text, true);
 					break;
 				}
 				case SpeechToTextStatus.Recognized: {
-					const previewTextLength = previewText.length;
-					previewText = '';
-
 					if (!e.text) {
 						return;
 					}
 
-					insertText(`${e.text} `, previewTextLength);
-
-					previewStart = assertIsDefined(this.editor.getPosition());
+					replaceText(`${e.text} `, false);
 					break;
 				}
 			}
-		});
-
-		this.finishCallback = () => {
-			cts.dispose(true);
-			listener.dispose();
-			this.widget.hide();
-			this.editorDictationInProgress.reset();
-
-			this.finishCallback = undefined;
-		};
+		}));
 	}
 
 	stop(): void {
-		this.finishCallback?.();
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this.finishCallback?.();
-		this.editorDictationInProgress.reset();
+		this.sessionDisposables.clear();
 	}
 }
 
