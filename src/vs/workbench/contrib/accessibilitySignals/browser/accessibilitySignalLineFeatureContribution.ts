@@ -177,12 +177,6 @@ export class SignalLineFeatureContribution
 		store.add(
 			autorunDelta(state, ({ lastValue, newValue }) => {
 				/** @description Play Accessibility Signal */
-
-				// TODO: Extract the delay values from each LineFeature class
-				const testDelays: Map<SignalModality, number> = new Map();
-				testDelays.set(SignalModality.Sound, 50);
-				testDelays.set(SignalModality.Announcement, 1000);
-
 				const newFeatures = this.features.filter(
 					feature =>
 						newValue?.featureStates.get(feature) &&
@@ -191,7 +185,8 @@ export class SignalLineFeatureContribution
 				if (newFeatures.length) {
 					const newSignals = newFeatures.map(f => f.signal);
 					for (const modality of this.modalities) {
-						const delay = testDelays.get(modality) || 0;
+						// The delay is determined by the shortest delay among the existing line features
+						const delay = Math.min(...newFeatures.map(f => f.getDelay(modality)));
 						this.delayedAccessibilitySignals(newSignals, modality, delay);
 					}
 				}
@@ -207,21 +202,50 @@ interface LineFeature {
 		editor: ICodeEditor,
 		model: ITextModel
 	): IObservable<LineFeatureState>;
+	getDelay(modality: SignalModality): number;
 }
 
 interface LineFeatureState {
 	isPresent(position: Position): boolean;
 }
 
-class MarkerLineFeature implements LineFeature {
+abstract class BaseLineFeature implements LineFeature {
+	// mandatory properties of the original LineFeature interface
+	abstract signal: AccessibilitySignal;
+	abstract getObservableState(
+		editor: ICodeEditor,
+		model: ITextModel
+	): IObservable<LineFeatureState>;
+
+	// Holds the current delay values associated with this feature
+	protected _modalityDelays: Map<SignalModality, number> = new Map();
+
+	public getDelay(modality: SignalModality): number {
+		let minDelay = Infinity;
+		for (const [key, delay] of this._modalityDelays) {
+			if ((modality & key) !== 0 && delay < minDelay) {
+				minDelay = delay;
+			}
+		}
+		return minDelay === Infinity ? 0 : minDelay;
+	}
+}
+
+class MarkerLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
+
 	private _previousLine: number = 0;
 	constructor(
 		public readonly signal: AccessibilitySignal,
 		private readonly severity: MarkerSeverity,
 		@IMarkerService private readonly markerService: IMarkerService,
 
-	) { }
+	) {
+		super();
+		// TODO: Retrieve values from user-configurable settings
+		this._modalityDelays.set(SignalModality.Sound, 50);
+		this._modalityDelays.set(SignalModality.Announcement, 500);
+	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return observableFromEvent<LineFeatureState>(
@@ -246,8 +270,15 @@ class MarkerLineFeature implements LineFeature {
 	}
 }
 
-class FoldedAreaLineFeature implements LineFeature {
+class FoldedAreaLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly signal = AccessibilitySignal.foldedArea;
+
+	constructor() {
+		super();
+		// TODO: Retrieve values from user-configurable settings
+		this._modalityDelays.set(SignalModality.Sound, 500);
+		this._modalityDelays.set(SignalModality.Announcement, 1500);
+	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		const foldingController = FoldingController.get(editor);
@@ -273,10 +304,15 @@ class FoldedAreaLineFeature implements LineFeature {
 	}
 }
 
-class BreakpointLineFeature implements LineFeature {
+class BreakpointLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly signal = AccessibilitySignal.break;
 
-	constructor(@IDebugService private readonly debugService: IDebugService) { }
+	constructor(@IDebugService private readonly debugService: IDebugService) {
+		super();
+		// TODO: Retrieve values from user-configurable settings
+		this._modalityDelays.set(SignalModality.Sound, 400);
+		this._modalityDelays.set(SignalModality.Announcement, 1000);
+	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return observableFromEvent<LineFeatureState>(
