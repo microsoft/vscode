@@ -13,8 +13,10 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
@@ -34,7 +36,6 @@ export class TerminalChatWidget extends Disposable {
 
 	private readonly _focusTracker: IFocusTracker;
 
-	// private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _responseEditorFocusedContextKey!: IContextKey<boolean>;
@@ -44,6 +45,7 @@ export class TerminalChatWidget extends Disposable {
 		fakeParentEditor: CodeEditorWidget,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -80,12 +82,25 @@ export class TerminalChatWidget extends Disposable {
 		this._focusTracker = this._register(trackFocus(this._container));
 	}
 
+
+	private _getAriaLabel(): string {
+		const verbose = this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
+		if (verbose) {
+			// TODO: Add verbose description
+		}
+		return localize('terminalChatInput', "Terminal Chat Input");
+	}
+
 	renderTerminalCommand(command: string, requestId: number, shellType?: string): void {
 		this._chatAccessibilityService.acceptResponse(command, requestId);
 		this.showTerminalCommandWidget();
 		if (!this._terminalCommandWidget) {
 			this._terminalCommandWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
-				padding: { top: 2, bottom: 2 },
+				readOnly: false,
+				ariaLabel: this._getAriaLabel(),
+				fontSize: 13,
+				lineHeight: 20,
+				padding: { top: 8, bottom: 8 },
 				overviewRulerLanes: 0,
 				glyphMargin: false,
 				lineNumbers: 'off',
@@ -133,7 +148,9 @@ export class TerminalChatWidget extends Disposable {
 		} else {
 			this._terminalCommandWidget.setValue(command);
 		}
-		this._terminalCommandWidget.getModel()?.setLanguage(this._getLanguageFromShell(shellType));
+		const languageId = this._getLanguageFromShell(shellType);
+		console.log('languageId', languageId);
+		this._terminalCommandWidget.getModel()?.setLanguage(languageId);
 	}
 
 	private _getLanguageFromShell(shell?: string): string {

@@ -10,6 +10,23 @@
 	z-index: 100;
 	height: auto !important;
 }
-/* .terminal-inline-chat .inline-chat .body {
-	display: flex;
-} */
+
+.terminal-inline-chat .terminal-inline-chat-response {
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-interactive-result-editor-background-color);
+}
+
+.terminal-inline-chat .terminal-inline-chat-response:has(.monaco-editor.focused) {
+	border-color: var(--vscode-focusBorder, transparent);
+}
+
+.terminal-inline-chat .terminal-inline-chat-response,
+.terminal-inline-chat .terminal-inline-chat-response .monaco-editor,
+.terminal-inline-chat .terminal-inline-chat-response .monaco-editor .overflow-guard {
+	border-radius: 4px;
+}
+
+.terminal-inline-chat .terminal-inline-chat-response {
+	margin: 0 0 8px 0;
+	padding-left: 8px;
+}
