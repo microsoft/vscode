@@ -18,7 +18,7 @@ import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/cha
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
-	title: localize2('startChat', 'Terminal: Start Chat'),
+	title: localize2('startChat', 'Start Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused.negate(), TerminalContextKeys.focusInAny),
@@ -42,7 +42,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Hide,
-	title: localize2('closeChat', 'Terminal: Close Chat'),
+	title: localize2('closeChat', 'Close Chat'),
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
@@ -74,7 +74,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.RunCommand,
-	title: localize2('runCommand', 'Terminal: Run Chat Command'),
+	title: localize2('runCommand', 'Run Chat Command'),
 	shortTitle: localize2('run', 'Run'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -106,7 +106,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertCommand,
-	title: localize2('insertCommand', 'Terminal: Insert Chat Command'),
+	title: localize2('insertCommand', 'Insert Chat Command'),
 	shortTitle: localize2('insert', 'Insert'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
@@ -138,7 +138,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.ViewInChat,
-	title: localize2('viewInChat', 'Terminal: View in Chat'),
+	title: localize2('viewInChat', 'View in Chat'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -164,7 +164,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.MakeRequest,
-	title: localize2('makeChatRequest', 'Terminal: Make Chat Request'),
+	title: localize2('makeChatRequest', 'Make Chat Request'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -195,7 +195,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Cancel,
-	title: localize2('cancelChat', 'Terminal: Cancel Chat'),
+	title: localize2('cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatRequestActive,
