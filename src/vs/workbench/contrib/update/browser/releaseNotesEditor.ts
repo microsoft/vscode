@@ -260,7 +260,7 @@ export class ReleaseNotesManager {
 						color: var(--vscode-button-foreground);
 						background-color: var(--vscode-button-background);
 						width: fit-content;
-						padding: 1px 1px 1px 1px;
+						padding: 1px 1px 0px 1px;
 						font-size: 12px;
 						overflow: hidden;
 						text-overflow: ellipsis;
