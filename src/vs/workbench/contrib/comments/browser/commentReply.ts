@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -370,7 +370,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	override dispose(): void {
-		this._commentThreadDisposables.forEach(dispose => dispose.dispose());
 		super.dispose();
+		dispose(this._commentThreadDisposables);
 	}
 }
