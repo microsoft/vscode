@@ -17,7 +17,7 @@ export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalS
 
 export interface IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
-	playSignal(signal: AccessibilitySignal, options?: IAccessbilitySignalOptions): Promise<void>;
+	playSignal(signal: AccessibilitySignal, options?: IAccessibilitySignalOptions): Promise<void>;
 	playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
 	isSoundEnabled(signal: AccessibilitySignal): boolean;
 	isAnnouncementEnabled(signal: AccessibilitySignal): boolean;
@@ -28,7 +28,7 @@ export interface IAccessibilitySignalService {
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 }
 
-export interface IAccessbilitySignalOptions {
+export interface IAccessibilitySignalOptions {
 	allowManyInParallel?: boolean;
 	source?: string;
 	/**
@@ -56,10 +56,10 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		super();
 	}
 
-	public async playSignal(signal: AccessibilitySignal, options: IAccessbilitySignalOptions = {}): Promise<void> {
-		const announcementMessage = signal.announcementMessage;
-		if (this.isAnnouncementEnabled(signal, options.userGesture) && announcementMessage) {
-			this.accessibilityService.status(announcementMessage);
+	public async playSignal(signal: AccessibilitySignal, options: IAccessibilitySignalOptions = {}): Promise<void> {
+		const alertMessage = signal.announcementMessage;
+		if (this.isAnnouncementEnabled(signal, options.userGesture) && alertMessage) {
+			this.accessibilityService.status(alertMessage);
 		}
 
 		if (this.isSoundEnabled(signal, options.userGesture)) {

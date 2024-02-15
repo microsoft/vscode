@@ -37,7 +37,7 @@ export class SignalLineFeatureContribution
 		() => this.accessibilitySignalService.isSoundEnabled(cue)
 	));
 
-	private readonly isAnnouncmentEnabledCahce = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
+	private readonly isAnnouncementEnabledCache = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
 		this.accessibilitySignalService.onAnnouncementEnabledChanged(cue),
 		() => this.accessibilitySignalService.isAnnouncementEnabled(cue)
 	));
@@ -52,7 +52,7 @@ export class SignalLineFeatureContribution
 
 		const someAccessibilitySignalIsEnabled = derived(
 			(reader) => /** @description someAccessibilitySignalFeatureIsEnabled */ this.features.some((feature) =>
-				this.isSoundEnabledCache.get(feature.signal).read(reader) || this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)
+				this.isSoundEnabledCache.get(feature.signal).read(reader) || this.isAnnouncementEnabledCache.get(feature.signal).read(reader)
 			)
 		);
 
@@ -121,7 +121,7 @@ export class SignalLineFeatureContribution
 			const isFeaturePresent = derivedOpts(
 				{ debugName: `isPresentInLine:${feature.signal.name}` },
 				(reader) => {
-					if (!this.isSoundEnabledCache.get(feature.signal).read(reader) && !this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)) {
+					if (!this.isSoundEnabledCache.get(feature.signal).read(reader) && !this.isAnnouncementEnabledCache.get(feature.signal).read(reader)) {
 						return false;
 					}
 					const position = debouncedPosition.read(reader);
