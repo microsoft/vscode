@@ -25,16 +25,18 @@
 
 .monaco-editor .editor-dictation-widget.recording .codicon.codicon-mic-filled {
 	color: var(--vscode-activityBarBadge-background);
-	animation: ani-inline-chat 1s infinite;
+	animation: editor-dictation-animation 1s infinite;
 }
 
-@keyframes ani-inline-chat {
+@keyframes editor-dictation-animation {
 	0% {
 		color: var(--vscode-editorCursor-background);
 	}
+
 	50% {
 		color: var(--vscode-activityBarBadge-background);
 	}
+
 	100% {
 		color: var(--vscode-editorCursor-background);
 	}

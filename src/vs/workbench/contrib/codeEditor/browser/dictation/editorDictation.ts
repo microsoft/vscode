@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorDictation';
+import 'vs/css!./editorDictation';
 import { localize2 } from 'vs/nls';
 import { IDimension, IFocusTracker, h, reset, trackFocus } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -16,7 +16,7 @@ import { Emitter } from 'vs/base/common/event';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -26,8 +26,10 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
+const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
 
 export class EditorDictationStartAction extends EditorAction2 {
 
@@ -35,28 +37,32 @@ export class EditorDictationStartAction extends EditorAction2 {
 		super({
 			id: 'workbench.action.editorDictation.start',
 			title: localize2('startDictation', "Start Dictation in Editor"),
-			category: localize2('voiceCategory', "Voice"),
+			category: VOICE_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS.toNegated(), EditorContextKeys.readOnly.toNegated()),
 			f1: true
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const keybindingService = accessor.get(IKeybindingService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
 		if (holdMode) {
 			let shouldCallStop = false;
+
 			const handle = setTimeout(() => {
 				shouldCallStop = true;
 			}, 500);
+
 			holdMode.finally(() => {
 				clearTimeout(handle);
+
 				if (shouldCallStop) {
 					EditorDictation.get(editor)?.stop();
 				}
 			});
 		}
+
 		EditorDictation.get(editor)?.start();
 	}
 }
@@ -67,13 +73,13 @@ export class EditorDictationStopAction extends EditorAction2 {
 		super({
 			id: 'workbench.action.editorDictation.stop',
 			title: localize2('stopDictation', "Stop Dictation in Editor"),
-			category: localize2('voiceCategory', "Voice"),
+			category: VOICE_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS),
 			f1: true
 		});
 	}
 
-	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		EditorDictation.get(editor)?.stop();
 	}
 }
@@ -84,7 +90,7 @@ export class EditorDictationCancelAction extends EditorAction2 {
 		super({
 			id: 'workbench.action.editorDictation.cancel',
 			title: localize2('cancelDictation', "Cancel Dictation in Editor"),
-			category: localize2('voiceCategory', "Voice"),
+			category: VOICE_CATEGORY,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS),
 			keybinding: {
 				primary: KeyCode.Escape,
@@ -93,7 +99,7 @@ export class EditorDictationCancelAction extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		EditorDictation.get(editor)?.cancel();
 	}
 }
@@ -275,3 +281,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		this.editorDictationInProgress.reset();
 	}
 }
+
+registerEditorContribution(EditorDictation.ID, EditorDictation, EditorContributionInstantiation.Lazy);
+registerAction2(EditorDictationStartAction);
+registerAction2(EditorDictationStopAction);
+registerAction2(EditorDictationCancelAction);
