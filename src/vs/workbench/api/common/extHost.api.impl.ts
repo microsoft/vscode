@@ -1395,23 +1395,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
-		// namespace: llm
+		// namespace: chat
 		const chat: typeof vscode.chat = {
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostChatProvider.registerLanguageModel(extension, id, provider, metadata);
-			},
-			requestLanguageModelAccess(id, options) {
-				checkProposedApiEnabled(extension, 'chatRequestAccess');
-				return extHostChatProvider.requestLanguageModelAccess(extension, id, options);
-			},
-			get languageModels() {
-				checkProposedApiEnabled(extension, 'chatRequestAccess');
-				return extHostChatProvider.getLanguageModelIds();
-			},
-			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension, 'chatRequestAccess');
-				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			registerVariable(name: string, description: string, resolver: vscode.ChatVariableResolver) {
 				checkProposedApiEnabled(extension, 'chatAgents2');
@@ -1425,6 +1413,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatAgents2');
 				return extHostChatAgents2.createChatAgent(extension, name, handler);
 			},
+		};
+
+		// namespace: lm
+		const lm: typeof vscode.lm = {
+			requestLanguageModelAccess(id, options) {
+				checkProposedApiEnabled(extension, 'languageModels');
+				return extHostChatProvider.requestLanguageModelAccess(extension, id, options);
+			},
+			get languageModels() {
+				checkProposedApiEnabled(extension, 'languageModels');
+				return extHostChatProvider.getLanguageModelIds();
+			},
+			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'languageModels');
+				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
+			}
 		};
 
 		// namespace: speech
@@ -1449,6 +1453,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			interactive,
 			l10n,
 			languages,
+			lm,
 			notebooks,
 			scm,
 			speech,
