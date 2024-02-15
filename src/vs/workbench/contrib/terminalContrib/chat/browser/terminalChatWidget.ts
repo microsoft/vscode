@@ -105,7 +105,7 @@ export class TerminalChatWidget extends Disposable {
 			this._terminalCommandWidgetContainer = document.createElement('div');
 			this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
 			this._container.prepend(this._terminalCommandWidgetContainer);
-			this._terminalCommandWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
+			const widget = this._terminalCommandWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
 				readOnly: false,
 				ariaLabel: this._getAriaLabel(),
 				fontSize: 13,
@@ -146,14 +146,18 @@ export class TerminalChatWidget extends Disposable {
 			}, { isSimpleWidget: true }));
 			this._register(this._terminalCommandWidget.onDidFocusEditorText(() => this._responseEditorFocusedContextKey.set(true)));
 			this._register(this._terminalCommandWidget.onDidBlurEditorText(() => this._responseEditorFocusedContextKey.set(false)));
+			this._register(this._terminalCommandWidget.onDidChangeModelContent(e => {
+				const height = widget.getContentHeight();
+				widget.layout(new Dimension(640, height));
+			}));
 			this._getTextModel(URI.from({ path: `terminal-inline-chat-${this._instance.instanceId}`, scheme: 'terminal-inline-chat', fragment: command })).then((model) => {
 				if (!model || !this._terminalCommandWidget) {
 					return;
 				}
-				this._terminalCommandWidget.layout(new Dimension(400, 0));
+				this._terminalCommandWidget.layout(new Dimension(640, 0));
 				this._terminalCommandWidget.setModel(model);
 				const height = this._terminalCommandWidget.getContentHeight();
-				this._terminalCommandWidget.layout(new Dimension(400, height));
+				this._terminalCommandWidget.layout(new Dimension(640, height));
 			});
 		} else {
 			this._terminalCommandWidget.setValue(command);
@@ -194,7 +198,7 @@ export class TerminalChatWidget extends Disposable {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 	reveal(): void {
-		this._inlineChatWidget.layout(new Dimension(400, 150));
+		this._inlineChatWidget.layout(new Dimension(640, 150));
 		this._container.classList.remove('hide');
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
