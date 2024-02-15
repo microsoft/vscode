@@ -15,7 +15,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
@@ -35,7 +34,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private readonly _focusTracker: IFocusTracker;
 
-	private readonly _scopedInstantiationService: IInstantiationService;
+	// private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _visibleContextKey: IContextKey<boolean>;
 	private readonly _responseEditorFocusedContextKey!: IContextKey<boolean>;
@@ -44,15 +43,14 @@ export class TerminalChatWidget extends Disposable {
 		terminalElement: HTMLElement,
 		fakeParentEditor: CodeEditorWidget,
 		private readonly _instance: ITerminalInstance,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
-		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(terminalElement));
-		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
+
 		this._focusedContextKey = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
 		this._visibleContextKey = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
 		this._responseEditorFocusedContextKey = TerminalContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
@@ -65,7 +63,7 @@ export class TerminalChatWidget extends Disposable {
 		this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
 		this._container.prepend(this._terminalCommandWidgetContainer);
 
-		this._inlineChatWidget = this._scopedInstantiationService.createInstance(
+		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
 			fakeParentEditor,
 			{
@@ -86,7 +84,7 @@ export class TerminalChatWidget extends Disposable {
 		this._chatAccessibilityService.acceptResponse(command, requestId);
 		this.showTerminalCommandWidget();
 		if (!this._terminalCommandWidget) {
-			this._terminalCommandWidget = this._register(this._scopedInstantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
+			this._terminalCommandWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
 				padding: { top: 2, bottom: 2 },
 				overviewRulerLanes: 0,
 				glyphMargin: false,
