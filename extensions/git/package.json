@@ -790,6 +790,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.closeAllUnmodifiedEditors",
+        "title": "%command.closeAllUnmodifiedEditors%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.api.getRepositories",
         "title": "%command.api.getRepositories%",
         "category": "Git API"
