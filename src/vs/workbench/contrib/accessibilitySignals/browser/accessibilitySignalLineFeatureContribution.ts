@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilitySignal, SignalModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -41,6 +41,8 @@ export class SignalLineFeatureContribution
 		this.accessibilitySignalService.onAnnouncementEnabledChanged(cue),
 		() => this.accessibilitySignalService.isAnnouncementEnabled(cue)
 	));
+
+	private readonly modalities: SignalModality[] = [SignalModality.Sound, SignalModality.Announcement];
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -160,8 +162,12 @@ export class SignalLineFeatureContribution
 						newValue?.featureStates.get(feature) &&
 						(!lastValue?.featureStates?.get(feature) || newValue.lineNumber !== lastValue.lineNumber)
 				);
-
-				this.accessibilitySignalService.playAccessibilitySignals(newFeatures.map(f => f.signal));
+				if (newFeatures.length) {
+					const newSignals = newFeatures.map(f => f.signal);
+					for (const modality of this.modalities) {
+						this.accessibilitySignalService.playAccessibilitySignals(newSignals, modality);
+					}
+				}
 			})
 		);
 	}
