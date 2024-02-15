@@ -116,17 +116,17 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 		this._chatWidget = new Lazy(() => {
 
-			const chatWidget = this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance);
-			chatWidget.focusTracker.onDidFocus(() => {
+			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance));
+			this._register(chatWidget.focusTracker.onDidFocus(() => {
 				TerminalChatController.activeChatWidget = this;
 				if (!isDetachedTerminalInstance(this._instance)) {
 					this._terminalService.setActiveInstance(this._instance);
 				}
-			});
-			chatWidget.focusTracker.onDidBlur(() => {
+			}));
+			this._register(chatWidget.focusTracker.onDidBlur(() => {
 				TerminalChatController.activeChatWidget = undefined;
 				this._instance.resetScrollbarVisibility();
-			});
+			}));
 			if (!this._instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
