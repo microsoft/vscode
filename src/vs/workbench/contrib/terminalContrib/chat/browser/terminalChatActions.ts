@@ -63,7 +63,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.hide();
+		contr?.clear();
 	}
 });
 
@@ -178,7 +178,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.cancel();
+		contr?.cancel();
 	}
 });
 

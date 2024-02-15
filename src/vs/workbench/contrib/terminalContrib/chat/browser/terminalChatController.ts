@@ -44,6 +44,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { ChatRequestModel } from 'vs/workbench/contrib/chat/common/chatModel';
 
 const enum Message {
 	NONE = 0,
@@ -80,14 +81,21 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private _messages = this._store.add(new Emitter<Message>());
 
+	private _currentRequest: ChatRequestModel | undefined;
+
 	private _lastInput: string | undefined;
 	private _lastResponseContent: string | undefined;
-	get lastResponseContent(): string | undefined { return this._lastResponseContent; }
+	get lastResponseContent(): string | undefined {
+		// TODO: use model
+		return this._lastResponseContent;
+	}
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
 	private _terminalAgentId = 'terminal';
+
+	private _model: ChatModel | undefined;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -99,8 +107,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -166,7 +174,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	cancel(): void {
-		this._cancellationTokenSource.cancel();
+		if (this._currentRequest) {
+			this._model?.cancelRequest(this._currentRequest);
+		}
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
@@ -194,7 +204,24 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._updatePlaceholder();
 	}
 
+	clear(): void {
+		this._model?.dispose();
+		this._model = undefined;
+		this.updateModel();
+		this._chatWidget?.rawValue?.hide();
+		this._chatWidget?.rawValue?.setValue(undefined);
+	}
+
+	private updateModel(): void {
+		const providerInfo = this._chatService.getProviderInfos()?.[0];
+		if (!providerInfo) {
+			return;
+		}
+		this._model ??= this._chatService.startSession(providerInfo.id, CancellationToken.None);
+	}
+
 	async acceptInput(): Promise<void> {
+		this.updateModel();
 		this._lastInput = this._chatWidget?.rawValue?.input();
 		if (!this._lastInput) {
 			return;
@@ -211,6 +238,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 				responseContent += progress.content;
 			}
+			if (this._currentRequest) {
+				this._model?.acceptResponseProgress(this._currentRequest, progress);
+			}
 		};
 		const requestId = generateUuid();
 		const requestProps: IChatAgentRequest = {
@@ -221,6 +251,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			// TODO: ?
 			variables: { variables: [] },
 		};
+		// TODO: fix requester usrname, responder username
+		this._model?.initialize({ id: this._accessibilityRequestId, requesterUsername: 'userGesture', responderUsername: 'terminal' }, undefined);
+		const request: IParsedChatRequest = {
+			text: this._lastInput,
+			parts: []
+		};
+		const requestVarData: IChatRequestVariableData = {
+			variables: []
+		};
+		this._currentRequest = this._model?.addRequest(request, requestVarData);
 		try {
 			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, [], cancellationToken);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateChatMessage(undefined);
@@ -236,6 +276,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
 			this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+			if (this._currentRequest) {
+				this._model?.completeResponse(this._currentRequest);
+			}
 		}
 		this._lastResponseContent = responseContent;
 		const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
@@ -289,18 +332,34 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async viewInChat(): Promise<void> {
-		if (!this._lastInput || !this._lastResponseContent) {
+		const providerInfo = this._chatService.getProviderInfos()?.[0];
+		if (!providerInfo) {
 			return;
 		}
-		const widget = await this._chatWidgetService.revealViewForProvider('copilot');
-		if (widget && widget.viewModel) {
-			this._chatService.addCompleteRequest(widget.viewModel.sessionId, this._lastInput, undefined, { message: this._lastResponseContent });
+		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
+		if (widget && widget.viewModel && this._model) {
+			for (const request of this._model.getRequests()) {
+				if (request.response?.response.value || request.response?.result) {
+					this._chatService.addCompleteRequest(widget.viewModel.sessionId,
+						request.message as IParsedChatRequest,
+						request.variableData,
+						{
+							message: request.response.response.value,
+							result: request.response.result,
+							followups: request.response.followups
+						});
+				}
+			}
 			widget.focusLastMessage();
 		}
 	}
 
 	override dispose() {
+		if (this._currentRequest) {
+			this._model?.cancelRequest(this._currentRequest);
+		}
 		super.dispose();
+		this.clear();
 		this._chatWidget?.rawValue?.dispose();
 	}
 }
