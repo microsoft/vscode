@@ -178,7 +178,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.cancel();
+		contr?.chatWidget?.cancel();
 	}
 });
 
@@ -234,7 +234,7 @@ registerActiveXtermAction({
 	// TODO: precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
 	icon: Codicon.report,
 	menu: [/*{
-		// TODO: Enable
+		// TODO: Enable this
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 		when: ContextKeyExpr.and(CTX_TERMINAL_CHAT_SUPPORT_ISSUE_REPORTING, CTX_TERMINAL_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
 		group: '2_feedback',

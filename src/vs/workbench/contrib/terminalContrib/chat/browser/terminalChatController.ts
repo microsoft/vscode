@@ -25,14 +25,25 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { EmptyResponse, Session, SessionExchange, SessionPrompt, TerminalResponse } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
-import { CTX_INLINE_CHAT_RESPONSE_TYPES, EditMode, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { generateUuid } from 'vs/base/common/uuid';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { marked } from 'vs/base/common/marked/marked';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { Emitter, Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
+import { CTX_INLINE_CHAT_RESPONSE_TYPES, EditMode, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { EmptyResponse, Session, SessionExchange, SessionPrompt, TerminalResponse } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { assertType } from 'vs/base/common/types';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModel } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 const enum Message {
 	NONE = 0,
@@ -63,15 +74,15 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
 	private readonly _lastResponseTypeContextKey!: IContextKey<undefined | InlineChatResponseTypes>;
 
+	private _scopedInstantiationService: IInstantiationService | undefined;
+
 	private _accessibilityRequestId: number = 0;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
-	private _activeSession?: Session;
-
-	private _fakeEditor: CodeEditorWidget | undefined;
-
-	get lastResponseContent(): string | undefined { return (this._activeSession?.lastExchange?.response as TerminalResponse).message; }
+	private _lastInput: string | undefined;
+	private _lastResponseContent: string | undefined;
+	get lastResponseContent(): string | undefined { return this._lastResponseContent; }
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
@@ -89,9 +100,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
-		@IModelService private readonly _modelService: IModelService
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -111,6 +120,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		} else {
 			this._terminalAgentRegisteredContextKey.set(true);
 		}
+		this._cancellationTokenSource = new CancellationTokenSource();
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -118,10 +128,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			return;
 		}
 		this._chatWidget = new Lazy(() => {
+			const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._instance.domElement!));
+			this._scopedInstantiationService = this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 			// The inline chat widget requires a parent editor that it bases the diff view on, since the
 			// terminal doesn't use that feature we can just pass in an unattached editor instance.
 			const fakeParentEditorElement = document.createElement('div');
-			this._fakeEditor = this._instantiationService.createInstance(
+			this._fakeEditor = this._scopedInstantiationService.createInstance(
 				CodeEditorWidget,
 				fakeParentEditorElement,
 				{
@@ -154,28 +166,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	cancel(): void {
-		if (this._activeSession) {
-			this._inlineChatSessionService.releaseSession(this._activeSession);
-			this._activeSession = undefined;
-		}
-	}
-
-	private async _startSession(editor: IActiveCodeEditor, token: CancellationToken) {
-		if (this._activeSession) {
-			this._inlineChatSessionService.releaseSession(this._activeSession);
-		}
-
-		const session = await this._inlineChatSessionService.createSession(
-			editor,
-			{ editMode: EditMode.Live },
-			token
-		);
-
-		if (!session) {
-			return;
-		}
-
-		this._activeSession = session;
+		this._cancellationTokenSource.cancel();
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
@@ -204,15 +195,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async acceptInput(): Promise<void> {
+		this._lastInput = this._chatWidget?.rawValue?.input();
+		if (!this._lastInput) {
+			return;
+		}
 		this._chatAccessibilityService.acceptRequest();
 		this._requestActiveContextKey.set(true);
-		const cancellationToken = new CancellationTokenSource().token;
-		if (this._fakeEditor?.hasModel()) {
-			await this._startSession(this._fakeEditor, cancellationToken);
-		}
-		assertType(this._activeSession);
-		const inputValue = this.chatWidget!.inlineChatWidget.value;
-		this._activeSession!.addInput(new SessionPrompt(inputValue));
+		const cancellationToken = this._cancellationTokenSource.token;
 		let responseContent = '';
 		const progressCallback = (progress: IChatProgress) => {
 			if (cancellationToken.isCancellationRequested) {
@@ -228,11 +217,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			sessionId: generateUuid(),
 			requestId,
 			agentId: this._terminalAgentId,
-			message: inputValue,
+			message: this._lastInput,
 			// TODO: ?
 			variables: { variables: [] },
 		};
-		let response: EmptyResponse | TerminalResponse = EmptyResponse;
 		try {
 			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, [], cancellationToken);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateChatMessage(undefined);
@@ -242,16 +230,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			// TODO: this._zone.value.widget.updateInfo(!this._session.lastExchange ? localize('thinking', "Thinking\u2026") : '');
 			await task;
 		} catch (e) {
-			response = e;
+
 		} finally {
 			this._requestActiveContextKey.set(false);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
 			this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
-			if (response === EmptyResponse) {
-				response = new TerminalResponse(responseContent);
-			}
 		}
+		this._lastResponseContent = responseContent;
 		const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
 		const regex = /```(?<language>\w+)\n(?<content>[\s\S]*?)```/g;
 		const match = regex.exec(firstCodeBlockContent);
@@ -267,9 +253,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		} else {
 			this._chatWidget?.rawValue?.renderMessage(responseContent, this._accessibilityRequestId, requestId);
 			this._lastResponseTypeContextKey.set(InlineChatResponseTypes.OnlyMessages);
-		}
-		if (this._activeSession?.lastInput) {
-			this._activeSession.addExchange(new SessionExchange(this._activeSession.lastInput, response));
 		}
 		this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
 		this._messages.fire(Message.ACCEPT_INPUT);
@@ -306,15 +289,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async viewInChat(): Promise<void> {
+		if (!this._lastInput || !this._lastResponseContent) {
+			return;
+		}
 		const widget = await this._chatWidgetService.revealViewForProvider('copilot');
 		if (widget && widget.viewModel) {
-			const request = this._activeSession?.lastExchange;
-			const input = request?.prompt.value;
-			const response = request?.response as TerminalResponse;
-			if (!input || !response) {
-				return;
-			}
-			this._chatService.addCompleteRequest(widget.viewModel.sessionId, input, undefined, response);
+			this._chatService.addCompleteRequest(widget.viewModel.sessionId, this._lastInput, undefined, { message: this._lastResponseContent });
 			widget.focusLastMessage();
 		}
 	}

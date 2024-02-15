@@ -316,19 +316,12 @@ export class SessionExchange {
 
 	constructor(
 		readonly prompt: SessionPrompt,
-		readonly response: ReplyResponse | EmptyResponse | ErrorResponse | TerminalResponse
+		readonly response: ReplyResponse | EmptyResponse | ErrorResponse
 	) { }
 }
 
 export class EmptyResponse {
 
-}
-
-export class TerminalResponse {
-	readonly message: string;
-	constructor(message: string) {
-		this.message = message;
-	}
 }
 
 export class ErrorResponse {

@@ -42,7 +42,6 @@ export class TerminalChatWidget extends Disposable {
 
 	constructor(
 		terminalElement: HTMLElement,
-		fakeParentEditor: CodeEditorWidget,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -64,6 +63,18 @@ export class TerminalChatWidget extends Disposable {
 		this._terminalCommandWidgetContainer = document.createElement('div');
 		this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
 		this._container.prepend(this._terminalCommandWidgetContainer);
+
+		// The inline chat widget requires a parent editor that it bases the diff view on, since the
+		// terminal doesn't use that feature we can just pass in an unattached editor instance.
+		const fakeParentEditorElement = document.createElement('div');
+		const fakeParentEditor = this._instantiationService.createInstance(
+			CodeEditorWidget,
+			fakeParentEditorElement,
+			{
+				extraEditorClassName: 'ignore-panel-bg'
+			},
+			{ isSimpleWidget: true }
+		);
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
@@ -202,6 +213,10 @@ export class TerminalChatWidget extends Disposable {
 		this._focusedContextKey.set(false);
 		this._visibleContextKey.set(false);
 		this._instance.focus();
+	}
+	cancel(): void {
+		// TODO: Impl
+		this._inlineChatWidget.value = '';
 	}
 	focus(): void {
 		this._inlineChatWidget.focus();
