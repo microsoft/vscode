@@ -196,14 +196,13 @@ IndentationToTabsAction.addImplementation(0, (accessor: ServicesAccessor, editor
 	return true;
 });
 
-function changeIndentationSize(accessor: ServicesAccessor, editor: ICodeEditor, insertSpaces: boolean, displaySizeOnly: boolean): boolean {
+function changeIndentationSize(accessor: ServicesAccessor, editor: ICodeEditor, insertSpaces: boolean, displaySizeOnly: boolean): void {
 	const quickInputService = accessor.get(IQuickInputService);
 	const modelService = accessor.get(IModelService);
-	let pickedVal = -1;
 
 	const model = editor.getModel();
 	if (!model) {
-		return false;
+		return;
 	}
 
 	const creationOpts = modelService.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
@@ -226,28 +225,27 @@ function changeIndentationSize(accessor: ServicesAccessor, editor: ICodeEditor, 
 	// auto focus the tabSize set for the current editor
 	const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
-	quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
-		if (pick) {
-			if (model && !model.isDisposed()) {
-				pickedVal = parseInt(pick.label, 10);
-				if (displaySizeOnly) {
-					model.updateOptions({
-						tabSize: pickedVal
-					});
-				} else {
-					model.updateOptions({
-						tabSize: pickedVal,
-						indentSize: pickedVal,
-						insertSpaces: insertSpaces
-					});
+	setTimeout(() => {
+		quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
+			if (pick) {
+				if (model && !model.isDisposed()) {
+					const pickedVal = parseInt(pick.label, 10);
+					if (displaySizeOnly) {
+						model.updateOptions({
+							tabSize: pickedVal
+						});
+					} else {
+						model.updateOptions({
+							tabSize: pickedVal,
+							indentSize: pickedVal,
+							insertSpaces: insertSpaces
+						});
+					}
 				}
 			}
-		}
-		return false;
-	});
-	return true;
+		});
+	}, 50/* quick input is sensitive to being opened so soon after another */);
 }
-// , 50/* quick input is sensitive to being opened so soon after another */);
 
 export const IndentUsingTabs = registerMultiEditorAction(new MultiEditorAction({
 	id: 'editor.action.indentUsingTabs',
@@ -256,7 +254,8 @@ export const IndentUsingTabs = registerMultiEditorAction(new MultiEditorAction({
 	precondition: undefined
 }));
 IndentUsingTabs.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	return changeIndentationSize(accessor, editor, false, false);
+	changeIndentationSize(accessor, editor, false, false);
+	return true;
 });
 
 export const IndentUsingSpaces = registerMultiEditorAction(new MultiEditorAction({
@@ -266,7 +265,8 @@ export const IndentUsingSpaces = registerMultiEditorAction(new MultiEditorAction
 	precondition: undefined
 }));
 IndentUsingSpaces.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	return changeIndentationSize(accessor, editor, true, false);
+	changeIndentationSize(accessor, editor, true, false);
+	return true;
 });
 
 export const ChangeTabDisplaySize = registerMultiEditorAction(new MultiEditorAction({
@@ -276,7 +276,8 @@ export const ChangeTabDisplaySize = registerMultiEditorAction(new MultiEditorAct
 	precondition: undefined
 }));
 ChangeTabDisplaySize.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	return changeIndentationSize(accessor, editor, true, true);
+	changeIndentationSize(accessor, editor, true, true);
+	return true;
 });
 
 export class DetectIndentation extends EditorAction {
