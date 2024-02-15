@@ -22,7 +22,7 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused.negate(), TerminalContextKeys.focusInAny),
-		weight: KeybindingWeight.WorkbenchContrib
+		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	f1: true,
 	precondition: ContextKeyExpr.and(
@@ -47,7 +47,7 @@ registerActiveXtermAction({
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
 		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused, TerminalContextKeys.chatVisible),
-		weight: KeybindingWeight.WorkbenchContrib
+		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	icon: Codicon.close,
 	menu: {
@@ -86,7 +86,7 @@ registerActiveXtermAction({
 	icon: Codicon.check,
 	keybinding: {
 		when: TerminalContextKeys.chatRequestActive.negate(),
-		weight: KeybindingWeight.WorkbenchContrib + 7,
+		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	},
 	menu: {
@@ -118,7 +118,7 @@ registerActiveXtermAction({
 	icon: Codicon.check,
 	keybinding: {
 		when: TerminalContextKeys.chatRequestActive.negate(),
-		weight: KeybindingWeight.WorkbenchContrib + 7,
+		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
 	},
 	menu: {
@@ -175,7 +175,7 @@ registerActiveXtermAction({
 	icon: Codicon.send,
 	keybinding: {
 		when: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, TerminalContextKeys.chatRequestActive.negate()),
-		weight: KeybindingWeight.EditorCore + 7,
+		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.Enter
 	},
 	menu: {
