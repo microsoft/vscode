@@ -49,6 +49,7 @@ interface IHoverState {
 	// TODO @aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
 	activatedByDecoratorClick: boolean;
+	showExtendedHover: boolean;
 }
 
 export class HoverController extends Disposable implements IEditorContribution {
@@ -67,7 +68,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _hoverState: IHoverState = {
 		mouseDown: false,
 		contentHoverFocused: false,
-		activatedByDecoratorClick: false
+		activatedByDecoratorClick: false,
+		showExtendedHover: false
 	};
 
 	constructor(
@@ -110,11 +112,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		} else {
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		}
 
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
@@ -228,7 +228,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return false;
 	}
 
-	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent, extended: boolean = false): void {
+	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 
 		this._mouseMoveEvent = mouseEvent;
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
@@ -260,10 +260,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 			}
 			return;
 		}
-		this._reactToEditorMouseMove(mouseEvent, extended);
+		this._reactToEditorMouseMove(mouseEvent);
 	}
 
-	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined, extended: boolean = false): void {
+	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
 
 		if (!mouseEvent) {
 			return;
@@ -291,7 +291,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		const contentWidget = this._getOrCreateContentWidget();
 
-		if (contentWidget.showsOrWillShow(mouseEvent, extended)) {
+		if (contentWidget.showsOrWillShow(mouseEvent, this._hoverState.showExtendedHover)) {
 			this._glyphWidget?.hide();
 			return;
 		}
@@ -314,21 +314,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hideWidgets();
 	}
 
-	private _onKeyUp(e: IKeyboardEvent): void {
-		console.log('inside of _onKeyUp with e: ', e);
-		// When shift is pressed, we could show the normal hover
-		if (e.keyCode === KeyCode.Shift && this.isHoverVisible) {
-			const contentWidget = this._getOrCreateContentWidget();
-			if (this._mouseMoveEvent && contentWidget.showsOrWillShow(this._mouseMoveEvent, false)) {
-				this._glyphWidget?.hide();
-				return;
-			}
-		}
-	}
-
 	private _onKeyDown(e: IKeyboardEvent): void {
-		console.log('inside of _onKeyDown with e: ', e);
-
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -345,17 +331,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 				&& this._contentWidget?.isVisible
 			)
 		);
-
-		// When shift is pressed, we could show the expanded hover
-		console.log('e.keyCode === KeyCode.Shift && this.isHoverVisible : ', e.keyCode === KeyCode.Shift && this.isHoverVisible);
-		if (e.keyCode === KeyCode.Shift && this.isHoverVisible) {
-			const contentWidget = this._getOrCreateContentWidget();
-			console.log('this._mouseMoveEvent : ', this._mouseMoveEvent);
-			if (this._mouseMoveEvent && contentWidget.showsOrWillShow(this._mouseMoveEvent, true)) {
-				this._glyphWidget?.hide();
-				return;
-			}
-		}
 
 		if (
 			e.keyCode === KeyCode.Ctrl
@@ -417,6 +392,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		activatedByColorDecoratorClick: boolean = false,
 		extended: boolean = false
 	): void {
+		console.log('showContentHover with extended: ', extended);
+		this._hoverState.showExtendedHover = extended;
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus, extended);
 	}
@@ -494,7 +471,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 				comment: [
 					'Label for action that will trigger the showing/focusing of a hover in the editor.',
 					'If the hover is not visible, it will show the hover.',
-					'This allows for users to show the hover without using the mouse.'
+					'This allows users to show the hover without using the mouse.'
 				]
 			}, "Show or Focus Hover"),
 			metadata: {
@@ -505,7 +482,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 						type: 'object',
 						properties: {
 							'focus': {
-								description: 'Controls if and when the hover should take focus upon being triggered by this action.',
+								description: 'Controls if and when the hover should take focus upon being triggered by this action. Applies to the extended hover too.',
 								enum: [HoverFocusBehavior.NoAutoFocus, HoverFocusBehavior.FocusIfVisible, HoverFocusBehavior.AutoFocusImmediately],
 								enumDescriptions: [
 									nls.localize('showOrFocusHover.focus.noAutoFocus', 'The hover will not automatically take focus.'),
@@ -529,40 +506,76 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel()) {
-			return;
-		}
+		console.log('show normal hover');
+		showOrFocusHover(editor, args, false);
+	}
+}
 
-		const controller = HoverController.get(editor);
-		if (!controller) {
-			return;
-		}
+class ShowOrFocusExtendedHoverAction extends EditorAction {
 
-		const focusArgument = args?.focus;
-		let focusOption = HoverFocusBehavior.FocusIfVisible;
-		if (Object.values(HoverFocusBehavior).includes(focusArgument)) {
-			focusOption = focusArgument;
-		} else if (typeof focusArgument === 'boolean' && focusArgument) {
-			focusOption = HoverFocusBehavior.AutoFocusImmediately;
-		}
-
-		const showContentHover = (focus: boolean) => {
-			const position = editor.getPosition();
-			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
-		};
-
-		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
-
-		if (controller.isHoverVisible) {
-			if (focusOption !== HoverFocusBehavior.NoAutoFocus) {
-				controller.focus();
-			} else {
-				showContentHover(accessibilitySupportEnabled);
+	constructor() {
+		super({
+			id: 'editor.action.showExtendedHover',
+			label: nls.localize({
+				key: 'showOrFocusExtendedHover',
+				comment: [
+					'Label for action that will trigger the showing/focusing of an extended hover in the editor.',
+					'If the extended hover is not visible, it will show the extended hover.',
+					'This allows users to show the extended hover without using the mouse.'
+				]
+			}, "Show or Focus Extended Hover"),
+			alias: 'Show or Focus Extended Hover',
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyH),
+				weight: KeybindingWeight.EditorContrib
 			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		console.log('show extended hover');
+		showOrFocusHover(editor, args, true);
+	}
+}
+
+function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
+	console.log('inside of showOrFocusHover with extended: ', extended);
+	if (!editor.hasModel()) {
+		return;
+	}
+
+	const controller = HoverController.get(editor);
+	if (!controller) {
+		return;
+	}
+
+	const focusArgument = args?.focus;
+	let focusOption = HoverFocusBehavior.FocusIfVisible;
+	if (Object.values(HoverFocusBehavior).includes(focusArgument)) {
+		focusOption = focusArgument;
+	} else if (typeof focusArgument === 'boolean' && focusArgument) {
+		focusOption = HoverFocusBehavior.AutoFocusImmediately;
+	}
+
+	const showContentHover = (focus: boolean) => {
+		const position = editor.getPosition();
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		console.log('hover inside of showContentHover');
+		controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus, false, extended);
+	};
+
+	const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
+
+	if (controller.isHoverVisible) {
+		if (focusOption !== HoverFocusBehavior.NoAutoFocus) {
+			controller.focus();
 		} else {
-			showContentHover(accessibilitySupportEnabled || focusOption === HoverFocusBehavior.AutoFocusImmediately);
+			showContentHover(accessibilitySupportEnabled);
 		}
+	} else {
+		showContentHover(accessibilitySupportEnabled || focusOption === HoverFocusBehavior.AutoFocusImmediately);
 	}
 }
 
@@ -855,6 +868,7 @@ class GoToBottomHoverAction extends EditorAction {
 
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
+registerEditorAction(ShowOrFocusExtendedHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);

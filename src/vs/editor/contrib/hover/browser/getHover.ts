@@ -29,6 +29,8 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 			console.log(`typeof provider['provideExtendedHover'] === 'function' : `, typeof provider['provideExtendedHover'] === 'function');
 			if (typeof provider['provideExtendedHover'] === 'function') {
 				result = await Promise.resolve(provider.provideExtendedHover(model, position, token));
+			} else {
+				result = await Promise.resolve(provider.provideHover(model, position, token));
 			}
 		} else {
 			result = await Promise.resolve(provider.provideHover(model, position, token));
