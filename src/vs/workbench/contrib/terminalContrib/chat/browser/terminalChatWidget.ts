@@ -31,7 +31,7 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _inlineChatWidget: InlineChatWidget;
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
 
-	private readonly _terminalCommandWidgetContainer: HTMLElement;
+	private _terminalCommandWidgetContainer: HTMLElement | undefined;
 	private _terminalCommandWidget: CodeEditorWidget | undefined;
 
 	private readonly _focusTracker: IFocusTracker;
@@ -59,10 +59,6 @@ export class TerminalChatWidget extends Disposable {
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
 		terminalElement.appendChild(this._container);
-
-		this._terminalCommandWidgetContainer = document.createElement('div');
-		this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
-		this._container.prepend(this._terminalCommandWidgetContainer);
 
 		// The inline chat widget requires a parent editor that it bases the diff view on, since the
 		// terminal doesn't use that feature we can just pass in an unattached editor instance.
@@ -106,6 +102,9 @@ export class TerminalChatWidget extends Disposable {
 		this._chatAccessibilityService.acceptResponse(command, requestId);
 		this.showTerminalCommandWidget();
 		if (!this._terminalCommandWidget) {
+			this._terminalCommandWidgetContainer = document.createElement('div');
+			this._terminalCommandWidgetContainer.classList.add('terminal-inline-chat-response');
+			this._container.prepend(this._terminalCommandWidgetContainer);
 			this._terminalCommandWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._terminalCommandWidgetContainer, {
 				readOnly: false,
 				ariaLabel: this._getAriaLabel(),
@@ -248,9 +247,9 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 	hideTerminalCommandWidget(): void {
-		this._terminalCommandWidgetContainer.classList.add('hide');
+		this._terminalCommandWidgetContainer?.classList.add('hide');
 	}
 	showTerminalCommandWidget(): void {
-		this._terminalCommandWidgetContainer.classList.remove('hide');
+		this._terminalCommandWidgetContainer?.classList.remove('hide');
 	}
 }
