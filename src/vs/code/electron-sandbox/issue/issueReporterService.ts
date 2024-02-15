@@ -51,6 +51,7 @@ export class IssueReporter extends Disposable {
 	private hasBeenSubmitted = false;
 	private openReporter = false;
 	private loadingExtensionData = false;
+	private changeExtension = false;
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
 
@@ -1193,6 +1194,7 @@ export class IssueReporter extends Disposable {
 			}
 
 			this.addEventListener('extension-selector', 'change', async (e: Event) => {
+				this.changeExtension = true;
 				this.clearExtensionData();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
 				const extensions = this.issueReporterModel.getData().allExtensions;
@@ -1205,7 +1207,7 @@ export class IssueReporter extends Disposable {
 						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 						this.setLoading(iconElement);
 						const openReporterData = await this.sendReporterMenu(selectedExtension);
-						if (openReporterData) {
+						if (openReporterData && this.changeExtension) {
 							this.removeLoading(iconElement, true);
 							this.configuration.data = openReporterData;
 						} else {
@@ -1220,8 +1222,10 @@ export class IssueReporter extends Disposable {
 							selectedExtension.uri = undefined;
 						}
 					}
-					// repopulates the fields with the new data given the selected extension.
-					this.updateExtensionStatus(matches[0]);
+					if (this.changeExtension) {
+						// repopulates the fields with the new data given the selected extension.
+						this.updateExtensionStatus(matches[0]);
+					}
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
@@ -1229,6 +1233,7 @@ export class IssueReporter extends Disposable {
 					this.validateSelectedExtension();
 					this.updateExtensionStatus(matches[0]);
 				}
+				this.changeExtension = false;
 			});
 		}
 
