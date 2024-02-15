@@ -254,8 +254,8 @@ export class InlineChatController implements IEditorContribution {
 						}
 					}
 					this._enabledProvider = this._refreshAllProviderEnablements(this._editor);
-
 				}));
+				this._enabledProvider = this._refreshAllProviderEnablements(this._editor);
 			}
 			if (e.removed) {
 				if ((await this._enabledProvider) === e.removed) {
