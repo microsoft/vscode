@@ -237,7 +237,8 @@ export class TerminalChatWidget extends Disposable {
 		}
 	}
 	acceptCommand(shouldExecute: boolean): void {
-		const value = this._terminalCommandWidget?.getValue();
+		// Trim command to remove any whitespace, otherwise this may execute the command
+		const value = this._terminalCommandWidget?.getValue().trim();
 		if (!value) {
 			return;
 		}
