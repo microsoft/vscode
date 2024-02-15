@@ -37,7 +37,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
-	private foundExtension = false;
+	private runningExtensions: string[] = [];
 	private isRunning = false;
 
 	constructor(
@@ -100,7 +100,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				actions.forEach(async action => {
 					try {
 						if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-							this.foundExtension = true;
+							this.runningExtensions.push(extensionId);
 							this.isRunning = true;
 							await action.run();
 						}
@@ -111,7 +111,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					}
 				});
 
-				if (!this.foundExtension) {
+				if (this.runningExtensions.length === 0) {
 					// send undefined to indicate no action was taken
 					ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
 				}
@@ -192,8 +192,9 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			githubAccessToken
 		}, dataOverrides);
 
-		if (this.foundExtension) {
+		if (issueReporterData.extensionId && this.runningExtensions.includes(issueReporterData.extensionId)) {
 			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
+			this.runningExtensions = this.runningExtensions.filter(id => id !== issueReporterData.extensionId);
 		}
 		return this.issueMainService.openReporter(issueReporterData);
 	}

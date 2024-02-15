@@ -49,6 +49,8 @@ export class IssueReporter extends Disposable {
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
+	private openReporter = false;
+	private loadingExtensionData = false;
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
 
@@ -507,6 +509,10 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
+		if (this.loadingExtensionData) {
+			return false;
+		}
+
 		if (issueType === IssueType.Bug && this.receivedSystemInfo) {
 			return true;
 		}
@@ -786,6 +792,8 @@ export class IssueReporter extends Disposable {
 		const descriptionTextArea = this.getElementById('description')!;
 		const extensionDataTextArea = this.getElementById('extension-data')!;
 
+		const extensionDropdown = this.getElementById('extension-selector')!;
+
 		// Hide all by default
 		hide(blockContainer);
 		hide(systemBlock);
@@ -829,6 +837,22 @@ export class IssueReporter extends Disposable {
 			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
 			show(extensionDataBlock);
 		}
+
+		// only if we know comes from the open reporter command
+		if (fileOnExtension && this.openReporter) {
+			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
+			setTimeout(() => {
+				// delay to make sure from command or not
+				if (this.openReporter) {
+					show(extensionDataBlock);
+				}
+			}, 250);
+		}
+
+		if (fileOnExtension && this.loadingExtensionData) {
+			(extensionDropdown as HTMLSelectElement).disabled = true;
+		}
+
 
 		if (issueType === IssueType.Bug) {
 			if (!fileOnMarketplace) {
@@ -1188,10 +1212,11 @@ export class IssueReporter extends Disposable {
 						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 						this.setLoading(iconElement);
 						const openReporterData = await this.sendReporterMenu(selectedExtension);
-						this.removeLoading(iconElement);
 						if (openReporterData) {
+							this.removeLoading(iconElement, true);
 							this.configuration.data = openReporterData;
 						} else {
+							this.removeLoading(iconElement);
 							// if not using command, should have no configuration data in fields we care about and check later.
 							this.configuration.data.issueBody = undefined;
 							this.configuration.data.data = undefined;
@@ -1325,6 +1350,10 @@ export class IssueReporter extends Disposable {
 			return;
 		}
 
+		if (this.loadingExtensionData) {
+			return;
+		}
+
 		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
 		if (hasValidGitHubUrl || (extension.hasIssueUriRequestHandler && !extension.hasIssueDataProviders)) {
 			this.previewButton.enabled = true;
@@ -1337,6 +1366,8 @@ export class IssueReporter extends Disposable {
 	private setLoading(element: HTMLElement) {
 		// Show loading
 		this.receivedExtensionData = false;
+		this.openReporter = true;
+		this.loadingExtensionData = true;
 		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
@@ -1352,7 +1383,9 @@ export class IssueReporter extends Disposable {
 		this.renderBlocks();
 	}
 
-	private removeLoading(element: HTMLElement) {
+	private removeLoading(element: HTMLElement, fromReporter: boolean = false) {
+		this.openReporter = fromReporter;
+		this.loadingExtensionData = false;
 		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
@@ -1364,6 +1397,11 @@ export class IssueReporter extends Disposable {
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
 		hideLoading.removeChild(element);
+
+		const extensionDropdown = this.getElementById('extension-selector')!;
+		(extensionDropdown as HTMLSelectElement).disabled = false;
+
+		this.renderBlocks();
 	}
 
 	private setExtensionValidationMessage(): void {
