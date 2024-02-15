@@ -405,7 +405,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
 		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
-		this._logService.info(this.currentTitle, sanitizedTitle);
+
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
 		} else {

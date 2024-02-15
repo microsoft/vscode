@@ -1854,11 +1854,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	setShellType(shellType: TerminalShellType | undefined) {
-		// Manually override for Python
-		if (shellType === undefined && this._title === 'Python') {
-			shellType = PosixShellType.Python;
-			this._terminalShellTypeContextKey.set(shellType?.toString());
-		}
 		this._shellType = shellType;
 		if (shellType) {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
