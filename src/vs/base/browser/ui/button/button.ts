@@ -243,14 +243,14 @@ export class Button extends Disposable implements IButton {
 			}
 		}
 
-		let title;
+		let title: string = '';
 		if (typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (this.options.title) {
 			title = renderStringAsPlaintext(value);
 		}
 		if (!this._hover) {
-			this._hover = setupCustomHover(getDefaultHoverDelegate('mouse'), this._element, title);
+			this._hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._element, title));
 		} else {
 			this._hover.update(title);
 		}
@@ -357,7 +357,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
-		setupCustomHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...'));
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
 		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
 		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');

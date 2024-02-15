@@ -154,8 +154,9 @@ export class Workbench extends Layout {
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
 
-				// Default Hover Delegate
-				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover));
+				// Default Hover Delegate must be registered before creating any workbench/layout components
+				// as these possibly will use the default hover delegate
+				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
 
 				// Layout
 				this.initLayout(accessor);

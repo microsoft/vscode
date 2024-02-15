@@ -154,16 +154,14 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
-		this.hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true);
-		this.hoverDelegate.setOptions((_, focus?: boolean) => {
-			return {
+		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, (_, focus?: boolean) => (
+			{
 				persistence: {
 					hideOnKeyDown: true,
 					sticky: focus
 				}
-			};
-		});
-
+			}
+		)));
 
 		this.registerListeners();
 	}

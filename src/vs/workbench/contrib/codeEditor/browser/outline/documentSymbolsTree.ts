@@ -25,8 +25,6 @@ import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workben
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
@@ -115,7 +113,7 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 	}
 }
 
-export class DocumentSymbolRenderer extends Disposable implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
+export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
 
 	readonly templateId: string = DocumentSymbolTemplate.id;
 
@@ -126,10 +124,7 @@ export class DocumentSymbolRenderer extends Disposable implements ITreeRenderer<
 		target: OutlineTarget,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super();
-
 		this._hoverDelegate = getDefaultHoverDelegate(target === OutlineTarget.Breadcrumbs ? 'element' : 'mouse');
 	}
 

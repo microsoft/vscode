@@ -16,7 +16,7 @@ import 'vs/css!./media/debugToolBar';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { ICommandAction, ICommandActionTitle } from 'vs/platform/action/common/action';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
+import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -95,7 +95,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
 				} else if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
 					this.stopActionViewItemDisposables.clear();
-					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor));
+					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor, { hoverDelegate: options.hoverDelegate }));
 					if (item) {
 						return item;
 					}
@@ -338,7 +338,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	}
 }
 
-export function createDisconnectMenuItemAction(action: MenuItemAction, disposables: DisposableStore, accessor: ServicesAccessor): IActionViewItem | undefined {
+export function createDisconnectMenuItemAction(action: MenuItemAction, disposables: DisposableStore, accessor: ServicesAccessor, options: IDropdownWithPrimaryActionViewItemOptions): IActionViewItem | undefined {
 	const menuService = accessor.get(IMenuService);
 	const contextKeyService = accessor.get(IContextKeyService);
 	const instantiationService = accessor.get(IInstantiationService);
@@ -359,7 +359,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 		secondary,
 		'debug-stop-actions',
 		contextMenuService,
-		{});
+		options);
 	return item;
 }
 

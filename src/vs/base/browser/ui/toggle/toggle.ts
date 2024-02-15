@@ -130,7 +130,7 @@ export class Toggle extends Widget {
 		}
 
 		this.domNode = document.createElement('div');
-		this._hover = setupCustomHover(getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title);
+		this._hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {
 			this.domNode.tabIndex = 0;

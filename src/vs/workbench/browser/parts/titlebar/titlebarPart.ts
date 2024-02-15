@@ -53,6 +53,8 @@ import { mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -241,7 +243,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly editorToolbarMenuDisposables = this._register(new DisposableStore());
 	private readonly layoutToolbarMenuDisposables = this._register(new DisposableStore());
 
-	private readonly hoverDelegate;
+	private readonly hoverDelegate: IHoverDelegate;
 
 	private readonly titleDisposables = this._register(new DisposableStore());
 	private titleBarStyle: TitlebarStyle = getTitleBarStyle(this.configurationService);
@@ -515,15 +517,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 	}
 
-	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 
 		// --- Activity Actions
 		if (!this.isAuxiliary) {
 			if (action.id === GLOBAL_ACTIVITY_ID) {
-				return this.instantiationService.createInstance(SimpleGlobalActivityActionViewItem, { position: () => HoverPosition.BELOW });
+				return this.instantiationService.createInstance(SimpleGlobalActivityActionViewItem, { position: () => HoverPosition.BELOW }, options);
 			}
 			if (action.id === ACCOUNTS_ACTIVITY_ID) {
-				return this.instantiationService.createInstance(SimpleAccountActivityActionViewItem, { position: () => HoverPosition.BELOW });
+				return this.instantiationService.createInstance(SimpleAccountActivityActionViewItem, { position: () => HoverPosition.BELOW }, options);
 			}
 		}
 
@@ -538,7 +540,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Check extensions
-		return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate, menuAsChild: false });
+		return createActionViewItem(this.instantiationService, action, { ...options, hoverDelegate: this.hoverDelegate, menuAsChild: false });
 	}
 
 	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
@@ -563,7 +565,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			telemetrySource: 'titlePart',
 			highlightToggledItems: this.editorActionsEnabled, // Only show toggled state for editor actions (Layout actions are not shown as toggled)
-			actionViewItemProvider: action => this.actionViewItemProvider(action)
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options)
 		}));
 
 		if (this.editorActionsEnabled) {

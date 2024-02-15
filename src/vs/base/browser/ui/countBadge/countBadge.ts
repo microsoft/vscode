@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from 'vs/base/browser/dom';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { format } from 'vs/base/common/strings';
 import 'vs/css!./countBadge';
 
@@ -33,7 +31,6 @@ export class CountBadge {
 	private count: number = 0;
 	private countFormat: string;
 	private titleFormat: string;
-	private hover: ICustomHover | undefined;
 
 	constructor(container: HTMLElement, private readonly options: ICountBadgeOptions, private readonly styles: ICountBadgeStyles) {
 
@@ -60,13 +57,7 @@ export class CountBadge {
 
 	private render() {
 		this.element.textContent = format(this.countFormat, this.count);
-
-		const title = format(this.titleFormat, this.count);
-		if (!this.hover) {
-			this.hover = setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, title);
-		} else {
-			this.hover.update(title);
-		}
+		this.element.title = format(this.titleFormat, this.count);
 
 		this.element.style.backgroundColor = this.styles.badgeBackground ?? '';
 		this.element.style.color = this.styles.badgeForeground ?? '';

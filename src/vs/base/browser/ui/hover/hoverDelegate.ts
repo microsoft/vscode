@@ -25,11 +25,11 @@ export function getDefaultHoverDelegate(placement: 'mouse' | 'element', enableIn
 export function getDefaultHoverDelegate(placement: 'mouse' | 'element', enableInstantHover?: boolean): IHoverDelegate | IScopedHoverDelegate {
 	if (enableInstantHover) {
 		// If instant hover is enabled, the consumer is responsible for disposing the hover delegate
-		return hoverDelegateFactory(placement, true) as IScopedHoverDelegate;
+		return hoverDelegateFactory(placement, true);
 	}
 
 	if (placement === 'element') {
-		return defaultHoverDelegateElement.value as IHoverDelegate;
+		return defaultHoverDelegateElement.value;
 	}
-	return defaultHoverDelegateMouse.value as IHoverDelegate;
+	return defaultHoverDelegateMouse.value;
 }

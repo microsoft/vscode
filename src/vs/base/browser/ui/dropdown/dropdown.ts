@@ -106,7 +106,7 @@ class BaseDropdown extends ActionRunner {
 	set tooltip(tooltip: string) {
 		if (this._label) {
 			if (!this.hover) {
-				this.hover = setupCustomHover(getDefaultHoverDelegate('mouse'), this._label, tooltip);
+				this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
 			} else {
 				this.hover.update(tooltip);
 			}

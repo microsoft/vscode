@@ -236,7 +236,6 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	private lastHoverHideTime = Number.MAX_VALUE;
 	private timeLimit = 200;
 
-	private overrideOptions: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>) = {};
 
 	private _delay: number;
 	get delay(): number {
@@ -249,6 +248,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	constructor(
 		public readonly placement: 'mouse' | 'element',
 		private readonly instantHover: boolean,
+		private overrideOptions: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>) = {},
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {

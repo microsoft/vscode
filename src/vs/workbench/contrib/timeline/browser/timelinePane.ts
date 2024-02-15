@@ -1133,7 +1133,7 @@ export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeEle
 	}
 }
 
-class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
+class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
 	private readonly _onDidScrollToEnd = new Emitter<LoadMoreCommand>();
 	readonly onDidScrollToEnd: Event<LoadMoreCommand> = this._onDidScrollToEnd.event;
 
@@ -1148,8 +1148,6 @@ class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeEleme
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 	) {
-		super();
-
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 		this._hoverDelegate = getDefaultHoverDelegate('element');
 	}

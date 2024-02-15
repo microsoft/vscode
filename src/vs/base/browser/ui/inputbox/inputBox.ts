@@ -234,7 +234,7 @@ export class InputBox extends Widget {
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
 		if (!this.hover) {
-			this.hover = setupCustomHover(getDefaultHoverDelegate('element'), this.input, tooltip);
+			this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.input, tooltip));
 		} else {
 			this.hover.update(tooltip);
 		}

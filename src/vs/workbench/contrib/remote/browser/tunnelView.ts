@@ -342,7 +342,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	readonly templateId = 'actionbar';
 	private inputDone?: (success: boolean, finishEditing: boolean) => void;
 	private _actionRunner: ActionRunner | undefined;
-	private _hoverDelegate: IHoverDelegate;
+	private readonly _hoverDelegate: IHoverDelegate;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

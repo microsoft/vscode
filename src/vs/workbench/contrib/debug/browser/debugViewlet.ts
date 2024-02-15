@@ -96,7 +96,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === DEBUG_START_COMMAND_ID) {
-			this.startDebugActionViewItem = this.instantiationService.createInstance(StartDebugActionViewItem, null, action);
+			this.startDebugActionViewItem = this.instantiationService.createInstance(StartDebugActionViewItem, null, action, options);
 			return this.startDebugActionViewItem;
 		}
 		if (action.id === FOCUS_SESSION_ID) {
@@ -105,7 +105,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 		if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
 			this.stopActionViewItemDisposables.clear();
-			const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor));
+			const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor, { hoverDelegate: options.hoverDelegate }));
 			if (item) {
 				return item;
 			}

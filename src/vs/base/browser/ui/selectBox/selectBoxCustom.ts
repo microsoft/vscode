@@ -134,7 +134,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
 		}
 
-		this._hover = setupCustomHover(getDefaultHoverDelegate('mouse'), this.selectElement, '');
+		this._hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.selectElement, ''));
 
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
@@ -315,7 +315,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.selectElement.selectedIndex = this.selected;
 		if (!!this.options[this.selected] && !!this.options[this.selected].text) {
 			this._hover.update(this.options[this.selected].text);
-
 		}
 	}
 
