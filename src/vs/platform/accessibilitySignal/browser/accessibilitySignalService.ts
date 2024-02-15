@@ -18,7 +18,10 @@ export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalS
 export interface IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	playSignal(signal: AccessibilitySignal, options?: IAccessibilitySignalOptions): Promise<void>;
-	playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
+	playAccessibilitySignals(
+		signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[],
+		modality?: SignalModality
+	): Promise<void>;
 	isSoundEnabled(signal: AccessibilitySignal): boolean;
 	isAnnouncementEnabled(signal: AccessibilitySignal): boolean;
 	onSoundEnabledChanged(signal: AccessibilitySignal): Event<void>;
@@ -26,6 +29,14 @@ export interface IAccessibilitySignalService {
 
 	playSound(signal: Sound, allowManyInParallel?: boolean): Promise<void>;
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
+}
+
+export enum SignalModality {
+	Silent = 0,
+	Sound = 1,
+	Announcement = 2,
+	Voice = 4, // other possibilities?
+	All = Sound | Announcement | Voice
 }
 
 export interface IAccessibilitySignalOptions {
@@ -68,20 +79,27 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		}
 	}
 
-	public async playAccessibilitySignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
+	public async playAccessibilitySignals(
+		signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[],
+		modality: SignalModality = SignalModality.All
+	): Promise<void> {
 		for (const signal of signals) {
 			this.sendSignalTelemetry('signal' in signal ? signal.signal : signal, 'source' in signal ? signal.source : undefined);
 		}
 		const signalArray = signals.map(s => 'signal' in s ? s.signal : s);
-		const announcements = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
-		if (announcements.length) {
-			this.accessibilityService.status(announcements.join(', '));
+
+		if (modality & SignalModality.Announcement) {
+			const announcements = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
+			if (announcements.length) {
+				this.accessibilityService.status(announcements.join(', '));
+			}
 		}
 
-		// Some sounds are reused. Don't play the same sound twice.
-		const sounds = new Set(signalArray.filter(signal => this.isSoundEnabled(signal)).map(signal => signal.sound.getSound()));
-		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
-
+		if (modality & SignalModality.Sound) {
+			// Some sounds are reused. Don't play the same sound twice.
+			const sounds = new Set(signalArray.filter(signal => this.isSoundEnabled(signal)).map(signal => signal.sound.getSound()));
+			await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
+		}
 	}
 
 
