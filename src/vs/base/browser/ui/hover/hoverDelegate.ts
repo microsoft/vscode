@@ -6,7 +6,13 @@
 import { IHoverDelegate, IScopedHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { Lazy } from 'vs/base/common/lazy';
 
-let hoverDelegateFactory: (placement: 'mouse' | 'element', enableInstantHover: boolean) => IScopedHoverDelegate;
+const testingHoverDelegateFactory = () => ({
+	get delay(): number { throw new Error('Only used for testing'); },
+	dispose: () => { },
+	showHover: () => { throw new Error('Only used for testing'); }
+});
+
+let hoverDelegateFactory: (placement: 'mouse' | 'element', enableInstantHover: boolean) => IScopedHoverDelegate = testingHoverDelegateFactory;
 const defaultHoverDelegateMouse = new Lazy<IHoverDelegate>(() => hoverDelegateFactory('mouse', false));
 const defaultHoverDelegateElement = new Lazy<IHoverDelegate>(() => hoverDelegateFactory('element', false));
 
