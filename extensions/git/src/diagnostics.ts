@@ -82,15 +82,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 	provideCodeActions(document: TextDocument, range: Range | Selection): CodeAction[] {
 		const codeActions: CodeAction[] = [];
 		const diagnostics = this.diagnosticsManager.getDiagnostics(document.uri);
-
-		// Hard wrap all lines code action
-		let hardWrapAllLinesCodeAction: CodeAction | undefined;
-		const lineLengthDiagnostics = diagnostics.filter(d => d.code === DiagnosticCodes.line_length);
-
-		if (lineLengthDiagnostics.length > 1) {
-			hardWrapAllLinesCodeAction = new CodeAction(l10n.t('Hard wrap all lines'), CodeActionKind.QuickFix);
-			hardWrapAllLinesCodeAction.edit = this.getWrapAllLinesWorkspaceEdit(document, lineLengthDiagnostics);
-		}
+		const wrapAllLinesCodeAction = this.getWrapAllLinesCodeAction(document, diagnostics);
 
 		for (const diagnostic of diagnostics) {
 			if (!diagnostic.range.contains(range)) {
@@ -117,9 +109,9 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 					codeAction.edit = workspaceEdit;
 					codeActions.push(codeAction);
 
-					if (hardWrapAllLinesCodeAction) {
-						hardWrapAllLinesCodeAction.diagnostics = [diagnostic];
-						codeActions.push(hardWrapAllLinesCodeAction);
+					if (wrapAllLinesCodeAction) {
+						wrapAllLinesCodeAction.diagnostics = [diagnostic];
+						codeActions.push(wrapAllLinesCodeAction);
 					}
 
 					break;
@@ -137,6 +129,18 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 		workspaceEdit.replace(document.uri, range, lineSegments.join('\n'));
 
 		return workspaceEdit;
+	}
+
+	private getWrapAllLinesCodeAction(document: TextDocument, diagnostics: readonly Diagnostic[]): CodeAction | undefined {
+		const lineLengthDiagnostics = diagnostics.filter(d => d.code === DiagnosticCodes.line_length);
+		if (lineLengthDiagnostics.length < 2) {
+			return undefined;
+		}
+
+		const wrapAllLinesCodeAction = new CodeAction(l10n.t('Hard wrap all lines'), CodeActionKind.QuickFix);
+		wrapAllLinesCodeAction.edit = this.getWrapAllLinesWorkspaceEdit(document, lineLengthDiagnostics);
+
+		return wrapAllLinesCodeAction;
 	}
 
 	private getWrapAllLinesWorkspaceEdit(document: TextDocument, diagnostics: Diagnostic[]): WorkspaceEdit {
