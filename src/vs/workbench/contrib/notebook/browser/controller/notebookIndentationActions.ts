@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor, } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { isNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as nls from 'vs/nls';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ITextModel } from 'vs/editor/common/model';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { isNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class NotebookIndentUsingTabs extends Action2 {
 	public static readonly ID = 'notebook.action.indentUsingTabs';
