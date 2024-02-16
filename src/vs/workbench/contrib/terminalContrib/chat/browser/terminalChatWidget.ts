@@ -255,7 +255,7 @@ class TerminalChatResponseEditor extends Disposable {
 		if (verbose) {
 			// TODO: Add verbose description
 		}
-		return localize('terminalChatInput', "Terminal Chat Input");
+		return localize('terminalResponseEditor', "Terminal Response Editor");
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {

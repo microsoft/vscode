@@ -48,7 +48,8 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	const keybindingService = accessor.get(IKeybindingService);
 	const content = [];
 	const openAccessibleViewKeybinding = keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
-	const acceptCommandKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.RunCommand)?.getAriaLabel();
+	const runCommandKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.RunCommand)?.getAriaLabel();
+	const insertCommandKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.InsertCommand)?.getAriaLabel();
 	const makeRequestKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.MakeRequest)?.getAriaLabel();
 	//TODO: using this instead of the terminal command bc by definition the inline terminal chat is focused when this dialog is invoked.
 	const startChatKeybinding = keybindingService.lookupKeybinding('inlineChat.start')?.getAriaLabel();
@@ -58,7 +59,8 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	content.push(localize('inlineChat.results', "A result may contain a terminal command or just a message. In either case, the result will be announced."));
 	content.push(openAccessibleViewKeybinding ? localize('inlineChat.inspectResponseMessage', 'If just a message comes back, it can be inspected in the accessible view ({0}).', openAccessibleViewKeybinding) : localize('inlineChat.inspectResponseNoKb', 'With the input box focused, inspect the response in the accessible view via the Open Accessible View command, which is currently not triggerable by a keybinding.'));
 	content.push(localize('inlineChat.inspectTerminalCommand', 'If a terminal command comes back, it can be inspected in an editor reached via Shift+Tab.'));
-	content.push(acceptCommandKeybinding ? localize('inlineChat.acceptCommand', 'With focus in the command editor, the Terminal: Accept Chat Command ({0}) action.', acceptCommandKeybinding) : localize('inlineChat.acceptCommandNoKb', 'Accept a command by tabbing to the button as the action is currently not triggerable by a keybinding.'));
+	content.push(runCommandKeybinding ? localize('inlineChat.runCommand', 'With focus in the input box or command editor, the Terminal: Run Chat Command ({0}) action.', runCommandKeybinding) : localize('inlineChat.runCommandNoKb', 'Run a command by tabbing to the button as the action is currently not triggerable by a keybinding.'));
+	content.push(insertCommandKeybinding ? localize('inlineChat.insertCommand', 'With focus in the input box command editor, the Terminal: Insert Chat Command ({0}) action.', insertCommandKeybinding) : localize('inlineChat.insertCommandNoKb', 'Insert a command by tabbing to the button as the action is currently not triggerable by a keybinding.'));
 	content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	content.push(localize('chat.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
 	return content.join('\n\n');
