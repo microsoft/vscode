@@ -53,7 +53,7 @@ suite('HTML Folding', () => {
 			/*6*/'</head>',
 			/*7*/'</html>',
 		];
-		await assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 3 /* TODO */)]);
+		await assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 3)]);
 	});
 
 	test('Embedded JavaScript - multiple areas', async () => {
