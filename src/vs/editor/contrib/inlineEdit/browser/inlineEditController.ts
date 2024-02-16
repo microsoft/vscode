@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -69,19 +69,28 @@ export class InlineEditController extends Disposable {
 		//Automatically request inline edit when the content was changed
 		//Cancel the previous request if there is one
 		//Remove the previous ghost text
-		this._register(editor.onDidChangeModelContent(async () => {
-			if (!this._enabled.get()) {
+		const modelChangedSignal = observableSignalFromEvent('InlineEditController.modelContentChangedSignal', editor.onDidChangeModelContent);
+		this._register(autorun(reader => {
+			/** @description InlineEditController.modelContentChanged model */
+			if (!this._enabled.read(reader)) {
 				return;
 			}
-			await this.getInlineEdit(editor, true);
+			modelChangedSignal.read(reader);
+			this.getInlineEdit(editor, true);
 		}));
 
 		//Check if the cursor is at the ghost text
-		this._register(editor.onDidChangeCursorPosition((e) => {
-			if (!this._enabled.get()) {
+		const cursorPosition = observableFromEvent(editor.onDidChangeCursorPosition, () => editor.getPosition());
+		this._register(autorun(reader => {
+			/** @description InlineEditController.cursorPositionChanged model */
+			if (!this._enabled.read(reader)) {
 				return;
 			}
-			this.checkCursorPosition(e.position);
+
+			const pos = cursorPosition.read(reader);
+			if (pos) {
+				this.checkCursorPosition(pos);
+			}
 		}));
 
 		//Perform stuff when the current edit has changed
