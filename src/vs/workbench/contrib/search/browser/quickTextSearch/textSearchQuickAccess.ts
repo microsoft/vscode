@@ -111,6 +111,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		picker.customButton = true;
 		picker.customLabel = '$(link-external)';
 		this.editorViewState.reset();
+		const previewDisposable = this._editorGroupService.mainPart.enforceEnablePreview();
+		disposables.add(previewDisposable);
 		disposables.add(picker.onDidCustom(() => {
 			if (this.searchModel.searchResult.count() > 0) {
 				this.moveToSearchViewlet(undefined);
@@ -126,19 +128,17 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
 				this.editorViewState.set();
 				const itemMatch = item.match;
-				const previewDisposable = this._editorGroupService.mainPart.enforceEnablePreview();
 				this.editorSequencer.queue(async () => {
 					// disable and re-enable history service so that we can ignore this history entry
 					this._historyService.shouldIgnoreActiveEditorChange = true;
 					const subPreviewDisposable = previewDisposable.localEnable();
 					await this._editorService.openEditor({
 						resource: itemMatch.parent().resource,
-						options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+						options: { pinned: false, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
 					});
 					subPreviewDisposable.dispose();
 					this._historyService.shouldIgnoreActiveEditorChange = false;
 				});
-				previewDisposable.dispose();
 			}
 		}));
 
