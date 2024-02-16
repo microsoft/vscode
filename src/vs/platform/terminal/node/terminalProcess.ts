@@ -409,6 +409,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Python });
+		} else if (sanitizedTitle.includes('julia') || sanitizedTitle.includes('Julia')) {
+			// not getting picked up for some reason
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: PosixShellType.Julia });
 		} else {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
 		}
