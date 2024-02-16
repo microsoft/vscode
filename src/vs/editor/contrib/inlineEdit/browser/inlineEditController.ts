@@ -88,13 +88,12 @@ export class InlineEditController extends Disposable {
 		this._register(autorun((reader) => {
 			/** @description InlineEditController.update model */
 			const currentEdit = this._currentEdit.read(reader);
+			this._isCursorAtInlineEditContext.set(false);
 			if (!currentEdit) {
 				this._isVisibleContext.set(false);
-				this._isCursorAtInlineEditContext.set(false);
 				return;
 			}
 			this._isVisibleContext.set(true);
-			this._isCursorAtInlineEditContext.set(false);
 			const pos = editor.getPosition();
 			if (pos) {
 				this.checkCursorPosition(pos);
