@@ -7951,8 +7951,9 @@ declare namespace monaco.languages {
 		Automatic = 1
 	}
 
-	export interface InlineEditProvider {
-		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<IInlineEdit>;
+	export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
+		freeInlineEdit(edit: T): void;
 	}
 
 	export interface ILanguageExtensionPoint {

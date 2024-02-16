@@ -262,6 +262,7 @@ export class InlineEditController extends Disposable {
 		if (data.accepted) {
 			this._commandService.executeCommand(data.accepted.id, ...data.accepted.arguments || []);
 		}
+		this.freeEdit(data);
 		this._currentEdit.set(undefined, undefined);
 	}
 
@@ -283,7 +284,22 @@ export class InlineEditController extends Disposable {
 		if (edit && edit?.rejected && !this._isAccepting) {
 			this._commandService.executeCommand(edit.rejected.id, ...edit.rejected.arguments || []);
 		}
+		if (edit) {
+			this.freeEdit(edit);
+		}
 		this._currentEdit.set(undefined, undefined);
+	}
+
+	private freeEdit(edit: IInlineEdit) {
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+		const providers = this.languageFeaturesService.inlineEditProvider.all(model);
+		if (providers.length === 0) {
+			return;
+		}
+		providers[0].freeInlineEdit(edit);
 	}
 
 	public shouldShowHoverAt(range: Range) {

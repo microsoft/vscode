@@ -1356,14 +1356,17 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 }
 
 class InlineEditAdapter {
+	private readonly _references = new ReferenceMap<{
+		dispose(): void;
+		item: vscode.InlineEdit;
+	}>();
+
 	private languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineEditTriggerKind, InlineEditTriggerKind> = {
 		[languages.InlineEditTriggerKind.Automatic]: InlineEditTriggerKind.Automatic,
 		[languages.InlineEditTriggerKind.Invoke]: InlineEditTriggerKind.Invoke,
 	};
 
-	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<languages.IInlineEdit | undefined> {
-		let disposableStore: DisposableStore | undefined = undefined;
-
+	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const result = await this._provider.provideInlineEdit(doc, {
 			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
@@ -1379,6 +1382,14 @@ class InlineEditAdapter {
 			// of results as they will leak
 			return undefined;
 		}
+		let disposableStore: DisposableStore | undefined = undefined;
+		const pid = this._references.createReferenceId({
+			dispose() {
+				disposableStore?.dispose();
+			},
+			item: result
+		});
+
 		let acceptCommand: languages.Command | undefined = undefined;
 		if (result.accepted) {
 			if (!disposableStore) {
@@ -1394,7 +1405,8 @@ class InlineEditAdapter {
 			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
 		}
 
-		const langResult: languages.IInlineEdit = {
+		const langResult: extHostProtocol.IdentifiableInlineEdit = {
+			pid,
 			text: result.text,
 			range: typeConvert.Range.from(result.range),
 			accepted: acceptCommand,
@@ -1402,6 +1414,11 @@ class InlineEditAdapter {
 		};
 
 		return langResult;
+	}
+
+	disposeEdit(pid: number) {
+		const data = this._references.disposeReferenceId(pid);
+		data?.dispose();
 	}
 
 	constructor(
@@ -2491,8 +2508,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideInlineEdit(handle: number, resource: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<languages.IInlineEdit | undefined> {
+	$provideInlineEdit(handle: number, resource: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
 		return this._withAdapter(handle, InlineEditAdapter, adapter => adapter.provideInlineEdits(URI.revive(resource), context, token), undefined, token);
+	}
+
+	$freeInlineEdit(handle: number, pid: number): void {
+		this._withAdapter(handle, InlineEditAdapter, async adapter => { adapter.disposeEdit(pid); }, undefined, undefined);
 	}
 
 	// --- parameter hints

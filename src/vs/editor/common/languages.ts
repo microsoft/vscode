@@ -2160,6 +2160,7 @@ export enum InlineEditTriggerKind {
 	Automatic = 1,
 }
 
-export interface InlineEditProvider {
-	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<IInlineEdit>;
+export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
+	freeInlineEdit(edit: T): void;
 }
