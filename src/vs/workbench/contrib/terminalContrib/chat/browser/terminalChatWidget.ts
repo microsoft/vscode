@@ -114,7 +114,7 @@ export class TerminalChatWidget extends Disposable {
 		}
 		const cursorY = this._instance.xterm?.raw.buffer.active.cursorY ?? 0;
 		const height = font.charHeight * font.lineHeight;
-		const top = cursorY * height;
+		const top = cursorY * height + 10;
 		this._container.style.top = `${top}px`;
 		const terminalHeight = this._instance.domElement.clientHeight;
 		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
