@@ -22,8 +22,7 @@ import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/cha
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 export class TerminalChatWidget extends Disposable {
 
@@ -48,8 +47,8 @@ export class TerminalChatWidget extends Disposable {
 	) {
 		super();
 
-		this._focusedContextKey = TerminalContextKeys.chatFocused.bindTo(this._contextKeyService);
-		this._visibleContextKey = TerminalContextKeys.chatVisible.bindTo(this._contextKeyService);
+		this._focusedContextKey = TerminalChatContextKeys.chatFocused.bindTo(this._contextKeyService);
+		this._visibleContextKey = TerminalChatContextKeys.chatVisible.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
@@ -176,7 +175,7 @@ class TerminalChatResponseEditor extends Disposable {
 	) {
 		super();
 
-		this._responseEditorFocusedContextKey = TerminalContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
+		this._responseEditorFocusedContextKey = TerminalChatContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
 
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('terminal-inline-chat-response');

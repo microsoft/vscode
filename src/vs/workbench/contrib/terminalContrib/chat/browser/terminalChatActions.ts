@@ -12,8 +12,8 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalChatResponseTypes, TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys, TerminalChatResponseTypes } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 registerActiveXtermAction({
@@ -21,7 +21,7 @@ registerActiveXtermAction({
 	title: localize2('startChat', 'Start Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused.negate(), TerminalContextKeys.focusInAny),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.chatFocused.negate(), TerminalContextKeys.focusInAny),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	f1: true,
@@ -46,7 +46,7 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
-		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused, TerminalContextKeys.chatVisible),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.chatFocused, TerminalChatContextKeys.chatVisible),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	icon: Codicon.close,
@@ -78,15 +78,15 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 2,
-		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused,
-			TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand))
+		when: ContextKeyExpr.and(TerminalChatContextKeys.chatFocused,
+			TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand))
 	},
 	f1: true,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.chatFocused,
-		TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand)
+		TerminalChatContextKeys.chatFocused,
+		TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand)
 	),
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -105,13 +105,13 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.chatRequestActive.negate(),
-		TerminalContextKeys.chatAgentRegistered,
-		TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand)
+		TerminalChatContextKeys.chatRequestActive.negate(),
+		TerminalChatContextKeys.chatAgentRegistered,
+		TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand)
 	),
 	icon: Codicon.check,
 	keybinding: {
-		when: TerminalContextKeys.chatRequestActive.negate(),
+		when: TerminalChatContextKeys.chatRequestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	},
@@ -120,7 +120,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 0,
-		when: ContextKeyExpr.and(TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand), TerminalContextKeys.chatRequestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand), TerminalChatContextKeys.chatRequestActive.negate()),
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -138,13 +138,13 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.chatRequestActive.negate(),
-		TerminalContextKeys.chatAgentRegistered,
-		TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand)
+		TerminalChatContextKeys.chatRequestActive.negate(),
+		TerminalChatContextKeys.chatAgentRegistered,
+		TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand)
 	),
 	icon: Codicon.check,
 	keybinding: {
-		when: TerminalContextKeys.chatRequestActive.negate(),
+		when: TerminalChatContextKeys.chatRequestActive.negate(),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Alt | KeyCode.Enter,
 	},
@@ -152,7 +152,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 1,
-		when: ContextKeyExpr.and(TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand), TerminalContextKeys.chatRequestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand), TerminalChatContextKeys.chatRequestActive.negate()),
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -169,21 +169,21 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.chatRequestActive.negate(),
-		TerminalContextKeys.chatAgentRegistered,
+		TerminalChatContextKeys.chatRequestActive.negate(),
+		TerminalChatContextKeys.chatAgentRegistered,
 	),
 	icon: Codicon.commentDiscussion,
 	menu: [{
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 1,
-		when: ContextKeyExpr.and(TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.Message), TerminalContextKeys.chatRequestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.Message), TerminalChatContextKeys.chatRequestActive.negate()),
 	},
 	{
 		id: MENU_TERMINAL_CHAT_WIDGET,
 		group: 'main',
 		order: 1,
-		when: ContextKeyExpr.and(CTX_INLINE_CHAT_EMPTY.negate(), TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand), TerminalContextKeys.chatRequestActive.negate()),
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_EMPTY.negate(), TerminalChatContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand), TerminalChatContextKeys.chatRequestActive.negate()),
 	}],
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -200,13 +200,13 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalContextKeys.chatRequestActive.negate(),
-		TerminalContextKeys.chatAgentRegistered,
+		TerminalChatContextKeys.chatRequestActive.negate(),
+		TerminalChatContextKeys.chatAgentRegistered,
 		CTX_INLINE_CHAT_EMPTY.negate()
 	),
 	icon: Codicon.send,
 	keybinding: {
-		when: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, TerminalContextKeys.chatRequestActive.negate()),
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, TerminalChatContextKeys.chatRequestActive.negate()),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.Enter
 	},
@@ -214,7 +214,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_INPUT,
 		group: 'main',
 		order: 1,
-		when: TerminalContextKeys.chatRequestActive.negate(),
+		when: TerminalChatContextKeys.chatRequestActive.negate(),
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -230,14 +230,14 @@ registerActiveXtermAction({
 	title: localize2('cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalContextKeys.chatRequestActive,
-		TerminalContextKeys.chatAgentRegistered
+		TerminalChatContextKeys.chatRequestActive,
+		TerminalChatContextKeys.chatAgentRegistered
 	),
 	icon: Codicon.debugStop,
 	menu: {
 		id: MENU_TERMINAL_CHAT_INPUT,
 		group: 'main',
-		when: TerminalContextKeys.chatRequestActive,
+		when: TerminalChatContextKeys.chatRequestActive,
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -253,15 +253,15 @@ registerActiveXtermAction({
 	title: localize2('feedbackHelpful', 'Helpful'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalContextKeys.chatResponseType.notEqualsTo(undefined)
+		TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined)
 	),
 	icon: Codicon.thumbsup,
-	toggled: TerminalContextKeys.chatSessionResponseVote.isEqualTo('up'),
+	toggled: TerminalChatContextKeys.chatSessionResponseVote.isEqualTo('up'),
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 		group: 'inline',
 		order: 1,
-		when: TerminalContextKeys.chatResponseType.notEqualsTo(undefined),
+		when: TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined),
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -277,15 +277,15 @@ registerActiveXtermAction({
 	title: localize2('feedbackUnhelpful', 'Unhelpful'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalContextKeys.chatResponseType.notEqualsTo(undefined),
+		TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined),
 	),
-	toggled: TerminalContextKeys.chatSessionResponseVote.isEqualTo('down'),
+	toggled: TerminalChatContextKeys.chatSessionResponseVote.isEqualTo('down'),
 	icon: Codicon.thumbsdown,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 		group: 'inline',
 		order: 2,
-		when: TerminalContextKeys.chatResponseType.notEqualsTo(undefined),
+		when: TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined),
 	},
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
@@ -301,20 +301,20 @@ registerActiveXtermAction({
 	title: localize2('reportIssue', 'Report Issue'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalContextKeys.chatRequestActive.negate(),
-		TerminalContextKeys.chatResponseType.notEqualsTo(undefined),
-		TerminalContextKeys.chatResponseSupportsIssueReporting
+		TerminalChatContextKeys.chatRequestActive.negate(),
+		TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined),
+		TerminalChatContextKeys.chatResponseSupportsIssueReporting
 	),
 	icon: Codicon.report,
 	menu: [{
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		when: ContextKeyExpr.and(TerminalContextKeys.chatResponseType.notEqualsTo(undefined), TerminalContextKeys.chatResponseSupportsIssueReporting),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined), TerminalChatContextKeys.chatResponseSupportsIssueReporting),
 		group: 'inline',
 		order: 3
 	}],
 	//  {
 	// 	id: MENU_TERMINAL_CHAT_WIDGET,
-	// 	when: ContextKeyExpr.and(TerminalContextKeys.chatResponseType.notEqualsTo(undefined), TerminalContextKeys.chatResponseSupportsIssueReporting),
+	// 	when: ContextKeyExpr.and(TerminalChatContextKeys.chatResponseType.notEqualsTo(undefined), TerminalChatContextKeys.chatResponseSupportsIssueReporting),
 	// 	group: 'config',
 	// 	order: 3
 	// }],

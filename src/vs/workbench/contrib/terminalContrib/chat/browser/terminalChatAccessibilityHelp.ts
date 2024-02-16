@@ -13,8 +13,7 @@ import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 export class TerminalInlineChatAccessibilityHelpContribution extends Disposable {
@@ -39,7 +38,7 @@ export class TerminalInlineChatAccessibilityHelpContribution extends Disposable 
 				options: { type: AccessibleViewType.Help }
 			});
 			return true;
-		}, ContextKeyExpr.or(TerminalContextKeys.chatFocused, TerminalContextKeys.chatResponseEditorFocused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
+		}, ContextKeyExpr.or(TerminalChatContextKeys.chatFocused, TerminalChatContextKeys.chatResponseEditorFocused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
 	}
 }
 

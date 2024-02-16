@@ -21,11 +21,11 @@ import { IChatService, IChatProgress, InteractiveSessionVoteDirection, ChatUserA
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalChatResponseTypes, TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 
 import { ChatModel, ChatRequestModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { TerminalChatContextKeys, TerminalChatResponseTypes } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 
 const enum Message {
 	NONE = 0,
@@ -95,11 +95,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
 			return;
 		}
-		this._requestActiveContextKey = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
-		this._terminalAgentRegisteredContextKey = TerminalContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
-		this._responseTypeContextKey = TerminalContextKeys.chatResponseType.bindTo(this._contextKeyService);
-		this._responseSupportsIssueReportingContextKey = TerminalContextKeys.chatResponseSupportsIssueReporting.bindTo(this._contextKeyService);
-		this._sessionResponseVoteContextKey = TerminalContextKeys.chatSessionResponseVote.bindTo(this._contextKeyService);
+		this._requestActiveContextKey = TerminalChatContextKeys.chatRequestActive.bindTo(this._contextKeyService);
+		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
+		this._responseTypeContextKey = TerminalChatContextKeys.chatResponseType.bindTo(this._contextKeyService);
+		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.chatResponseSupportsIssueReporting.bindTo(this._contextKeyService);
+		this._sessionResponseVoteContextKey = TerminalChatContextKeys.chatSessionResponseVote.bindTo(this._contextKeyService);
 
 		if (!this._chatAgentService.hasAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
