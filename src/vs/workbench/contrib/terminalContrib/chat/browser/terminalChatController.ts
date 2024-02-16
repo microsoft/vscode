@@ -66,7 +66,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private _lastInput: string | undefined;
 	private _lastResponseContent: string | undefined;
 	get lastResponseContent(): string | undefined {
-		// TODO: use model
 		return this._lastResponseContent;
 	}
 
