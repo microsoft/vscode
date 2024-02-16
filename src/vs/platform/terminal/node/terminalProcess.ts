@@ -70,6 +70,7 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 	['bash', PosixShellType.Bash],
 	['csh', PosixShellType.Csh],
 	['fish', PosixShellType.Fish],
+	['julia', PosixShellType.Julia],
 	['ksh', PosixShellType.Ksh],
 	['sh', PosixShellType.Sh],
 	['pwsh', PosixShellType.PowerShell],
