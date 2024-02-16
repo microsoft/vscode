@@ -4274,7 +4274,8 @@ export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
 		readonly result: vscode.ChatAgentResult2,
-		readonly agent: { extensionId: string; agent: string }
+		readonly agent: { extensionId: string; agent: string },
+		readonly command?: string
 	) { }
 }
 
