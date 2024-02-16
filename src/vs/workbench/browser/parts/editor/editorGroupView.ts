@@ -41,7 +41,7 @@ import { hash } from 'vs/base/common/hash';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { EditorActivation, IEditorOptions, resolvePinnedOption } from 'vs/platform/editor/common/editor';
+import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { URI } from 'vs/base/common/uri';
@@ -1033,9 +1033,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Determine options
 		const pinned = options?.sticky
-			|| (this.groupsView.partOptions.enablePreview ? false : options?.pinned !== 'forcedDisable') // if we don't have preview enabled, check whether we should force preview
+			|| !this.groupsView.partOptions.enablePreview
 			|| editor.isDirty()
-			|| (options?.pinned === undefined ? typeof options?.index === 'number' : resolvePinnedOption(options) /* unless specified, prefer to pin when opening with index */)
+			|| (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */)
 			|| (typeof options?.index === 'number' && this.model.isSticky(options.index))
 			|| editor.hasCapability(EditorInputCapabilities.Scratchpad);
 		const openEditorOptions: IEditorOpenOptions = {
@@ -1243,23 +1243,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Move within same group
 		if (this === target) {
-			this.doMoveEditorInsideGroup(editor, this.editorOptionsToOpenOptions(options));
+			this.doMoveEditorInsideGroup(editor, options);
 		}
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, this.editorOptionsToOpenOptions(options), { ...internalOptions, keepCopy: false });
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
 		}
-	}
-
-	/**
-	 * Converts an IEditorOptions to IEditorOpenOptions by correcting the `pinned` field
-	 */
-	private editorOptionsToOpenOptions(options?: IEditorOptions): IEditorOpenOptions | undefined {
-		if (!options) {
-			return undefined;
-		}
-		return { ...options, pinned: resolvePinnedOption(options) };
 	}
 
 	private doMoveEditorInsideGroup(candidate: EditorInput, options?: IEditorOpenOptions): void {
@@ -1361,12 +1351,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Move within same group because we do not support to show the same editor
 		// multiple times in the same group
 		if (this === target) {
-			this.doMoveEditorInsideGroup(editor, this.editorOptionsToOpenOptions(options));
+			this.doMoveEditorInsideGroup(editor, options);
 		}
 
 		// Copy across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, this.editorOptionsToOpenOptions(options), { ...internalOptions, keepCopy: true });
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: true });
 		}
 	}
 
@@ -2053,3 +2043,4 @@ export interface EditorReplacement extends IEditorReplacement {
 	readonly replacement: EditorInput;
 	readonly options?: IEditorOptions;
 }
+

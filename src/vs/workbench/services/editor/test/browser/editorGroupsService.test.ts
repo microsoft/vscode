@@ -18,6 +18,7 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { IGroupModelChangeEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Event } from 'vs/base/common/event';
 
 suite('EditorGroupsService', () => {
 
@@ -1817,25 +1818,7 @@ suite('EditorGroupsService', () => {
 		maxiizeGroupEventDisposable.dispose();
 	});
 
-	test('forced unpin: no enablePreview setting to override', async () => {
-		const [part] = await createPart();
-		const group = part.activeGroup;
-
-		const inputPinned = createTestFileEditorInput(URI.file('foo/bar/pinned'), TEST_EDITOR_INPUT_ID);
-		const inputUnpinned = createTestFileEditorInput(URI.file('foo/bar/unpinned'), TEST_EDITOR_INPUT_ID);
-		const inputForced = createTestFileEditorInput(URI.file('foo/bar/forcedDisable'), TEST_EDITOR_INPUT_ID);
-
-		await group.openEditor(inputPinned, { pinned: true });
-		assert.strictEqual(group.isPinned(inputPinned), true);
-
-		await group.openEditor(inputUnpinned, { pinned: false });
-		assert.strictEqual(group.isPinned(inputUnpinned), false);
-
-		await group.openEditor(inputForced, { pinned: 'forcedDisable' });
-		assert.strictEqual(group.isPinned(inputForced), false);
-
-	});
-	test('forced unpin: enablePreview setting to override', async () => {
+	test('forced unpin: enforceEnablePreview to override enablePreview: false', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('workbench', { 'editor': { 'enablePreview': false } });
@@ -1853,8 +1836,87 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(inputUnpinned, { pinned: false });
 		assert.strictEqual(group.isPinned(inputUnpinned), true);
 
-		await group.openEditor(inputForced, { pinned: 'forcedDisable' });
+		// start enable preview session
+		const enablePreviewDisposable = part.enforceEnablePreview();
+
+		// actually start enabling preview
+		const localEnableDisposable = enablePreviewDisposable.localEnable();
+		await group.openEditor(inputForced, { pinned: false });
 		assert.strictEqual(group.isPinned(inputForced), false);
+
+		//stop enabling preview
+		localEnableDisposable.dispose();
+		assert.strictEqual(group.isPinned(inputForced), false);
+
+		const p = Event.toPromise(part.onDidChangeEditorPartOptions);
+
+		// stop preview session
+		enablePreviewDisposable.dispose();
+		await p;
+		assert.strictEqual(group.isPinned(inputForced), true);
+	});
+
+	test('forced unpin: enforceEnablePreview only makes one edtior preview', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('workbench', { 'editor': { 'enablePreview': false } });
+		instantiationService.stub(IConfigurationService, configurationService);
+		const [part] = await createPart(instantiationService);
+		const group = part.activeGroup;
+
+		const inputPinned = createTestFileEditorInput(URI.file('foo/bar/pinned'), TEST_EDITOR_INPUT_ID);
+		const inputForced = createTestFileEditorInput(URI.file('foo/bar/forcedDisable'), TEST_EDITOR_INPUT_ID);
+
+
+		// start enable preview session
+		const enablePreviewDisposable = part.enforceEnablePreview();
+
+		// open an editor without enabling preview, should be pinned
+		await group.openEditor(inputPinned, { pinned: false });
+		assert.strictEqual(group.isPinned(inputPinned), true);
+
+		// actually start enabling preview
+		const localEnableDisposable = enablePreviewDisposable.localEnable();
+		await group.openEditor(inputForced, { pinned: false });
+		assert.strictEqual(group.isPinned(inputForced), false);
+		//stop enabling preview
+		localEnableDisposable.dispose();
+
+		assert.strictEqual(group.isPinned(inputForced), false);
+		assert.strictEqual(group.isPinned(inputPinned), true);
+
+		const p = Event.toPromise(part.onDidChangeEditorPartOptions);
+		// stop preview session
+		enablePreviewDisposable.dispose();
+		await p;
+
+		assert.strictEqual(group.isPinned(inputForced), true);
+		assert.strictEqual(group.isPinned(inputPinned), true);
+	});
+
+	test('forced unpin: enforceEnablePreview forgets to dispose inner enable disposable', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('workbench', { 'editor': { 'enablePreview': false } });
+		instantiationService.stub(IConfigurationService, configurationService);
+		const [part] = await createPart(instantiationService);
+		const group = part.activeGroup;
+
+		const inputForced = createTestFileEditorInput(URI.file('foo/bar/forcedDisable'), TEST_EDITOR_INPUT_ID);
+
+		// start enable preview session
+		const enablePreviewDisposable = part.enforceEnablePreview();
+
+		// actually start enabling preview
+		enablePreviewDisposable.localEnable();
+		await group.openEditor(inputForced, { pinned: false });
+		assert.strictEqual(group.isPinned(inputForced), false);
+
+		const p = Event.toPromise(part.onDidChangeEditorPartOptions);
+		// stop preview session
+		enablePreviewDisposable.dispose();
+		await p;
+		assert.strictEqual(group.isPinned(inputForced), true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

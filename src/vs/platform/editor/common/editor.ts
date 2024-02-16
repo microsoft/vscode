@@ -225,10 +225,8 @@ export interface IEditorOptions {
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
 	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
-	 *
-	 * If you assign `forcedDisable`, then the editor will always be unpinned, regardless of settings.
 	 */
-	pinned?: boolean | 'forcedDisable';
+	pinned?: boolean;
 
 	/**
 	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
@@ -290,17 +288,6 @@ export interface IEditorOptions {
 	 * applied when opening the editor.
 	 */
 	viewState?: object;
-}
-
-/**
- * Takes a value for `IEditorOptions` and returns its `pinned` as a boolean
- */
-export function resolvePinnedOption(options?: IEditorOptions): boolean | undefined {
-	if (options?.pinned) {
-		return options.pinned === 'forcedDisable' ? false : options.pinned;
-	} else {
-		return undefined;
-	}
 }
 
 export interface ITextEditorSelection {

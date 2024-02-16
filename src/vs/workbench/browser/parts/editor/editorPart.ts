@@ -8,7 +8,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, EnablePreviewDisposable } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
@@ -208,6 +208,23 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf(options), 1);
 			this.handleChangedPartOptions();
 		});
+	}
+
+	enforceEnablePreview(): EnablePreviewDisposable {
+		const set = () => {
+			this.enforcedPartOptions.push({ enablePreview: true });
+			this.handleChangedPartOptions();
+		};
+
+		const partialRestore = () => {
+			this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf({ enablePreview: true }), 1);
+		};
+
+		const finishRestore = () => {
+			this.handleChangedPartOptions();
+		};
+
+		return new EnablePreviewDisposable(set, partialRestore, finishRestore);
 	}
 
 	private top = 0;

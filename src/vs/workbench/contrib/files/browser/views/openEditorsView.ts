@@ -54,7 +54,6 @@ import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
-import { resolvePinnedOption } from 'vs/platform/editor/common/editor';
 
 const $ = dom.$;
 
@@ -290,7 +289,7 @@ export class OpenEditorsView extends ViewPane {
 				}
 
 				this.withActiveEditorFocusTrackingDisabled(() => {
-					this.openEditor(element, { preserveFocus: e.editorOptions.preserveFocus, pinned: resolvePinnedOption(e.editorOptions), sideBySide: e.sideBySide });
+					this.openEditor(element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
 				});
 			} else {
 				this.withActiveEditorFocusTrackingDisabled(() => {

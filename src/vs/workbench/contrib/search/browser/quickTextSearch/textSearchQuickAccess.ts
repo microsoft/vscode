@@ -32,6 +32,7 @@ import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Sequencer } from 'vs/base/common/async';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -85,7 +86,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		@ILabelService private readonly _labelService: ILabelService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IHistoryService private readonly _historyService: IHistoryService
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+
 	) {
 		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
@@ -123,15 +126,19 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
 				this.editorViewState.set();
 				const itemMatch = item.match;
+				const previewDisposable = this._editorGroupService.mainPart.enforceEnablePreview();
 				this.editorSequencer.queue(async () => {
 					// disable and re-enable history service so that we can ignore this history entry
 					this._historyService.shouldIgnoreActiveEditorChange = true;
+					const subPreviewDisposable = previewDisposable.localEnable();
 					await this._editorService.openEditor({
 						resource: itemMatch.parent().resource,
-						options: { pinned: 'forcedDisable', preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+						options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
 					});
+					subPreviewDisposable.dispose();
 					this._historyService.shouldIgnoreActiveEditorChange = false;
 				});
+				previewDisposable.dispose();
 			}
 		}));
 

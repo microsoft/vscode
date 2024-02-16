@@ -10,7 +10,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
@@ -462,6 +462,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Enforce editor part options temporarily.
 	 */
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
+
+	/**
+	 * Enforce enablePreview temporarily.
+	 */
+	enforceEnablePreview(): EnablePreviewDisposable;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
@@ -866,6 +871,32 @@ export function preferredSideBySideGroupDirection(configurationService: IConfigu
 	}
 
 	return GroupDirection.RIGHT;
+}
+
+/**
+ * A layered disposable that can have two separate behaviors for a local and global dispose.
+ * Used for overriding `enablePreview` such that preview editors can be notified to become non-preview once the whole operation is done.
+ */
+export class EnablePreviewDisposable implements IDisposable {
+
+	private disposables: DisposableStore;
+
+	constructor(private set: () => void, private partialRestore: () => void, private finishRestore: () => void) {
+		this.disposables = new DisposableStore();
+	}
+	public localEnable(): IDisposable {
+		this.set();
+		const disposable = toDisposable(() => {
+			this.partialRestore();
+		});
+		this.disposables.add(disposable);
+		return disposable;
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+		this.finishRestore();
+	}
 }
 
 //#endregion

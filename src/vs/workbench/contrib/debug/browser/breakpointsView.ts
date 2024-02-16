@@ -176,7 +176,7 @@ export class BreakpointsView extends ViewPane {
 			}
 
 			if (e.element instanceof Breakpoint) {
-				openBreakpointSource(e.element, e.sideBySide, e.editorOptions.preserveFocus || false, e.editorOptions.pinned === 'forcedDisable' ? false : e.editorOptions.pinned || !e.editorOptions.preserveFocus, this.debugService, this.editorService);
+				openBreakpointSource(e.element, e.sideBySide, e.editorOptions.preserveFocus || false, e.editorOptions.pinned || !e.editorOptions.preserveFocus, this.debugService, this.editorService);
 			}
 			if (e.element instanceof InstructionBreakpoint) {
 				const disassemblyView = await this.editorService.openEditor(DisassemblyViewInput.instance);

@@ -81,7 +81,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { resolvePinnedOption } from 'vs/platform/editor/common/editor';
 
 const $ = dom.$;
 
@@ -910,7 +909,7 @@ export class SearchView extends ViewPane {
 				this.currentSelectedFileMatch = selectedMatch.parent();
 				this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
 
-				this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.sideBySide, resolvePinnedOption(options.editorOptions));
+				this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 			}
 		}));
 
