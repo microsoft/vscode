@@ -327,7 +327,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const mightTriggerFocus = (
 			resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded ||
 			(resolvedKeyboardEvent.kind === ResultKind.KbFound
-				&& resolvedKeyboardEvent.commandId === 'editor.action.showHover'
+				&& (resolvedKeyboardEvent.commandId === 'editor.action.showHover'
+					|| resolvedKeyboardEvent.commandId === 'editor.action.showExtendedHover')
 				&& this._contentWidget?.isVisible
 			)
 		);

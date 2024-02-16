@@ -32,7 +32,7 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private _currentResult: HoverResult | null = null;
-	private _showExtendedHover: boolean = false;
+	private _showExtendedHover: boolean | undefined;
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -82,17 +82,19 @@ export class ContentHoverController extends Disposable {
 	 */
 	private _startShowingOrUpdateHover(
 		anchor: HoverAnchor | null,
-		mode: HoverStartMode,
 		source: HoverStartSource,
-		focus: boolean,
 		mouseEvent: IEditorMouseEvent | null,
-		extended: boolean = false
+		opts: {
+			mode: HoverStartMode;
+			focus: boolean;
+			extended: boolean;
+		}
 	): boolean {
-		console.log('inside of _startShowingOrUpdateHover with extended: ', extended, ' and focus : ', focus);
+
 		if (!this._widget.position || !this._currentResult) {
 			// The hover is not visible
 			if (anchor) {
-				this._startHoverOperationIfNecessary(anchor, mode, source, focus, false, extended);
+				this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, false, opts.extended);
 				return true;
 			}
 			return false;
@@ -110,7 +112,7 @@ export class ContentHoverController extends Disposable {
 			// The mouse is getting closer to the hover, so we will keep the hover untouched
 			// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
 			if (anchor) {
-				this._startHoverOperationIfNecessary(anchor, mode, source, focus, true, extended);
+				this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, true, opts.extended);
 			}
 			return true;
 		}
@@ -128,19 +130,18 @@ export class ContentHoverController extends Disposable {
 		if (!anchor.canAdoptVisibleHover(this._currentResult.anchor, this._widget.position)) {
 			// The new anchor is not compatible with the previous anchor
 			this._setCurrentResult(null);
-			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false, extended);
+			this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, false, opts.extended);
 			return true;
 		}
 
 		// We aren't getting any closer to the hover, so we will filter existing results
 		// and keep those which also apply to the new anchor.
 		this._setCurrentResult(this._currentResult.filter(anchor));
-		this._startHoverOperationIfNecessary(anchor, mode, source, focus, false, extended);
+		this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, false, opts.extended);
 		return true;
 	}
 
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean, extended: boolean = false): void {
-		console.log('inside of _startHoverOperationIfNecessary with extended : ', extended, ' and focus : ', focus);
 		if (this._computer.anchor && this._showExtendedHover === extended && this._computer.anchor.equals(anchor)) {
 			// We have to start a hover operation at the exact same anchor as before, so no work is needed
 			return;
@@ -309,8 +310,8 @@ export class ContentHoverController extends Disposable {
 	/**
 	 * Returns true if the hover shows now or will show.
 	 */
-	public showsOrWillShow(mouseEvent: IEditorMouseEvent, extended: boolean = false): boolean {
-		console.log('inside of showsOrWillShow with extended: ', extended);
+	public showsOrWillShow(mouseEvent: IEditorMouseEvent, showExtendedHover?: boolean): boolean {
+
 		if (this._widget.isResizing) {
 			return true;
 		}
@@ -344,15 +345,15 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (anchorCandidates.length === 0) {
-			return this._startShowingOrUpdateHover(null, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent, extended);
+			return this._startShowingOrUpdateHover(null, HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, focus: false, extended: showExtendedHover ?? false });
 		}
 
 		anchorCandidates.sort((a, b) => b.priority - a.priority);
-		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent, extended);
+		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, extended: showExtendedHover ?? false, focus: false });
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, extended: boolean = false): void {
-		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null, extended);
+		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), source, null, { extended, focus, mode });
 	}
 
 	public getWidgetContent(): string | undefined {
