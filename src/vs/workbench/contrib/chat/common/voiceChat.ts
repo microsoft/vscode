@@ -136,7 +136,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		let detectedSlashCommand = false;
 
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
-		const session = disposables.add(this.speechService.createSpeechToTextSession(token));
+		const session = disposables.add(this.speechService.createSpeechToTextSession(token, 'chat'));
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
 				case SpeechToTextStatus.Recognizing:
