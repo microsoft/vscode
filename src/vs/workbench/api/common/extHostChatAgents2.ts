@@ -384,7 +384,7 @@ class ExtHostChatAgent {
 		}
 		return result
 			.map(c => {
-				if ('repopulate2' in c) {
+				if ('isSticky2' in c) {
 					checkProposedApiEnabled(this.extension, 'chatAgents2Additions');
 				}
 
@@ -392,9 +392,9 @@ class ExtHostChatAgent {
 					name: c.name,
 					description: c.description,
 					followupPlaceholder: c.isSticky2?.placeholder,
-					shouldRepopulate: c.isSticky2?.isSticky ?? c.isSticky,
+					isSticky: c.isSticky2?.isSticky ?? c.isSticky,
 					sampleRequest: c.sampleRequest
-				};
+				} satisfies IChatAgentCommand;
 			});
 	}
 
