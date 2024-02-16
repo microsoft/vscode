@@ -5,6 +5,7 @@
 
 import { CodeAction, CodeActionKind, CodeActionProvider, Diagnostic, DiagnosticCollection, DiagnosticSeverity, Disposable, Range, Selection, TextDocument, Uri, WorkspaceEdit, l10n, languages, workspace } from 'vscode';
 import { mapEvent, filterEvent, dispose } from './util';
+import { Model } from './model';
 
 export enum DiagnosticCodes {
 	empty_message = 'empty_message',
@@ -17,37 +18,41 @@ export class GitCommitInputBoxDiagnosticsManager {
 	private readonly severity = DiagnosticSeverity.Warning;
 	private readonly disposables: Disposable[] = [];
 
-	constructor() {
+	constructor(private readonly model: Model) {
 		this.diagnostics = languages.createDiagnosticCollection();
-		mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.validateTextDocument, this, this.disposables);
+
+		mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
+		filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.experimental.inputValidation'))(this.onDidChangeConfiguration, this, this.disposables);
 	}
 
 	public getDiagnostics(uri: Uri): ReadonlyArray<Diagnostic> {
 		return this.diagnostics.get(uri) ?? [];
 	}
 
-	private validateTextDocument(document: TextDocument): void {
-		this.diagnostics.delete(document.uri);
+	private onDidChangeConfiguration(): void {
+		for (const repository of this.model.repositories) {
+			this.onDidChangeTextDocument(repository.inputBox.document);
+		}
+	}
 
+	private onDidChangeTextDocument(document: TextDocument): void {
 		const config = workspace.getConfiguration('git');
 		const inputValidation = config.get<boolean>('experimental.inputValidation', false) === true;
 		if (!inputValidation) {
+			this.diagnostics.set(document.uri, undefined);
 			return;
 		}
-
-		const diagnostics: Diagnostic[] = [];
 
 		if (/^\s+$/.test(document.getText())) {
 			const documentRange = new Range(document.lineAt(0).range.start, document.lineAt(document.lineCount - 1).range.end);
 			const diagnostic = new Diagnostic(documentRange, l10n.t('Current commit message only contains whitespace characters'), this.severity);
 			diagnostic.code = DiagnosticCodes.empty_message;
 
-			diagnostics.push(diagnostic);
-			this.diagnostics.set(document.uri, diagnostics);
-
+			this.diagnostics.set(document.uri, [diagnostic]);
 			return;
 		}
 
+		const diagnostics: Diagnostic[] = [];
 		const inputValidationLength = config.get<number>('inputValidationLength', 50);
 		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
 
