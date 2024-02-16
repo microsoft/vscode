@@ -2918,8 +2918,9 @@ export class Breakpoint {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
+	readonly mode?: string;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
 		this.enabled = typeof enabled === 'boolean' ? enabled : true;
 		if (typeof condition === 'string') {
 			this.condition = condition;
@@ -2929,6 +2930,9 @@ export class Breakpoint {
 		}
 		if (typeof logMessage === 'string') {
 			this.logMessage = logMessage;
+		}
+		if (typeof mode === 'string') {
+			this.mode = mode;
 		}
 	}
 
@@ -2944,8 +2948,8 @@ export class Breakpoint {
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+		super(enabled, condition, hitCondition, logMessage, mode);
 		if (location === null) {
 			throw illegalArgument('location');
 		}
@@ -2957,8 +2961,8 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+		super(enabled, condition, hitCondition, logMessage, mode);
 		this.functionName = functionName;
 	}
 }
@@ -2969,8 +2973,8 @@ export class DataBreakpoint extends Breakpoint {
 	readonly dataId: string;
 	readonly canPersist: boolean;
 
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
-		super(enabled, condition, hitCondition, logMessage);
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+		super(enabled, condition, hitCondition, logMessage, mode);
 		if (!dataId) {
 			throw illegalArgument('dataId');
 		}
@@ -4257,28 +4261,21 @@ export class ChatResponseReferencePart {
 
 
 export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
-	agentId: string;
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
 		readonly variables: vscode.ChatAgentResolvedVariable[],
-		readonly agent: { extensionId: string; agentId: string },
-	) {
-		this.agentId = agent.agentId;
-	}
+		readonly agent: { extensionId: string; agent: string },
+	) { }
 }
 
 export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
 
-	agentId: string;
-
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
 		readonly result: vscode.ChatAgentResult2,
-		readonly agent: { extensionId: string; agentId: string }
-	) {
-		this.agentId = agent.agentId;
-	}
+		readonly agent: { extensionId: string; agent: string }
+	) { }
 }
 
 export class LanguageModelSystemMessage {

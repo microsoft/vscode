@@ -42,7 +42,7 @@ suite('ChatVariables', function () {
 
 		const resolveVariables = async (text: string) => {
 			const result = parser.parseChatRequest('1', text);
-			return await service.resolveVariables(result, null!, CancellationToken.None);
+			return await service.resolveVariables(result, null!, () => { }, CancellationToken.None);
 		};
 
 		{

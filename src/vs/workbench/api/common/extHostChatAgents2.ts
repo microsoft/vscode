@@ -235,11 +235,11 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			res.push(new extHostTypes.ChatAgentRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', agentId: h.request.agentId }));
+			res.push(new extHostTypes.ChatAgentRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', agent: h.request.agentId }));
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter)));
-			res.push(new extHostTypes.ChatAgentResponseTurn(parts, result, { extensionId: '', agentId: h.request.agentId }));
+			res.push(new extHostTypes.ChatAgentResponseTurn(parts, result, { extensionId: '', agent: h.request.agentId }));
 		}
 
 		return res;
@@ -353,6 +353,7 @@ class ExtHostChatAgent {
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatAgentWelcomeMessageProvider | undefined;
+	private _isSticky: boolean | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -476,7 +477,8 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
-					supportIssueReporting: this._supportIssueReporting
+					supportIssueReporting: this._supportIssueReporting,
+					isSticky: this._isSticky,
 				});
 				updateScheduled = false;
 			});
@@ -622,6 +624,13 @@ class ExtHostChatAgent {
 				? undefined!
 				: this._onDidPerformAction.event
 			,
+			get isSticky() {
+				return that._isSticky;
+			},
+			set isSticky(v) {
+				that._isSticky = v;
+				updateMetadataSoon();
+			},
 			dispose() {
 				disposed = true;
 				that._commandProvider = undefined;

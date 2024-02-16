@@ -346,6 +346,19 @@ suite('NotebookRangeMap with whitesspaces', () => {
 		instantiationService.stub(IConfigurationService, config);
 	});
 
+	test('simple', () => {
+		const rangeMap = new NotebookCellsLayout(0);
+		rangeMap.splice(0, 0, [{ size: 479 }, { size: 163 }, { size: 182 }, { size: 106 }, { size: 106 }, { size: 106 }, { size: 87 }]);
+
+		const start = rangeMap.indexAt(650);
+		const end = rangeMap.indexAfter(650 + 890 - 1);
+		assert.strictEqual(start, 2);
+		assert.strictEqual(end, 7);
+
+		rangeMap.insertWhitespace('1', 0, 18);
+		assert.strictEqual(rangeMap.indexAt(650), 1);
+	});
+
 	test('Whitespace CRUD', async function () {
 		const twenty = { size: 20 };
 

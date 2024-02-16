@@ -473,7 +473,7 @@ class ResultSummaryView extends Disposable {
 		}));
 
 		const ab = this._register(new ActionBar(this.elements.rerun, {
-			actionViewItemProvider: action => createActionViewItem(instantiationService, action),
+			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
 		ab.push(instantiationService.createInstance(MenuItemAction,
 			{ ...new ReRunLastRun().desc, icon: icons.testingRerunIcon },

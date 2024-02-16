@@ -33,6 +33,7 @@
 	"command.cleanAllTracked": "Discard All Tracked Changes",
 	"command.cleanAllUntracked": "Discard All Untracked Changes",
 	"command.closeAllDiffEditors": "Close All Diff Editors",
+	"command.closeAllUnmodifiedEditors": "Close All Unmodified Editors",
 	"command.commit": "Commit",
 	"command.commitAmend": "Commit (Amend)",
 	"command.commitSigned": "Commit (Signed Off)",

@@ -54,7 +54,7 @@ export interface IChatAgentCommand {
 	 * chat into a persistent mode, where the
 	 * slash command is prepended to the chat input.
 	 */
-	shouldRepopulate?: boolean;
+	isSticky?: boolean;
 
 	/**
 	 * Placeholder text to render in the chat input
@@ -79,6 +79,7 @@ export interface IChatAgentMetadata {
 	sampleRequest?: string;
 	supportIssueReporting?: boolean;
 	followupPlaceholder?: string;
+	isSticky?: boolean;
 }
 
 

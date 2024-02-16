@@ -796,6 +796,8 @@
 		"--vscode-inline-chat-expanded",
 		"--vscode-inline-chat-quick-voice-height",
 		"--vscode-inline-chat-quick-voice-width",
+		"--vscode-editor-dictation-widget-height",
+		"--vscode-editor-dictation-widget-width",
 		"--vscode-interactive-session-foreground",
 		"--vscode-interactive-result-editor-background-color",
 		"--vscode-repl-font-family",

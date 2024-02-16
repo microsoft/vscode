@@ -152,8 +152,10 @@ declare module 'vscode' {
 		readonly removed: readonly string[];
 	}
 
-	//@API DEFINE the namespace for this: lm (languageModels), copilot, ai, env,?
-	export namespace chat {
+	/**
+	 * Namespace for language model related functionality.
+	 */
+	export namespace lm {
 
 		/**
 		 * Request access to a language model.
