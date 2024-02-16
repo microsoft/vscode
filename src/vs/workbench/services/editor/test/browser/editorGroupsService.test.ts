@@ -1863,26 +1863,36 @@ suite('EditorGroupsService', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		const [part] = await createPart(instantiationService);
 		const group = part.activeGroup;
+		const sideGroup = part.addGroup(group, GroupDirection.RIGHT);
 
 		const inputPinned = createTestFileEditorInput(URI.file('foo/bar/pinned'), TEST_EDITOR_INPUT_ID);
 		const inputForced = createTestFileEditorInput(URI.file('foo/bar/forcedDisable'), TEST_EDITOR_INPUT_ID);
+		const inputForced2 = createTestFileEditorInput(URI.file('foo/bar/forcedDisable2'), TEST_EDITOR_INPUT_ID);
 
 
 		// start enable preview session
 		const enablePreviewDisposable = part.enforceEnablePreview();
+
+		// actually start enabling preview
+		let localEnableDisposable = enablePreviewDisposable.localEnable();
+		await group.openEditor(inputForced, { pinned: false });
+		assert.strictEqual(group.isPinned(inputForced), false);
+		//stop enabling preview
+		localEnableDisposable.dispose();
 
 		// open an editor without enabling preview, should be pinned
 		await group.openEditor(inputPinned, { pinned: false });
 		assert.strictEqual(group.isPinned(inputPinned), true);
 
 		// actually start enabling preview
-		const localEnableDisposable = enablePreviewDisposable.localEnable();
-		await group.openEditor(inputForced, { pinned: false });
-		assert.strictEqual(group.isPinned(inputForced), false);
+		localEnableDisposable = enablePreviewDisposable.localEnable();
+		await sideGroup.openEditor(inputForced2, { pinned: false });
+		assert.strictEqual(sideGroup.isPinned(inputForced2), false);
 		//stop enabling preview
 		localEnableDisposable.dispose();
 
 		assert.strictEqual(group.isPinned(inputForced), false);
+		assert.strictEqual(sideGroup.isPinned(inputForced2), false);
 		assert.strictEqual(group.isPinned(inputPinned), true);
 
 		const p = Event.toPromise(part.onDidChangeEditorPartOptions);
@@ -1891,7 +1901,7 @@ suite('EditorGroupsService', () => {
 		await p;
 
 		assert.strictEqual(group.isPinned(inputForced), true);
-		assert.strictEqual(group.isPinned(inputPinned), true);
+		assert.strictEqual(sideGroup.isPinned(inputPinned), true);
 	});
 
 	test('forced unpin: enforceEnablePreview forgets to dispose inner enable disposable', async () => {

@@ -6,7 +6,7 @@
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement } from 'vs/base/browser/dom';
-import { Event, Emitter, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay, PauseableEmitter } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, EnablePreviewDisposable } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -131,7 +131,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly _onDidScroll = this._register(new Relay<void>());
 	readonly onDidScroll = Event.any(this.onDidSetGridWidget.event, this._onDidScroll.event);
 
-	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
+	private readonly _onDidChangeEditorPartOptions = this._register(new PauseableEmitter<IEditorPartOptionsChangeEvent>());
 	readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
 
 	//#endregion
@@ -211,6 +211,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	enforceEnablePreview(): EnablePreviewDisposable {
+		const init = () => {
+			this._onDidChangeEditorPartOptions.pause();
+		};
+
 		const set = () => {
 			this.enforcedPartOptions.push({ enablePreview: true });
 			this.handleChangedPartOptions();
@@ -218,13 +222,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		const partialRestore = () => {
 			this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf({ enablePreview: true }), 1);
+			this.handleChangedPartOptions();
 		};
 
 		const finishRestore = () => {
 			this.handleChangedPartOptions();
+			this._onDidChangeEditorPartOptions.resume();
 		};
 
-		return new EnablePreviewDisposable(set, partialRestore, finishRestore);
+		return new EnablePreviewDisposable(init, set, partialRestore, finishRestore);
 	}
 
 	private top = 0;

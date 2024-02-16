@@ -881,8 +881,9 @@ export class EnablePreviewDisposable implements IDisposable {
 
 	private disposables: DisposableStore;
 
-	constructor(private set: () => void, private partialRestore: () => void, private finishRestore: () => void) {
+	constructor(init: () => void, private set: () => void, private partialRestore: () => void, private finishRestore: () => void) {
 		this.disposables = new DisposableStore();
+		init();
 	}
 	public localEnable(): IDisposable {
 		this.set();
