@@ -11,8 +11,6 @@ import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
@@ -113,7 +111,6 @@ export class InputBox extends Widget {
 	private cachedContentHeight: number | undefined;
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
-	private hover: ICustomHover | undefined;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -233,11 +230,7 @@ export class InputBox extends Widget {
 
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
-		if (!this.hover) {
-			this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.input, tooltip));
-		} else {
-			this.hover.update(tooltip);
-		}
+		this.input.title = tooltip;
 	}
 
 	public setAriaLabel(label: string): void {
