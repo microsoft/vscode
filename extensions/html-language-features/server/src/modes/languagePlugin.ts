@@ -88,7 +88,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 					completion: true,
 					semantic: true,
 					navigation: true,
-					structure: false,
+					structure: true,
 					format: false,
 				} : {
 					verification: true,
