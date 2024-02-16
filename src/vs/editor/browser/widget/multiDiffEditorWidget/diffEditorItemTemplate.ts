@@ -148,7 +148,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				shouldForwardArgs: true,
 			},
 			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
-			actionViewItemProvider: action => createActionViewItem(_instantiationService, action),
+			actionViewItemProvider: (action, options) => createActionViewItem(_instantiationService, action, options),
 		}));
 	}
 

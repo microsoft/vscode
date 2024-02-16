@@ -13,7 +13,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -30,7 +30,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData> {
+	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
 		let resolvedVariables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[] = [];
 		const jobs: Promise<any>[] = [];
 
@@ -39,7 +39,7 @@ export class ChatVariablesService implements IChatVariablesService {
 				if (part instanceof ChatRequestVariablePart) {
 					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, token).then(values => {
+						jobs.push(data.resolver(prompt.text, part.variableArg, model, progress, token).then(values => {
 							if (values?.length) {
 								resolvedVariables[i] = { name: part.variableName, range: part.range, values };
 							}

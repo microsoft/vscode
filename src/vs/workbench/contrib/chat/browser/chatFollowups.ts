@@ -37,6 +37,11 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 			return;
 		}
 
+		if (!this.chatAgentService.getDefaultAgent()) {
+			// No default agent yet, which affects how followups are rendered, so can't render this yet
+			return;
+		}
+
 		const tooltip = 'tooltip' in followup ? followup.tooltip : undefined;
 		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
 		if (followup.kind === 'reply') {

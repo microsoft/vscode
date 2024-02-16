@@ -118,6 +118,7 @@ const shellIntegrationSupportedShellTypes = [
 	PosixShellType.Bash,
 	PosixShellType.Zsh,
 	PosixShellType.PowerShell,
+	PosixShellType.Python,
 	WindowsShellType.PowerShell
 ];
 

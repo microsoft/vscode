@@ -25,6 +25,9 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -104,6 +107,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -184,6 +188,23 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	public setScrollState(scrollState: { top?: number; left?: number }): void {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+	}
+
+	// todo@aiday-mar need to reveal the range instead of just the start line number
+	public reveal(resource: IMultiDiffResource, range: Range): void {
+		const viewItems = this._viewItems.get();
+		let searchCallback: (item: VirtualizedViewItem) => boolean;
+		if ('original' in resource) {
+			searchCallback = (item) => item.viewModel.originalUri?.toString() === resource.original.toString();
+		} else {
+			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
+		}
+		const index = viewItems.findIndex(searchCallback);
+		let scrollTop = (range.startLineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
+		for (let i = 0; i < index; i++) {
+			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
+		}
+		this._scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	public getViewState(): IMultiDiffEditorViewState {
@@ -278,6 +299,19 @@ interface IMultiDiffDocState {
 	collapsed: boolean;
 	selections?: ISelection[];
 }
+
+export interface IMultiDiffEditorOptions extends ITextEditorOptions {
+	viewState?: IMultiDiffEditorOptionsViewState;
+}
+
+export interface IMultiDiffEditorOptionsViewState {
+	revealData?: {
+		resource: IMultiDiffResource;
+		range: Range;
+	};
+}
+
+export type IMultiDiffResource = { original: URI } | { modified: URI };
 
 class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));

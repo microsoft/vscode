@@ -163,10 +163,10 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 
 	constructor(private readonly repository: Repository) {
 		this.disposables.push(window.registerFileDecorationProvider(this));
-		repository.historyProvider.onDidChangeCurrentHistoryItemGroupBase(this.onDidChangeCurrentHistoryItemGroupBase, this, this.disposables);
+		repository.historyProvider.onDidChangeCurrentHistoryItemGroup(this.onDidChangeCurrentHistoryItemGroup, this, this.disposables);
 	}
 
-	private async onDidChangeCurrentHistoryItemGroupBase(): Promise<void> {
+	private async onDidChangeCurrentHistoryItemGroup(): Promise<void> {
 		const newDecorations = new Map<string, FileDecoration>();
 		await this.collectIncomingChangesFileDecorations(newDecorations);
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));

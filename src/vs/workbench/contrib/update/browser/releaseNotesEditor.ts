@@ -117,7 +117,9 @@ export class ReleaseNotesManager {
 				} else if (e.message.type === 'scroll') {
 					this.scrollPosition = e.message.value.scrollPosition;
 				} else if (e.message.type === 'clickSetting') {
-					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), e.message.value.x, e.message.value.y);
+					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
+					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
+					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), x, y);
 				}
 			}));
 
@@ -221,7 +223,7 @@ export class ReleaseNotesManager {
 	}
 
 	private async onDidClickLink(uri: URI) {
-		if (uri.scheme === Schemas.codeSetting) {
+		if (uri.scheme === Schemas.codeSetting || uri.scheme === Schemas.codeFeature) {
 			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
@@ -260,7 +262,7 @@ export class ReleaseNotesManager {
 						color: var(--vscode-button-foreground);
 						background-color: var(--vscode-button-background);
 						width: fit-content;
-						padding: 1px 1px 1px 1px;
+						padding: 0px 1px 1px 0px;
 						font-size: 12px;
 						overflow: hidden;
 						text-overflow: ellipsis;
@@ -270,11 +272,11 @@ export class ReleaseNotesManager {
 						text-align: center;
 						cursor: pointer;
 						border: 1px solid var(--vscode-button-border, transparent);
-						line-height: 12px;
+						line-height: 9px;
 						outline: 1px solid transparent;
 						display: inline-block;
 						margin-top: 3px;
-						margin-bottom: -6px !important;
+						margin-bottom: -4px !important;
 					}
 					.codesetting:hover {
 						background-color: var(--vscode-button-hoverBackground);
@@ -298,6 +300,123 @@ export class ReleaseNotesManager {
 						user-select: none;
 						-webkit-user-select: none;
 					}
+
+					.codefeature-container {
+						display: flex;
+					}
+
+					.codefeature {
+						position: relative;
+						display: inline-block;
+						width: 46px;
+						height: 24px;
+					}
+
+					.codefeature-container input {
+						display: none;
+					}
+
+					.toggle {
+						position: absolute;
+						cursor: pointer;
+						top: 0;
+						left: 0;
+						right: 0;
+						bottom: 0;
+						background-color: var(--vscode-button-background);
+						transition: .4s;
+						border-radius: 24px;
+					}
+
+					.toggle:before {
+						position: absolute;
+						content: "";
+						height: 16px;
+						width: 16px;
+						left: 4px;
+						bottom: 4px;
+						background-color: var(--vscode-editor-foreground);
+						transition: .4s;
+						border-radius: 50%;
+					}
+
+					input:checked+.codefeature > .toggle:before {
+						transform: translateX(22px);
+					}
+
+					.codefeature-container:has(input) .title {
+						line-height: 30px;
+						padding-left: 4px;
+						font-weight: bold;
+					}
+
+					.codefeature-container:has(input:checked) .title:after {
+						content: "${nls.localize('disableFeature', "Disable this feature")}";
+					}
+					.codefeature-container:has(input:not(:checked)) .title:after {
+						content: "${nls.localize('enableFeature', "Enable this feature")}";
+					}
+
+					.codefeature-container {
+						display: flex;
+					}
+
+					.codefeature {
+						position: relative;
+						display: inline-block;
+						width: 58px;
+						height: 30px;
+					}
+
+					.codefeature-container input {
+						display: none;
+					}
+
+					.toggle {
+						position: absolute;
+						cursor: pointer;
+						top: 0;
+						left: 0;
+						right: 0;
+						bottom: 0;
+						background-color: var(--vscode-disabledForeground);
+						transition: .4s;
+						border-radius: 30px;
+					}
+
+					.toggle:before {
+						position: absolute;
+						content: "";
+						height: 22px;
+						width: 22px;
+						left: 4px;
+						bottom: 4px;
+						background-color: var(--vscode-editor-foreground);
+						transition: .4s;
+						border-radius: 50%;
+					}
+
+					input:checked+.codefeature > .toggle:before {
+						transform: translateX(26px);
+					}
+
+					input:checked+.codefeature > .toggle {
+						background-color: var(--vscode-button-background);
+					}
+
+					.codefeature-container:has(input) .title {
+						line-height: 30px;
+						padding-left: 4px;
+						font-weight: bold;
+					}
+
+					.codefeature-container:has(input:checked) .title:after {
+						content: "${nls.localize('disableFeature', "Disable this feature")}";
+					}
+					.codefeature-container:has(input:not(:checked)) .title:after {
+						content: "${nls.localize('enableFeature', "Enable this feature")}";
+					}
+
 					header { display: flex; align-items: center; padding-top: 1em; }
 				</style>
 			</head>
@@ -332,6 +451,13 @@ export class ReleaseNotesManager {
 							input.checked = event.data.value;
 						} else if (event.data.type === 'setScroll') {
 							window.scrollTo(event.data.value.scrollPosition.x, event.data.value.scrollPosition.y);
+						} else if (event.data.type === 'setFeaturedSettings') {
+							for (const [settingId, value] of event.data.value) {
+								const setting = document.getElementById(settingId);
+								if (setting instanceof HTMLInputElement) {
+									setting.checked = value;
+								}
+							}
 						}
 					});
 
@@ -349,8 +475,14 @@ export class ReleaseNotesManager {
 
 					window.addEventListener('click', event => {
 						const href = event.target.href ?? event.target.parentElement.href ?? event.target.parentElement.parentElement?.href;
-						if (href && href.startsWith('${Schemas.codeSetting}')) {
-							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.screenX, y: event.screenY }});
+						if (href && (href.startsWith('${Schemas.codeSetting}') || href.startsWith('${Schemas.codeFeature}'))) {
+							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.clientX, y: event.clientY }});
+							if (href.startsWith('${Schemas.codeFeature}')) {
+								const featureInput = event.target.parentElement.previousSibling;
+								if (featureInput instanceof HTMLInputElement) {
+									featureInput.checked = !featureInput.checked;
+								}
+							}
 						}
 					});
 
@@ -371,6 +503,7 @@ export class ReleaseNotesManager {
 	private onDidChangeActiveWebviewEditor(input: WebviewInput | undefined): void {
 		if (input && input === this._currentReleaseNotes) {
 			this.updateCheckboxWebview();
+			this.updateFeaturedSettingsWebview();
 		}
 	}
 
@@ -382,4 +515,14 @@ export class ReleaseNotesManager {
 			});
 		}
 	}
+
+	private updateFeaturedSettingsWebview() {
+		if (this._currentReleaseNotes) {
+			this._currentReleaseNotes.webview.postMessage({
+				type: 'setFeaturedSettings',
+				value: this._simpleSettingRenderer.featuredSettingStates
+			});
+		}
+	}
 }
+

@@ -120,15 +120,16 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 			return Disposable.None;
 		}
 
+		const accountLabel = auth.accountLabel ?? localize('languageModelsAccountId', 'Language Models');
 		const disposables = new DisposableStore();
-		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, auth.accountLabel));
+		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel));
 		disposables.add(toDisposable(() => {
 			this._authenticationService.unregisterAuthenticationProvider(authProviderId);
 		}));
 		disposables.add(this._authenticationService.onDidChangeSessions(async (e) => {
 			if (e.providerId === authProviderId) {
 				if (e.event.removed?.length) {
-					const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, authProviderId);
+					const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, accountLabel);
 					const extensionsToUpdateAccess = [];
 					for (const allowed of allowedExtensions) {
 						const from = await this._extensionService.getExtension(allowed.id);
@@ -146,7 +147,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 			}
 		}));
 		disposables.add(this._authenticationService.onDidChangeExtensionSessionAccess(async (e) => {
-			const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, authProviderId);
+			const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, accountLabel);
 			const accessList = [];
 			for (const allowedExtension of allowedExtensions) {
 				const from = await this._extensionService.getExtension(allowedExtension.id);
@@ -174,11 +175,7 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 
 	private _session: AuthenticationSession | undefined;
 
-	constructor(
-		readonly id: string,
-		readonly label: string,
-		private readonly _accountLabel: string = localize('languageModelsAccountId', 'Language Models')
-	) { }
+	constructor(readonly id: string, readonly label: string, private readonly _accountLabel: string) { }
 
 	async getSessions(scopes?: string[] | undefined): Promise<readonly AuthenticationSession[]> {
 		// If there are no scopes and no session that means no extension has requested a session yet
