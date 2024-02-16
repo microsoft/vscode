@@ -42,6 +42,7 @@ interface IHoverSettings {
 	readonly enabled: boolean;
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
+	readonly showExtendedInformation: boolean;
 }
 
 interface IHoverState {
@@ -49,7 +50,7 @@ interface IHoverState {
 	// TODO @aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
 	activatedByDecoratorClick: boolean;
-	showExtendedHover: boolean | undefined;
+	overrideShowExtendedInformation: boolean | undefined;
 }
 
 export class HoverController extends Disposable implements IEditorContribution {
@@ -69,7 +70,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		mouseDown: false,
 		contentHoverFocused: false,
 		activatedByDecoratorClick: false,
-		showExtendedHover: undefined
+		overrideShowExtendedInformation: undefined
 	};
 
 	constructor(
@@ -104,7 +105,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hoverSettings = {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
-			hidingDelay: hoverOpts.delay
+			hidingDelay: hoverOpts.delay,
+			showExtendedInformation: hoverOpts.showExtendedInformation
 		};
 
 		if (hoverOpts.enabled) {
@@ -290,8 +292,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 
 		const contentWidget = this._getOrCreateContentWidget();
-
-		if (contentWidget.showsOrWillShow(mouseEvent, this._hoverState.showExtendedHover)) {
+		if (contentWidget.showsOrWillShow(mouseEvent, this.isHoverExtended)) {
 			this._glyphWidget?.hide();
 			return;
 		}
@@ -363,7 +364,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 		this._hoverState.activatedByDecoratorClick = false;
 		this._hoverState.contentHoverFocused = false;
-		this._hoverState.showExtendedHover = undefined;
+		this._hoverState.overrideShowExtendedInformation = undefined;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}
@@ -394,10 +395,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 		activatedByColorDecoratorClick: boolean = false,
 		extended: boolean = false
 	): void {
-		console.log('showContentHover with extended: ', extended, ' and focus : ', focus);
-		this._hoverState.showExtendedHover = extended;
+		this._hoverState.overrideShowExtendedInformation = extended;
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
-		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus, extended);
+		this._getOrCreateContentWidget().startShowingAtRange(range, source, { focus, mode, extended });
 	}
 
 	public focus(): void {
@@ -448,8 +448,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.isVisible;
 	}
 
-	public get isExtendedHover(): boolean | undefined {
-		return this._hoverState.showExtendedHover;
+	public get isHoverExtended(): boolean | undefined {
+		return this._hoverState.overrideShowExtendedInformation !== undefined ? this._hoverState.overrideShowExtendedInformation : this._hoverSettings.showExtendedInformation;
 	}
 
 	public override dispose(): void {
@@ -576,7 +576,7 @@ function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
 
 	console.log('controller.isHoverVisible : ', controller.isHoverVisible);
 	if (controller.isHoverVisible) {
-		if (focusOption !== HoverFocusBehavior.NoAutoFocus && controller.isExtendedHover === extended) {
+		if (focusOption !== HoverFocusBehavior.NoAutoFocus && controller.isHoverExtended === extended) {
 			console.log('before focusing the hover');
 			controller.focus();
 		} else {

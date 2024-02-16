@@ -70,7 +70,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		return [];
 	}
 
-	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], token: CancellationToken, extended: boolean = false): AsyncIterableObject<MarkdownHover> {
+	override computeAsync(anchor: HoverAnchor, _lineDecorations: IModelDecoration[], showExtendedHover: boolean = false, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		if (!(anchor instanceof InlayHintsHoverAnchor)) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -136,14 +136,14 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 
 
 			// (3) Inlay Label Part Location tooltip
-			const iterable = await this._resolveInlayHintLabelPartHover(part, token, extended);
+			const iterable = await this._resolveInlayHintLabelPartHover(part, showExtendedHover, token);
 			for await (const item of iterable) {
 				executor.emitOne(item);
 			}
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken, extended: boolean = false): Promise<AsyncIterableObject<MarkdownHover>> {
+	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, showExtendedHover: boolean = false, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
 		if (!part.part.location) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -154,7 +154,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
 				return AsyncIterableObject.EMPTY;
 			}
-			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token, extended)
+			return getHover(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), showExtendedHover, token)
 				.filter(item => !isEmptyMarkdownString(item.hover.contents))
 				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
 		} finally {

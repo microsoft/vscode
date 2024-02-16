@@ -124,8 +124,8 @@ export interface IEditorHoverRenderContext {
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
-	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], extened?: boolean): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken, extended?: boolean): AsyncIterableObject<T>;
+	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], extened: boolean | undefined): T[];
+	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], extended: boolean | undefined, token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }

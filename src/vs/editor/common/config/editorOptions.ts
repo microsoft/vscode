@@ -2051,6 +2051,10 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Whether to show the extended hover information
+	 */
+	showExtendedInformation?: boolean;
 }
 
 /**
@@ -2067,6 +2071,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			showExtendedInformation: false
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -2099,6 +2104,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.above,
 					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
+				'editor.hover.showExtendedInformation': {
+					type: 'boolean',
+					default: defaults.showExtendedInformation,
+					description: nls.localize('hover.showExtendedInformation', "When extended hover information is available, show it by default.")
+				},
 			}
 		);
 	}
@@ -2114,6 +2124,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			showExtendedInformation: boolean(input.showExtendedInformation, this.defaultValue.showExtendedInformation),
 		};
 	}
 }

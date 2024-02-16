@@ -59,7 +59,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<ColorHover> {
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], showExtendedHover: boolean, token: CancellationToken): AsyncIterableObject<ColorHover> {
 		return AsyncIterableObject.fromPromise(this._computeAsync(anchor, lineDecorations, token));
 	}
 

@@ -63,7 +63,6 @@ export class HoverOperation<T> extends Disposable {
 	private readonly _onResult = this._register(new Emitter<HoverResult<T>>());
 	public readonly onResult = this._onResult.event;
 
-	// Do we need the extended boolean here or not?
 	private _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
 	private _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
 	private readonly _loadingMessageScheduler = this._register(new RunOnceScheduler(() => this._triggerLoadingMessage(), 0));
@@ -89,12 +88,12 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	private _sheduleFirstWaitScheduler(extended?: boolean) {
-		this._firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(extended), 0));
+		this._firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
 		this._firstWaitScheduler.schedule(this._firstWaitTime);
 	}
 
 	private _sheduleSecondWaitScheduler(extended?: boolean) {
-		this._secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(extended), 0));
+		this._secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
 		this._secondWaitScheduler.schedule(this._secondWaitTime);
 	}
 
@@ -122,7 +121,6 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	private _triggerAsyncComputation(extended: boolean = false): void {
-		console.log('inside of _triggerAsyncComputation with extended: ', extended);
 		this._setState(HoverOperationState.SecondWait);
 		this._sheduleSecondWaitScheduler(extended);
 
@@ -154,9 +152,9 @@ export class HoverOperation<T> extends Disposable {
 		}
 	}
 
-	private _triggerSyncComputation(extended: boolean = false): void {
+	private _triggerSyncComputation(): void {
 		if (this._computer.computeSync) {
-			this._result = this._result.concat(this._computer.computeSync(extended));
+			this._result = this._result.concat(this._computer.computeSync());
 		}
 		this._setState(this._asyncIterableDone ? HoverOperationState.Idle : HoverOperationState.WaitingForAsync);
 	}
@@ -177,24 +175,23 @@ export class HoverOperation<T> extends Disposable {
 		this._onResult.fire(new HoverResult(this._result.slice(0), isComplete, hasLoadingMessage));
 	}
 
-	public start(mode: HoverStartMode, extended: boolean = false): void {
-		console.log('inside of start with extended: ', extended);
+	public start(mode: HoverStartMode): void {
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === HoverOperationState.Idle) {
 				this._setState(HoverOperationState.FirstWait);
-				this._sheduleFirstWaitScheduler(extended);
+				this._sheduleFirstWaitScheduler();
 				this._loadingMessageScheduler.schedule(this._loadingMessageTime);
 			}
 		} else {
 			switch (this._state) {
 				case HoverOperationState.Idle:
-					this._triggerAsyncComputation(extended);
-					this._sheduleSecondWaitScheduler(extended);
-					this._triggerSyncComputation(extended);
+					this._triggerAsyncComputation();
+					this._sheduleSecondWaitScheduler();
+					this._triggerSyncComputation();
 					break;
 				case HoverOperationState.SecondWait:
-					this._sheduleSecondWaitScheduler(extended);
-					this._triggerSyncComputation(extended);
+					this._sheduleSecondWaitScheduler();
+					this._triggerSyncComputation();
 					break;
 			}
 		}

@@ -29,10 +29,16 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 
 const $ = dom.$;
 
+interface IShowHoverOptions {
+	mode: HoverStartMode;
+	focus: boolean;
+	extended: boolean;
+}
+
 export class ContentHoverController extends Disposable {
 
 	private _currentResult: HoverResult | null = null;
-	private _showExtendedHover: boolean | undefined;
+
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
@@ -84,17 +90,13 @@ export class ContentHoverController extends Disposable {
 		anchor: HoverAnchor | null,
 		source: HoverStartSource,
 		mouseEvent: IEditorMouseEvent | null,
-		opts: {
-			mode: HoverStartMode;
-			focus: boolean;
-			extended: boolean;
-		}
+		opts: IShowHoverOptions
 	): boolean {
 
 		if (!this._widget.position || !this._currentResult) {
 			// The hover is not visible
 			if (anchor) {
-				this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, false, opts.extended);
+				this._startHoverOperationIfNecessary(anchor, source, false, opts);
 				return true;
 			}
 			return false;
@@ -112,7 +114,7 @@ export class ContentHoverController extends Disposable {
 			// The mouse is getting closer to the hover, so we will keep the hover untouched
 			// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
 			if (anchor) {
-				this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, true, opts.extended);
+				this._startHoverOperationIfNecessary(anchor, source, true, opts);
 			}
 			return true;
 		}
@@ -130,29 +132,30 @@ export class ContentHoverController extends Disposable {
 		if (!anchor.canAdoptVisibleHover(this._currentResult.anchor, this._widget.position)) {
 			// The new anchor is not compatible with the previous anchor
 			this._setCurrentResult(null);
-			this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, false, opts.extended);
+			this._startHoverOperationIfNecessary(anchor, source, false, opts);
 			return true;
 		}
 
 		// We aren't getting any closer to the hover, so we will filter existing results
 		// and keep those which also apply to the new anchor.
 		this._setCurrentResult(this._currentResult.filter(anchor));
-		this._startHoverOperationIfNecessary(anchor, opts.mode, source, opts.focus, false, opts.extended);
+		this._startHoverOperationIfNecessary(anchor, source, false, opts);
 		return true;
 	}
 
-	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean, extended: boolean = false): void {
-		if (this._computer.anchor && this._showExtendedHover === extended && this._computer.anchor.equals(anchor)) {
+	private _startHoverOperationIfNecessary(anchor: HoverAnchor, source: HoverStartSource, insistOnKeepingHoverVisible: boolean, opts: IShowHoverOptions): void {
+
+		if (this._computer.anchor && this._computer.anchor.equals(anchor) && this._computer.showExtendedHover === opts.extended) {
 			// We have to start a hover operation at the exact same anchor as before, so no work is needed
 			return;
 		}
 		this._hoverOperation.cancel();
-		this._showExtendedHover = extended;
 		this._computer.anchor = anchor;
-		this._computer.shouldFocus = focus;
+		this._computer.shouldFocus = opts.focus;
 		this._computer.source = source;
 		this._computer.insistOnKeepingHoverVisible = insistOnKeepingHoverVisible;
-		this._hoverOperation.start(mode, extended);
+		this._computer.showExtendedHover = opts.extended;
+		this._hoverOperation.start(opts.mode);
 	}
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
@@ -352,8 +355,8 @@ export class ContentHoverController extends Disposable {
 		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, extended: showExtendedHover ?? false, focus: false });
 	}
 
-	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, extended: boolean = false): void {
-		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), source, null, { extended, focus, mode });
+	public startShowingAtRange(range: Range, source: HoverStartSource, opts: IShowHoverOptions): void {
+		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), source, null, opts);
 	}
 
 	public getWidgetContent(): string | undefined {
@@ -1020,6 +1023,10 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	public get insistOnKeepingHoverVisible(): boolean { return this._insistOnKeepingHoverVisible; }
 	public set insistOnKeepingHoverVisible(value: boolean) { this._insistOnKeepingHoverVisible = value; }
 
+	private _showExtendedHover: boolean | undefined = undefined;
+	public get showExtendedHover(): boolean | undefined { return this._showExtendedHover; }
+	public set showExtendedHover(value: boolean | undefined) { this._showExtendedHover = value; }
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _participants: readonly IEditorHoverParticipant[]
@@ -1064,8 +1071,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		});
 	}
 
-	public computeAsync(token: CancellationToken, extended: boolean = false): AsyncIterableObject<IHoverPart> {
-		console.log('inside of computeAsync of ContentHoverComputer with extended : ', extended);
+	public computeAsync(token: CancellationToken): AsyncIterableObject<IHoverPart> {
 		const anchor = this._anchor;
 
 		if (!this._editor.hasModel() || !anchor) {
@@ -1079,12 +1085,12 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 				if (!participant.computeAsync) {
 					return AsyncIterableObject.EMPTY;
 				}
-				return participant.computeAsync(anchor, lineDecorations, token, extended);
+				return participant.computeAsync(anchor, lineDecorations, this._showExtendedHover, token);
 			})
 		);
 	}
 
-	public computeSync(extended: boolean = false): IHoverPart[] {
+	public computeSync(): IHoverPart[] {
 		if (!this._editor.hasModel() || !this._anchor) {
 			return [];
 		}
@@ -1093,7 +1099,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(this._anchor, lineDecorations, extended));
+			result = result.concat(participant.computeSync(this._anchor, lineDecorations, this._showExtendedHover));
 		}
 
 		return coalesce(result);
