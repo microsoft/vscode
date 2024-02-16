@@ -158,7 +158,11 @@ export class SpeechService extends Disposable implements ISpeechService {
 			recognizeKeyword();
 		}
 
-		return result.p;
+		try {
+			return await result.p;
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	private async doRecognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
