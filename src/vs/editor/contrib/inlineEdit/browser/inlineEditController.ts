@@ -110,7 +110,13 @@ export class InlineEditController extends Disposable {
 		}));
 
 		//Clear suggestions on lost focus
-		this._register(editor.onDidBlurEditorWidget(() => {
+		const editorBlurSingal = observableSignalFromEvent('InlineEditController.editorBlurSignal', editor.onDidBlurEditorWidget);
+		this._register(autorun(reader => {
+			/** @description InlineEditController.editorBlur */
+			if (!this._enabled.read(reader)) {
+				return;
+			}
+			editorBlurSingal.read(reader);
 			// This is a hidden setting very useful for debugging
 			if (this._configurationService.getValue('editor.experimentalInlineEdit.keepOnBlur') || editor.getOption(EditorOption.inlineEdit).keepOnBlur) {
 				return;
@@ -121,11 +127,14 @@ export class InlineEditController extends Disposable {
 		}));
 
 		//Invoke provider on focus
-		this._register(editor.onDidFocusEditorText(async () => {
-			if (!this._enabled.get()) {
+		const editorFocusSignal = observableSignalFromEvent('InlineEditController.editorFocusSignal', editor.onDidFocusEditorText);
+		this._register(autorun(reader => {
+			/** @description InlineEditController.editorFocus */
+			if (!this._enabled.read(reader)) {
 				return;
 			}
-			await this.getInlineEdit(editor, true);
+			editorFocusSignal.read(reader);
+			this.getInlineEdit(editor, true);
 		}));
 
 
