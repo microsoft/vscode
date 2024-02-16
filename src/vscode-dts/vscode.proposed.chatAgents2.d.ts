@@ -54,6 +54,8 @@ declare module 'vscode' {
 		 */
 		readonly agent: { readonly extensionId: string; readonly agent: string };
 
+		readonly command?: string;
+
 		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: { extensionId: string; agent: string });
 	}
 

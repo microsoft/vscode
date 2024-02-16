@@ -239,7 +239,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter)));
-			res.push(new extHostTypes.ChatAgentResponseTurn(parts, result, { extensionId: '', agent: h.request.agentId }));
+			res.push(new extHostTypes.ChatAgentResponseTurn(parts, result, { extensionId: '', agent: h.request.agentId }, h.request.command));
 		}
 
 		return res;

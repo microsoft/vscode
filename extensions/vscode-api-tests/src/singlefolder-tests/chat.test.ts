@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { CancellationToken, chat, ChatAgentRequest, ChatAgentResult2, ChatVariableLevel, Disposable, interactive, InteractiveSession, ProviderResult } from 'vscode';
-import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../utils';
+import { CancellationToken, ChatAgentContext, ChatAgentRequest, ChatAgentResult2, ChatVariableLevel, Disposable, Event, EventEmitter, InteractiveSession, ProviderResult, chat, interactive } from 'vscode';
+import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
 suite('chat', () => {
 
@@ -22,6 +22,15 @@ suite('chat', () => {
 	});
 
 	function getDeferredForRequest(): DeferredPromise<ChatAgentRequest> {
+		const deferred = new DeferredPromise<ChatAgentRequest>();
+		disposables.push(setupAgent()(request => deferred.complete(request.request)));
+
+		return deferred;
+	}
+
+	function setupAgent(): Event<{ request: ChatAgentRequest; context: ChatAgentContext }> {
+		const emitter = new EventEmitter<{ request: ChatAgentRequest; context: ChatAgentContext }>();
+		disposables.push();
 		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
 			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
 				return {
@@ -31,9 +40,8 @@ suite('chat', () => {
 			},
 		}));
 
-		const deferred = new DeferredPromise<ChatAgentRequest>();
-		const agent = chat.createChatAgent('agent', (request, _context, _progress, _token) => {
-			deferred.complete(request);
+		const agent = chat.createChatAgent('agent', (request, context, _progress, _token) => {
+			emitter.fire({ request, context });
 			return null;
 		});
 		agent.isDefault = true;
@@ -43,15 +51,26 @@ suite('chat', () => {
 			}
 		};
 		disposables.push(agent);
-		return deferred;
+		return emitter.event;
 	}
 
 	test('agent and slash command', async () => {
-		const deferred = getDeferredForRequest();
+		const onRequest = setupAgent();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
-		const request = await deferred.p;
-		assert.deepStrictEqual(request.command, 'hello');
-		assert.strictEqual(request.prompt, 'friend');
+
+		let i = 0;
+		onRequest(request => {
+			if (i === 0) {
+				assert.deepStrictEqual(request.request.command, 'hello');
+				assert.strictEqual(request.request.prompt, 'friend');
+				i++;
+				interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
+			} else {
+				assert.strictEqual(request.context.history.length, 1);
+				assert.strictEqual(request.context.history[0].agent.agent, 'agent');
+				assert.strictEqual(request.context.history[0].command, 'hello');
+			}
+		});
 	});
 
 	test('agent and variable', async () => {
