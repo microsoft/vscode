@@ -326,14 +326,7 @@ suite('Editor Contrib - Keep Indent On Paste', () => {
 	});
 });
 
-
 suite('Editor Contrib - Auto Dedent On Type', () => {
-	const rubyIndentationRules = {
-		// decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif|when|in)\b/,
-		decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b)|((in|when)\s/,
-		increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
-	};
-
 	let disposables: DisposableStore;
 
 	setup(() => {
@@ -355,17 +348,42 @@ suite('Editor Contrib - Auto Dedent On Type', () => {
 			const languageService = instantiationService.get(ILanguageService);
 			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 			disposables.add(languageService.registerLanguage({ id: languageId }));
-			disposables.add(languageConfigurationService.register(languageId, {
+			const languageModel = languageConfigurationService.register(languageId, {
 				brackets: [
 					['{', '}'],
 					['[', ']'],
 					['(', ')']
 				],
-				indentationRules: rubyIndentationRules,
-			}));
+				indentationRules: {
+					decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif|when|in)\b)/,
+					increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
+				},
+			});
 
-			viewModel.type("def foo\n  in");
-			assert.strictEqual(model.getValue(), "def foo\n  in");
+			viewModel.type("def foo\n  i", 'keyboard');
+			viewModel.type("n", 'keyboard');
+			// The 'in' triggers decreaseIndentPattern immediately, which is incorrect
+			assert.strictEqual(model.getValue(), "def foo\nin");
+			languageModel.dispose();
+
+			const improvedLanguageModel = languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				indentationRules: {
+					decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b)|((in|when)\s)/,
+					increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
+				},
+			});
+			viewModel.model.setValue("");
+			viewModel.type("def foo\n        i");
+			viewModel.type("n", 'keyboard');
+			assert.strictEqual(model.getValue(), "def foo\n        in");
+			viewModel.type(" ", 'keyboard');
+			assert.strictEqual(model.getValue(), "def foo\nin ");
+			improvedLanguageModel.dispose();
 		});
 	});
 });
