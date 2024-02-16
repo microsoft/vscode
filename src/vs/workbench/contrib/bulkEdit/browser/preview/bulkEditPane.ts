@@ -27,7 +27,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -39,6 +38,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
 import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { Range } from 'vs/editor/common/core/range';
+import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 
 const enum State {
 	Data = 'data',
@@ -335,7 +335,7 @@ export class BulkEditPane extends ViewPane {
 		}
 
 		const resources = await this._resolveResources(fileOperations);
-		const options: Mutable<ITextEditorOptions> = {
+		const options: Mutable<IMultiDiffEditorOptions> = {
 			...e.editorOptions,
 			viewState: {
 				revealData: {

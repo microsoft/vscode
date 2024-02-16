@@ -26,7 +26,8 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -190,7 +191,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	// todo@aiday-mar need to reveal the range instead of just the start line number
-	public reveal(resource: IMultiDiffResource, range: IRange): void {
+	public reveal(revealData: IMultiDiffEditorOptionRevealData): void {
+		const resource = revealData.resource;
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
 		if ('original' in resource) {
@@ -199,7 +201,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
 		}
 		const index = viewItems.findIndex(searchCallback);
-		let scrollTop = (range.startLineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
+		let scrollTop = (revealData.range.startLineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}
@@ -299,15 +301,20 @@ interface IMultiDiffDocState {
 	selections?: ISelection[];
 }
 
-export type IMultiDiffResource = { original: URI } | { modified: URI };
-
-export function isIMultiDiffResource(obj: any): obj is IMultiDiffResource {
-	if (('original' in obj && obj.original instanceof URI)
-		|| ('modified' in obj && obj.modified instanceof URI)) {
-		return true;
-	}
-	return false;
+export interface IMultiDiffEditorOptions extends ITextEditorOptions {
+	viewState?: IMultiDiffEditorOptionsViewState;
 }
+
+export interface IMultiDiffEditorOptionsViewState {
+	revealData?: IMultiDiffEditorOptionRevealData;
+}
+
+export interface IMultiDiffEditorOptionRevealData {
+	resource: IMultiDiffResource;
+	range: Range;
+}
+
+export type IMultiDiffResource = { original: URI } | { modified: URI };
 
 class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
