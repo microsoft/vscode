@@ -51,7 +51,7 @@ export class IssueReporter extends Disposable {
 	private hasBeenSubmitted = false;
 	private openReporter = false;
 	private loadingExtensionData = false;
-	private changeExtension = false;
+	private changeExtension: string = '';
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
 
@@ -1194,9 +1194,9 @@ export class IssueReporter extends Disposable {
 			}
 
 			this.addEventListener('extension-selector', 'change', async (e: Event) => {
-				this.changeExtension = true;
 				this.clearExtensionData();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
+				this.changeExtension = selectedExtensionId;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
@@ -1207,9 +1207,11 @@ export class IssueReporter extends Disposable {
 						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 						this.setLoading(iconElement);
 						const openReporterData = await this.sendReporterMenu(selectedExtension);
-						if (openReporterData && this.changeExtension) {
+						if (openReporterData && (this.changeExtension === selectedExtensionId)) {
 							this.removeLoading(iconElement, true);
 							this.configuration.data = openReporterData;
+						} else if (openReporterData && this.changeExtension !== selectedExtensionId) {
+							this.removeLoading(iconElement, this.openReporter);
 						} else {
 							this.removeLoading(iconElement);
 							// if not using command, should have no configuration data in fields we care about and check later.
@@ -1222,9 +1224,10 @@ export class IssueReporter extends Disposable {
 							selectedExtension.uri = undefined;
 						}
 					}
-					if (this.changeExtension) {
+					if (this.changeExtension === selectedExtensionId) {
 						// repopulates the fields with the new data given the selected extension.
 						this.updateExtensionStatus(matches[0]);
+						this.openReporter = false;
 					}
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
@@ -1233,7 +1236,6 @@ export class IssueReporter extends Disposable {
 					this.validateSelectedExtension();
 					this.updateExtensionStatus(matches[0]);
 				}
-				this.changeExtension = false;
 			});
 		}
 

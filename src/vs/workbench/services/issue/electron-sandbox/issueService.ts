@@ -38,7 +38,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
-	private isRunning = false;
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -89,35 +88,30 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			ipcRenderer.send('vscode:triggerReporterStatusResponse', result);
 		});
 		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
-			if (!this.isRunning) {
-				const extensionId = arg.extensionId;
+			const extensionId = arg.extensionId;
 
-				// creates menu from contributed
-				const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
+			// creates menu from contributed
+			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
-				// render menu and dispose
-				const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-				actions.forEach(async action => {
-					try {
-						if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-							this.extensionIdentifierSet.add(extensionId);
-							this.isRunning = true;
-							await action.run();
-						}
-					} catch (error) {
-						console.error(error);
-					} finally {
-						this.isRunning = false;
+			// render menu and dispose
+			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+			actions.forEach(async action => {
+				try {
+					if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+						this.extensionIdentifierSet.add(extensionId);
+						await action.run();
 					}
-				});
-
-				if (this.extensionIdentifierSet.size === 0) {
-					// send undefined to indicate no action was taken
-					ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
+				} catch (error) {
+					console.error(error);
 				}
+			});
 
-				menu.dispose();
+			if (this.extensionIdentifierSet.size === 0) {
+				// send undefined to indicate no action was taken
+				ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
 			}
+
+			menu.dispose();
 		});
 	}
 
