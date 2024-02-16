@@ -55,7 +55,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _requestActiveContextKey!: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
 	private readonly _responseTypeContextKey!: IContextKey<TerminalChatResponseTypes | undefined>;
-	private readonly __responseSupportsIssueReportingContextKey!: IContextKey<boolean>;
+	private readonly _responseSupportsIssueReportingContextKey!: IContextKey<boolean>;
+	private readonly _sessionResponseVoteContextKey!: IContextKey<string | undefined>;
 
 	private _requestId: number = 0;
 
@@ -97,7 +98,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
 		this._responseTypeContextKey = TerminalContextKeys.chatResponseType.bindTo(this._contextKeyService);
-		this.__responseSupportsIssueReportingContextKey = TerminalContextKeys.chatResponseSupportsIssueReporting.bindTo(this._contextKeyService);
+		this._responseSupportsIssueReportingContextKey = TerminalContextKeys.chatResponseSupportsIssueReporting.bindTo(this._contextKeyService);
+		this._sessionResponseVoteContextKey = TerminalContextKeys.chatSessionResponseVote.bindTo(this._contextKeyService);
 
 		if (!this._chatAgentService.hasAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
@@ -144,6 +146,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (helpful === undefined) {
 			action = { kind: 'bug' };
 		} else {
+			this._sessionResponseVoteContextKey.set(helpful ? 'up' : 'down');
 			action = { kind: 'vote', direction: helpful ? InteractiveSessionVoteDirection.Up : InteractiveSessionVoteDirection.Down };
 		}
 		// TODO:extract into helper method
@@ -204,6 +207,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatWidget?.rawValue?.hide();
 		this._chatWidget?.rawValue?.setValue(undefined);
 		this._responseTypeContextKey.reset();
+		this._sessionResponseVoteContextKey.reset();
+		this._requestActiveContextKey.reset();
 	}
 
 	private updateModel(): void {
@@ -274,7 +279,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
 			if (supportIssueReporting !== undefined) {
-				this.__responseSupportsIssueReportingContextKey.set(supportIssueReporting);
+				this._responseSupportsIssueReportingContextKey.set(supportIssueReporting);
 			}
 			this._lastResponseContent = responseContent;
 		}

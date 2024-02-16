@@ -46,7 +46,8 @@ export const enum TerminalContextKeyStrings {
 	ChatAgentRegistered = 'terminalChatAgentRegistered',
 	ChatResponseEditorFocused = 'terminalChatResponseEditorFocused',
 	ChatResponseType = 'terminalChatResponseType',
-	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting'
+	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
+	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
 }
 
 export const enum TerminalChatResponseTypes {
@@ -196,4 +197,7 @@ export namespace TerminalContextKeys {
 
 	/** Whether the response supports issue reporting */
 	export const chatResponseSupportsIssueReporting = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));
+
+	/** The chat vote, if any for the response, if any */
+	export const chatSessionResponseVote = new RawContextKey<string>(TerminalContextKeyStrings.ChatSessionResponseVote, undefined, { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
 }

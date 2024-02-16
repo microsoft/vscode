@@ -255,6 +255,7 @@ registerActiveXtermAction({
 		TerminalContextKeys.chatResponseType.notEqualsTo(undefined)
 	),
 	icon: Codicon.thumbsup,
+	toggled: TerminalContextKeys.chatSessionResponseVote.isEqualTo('up'),
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 		group: 'inline',
@@ -277,6 +278,7 @@ registerActiveXtermAction({
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatResponseType.notEqualsTo(undefined),
 	),
+	toggled: TerminalContextKeys.chatSessionResponseVote.isEqualTo('down'),
 	icon: Codicon.thumbsdown,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
