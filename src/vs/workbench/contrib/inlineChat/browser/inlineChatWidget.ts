@@ -388,7 +388,7 @@ export class InlineChatWidget {
 			buttonConfigProvider: action => {
 				if (action.id === ACTION_REGENERATE_RESPONSE) {
 					return { showIcon: true, showLabel: false, isSecondary: true };
-				} else if ([ACTION_VIEW_IN_CHAT, ACTION_ACCEPT_CHANGES, 'workbench.action.terminal.chat.acceptCommand', 'workbench.action.terminal.chat.viewInChat'].includes(action.id)) {
+				} else if ([ACTION_VIEW_IN_CHAT, ACTION_ACCEPT_CHANGES].includes(action.id)) {
 					return { isSecondary: false };
 				} else {
 					return { isSecondary: true };
