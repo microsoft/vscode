@@ -565,21 +565,3 @@
 .monaco-workbench .xterm.terminal.hide {
 	visibility: hidden;
 }
-
-.monaco-workbench .terminal-chat-widget {
-	z-index: 33 !important;
-	position: absolute;
-	top: 10px;
-}
-
-.monaco-workbench .terminal-inline-chat.hide {
-	visibility: hidden;
-}
-
-.monaco-workbench .terminal-inline-chat-response.hide {
-	visibility: hidden;
-}
-
-.monaco-workbench .terminal-inline-chat .chatMessageContent {
-	width: 400px !important;
-}
