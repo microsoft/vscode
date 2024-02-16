@@ -19,7 +19,7 @@ export class AcceptInlineEdit extends EditorAction {
 			id: inlineEditAcceptId,
 			label: 'Accept Inline Edit',
 			alias: 'Accept Inline Edit',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext),
 			kbOpts: [
 				{
 					weight: KeybindingWeight.EditorContrib + 1,
@@ -43,15 +43,16 @@ export class AcceptInlineEdit extends EditorAction {
 
 export class TriggerInlineEdit extends EditorAction {
 	constructor() {
+		const activeExpr = ContextKeyExpr.and(EditorContextKeys.writable, ContextKeyExpr.not(InlineEditController.inlineEditVisibleKey));
 		super({
 			id: 'editor.action.inlineEdit.trigger',
 			label: 'Trigger Inline Edit',
 			alias: 'Trigger Inline Edit',
-			precondition: EditorContextKeys.writable,
+			precondition: activeExpr,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, ContextKeyExpr.not(InlineEditController.inlineEditVisibleKey))
+				kbExpr: activeExpr
 			},
 		});
 	}
@@ -124,15 +125,16 @@ export class JumpBackInlineEdit extends EditorAction {
 
 export class RejectInlineEdit extends EditorAction {
 	constructor() {
+		const activeExpr = ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext);
 		super({
 			id: inlineEditRejectId,
 			label: 'Reject Inline Edit',
 			alias: 'Reject Inline Edit',
-			precondition: EditorContextKeys.writable,
+			precondition: activeExpr,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.Escape,
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext)
+				kbExpr: activeExpr
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineEditToolbar,
