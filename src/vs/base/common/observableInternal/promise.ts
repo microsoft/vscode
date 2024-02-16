@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { IObservable, observableValue } from './base';
-import { derived } from 'vs/base/common/observableInternal/derived';
+import { IObservable, IReader, observableValue, transaction } from './base';
+import { Derived, defaultEqualityComparer, derived } from 'vs/base/common/observableInternal/derived';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);
@@ -38,15 +40,29 @@ export class ObservableLazy<T> {
 export class ObservablePromise<T> {
 	private readonly _value = observableValue<PromiseResult<T> | undefined>(this, undefined);
 
+	/**
+	 * The promise that this object wraps.
+	 */
 	public readonly promise: Promise<T>;
-	public readonly value: IObservable<PromiseResult<T> | undefined> = this._value;
+
+	/**
+	 * The current state of the promise.
+	 * Is `undefined` if the promise didn't resolve yet.
+	 */
+	public readonly promiseResult: IObservable<PromiseResult<T> | undefined> = this._value;
 
 	constructor(promise: Promise<T>) {
 		this.promise = promise.then(value => {
-			this._value.set(new PromiseResult(value, undefined), undefined);
+			transaction(tx => {
+				/** @description onPromiseResolved */
+				this._value.set(new PromiseResult(value, undefined), tx);
+			});
 			return value;
 		}, error => {
-			this._value.set(new PromiseResult<T>(undefined, error), undefined);
+			transaction(tx => {
+				/** @description onPromiseRejected */
+				this._value.set(new PromiseResult<T>(undefined, error), tx);
+			});
 			throw error;
 		});
 	}
@@ -58,7 +74,7 @@ export class PromiseResult<T> {
 		 * The value of the resolved promise.
 		 * Undefined if the promise rejected.
 		 */
-		public readonly value: T | undefined,
+		public readonly data: T | undefined,
 
 		/**
 		 * The error in case of a rejected promise.
@@ -71,30 +87,30 @@ export class PromiseResult<T> {
 	/**
 	 * Returns the value if the promise resolved, otherwise throws the error.
 	 */
-	public getValue(): T {
+	public getDataOrThrow(): T {
 		if (this.error) {
 			throw this.error;
 		}
-		return this.value!;
+		return this.data!;
 	}
 }
 
 /**
  * A lazy promise whose state is observable.
  */
-export class ObservableLazyStatefulPromise<T> {
-	private readonly _lazyValue = new ObservableLazy(() => new ObservablePromise(this._computeValue()));
+export class ObservableLazyPromise<T> {
+	private readonly _lazyValue = new ObservableLazy(() => new ObservablePromise(this._computePromise()));
 
 	/**
 	 * Does not enforce evaluation of the promise compute function.
 	 * Is undefined if the promise has not been computed yet.
 	 */
-	public readonly cachedValue = derived(this, reader => this._lazyValue.cachedValue.read(reader)?.value.read(reader));
+	public readonly cachedPromiseResult = derived(this, reader => this._lazyValue.cachedValue.read(reader)?.promiseResult.read(reader));
 
-	constructor(private readonly _computeValue: () => Promise<T>) {
+	constructor(private readonly _computePromise: () => Promise<T>) {
 	}
 
-	public getValue(): Promise<T> {
+	public getPromise(): Promise<T> {
 		return this._lazyValue.getValue().promise;
 	}
 }
@@ -138,4 +154,33 @@ export function waitForState<T>(observable: IObservable<T>, predicate: (state: T
 			d.dispose();
 		}
 	});
+}
+
+export function derivedWithCancellationToken<T>(computeFn: (reader: IReader, cancellationToken: CancellationToken) => T): IObservable<T>;
+export function derivedWithCancellationToken<T>(owner: object, computeFn: (reader: IReader, cancellationToken: CancellationToken) => T): IObservable<T>;
+export function derivedWithCancellationToken<T>(computeFnOrOwner: ((reader: IReader, cancellationToken: CancellationToken) => T) | object, computeFnOrUndefined?: ((reader: IReader, cancellationToken: CancellationToken) => T)): IObservable<T> {
+	let computeFn: (reader: IReader, store: CancellationToken) => T;
+	let owner: Owner;
+	if (computeFnOrUndefined === undefined) {
+		computeFn = computeFnOrOwner as any;
+		owner = undefined;
+	} else {
+		owner = computeFnOrOwner;
+		computeFn = computeFnOrUndefined as any;
+	}
+
+	let cancellationTokenSource: CancellationTokenSource | undefined = undefined;
+	return new Derived(
+		new DebugNameData(owner, undefined, computeFn),
+		r => {
+			if (cancellationTokenSource) {
+				cancellationTokenSource.dispose(true);
+			}
+			cancellationTokenSource = new CancellationTokenSource();
+			return computeFn(r, cancellationTokenSource.token);
+		}, undefined,
+		undefined,
+		() => cancellationTokenSource?.dispose(),
+		defaultEqualityComparer,
+	);
 }
