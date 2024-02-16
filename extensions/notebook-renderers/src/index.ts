@@ -38,7 +38,11 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 	if (alt) {
 		image.alt = alt;
 	}
-	image.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'image', outputId: outputInfo.id, 'preventDefaultContextMenuItems': true }));
+	image.setAttribute('data-vscode-context', JSON.stringify({
+		webviewSection: 'image',
+		outputId: outputInfo.id,
+		'preventDefaultContextMenuItems': true
+	}));
 	const display = document.createElement('div');
 	display.classList.add('display');
 	display.appendChild(image);
@@ -78,7 +82,7 @@ function getAltText(outputInfo: OutputItem) {
 	return undefined;
 }
 
-function injectTitleForSvg(outputInfo: OutputItem, element: HTMLElement) {
+function fixUpSvgElement(outputInfo: OutputItem, element: HTMLElement) {
 	if (outputInfo.mime.indexOf('svg') > -1) {
 		const svgElement = element.querySelector('svg');
 		const altText = getAltText(outputInfo);
@@ -86,6 +90,16 @@ function injectTitleForSvg(outputInfo: OutputItem, element: HTMLElement) {
 			const title = document.createElement('title');
 			title.innerText = altText;
 			svgElement.prepend(title);
+		}
+
+		if (svgElement) {
+			svgElement.classList.add('output-image');
+
+			svgElement.setAttribute('data-vscode-context', JSON.stringify({
+				webviewSection: 'image',
+				outputId: outputInfo.id,
+				'preventDefaultContextMenuItems': true
+			}));
 		}
 	}
 }
@@ -96,7 +110,7 @@ async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal
 	const htmlContent = outputInfo.text();
 	const trustedHtml = ttPolicy?.createHTML(htmlContent) ?? htmlContent;
 	element.innerHTML = trustedHtml as string;
-	injectTitleForSvg(outputInfo, element);
+	fixUpSvgElement(outputInfo, element);
 
 	for (const hook of hooks) {
 		element = (await hook.postRender(outputInfo, element, signal)) ?? element;
@@ -501,6 +515,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					}
 					break;
 				default:
+					if (outputInfo.mime.indexOf('text/') > -1) {
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderText(outputInfo, element, latestContext);
+						disposables.set(outputInfo.id, disposable);
+					}
 					break;
 			}
 			if (element.querySelector('div')) {

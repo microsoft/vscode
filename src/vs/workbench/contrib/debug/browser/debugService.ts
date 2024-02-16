@@ -44,7 +44,7 @@ import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/brows
 import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_HAS_DEBUGGED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, debuggerDisabledMessage, DEBUG_MEMORY_SCHEME, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, DEBUG_SCHEME, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IInstructionBreakpointOptions, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
@@ -387,7 +387,7 @@ export class DebugService implements IDebugService {
 
 				const values = await Promise.all(compound.configurations.map(configData => {
 					const name = typeof configData === 'string' ? configData : configData.name;
-					if (name === compound!.name) {
+					if (name === compound.name) {
 						return Promise.resolve(false);
 					}
 
@@ -408,7 +408,7 @@ export class DebugService implements IDebugService {
 						if (launchesMatchingConfigData.length === 1) {
 							launchForName = launchesMatchingConfigData[0];
 						} else {
-							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound!.name));
+							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name));
 						}
 					}
 
@@ -1065,8 +1065,8 @@ export class DebugService implements IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	addFunctionBreakpoint(name?: string, id?: string): void {
-		this.model.addFunctionBreakpoint(name || '', id);
+	addFunctionBreakpoint(name?: string, id?: string, mode?: string): void {
+		this.model.addFunctionBreakpoint(name || '', id, mode);
 	}
 
 	async updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void> {
@@ -1081,8 +1081,8 @@ export class DebugService implements IDebugService {
 		await this.sendFunctionBreakpoints();
 	}
 
-	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void> {
-		this.model.addDataBreakpoint(label, dataId, canPersist, accessTypes, accessType);
+	async addDataBreakpoint(description: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType, mode: string | undefined): Promise<void> {
+		this.model.addDataBreakpoint({ description, dataId, canPersist, accessTypes, accessType, mode });
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);
@@ -1100,8 +1100,8 @@ export class DebugService implements IDebugService {
 		await this.sendDataBreakpoints();
 	}
 
-	async addInstructionBreakpoint(instructionReference: string, offset: number, address: bigint, condition?: string, hitCondition?: string): Promise<void> {
-		this.model.addInstructionBreakpoint(instructionReference, offset, address, condition, hitCondition);
+	async addInstructionBreakpoint(opts: IInstructionBreakpointOptions): Promise<void> {
+		this.model.addInstructionBreakpoint(opts);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);
@@ -1118,8 +1118,8 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	setExceptionBreakpointsForSession(session: IDebugSession, data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
-		this.model.setExceptionBreakpointsForSession(session.getId(), data);
+	setExceptionBreakpointsForSession(session: IDebugSession, filters: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+		this.model.setExceptionBreakpointsForSession(session.getId(), filters);
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 

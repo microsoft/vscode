@@ -70,7 +70,7 @@ import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 const $ = dom.$;
 
@@ -421,7 +421,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		if (session) {
 			this.replElementsChangeListener?.dispose();
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
-				this.refreshReplElements(session!.getReplElements().length === 0);
+				this.refreshReplElements(session.getReplElements().length === 0);
 			});
 
 			if (this.tree && treeInput !== session) {
@@ -626,7 +626,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplRawObjectsRenderer(linkDetector),
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
-			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>,
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
@@ -989,9 +989,9 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 
 	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		const audioCueService = _accessor.get(IAudioCueService);
+		const accessibilitySignalService = _accessor.get(IAccessibilitySignalService);
 		view.clearRepl();
-		audioCueService.playAudioCue(AudioCue.clear);
+		accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 });
 

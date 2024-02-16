@@ -302,11 +302,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		// Global Actions Toolbar
 		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
+			toggleMenuTitle: localize('moreActions', "More Actions..."),
+			hoverDelegate: this.hoverDelegate
 		}));
 
 		this.updateGlobalToolbarActions();
@@ -479,7 +480,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		if (!activePane || !this.toolBar) {
 			return 0;
 		}
-		return this.toolBar.getItemsWidth() + 5 + (this.globalToolBar?.getItemsWidth() ?? 0); // 5px toolBar padding-left
+
+		// Each toolbar item has 4px margin in the panel toolbar
+		const toolBarWidth = this.toolBar.getItemsWidth() + this.toolBar.getItemsLength() * 4;
+		const globalToolBarWidth = this.globalToolBar ? this.globalToolBar.getItemsWidth() + this.globalToolBar.getItemsLength() * 4 : 0;
+		return 5 + toolBarWidth + globalToolBarWidth; // 5px toolBar padding-left
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
@@ -499,7 +504,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => event,
 					getActions: () => activePaneCompositeActions,
-					getActionViewItem: action => this.actionViewItemProvider(action),
+					getActionViewItem: (action, options) => this.actionViewItemProvider(action, options),
 					actionRunner: activePaneComposite.getActionRunner(),
 					skipTelemetry: true
 				});

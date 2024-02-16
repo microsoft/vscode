@@ -76,7 +76,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 		await asyncTransaction(async tx => {
 			/** @description triggerExplicitly from command */
 			await controller?.model.get()?.triggerExplicitly(tx);
-			controller?.playAudioCue(tx);
+			controller?.playAccessibilitySignal(tx);
 		});
 	}
 }

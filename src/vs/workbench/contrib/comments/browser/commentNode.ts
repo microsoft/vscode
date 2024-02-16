@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator, ActionRunner } from 'vs/base/common/actions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -49,6 +49,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -114,7 +115,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IAccessibilityService private accessibilityService: IAccessibilityService
+		@IAccessibilityService private accessibilityService: IAccessibilityService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -164,6 +166,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			this.toggleToolbarHidden(true);
 		}));
+
+		this.activeCommentListeners();
+	}
+
+	private activeCommentListeners() {
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.FOCUS_IN, () => {
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: this.commentThread, comment: this.comment });
+		}, true));
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
@@ -500,14 +510,16 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			uri: this._commentEditor.getModel()!.uri,
 			value: this.commentBodyValue
 		};
-		this.commentService.setActiveCommentThread(commentThread);
+		this.commentService.setActiveEditingCommentThread(commentThread);
+		this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 			commentThread.input = {
 				uri: this._commentEditor!.getModel()!.uri,
 				value: this.commentBodyValue
 			};
-			this.commentService.setActiveCommentThread(commentThread);
+			this.commentService.setActiveEditingCommentThread(commentThread);
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 		}));
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
@@ -517,7 +529,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					const input = commentThread.input;
 					input.value = newVal;
 					commentThread.input = input;
-					this.commentService.setActiveCommentThread(commentThread);
+					this.commentService.setActiveEditingCommentThread(commentThread);
+					this.commentService.setActiveCommentAndThread(this.owner, { thread: commentThread, comment: this.comment });
 				}
 			}
 		}));
@@ -563,12 +576,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._commentEditorModel?.dispose();
 
-		this._commentEditorDisposables.forEach(dispose => dispose.dispose());
+		dispose(this._commentEditorDisposables);
 		this._commentEditorDisposables = [];
-		if (this._commentEditor) {
-			this._commentEditor.dispose();
-			this._commentEditor = null;
-		}
+		this._commentEditor?.dispose();
+		this._commentEditor = null;
 
 		this._commentEditContainer!.remove();
 	}
@@ -610,7 +621,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions?.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, (action: IAction): void => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
@@ -636,7 +647,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions?.setActions(menu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(container, (action: IAction): void => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
@@ -752,6 +763,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				this.domNode.classList.remove('focus');
 			}, 3000);
 		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+		dispose(this._commentEditorDisposables);
 	}
 }
 

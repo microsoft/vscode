@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize2 } from 'vs/nls';
@@ -50,30 +51,28 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		const linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager, this._instance.capabilities, this._linkResolver);
+		const linkManager = this._linkManager = this.add(this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager, this._instance.capabilities, this._linkResolver));
+
+		// Set widget manager
 		if (isTerminalProcessManager(this._processManager)) {
-			this._processManager.onProcessReady(() => {
+			const disposable = linkManager.add(Event.once(this._processManager.onProcessReady)(() => {
 				linkManager.setWidgetManager(this._widgetManager);
-			});
+				this.delete(disposable);
+			}));
 		} else {
 			linkManager.setWidgetManager(this._widgetManager);
 		}
-		this._linkManager = this.add(linkManager);
 
-		// Attach the link provider(s) to the instance and listen for changes
+		// Attach the external link provider to the instance and listen for changes
 		if (!isDetachedTerminalInstance(this._instance)) {
 			for (const linkProvider of this._terminalLinkProviderService.linkProviders) {
-				this._linkManager.registerExternalLinkProvider(linkProvider.provideLinks.bind(linkProvider, this._instance));
+				linkManager.externalProvideLinksCb = linkProvider.provideLinks.bind(linkProvider, this._instance);
 			}
-			this.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
-				linkManager.registerExternalLinkProvider(e.provideLinks.bind(e, this._instance as ITerminalInstance));
+			linkManager.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
+				linkManager.externalProvideLinksCb = e.provideLinks.bind(e, this._instance as ITerminalInstance);
 			}));
 		}
-		// TODO: Currently only a single link provider is supported; the one registered by the ext host
-		this.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(e => {
-			linkManager.dispose();
-			this.xtermReady(xterm);
-		}));
+		linkManager.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(() => linkManager.externalProvideLinksCb = undefined));
 	}
 
 	async showLinkQuickpick(extended?: boolean): Promise<void> {

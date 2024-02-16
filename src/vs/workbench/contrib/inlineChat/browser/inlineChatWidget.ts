@@ -3,66 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inlineChat';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_RESPONSE_FOCUSED, ACTION_ACCEPT_CHANGES, MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
-import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { IModelService } from 'vs/editor/common/services/model';
-import { URI } from 'vs/base/common/uri';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { Position } from 'vs/editor/common/core/position';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
-import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExpansionState, HunkData } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { Lazy } from 'vs/base/common/lazy';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import 'vs/css!./inlineChat';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
+import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
-import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { FileKind } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
+import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { assertType } from 'vs/base/common/types';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { editorForeground, inputBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Lazy } from 'vs/base/common/lazy';
-import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
+import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { ExpansionState, HunkData } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_VISIBLE, IInlineChatFollowup, IInlineChatSlashCommand, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -371,7 +370,8 @@ export class InlineChatWidget {
 
 		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
-			toolbarOptions: { primaryGroup: 'main' }
+			toolbarOptions: { primaryGroup: 'main' },
+			hiddenItemStrategy: HiddenItemStrategy.Ignore // keep it lean when hiding items and avoid a "..." overflow menu
 		}));
 
 		this._progressBar = new ProgressBar(this._elements.progress);
@@ -597,7 +597,7 @@ export class InlineChatWidget {
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
 			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
-			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate));
+			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate, undefined));
 			renderer.layout(this._elements.chatMessageContent.clientWidth - 4); // 2 for the padding used for the tab index border
 			this._chatMessageDisposables.add(this._onDidChangeLayout.event(() => {
 				renderer.layout(this._elements.chatMessageContent.clientWidth - 4);
@@ -631,14 +631,15 @@ export class InlineChatWidget {
 		return resultingAppender;
 	}
 
-	updateFollowUps(items: IChatFollowup[], onFollowup: (followup: IChatFollowup) => void): void;
+	updateFollowUps(items: IInlineChatFollowup[], onFollowup: (followup: IInlineChatFollowup) => void): void;
 	updateFollowUps(items: undefined): void;
-	updateFollowUps(items: IChatFollowup[] | undefined, onFollowup?: ((followup: IChatFollowup) => void)) {
+	updateFollowUps(items: IInlineChatFollowup[] | undefined, onFollowup?: ((followup: IInlineChatFollowup) => void)) {
 		this._followUpDisposables.clear();
 		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
 		reset(this._elements.followUps);
 		if (items && items.length > 0 && onFollowup) {
-			this._followUpDisposables.add(new ChatFollowups(this._elements.followUps, items, undefined, onFollowup, this._contextKeyService));
+			this._followUpDisposables.add(
+				this._instantiationService.createInstance(ChatFollowups, this._elements.followUps, items, undefined, onFollowup));
 		}
 		this._onDidChangeHeight.fire();
 	}
@@ -827,7 +828,7 @@ export class InlineChatWidget {
 		if (commands.length === 0) {
 			return;
 		}
-		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command!, detail: c.detail! }; });
+		this._slashCommandDetails = commands.filter(c => c.command && c.detail).map(c => { return { command: c.command, detail: c.detail! }; });
 
 		const selector: LanguageSelector = { scheme: this._inputModel.uri.scheme, pattern: this._inputModel.uri.path, language: this._inputModel.getLanguageId() };
 		this._slashCommands.add(this._languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {

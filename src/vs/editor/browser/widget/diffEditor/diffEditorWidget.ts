@@ -17,7 +17,7 @@ import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
+import { AccessibleDiffViewer, AccessibleDiffViewerModelFromEditors } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
 import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditor/components/diffEditorDecorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditor/components/diffEditorSash';
 import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
@@ -35,7 +35,7 @@ import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/ra
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -97,7 +97,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
 		super();
@@ -233,7 +233,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				this._rootSizeObserver.width,
 				this._rootSizeObserver.height,
 				this._diffModel.map((m, r) => m?.diff.read(r)?.mappings.map(m => m.lineRangeMapping)),
-				this._editors,
+				new AccessibleDiffViewerModelFromEditors(this._editors),
 			)
 		).recomputeInitiallyAndOnChange(this._store);
 
@@ -271,11 +271,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			if (e?.reason === CursorChangeReason.Explicit) {
 				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
 				if (diff?.lineRangeMapping.modified.isEmpty) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
 				} else if (diff?.lineRangeMapping.original.isEmpty) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
 				} else if (diff) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 				}
 			}
 		}));
@@ -528,11 +528,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._goTo(diff);
 
 		if (diff.lineRangeMapping.modified.isEmpty) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.goToDiff' });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'diffEditor.goToDiff' });
 		} else if (diff.lineRangeMapping.original.isEmpty) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.goToDiff' });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'diffEditor.goToDiff' });
 		} else if (diff) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.goToDiff' });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.goToDiff' });
 		}
 	}
 

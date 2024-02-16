@@ -49,13 +49,13 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isString } from 'vs/base/common/types';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 const ItemHeight = 22;
 
@@ -747,15 +747,15 @@ export class TimelinePane extends ViewPane {
 				}
 
 				const iterator = timeline.items[Symbol.iterator]();
-				sources.push({ timeline: timeline, iterator: iterator, nextItem: iterator.next() });
+				sources.push({ timeline, iterator, nextItem: iterator.next() });
 			}
 
 			this._visibleItemCount = hasAnyItems ? 1 : 0;
 
 			function getNextMostRecentSource() {
 				return sources
-					.filter(source => !source.nextItem!.done)
-					.reduce((previous, current) => (previous === undefined || current.nextItem!.value.timestamp >= previous.nextItem!.value.timestamp) ? current : previous, undefined!);
+					.filter(source => !source.nextItem.done)
+					.reduce((previous, current) => (previous === undefined || current.nextItem.value.timestamp >= previous.nextItem.value.timestamp) ? current : previous, undefined!);
 			}
 
 			let lastRelativeTime: string | undefined;
@@ -1046,7 +1046,7 @@ export class TimelinePane extends ViewPane {
 					this.tree.domFocus();
 				}
 			},
-			getActionsContext: (): TimelineActionContext => ({ uri: this.uri, item: item }),
+			getActionsContext: (): TimelineActionContext => ({ uri: this.uri, item }),
 			actionRunner: new TimelineActionRunner()
 		});
 	}
@@ -1068,13 +1068,13 @@ class TimelineElementTemplate implements IDisposable {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate: hoverDelegate });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
 
 		const actionsContainer = DOM.append(this.iconLabel.element, DOM.$('.actions'));
-		this.actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: actionViewItemProvider });
+		this.actionBar = new ActionBar(actionsContainer, { actionViewItemProvider });
 	}
 
 	dispose() {
@@ -1109,7 +1109,7 @@ class TimelineActionRunner extends ActionRunner {
 				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
 				source: item.source,
-				uri: uri
+				uri
 			},
 			uri,
 			item.source,
@@ -1147,14 +1147,9 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		private readonly commands: TimelinePaneCommands,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = {
-			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
-			delay: <number>this.configurationService.getValue('workbench.hover.delay')
-		};
+		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 	}
 
 	private uri: URI | undefined;
@@ -1212,7 +1207,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		template.timestamp.ariaLabel = item.relativeTimeFullWord ?? '';
 		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
-		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;
+		template.actionBar.context = { uri: this.uri, item } as TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();
 		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
 

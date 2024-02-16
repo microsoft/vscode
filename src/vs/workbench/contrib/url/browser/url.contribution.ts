@@ -11,7 +11,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IURLService } from 'vs/platform/url/common/url';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/browser/externalUriResolver';
 import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
@@ -55,10 +55,7 @@ CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: manageTrustedDomainSettingsCommand.id,
-		title: {
-			value: manageTrustedDomainSettingsCommand.description.description,
-			original: 'Manage Trusted Domains'
-		}
+		title: manageTrustedDomainSettingsCommand.description.description
 	}
 });
 
@@ -66,13 +63,15 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	OpenerValidatorContributions,
 	LifecyclePhase.Restored
 );
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+registerWorkbenchContribution2(
+	TrustedDomainsFileSystemProvider.ID,
 	TrustedDomainsFileSystemProvider,
-	LifecyclePhase.Ready
+	WorkbenchPhase.BlockRestore // registration only
 );
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+registerWorkbenchContribution2(
+	ExternalUriResolverContribution.ID,
 	ExternalUriResolverContribution,
-	LifecyclePhase.Ready
+	WorkbenchPhase.BlockRestore // registration only
 );
 
 

@@ -318,7 +318,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			const terminalIndex = group.terminalInstances.indexOf(instance);
 			if (terminalIndex === 0) {
 				prefix = `┌ `;
-			} else if (terminalIndex === group!.terminalInstances.length - 1) {
+			} else if (terminalIndex === group.terminalInstances.length - 1) {
 				prefix = `└ `;
 			} else {
 				prefix = `├ `;

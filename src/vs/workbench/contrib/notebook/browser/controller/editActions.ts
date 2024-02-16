@@ -10,7 +10,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
@@ -32,12 +32,14 @@ import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
@@ -84,7 +86,8 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 
 const quitEditCondition = ContextKeyExpr.and(
 	NOTEBOOK_EDITOR_FOCUSED,
-	InputFocusedContext
+	InputFocusedContext,
+	CTX_INLINE_CHAT_FOCUSED.toNegated()
 );
 registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	constructor() {
@@ -517,7 +520,7 @@ registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: DETECT_CELL_LANGUAGE,
-			title: { value: localize('detectLanguage', 'Accept Detected Language for Cell'), original: 'Accept Detected Language for Cell' },
+			title: localize2('detectLanguage', "Accept Detected Language for Cell"),
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }

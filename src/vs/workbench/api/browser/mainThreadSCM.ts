@@ -253,7 +253,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		this._onDidChange.fire();
 
 		if (typeof features.commitTemplate !== 'undefined') {
-			this._onDidChangeCommitTemplate.fire(this.commitTemplate!);
+			this._onDidChangeCommitTemplate.fire(this.commitTemplate);
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {

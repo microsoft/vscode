@@ -591,6 +591,9 @@ export const Codicon = {
 	gitStash: register('git-stash', 0xec26),
 	gitStashApply: register('git-stash-apply', 0xec27),
 	gitStashPop: register('git-stash-pop', 0xec28),
+	coverage: register('coverage', 0xec2e),
+	runAllCoverage: register('run-all-coverage', 0xec2d),
+	runCoverage: register('run-all-coverage', 0xec2c),
 
 	// derived icons, that could become separate icons
 

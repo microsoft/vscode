@@ -51,12 +51,12 @@ import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
@@ -342,6 +342,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	readonly templateId = 'actionbar';
 	private inputDone?: (success: boolean, finishEditing: boolean) => void;
 	private _actionRunner: ActionRunner | undefined;
+	private readonly _hoverDelegate: IHoverDelegate;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -351,8 +352,11 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService
-	) { super(); }
+	) {
+		super();
+
+		this._hoverDelegate = this._register(getDefaultHoverDelegate('mouse', true));
+	}
 
 	set actionRunner(actionRunner: ActionRunner) {
 		this._actionRunner = actionRunner;
@@ -364,14 +368,12 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		const label = new IconLabel(cell,
 			{
 				supportHighlights: true,
-				hoverDelegate: {
-					showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
-					delay: <number>this.configurationService.getValue('workbench.hover.delay')
-				}
+				hoverDelegate: this._hoverDelegate
 			});
 		const actionsContainer = dom.append(cell, dom.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+			hoverDelegate: this._hoverDelegate
 		});
 		return { label, icon, actionBar, container: cell, elementDisposable: Disposable.None };
 	}
@@ -781,7 +783,6 @@ export class TunnelPanel extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
@@ -865,7 +866,7 @@ export class TunnelPanel extends ViewPane {
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
 			this.menuService, this.contextViewService, this.remoteExplorerService, this.commandService,
-			this.configurationService, this.hoverService);
+			this.configurationService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canChangePrivacy) {
 			columns.push(new PrivacyColumn());
@@ -1171,7 +1172,7 @@ const alreadyForwarded: string = nls.localize('remote.tunnelView.alreadyForwarde
 export namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
-	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.forward', "Forward a Port"), original: 'Forward a Port' };
+	export const LABEL: ILocalizedString = nls.localize2('remote.tunnel.forward', "Forward a Port");
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
@@ -1266,7 +1267,7 @@ function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplor
 namespace ClosePortAction {
 	export const INLINE_ID = 'remote.tunnel.closeInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.closeCommandPalette';
-	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.close', "Stop Forwarding Port"), original: 'Stop Forwarding Port' };
+	export const LABEL: ILocalizedString = nls.localize2('remote.tunnel.close', "Stop Forwarding Port");
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {

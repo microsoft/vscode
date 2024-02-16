@@ -322,7 +322,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 			await this.raw.start();
 			this.registerListeners();
-			await this.raw!.initialize({
+			await this.raw.initialize({
 				clientID: 'vscode',
 				clientName: this.productService.nameLong,
 				adapterID: this.configuration.type,
@@ -344,6 +344,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.initialized = true;
 			this._onDidChangeState.fire();
 			this.debugService.setExceptionBreakpointsForSession(this, (this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
+			this.debugService.getModel().registerBreakpointModes(this.configuration.type, this.raw.capabilities.breakpointModes || []);
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
@@ -457,7 +458,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		const response = await this.raw.setBreakpoints({
 			source: rawSource,
 			lines: breakpointsToSend.map(bp => bp.sessionAgnosticData.lineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.sessionAgnosticData.lineNumber, column: bp.sessionAgnosticData.column, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage })),
+			breakpoints: breakpointsToSend.map(bp => bp.toDAP()),
 			sourceModified
 		});
 		if (response && response.body) {
@@ -476,7 +477,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setFunctionBreakpoints({ breakpoints: fbpts });
+			const response = await this.raw.setFunctionBreakpoints({ breakpoints: fbpts.map(bp => bp.toDAP()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < fbpts.length; i++) {
@@ -534,7 +535,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setDataBreakpoints({ breakpoints: dataBreakpoints });
+			const response = await this.raw.setDataBreakpoints({ breakpoints: dataBreakpoints.map(bp => bp.toDAP()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < dataBreakpoints.length; i++) {
@@ -551,7 +552,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toJSON()) });
+			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toDAP()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < instructionBreakpoints.length; i++) {

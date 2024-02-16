@@ -5,7 +5,14 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgent2<TResult extends ChatAgentResult2> {
+	export type ChatAgentWelcomeMessageContent = string | MarkdownString;
+
+	export interface ChatAgentWelcomeMessageProvider {
+		provideWelcomeMessage(token: CancellationToken): ProviderResult<ChatAgentWelcomeMessageContent[]>;
+		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
+	}
+
+	export interface ChatAgent2 {
 		/**
 		 * When true, this agent is invoked by default when no other agent is being invoked
 		 */
@@ -26,5 +33,7 @@ declare module 'vscode' {
 		 * A string that will be appended after the listing of chat agents in `/help`.
 		 */
 		helpTextPostfix?: string | MarkdownString;
+
+		welcomeMessageProvider?: ChatAgentWelcomeMessageProvider;
 	}
 }

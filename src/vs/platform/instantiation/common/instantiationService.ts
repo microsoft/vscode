@@ -293,7 +293,7 @@ export class InstantiationService implements IInstantiationService {
 									return idle.value[key](callback, thisArg, disposables);
 								} else {
 									const entry: EaryListenerData = { listener: [callback, thisArg, disposables], disposable: undefined };
-									const rm = list!.push(entry);
+									const rm = list.push(entry);
 									const result = toDisposable(() => {
 										rm();
 										entry.disposable?.dispose();

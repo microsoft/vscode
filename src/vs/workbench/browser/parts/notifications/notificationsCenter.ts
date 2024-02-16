@@ -28,7 +28,7 @@ import { INotificationService, NotificationsFilter } from 'vs/platform/notificat
 import { mainWindow } from 'vs/base/browser/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -59,7 +59,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
@@ -383,7 +383,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (!notification.hasProgress) {
 				notification.close();
 			}
-			this.audioCueService.playAudioCue(AudioCue.clear);
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		}
 	}
 }

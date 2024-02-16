@@ -15,7 +15,8 @@
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onLanguage:snippets"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",

@@ -586,7 +586,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			});
 
 			this.visible.set(true);
-			this.peek.value!.create();
+			this.peek.value.create();
 		}
 
 		if (subject instanceof MessageSubject) {
@@ -1068,11 +1068,11 @@ class TestResultsPeek extends PeekViewWidget {
 }
 
 export class TestResultsView extends ViewPane {
-	private readonly content = this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
+	private readonly content = new Lazy(() => this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
 		historyVisible: staticObservableValue(true),
 		showRevealLocationOnMessages: true,
 		locationForProgress: Testing.ExplorerViewId,
-	}));
+	})));
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1091,7 +1091,7 @@ export class TestResultsView extends ViewPane {
 	}
 
 	public get subject() {
-		return this.content.current;
+		return this.content.rawValue?.current;
 	}
 
 	public showLatestRun(preserveFocus = false) {
@@ -1100,27 +1100,34 @@ export class TestResultsView extends ViewPane {
 			return;
 		}
 
-		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
-	}
-
-	public showMessage(result: ITestResult, test: TestResultItem, taskIndex: number, messageIndex: number) {
-		this.content.reveal({ preserveFocus: false, subject: new MessageSubject(result, test, taskIndex, messageIndex) });
+		this.content.rawValue?.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.content.fillBody(container);
-		this.content.onDidRequestReveal(subject => this.content.reveal({ preserveFocus: true, subject }));
-
-		const [lastResult] = this.resultService.results;
-		if (lastResult && lastResult.tasks.length) {
-			this.content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
+		// Avoid rendering into the body until it's attached the DOM, as it can
+		// result in rendering issues in the terminal (#194156)
+		if (this.isBodyVisible()) {
+			this.renderContent(container);
+		} else {
+			this._register(Event.once(Event.filter(this.onDidChangeBodyVisibility, Boolean))(() => this.renderContent(container)));
 		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.content.onLayoutBody(height, width);
+		this.content.rawValue?.onLayoutBody(height, width);
+	}
+
+	private renderContent(container: HTMLElement) {
+		const content = this.content.value;
+		content.fillBody(container);
+		content.onDidRequestReveal(subject => content.reveal({ preserveFocus: true, subject }));
+
+		const [lastResult] = this.resultService.results;
+		if (lastResult && lastResult.tasks.length) {
+			content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
+		}
 	}
 }
 

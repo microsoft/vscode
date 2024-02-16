@@ -12,7 +12,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { dispose, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -47,6 +47,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
 
+
+
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -71,16 +73,31 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
+	private trackingSuspended = false;
+	suspendTracking(): IDisposable {
+		this.trackingSuspended = true;
+
+		return toDisposable(() => this.trackingSuspended = false);
+	}
+
 	private registerListeners(): void {
 
 		// Mouse back/forward support
 		this.registerMouseNavigationListener();
 
 		// Editor changes
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
+		this._register(this.editorService.onDidActiveEditorChange((e) => {
+			if (!this.trackingSuspended) {
+				this.onDidActiveEditorChange();
+			}
+		}));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
-		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
+		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => {
+			if (!this.trackingSuspended) {
+				this.handleEditorEventInRecentEditorsStack();
+			}
+		}));
 
 		// Editor group changes
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e)));
@@ -177,7 +194,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Listen to selection changes if the editor pane
 		// is having a selection concept.
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
+			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
+				if (!this.trackingSuspended) {
+					this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e);
+				}
+			}));
 		}
 
 		// Context keys
@@ -1692,6 +1713,7 @@ ${entryLabels.join('\n')}
 	}
 
 	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent | GroupIdentifier): void {
+		const previousStackSize = this.stack.length;
 
 		// Remove all stack entries that match `arg1`
 		this.stack = this.stack.filter(entry => {
@@ -1704,6 +1726,10 @@ ${entryLabels.join('\n')}
 
 			return !matches;
 		});
+
+		if (previousStackSize === this.stack.length) {
+			return; // nothing removed
+		}
 
 		// Given we just removed entries, we need to make sure
 		// to remove entries that are now identical and next
