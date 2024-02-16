@@ -256,7 +256,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			requestId: this._currentRequest!.id,
 			agentId: this._terminalAgentId,
 			message: this._lastInput,
-			// TODO: ?
 			variables: { variables: [] },
 		};
 		try {
@@ -265,7 +264,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._chatWidget?.rawValue?.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(true);
 			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo(localize('thinking', "Thinking\u2026"));
-			// TODO: this._zone.value.widget.updateInfo(!this._session.lastExchange ? localize('thinking', "Thinking\u2026") : '');
 			await task;
 		} catch (e) {
 

@@ -5,43 +5,41 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
-export class TerminalInlineChatAccessibilityHelpContribution extends Disposable {
-	static ID: 'terminalInlineChatAccessibilityHelpContribution';
+export class TerminalChatAccessibilityHelpContribution extends Disposable {
+	static ID = 'terminalChatAccessiblityHelp';
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(106, 'terminalInlineChat', accessor => {
-			const terminalService = accessor.get(ITerminalService);
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const controller: TerminalChatController | undefined = terminalService.activeInstance?.getContribution(TerminalChatController.ID) ?? undefined;
-			if (controller === undefined) {
-				return false;
-			}
-			const helpContent = getAccessibilityHelpText(accessor);
-			accessibleViewService.show({
-				id: AccessibleViewProviderId.TerminalInlineChat,
-				verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-				provideContent(): string { return helpContent; },
-				onClose() {
-					controller.focus();
-				},
-				options: { type: AccessibleViewType.Help }
-			});
-			return true;
-		}, ContextKeyExpr.or(TerminalChatContextKeys.focused, TerminalChatContextKeys.responseEditorFocused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
+		this._register(AccessibilityHelpAction.addImplementation(110, 'terminalChat', runAccessibilityHelpAction, TerminalChatContextKeys.focused));
 	}
 }
 
+export async function runAccessibilityHelpAction(accessor: ServicesAccessor): Promise<void> {
+	const accessibleViewService = accessor.get(IAccessibleViewService);
+	const terminalService = accessor.get(ITerminalService);
+
+	const instance = terminalService.activeInstance;
+	if (!instance) {
+		return;
+	}
+
+	const helpText = getAccessibilityHelpText(accessor);
+	accessibleViewService.show({
+		id: AccessibleViewProviderId.TerminalChat,
+		verbositySettingKey: AccessibilityVerbositySettingId.TerminalChat,
+		provideContent: () => helpText,
+		onClose: () => TerminalChatController.get(instance)?.focus(),
+		options: { type: AccessibleViewType.Help }
+	});
+}
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	const keybindingService = accessor.get(IKeybindingService);
