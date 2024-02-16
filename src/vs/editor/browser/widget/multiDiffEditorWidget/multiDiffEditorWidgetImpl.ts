@@ -191,7 +191,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	// todo@aiday-mar need to reveal the range instead of just the start line number
-	public reveal(revealData: IMultiDiffEditorOptionRevealData): void {
+	public reveal(revealData: { resource: IMultiDiffResource; range: Range }): void {
 		const resource = revealData.resource;
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
@@ -306,12 +306,10 @@ export interface IMultiDiffEditorOptions extends ITextEditorOptions {
 }
 
 export interface IMultiDiffEditorOptionsViewState {
-	revealData?: IMultiDiffEditorOptionRevealData;
-}
-
-export interface IMultiDiffEditorOptionRevealData {
-	resource: IMultiDiffResource;
-	range: Range;
+	revealData?: {
+		resource: IMultiDiffResource;
+		range: Range;
+	};
 }
 
 export type IMultiDiffResource = { original: URI } | { modified: URI };

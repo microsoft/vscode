@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
-import { IMultiDiffEditorOptionRevealData, IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, IMultiDiffResource, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
@@ -19,6 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
@@ -45,7 +46,7 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
-	public reveal(revealData: IMultiDiffEditorOptionRevealData): void {
+	public reveal(revealData: { resource: IMultiDiffResource; range: Range }): void {
 		this._widgetImpl.get().reveal(revealData);
 	}
 
