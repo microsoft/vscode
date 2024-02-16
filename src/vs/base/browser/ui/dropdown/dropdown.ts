@@ -8,6 +8,8 @@ import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent 
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
@@ -33,6 +35,8 @@ class BaseDropdown extends ActionRunner {
 	private visible: boolean | undefined;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
+	private hover: ICustomHover | undefined;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
@@ -101,7 +105,11 @@ class BaseDropdown extends ActionRunner {
 
 	set tooltip(tooltip: string) {
 		if (this._label) {
-			this._label.title = tooltip;
+			if (!this.hover) {
+				this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
+			} else {
+				this.hover.update(tooltip);
+			}
 		}
 	}
 

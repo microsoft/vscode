@@ -167,8 +167,8 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		}
 
 		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
-			actionViewItemProvider: action => {
-				return createActionViewItem(this.instantiationService, action);
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this.instantiationService, action, options);
 			},
 			renderDropdownAsChildElement: true
 		}));
@@ -275,8 +275,8 @@ function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement,
 	const instantiationService = accessor.get(IInstantiationService);
 	const toolbar = new ToolBar(container, contextMenuService, {
 		getKeyBinding: action => keybindingService.lookupKeybinding(action.id),
-		actionViewItemProvider: action => {
-			return createActionViewItem(instantiationService, action);
+		actionViewItemProvider: (action, options) => {
+			return createActionViewItem(instantiationService, action, options);
 		},
 		renderDropdownAsChildElement: true
 	});
