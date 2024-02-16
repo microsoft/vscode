@@ -806,6 +806,7 @@ suite('HistoryService', function () {
 
 		return workbenchTeardown(instantiationService);
 	});
+
 	test('suspend should suspend editor changes- skip two editors and continue (single group)', async () => {
 		const [part, historyService, editorService, , instantiationService] = await createServices();
 
@@ -820,12 +821,11 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 		await editorChangePromise;
 
-
 		const disposable = historyService.suspendTracking();
 
 		// wait on two editor changes before disposing
 		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange)
-			.then(() => { Event.toPromise(editorService.onDidActiveEditorChange); });
+			.then(() => Event.toPromise(editorService.onDidActiveEditorChange));
 
 		await part.activeGroup.openEditor(input2, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
@@ -856,7 +856,6 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
-
 	test('suspend should suspend editor changes- skip two editors and continue (multi group)', async () => {
 		const [part, historyService, editorService, , instantiationService] = await createServices();
 		const rootGroup = part.activeGroup;
@@ -875,7 +874,7 @@ suite('HistoryService', function () {
 
 		const disposable = historyService.suspendTracking();
 		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange)
-			.then(() => { Event.toPromise(editorService.onDidActiveEditorChange); });
+			.then(() => Event.toPromise(editorService.onDidActiveEditorChange));
 		await sideGroup.openEditor(input2, { pinned: true });
 		await rootGroup.openEditor(input3, { pinned: true });
 		await editorChangePromise;
@@ -918,7 +917,6 @@ suite('HistoryService', function () {
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
 		await part.activeGroup.openEditor(input1, { pinned: true });
 		await editorChangePromise;
-
 
 		let disposable = historyService.suspendTracking();
 		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
