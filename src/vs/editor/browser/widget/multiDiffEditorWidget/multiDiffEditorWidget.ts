@@ -46,8 +46,8 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
-	public reveal(revealData: { resource: IMultiDiffResource; range: Range }): void {
-		this._widgetImpl.get().reveal(revealData);
+	public reveal(resource: IMultiDiffResource, range: Range): void {
+		this._widgetImpl.get().reveal(resource, range);
 	}
 
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {

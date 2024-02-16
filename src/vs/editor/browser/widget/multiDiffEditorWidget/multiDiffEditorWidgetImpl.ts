@@ -191,8 +191,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 
 	// todo@aiday-mar need to reveal the range instead of just the start line number
-	public reveal(revealData: { resource: IMultiDiffResource; range: Range }): void {
-		const resource = revealData.resource;
+	public reveal(resource: IMultiDiffResource, range: Range): void {
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
 		if ('original' in resource) {
@@ -201,7 +200,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
 		}
 		const index = viewItems.findIndex(searchCallback);
-		let scrollTop = (revealData.range.startLineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
+		let scrollTop = (range.startLineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}

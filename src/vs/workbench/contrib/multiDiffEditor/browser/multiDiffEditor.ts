@@ -92,7 +92,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (!viewState || !viewState.revealData) {
 			return;
 		}
-		this._multiDiffEditorWidget?.reveal(viewState.revealData);
+		this._multiDiffEditorWidget?.reveal(viewState.revealData.resource, viewState.revealData.range);
 	}
 
 	override async clearInput(): Promise<void> {
