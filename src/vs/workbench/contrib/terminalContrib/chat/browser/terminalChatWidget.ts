@@ -47,8 +47,8 @@ export class TerminalChatWidget extends Disposable {
 	) {
 		super();
 
-		this._focusedContextKey = TerminalChatContextKeys.chatFocused.bindTo(this._contextKeyService);
-		this._visibleContextKey = TerminalChatContextKeys.chatVisible.bindTo(this._contextKeyService);
+		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(this._contextKeyService);
+		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
@@ -175,7 +175,7 @@ class TerminalChatResponseEditor extends Disposable {
 	) {
 		super();
 
-		this._responseEditorFocusedContextKey = TerminalChatContextKeys.chatResponseEditorFocused.bindTo(this._contextKeyService);
+		this._responseEditorFocusedContextKey = TerminalChatContextKeys.responseEditorFocused.bindTo(this._contextKeyService);
 
 		this._editorContainer = document.createElement('div');
 		this._editorContainer.classList.add('terminal-inline-chat-response');

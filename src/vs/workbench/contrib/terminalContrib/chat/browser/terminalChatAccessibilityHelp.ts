@@ -38,7 +38,7 @@ export class TerminalInlineChatAccessibilityHelpContribution extends Disposable 
 				options: { type: AccessibleViewType.Help }
 			});
 			return true;
-		}, ContextKeyExpr.or(TerminalChatContextKeys.chatFocused, TerminalChatContextKeys.chatResponseEditorFocused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
+		}, ContextKeyExpr.or(TerminalChatContextKeys.focused, TerminalChatContextKeys.responseEditorFocused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
 	}
 }
 

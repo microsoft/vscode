@@ -95,11 +95,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
 			return;
 		}
-		this._requestActiveContextKey = TerminalChatContextKeys.chatRequestActive.bindTo(this._contextKeyService);
-		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
-		this._responseTypeContextKey = TerminalChatContextKeys.chatResponseType.bindTo(this._contextKeyService);
-		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.chatResponseSupportsIssueReporting.bindTo(this._contextKeyService);
-		this._sessionResponseVoteContextKey = TerminalChatContextKeys.chatSessionResponseVote.bindTo(this._contextKeyService);
+		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
+		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
+		this._responseTypeContextKey = TerminalChatContextKeys.responseType.bindTo(this._contextKeyService);
+		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
+		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
 
 		if (!this._chatAgentService.hasAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {

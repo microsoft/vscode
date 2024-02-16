@@ -17,7 +17,7 @@ export class TerminalChatAccessibilityHelpContribution extends Disposable {
 	static ID = 'terminalChatAccessiblityHelp';
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(110, 'terminalChat', runAccessibilityHelpAction, TerminalChatContextKeys.chatFocused));
+		this._register(AccessibilityHelpAction.addImplementation(110, 'terminalChat', runAccessibilityHelpAction, TerminalChatContextKeys.focused));
 	}
 }
 

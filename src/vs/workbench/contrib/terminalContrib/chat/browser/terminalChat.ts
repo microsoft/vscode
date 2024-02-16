@@ -47,29 +47,29 @@ export const enum TerminalChatResponseTypes {
 export namespace TerminalChatContextKeys {
 
 	/** Whether the chat widget is focused */
-	export const chatFocused = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatFocus, false, localize('chatFocusedContextKey', "Whether the chat view is focused."));
+	export const focused = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatFocus, false, localize('chatFocusedContextKey', "Whether the chat view is focused."));
 
 	/** Whether the chat widget is visible */
-	export const chatVisible = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatVisible, false, localize('chatVisibleContextKey', "Whether the chat view is visible."));
+	export const visible = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatVisible, false, localize('chatVisibleContextKey', "Whether the chat view is visible."));
 
 	/** Whether there is an active chat request */
-	export const chatRequestActive = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatActiveRequest, false, localize('chatRequestActiveContextKey', "Whether there is an active chat request."));
+	export const requestActive = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatActiveRequest, false, localize('chatRequestActiveContextKey', "Whether there is an active chat request."));
 
 	/** Whether the chat input has text */
-	export const chatInputHasText = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatInputHasText, false, localize('chatInputHasTextContextKey', "Whether the chat input has text."));
+	export const inputHasText = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatInputHasText, false, localize('chatInputHasTextContextKey', "Whether the chat input has text."));
 
 	/** Whether the terminal chat agent has been registered */
-	export const chatAgentRegistered = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether the terminal chat agent has been registered."));
+	export const agentRegistered = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether the terminal chat agent has been registered."));
 
 	/** Whether the chat response editor is focused */
-	export const chatResponseEditorFocused = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseEditorFocused, false, localize('chatResponseEditorFocusedContextKey', "Whether the chat response editor is focused."));
+	export const responseEditorFocused = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseEditorFocused, false, localize('chatResponseEditorFocusedContextKey', "Whether the chat response editor is focused."));
 
 	/** The type of chat response, if any */
-	export const chatResponseType = new RawContextKey<TerminalChatResponseTypes | undefined>(TerminalChatContextKeyStrings.ChatResponseType, undefined, localize('chatResponseTypeContextKey', "The type of chat response, if any"));
+	export const responseType = new RawContextKey<TerminalChatResponseTypes | undefined>(TerminalChatContextKeyStrings.ChatResponseType, undefined, localize('chatResponseTypeContextKey', "The type of chat response, if any"));
 
 	/** Whether the response supports issue reporting */
-	export const chatResponseSupportsIssueReporting = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));
+	export const responseSupportsIssueReporting = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));
 
 	/** The chat vote, if any for the response, if any */
-	export const chatSessionResponseVote = new RawContextKey<string>(TerminalChatContextKeyStrings.ChatSessionResponseVote, undefined, { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
+	export const sessionResponseVote = new RawContextKey<string>(TerminalChatContextKeyStrings.ChatSessionResponseVote, undefined, { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
 }

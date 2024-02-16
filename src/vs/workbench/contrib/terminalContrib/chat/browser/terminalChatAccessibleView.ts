@@ -35,6 +35,6 @@ export class TerminalInlineChatAccessibleViewContribution extends Disposable {
 				options: { type: AccessibleViewType.View }
 			});
 			return true;
-		}, ContextKeyExpr.and(TerminalChatContextKeys.chatFocused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
+		}, ContextKeyExpr.and(TerminalChatContextKeys.focused, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
 	}
 }
