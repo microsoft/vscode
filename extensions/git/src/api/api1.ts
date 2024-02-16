@@ -257,7 +257,7 @@ export class ApiRepository implements Repository {
 	}
 
 	commit(message: string, opts?: CommitOptions): Promise<void> {
-		return this.repository.commit(message, opts);
+		return this.repository.commit(message, { ...opts, postCommitCommand: null });
 	}
 
 	merge(ref: string): Promise<void> {
