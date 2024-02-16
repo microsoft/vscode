@@ -15,7 +15,6 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -34,10 +33,32 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import 'vs/css!./accessibleDiffViewer';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 
 const accessibleDiffViewerInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('accessibleDiffViewerInsertIcon', 'Icon for \'Insert\' in accessible diff viewer.'));
 const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('accessibleDiffViewerRemoveIcon', 'Icon for \'Remove\' in accessible diff viewer.'));
 const accessibleDiffViewerCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('accessibleDiffViewerCloseIcon', 'Icon for \'Close\' in accessible diff viewer.'));
+
+export interface IAccessibleDiffViewerModel {
+	getOriginalModel(): ITextModel;
+	getOriginalOptions(): IComputedEditorOptions;
+
+	/**
+	 * Should do: `setSelection`, `revealLine` and `focus`
+	 */
+	originalReveal(range: Range): void;
+
+	getModifiedModel(): ITextModel;
+	getModifiedOptions(): IComputedEditorOptions;
+	/**
+	 * Should do: `setSelection`, `revealLine` and `focus`
+	 */
+	modifiedReveal(range?: Range): void;
+	modifiedSetSelection(range: Range): void;
+	modifiedFocus(): void;
+
+	getModifiedPosition(): Position | undefined;
+}
 
 export class AccessibleDiffViewer extends Disposable {
 	public static _ttPolicy = createTrustedTypesPolicy('diffReview', { createHTML: value => value });
@@ -50,7 +71,7 @@ export class AccessibleDiffViewer extends Disposable {
 		private readonly _width: IObservable<number>,
 		private readonly _height: IObservable<number>,
 		private readonly _diffs: IObservable<DetailedLineRangeMapping[] | undefined>,
-		private readonly _editors: DiffEditorEditors,
+		private readonly _models: IAccessibleDiffViewerModel,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -62,8 +83,8 @@ export class AccessibleDiffViewer extends Disposable {
 		if (!visible) {
 			return null;
 		}
-		const model = store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._editors, this._setVisible, this._canClose));
-		const view = store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._editors));
+		const model = store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._models, this._setVisible, this._canClose));
+		const view = store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._models));
 		return { model, view, };
 	}).recomputeInitiallyAndOnChange(this._store);
 
@@ -106,7 +127,7 @@ class ViewModel extends Disposable {
 
 	constructor(
 		private readonly _diffs: IObservable<DetailedLineRangeMapping[] | undefined>,
-		private readonly _editors: DiffEditorEditors,
+		private readonly _models: IAccessibleDiffViewerModel,
 		private readonly _setVisible: (visible: boolean, tx: ITransaction | undefined) => void,
 		public readonly canClose: IObservable<boolean>,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
@@ -123,12 +144,12 @@ class ViewModel extends Disposable {
 
 			const groups = computeViewElementGroups(
 				diffs,
-				this._editors.original.getModel()!.getLineCount(),
-				this._editors.modified.getModel()!.getLineCount()
+				this._models.getOriginalModel().getLineCount(),
+				this._models.getModifiedModel().getLineCount()
 			);
 
 			transaction(tx => {
-				const p = this._editors.modified.getPosition();
+				const p = this._models.getModifiedPosition();
 				if (p) {
 					const nextGroup = groups.findIndex(g => p?.lineNumber < g.range.modified.endLineNumberExclusive);
 					if (nextGroup !== -1) {
@@ -155,7 +176,7 @@ class ViewModel extends Disposable {
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem && currentViewItem.type !== LineType.Header) {
 				const lineNumber = currentViewItem.modifiedLineNumber ?? currentViewItem.diff.modified.startLineNumber;
-				this._editors.modified.setSelection(Range.fromPositions(new Position(lineNumber, 1)));
+				this._models.modifiedSetSelection(Range.fromPositions(new Position(lineNumber, 1)));
 			}
 		}));
 	}
@@ -194,27 +215,27 @@ class ViewModel extends Disposable {
 	}
 
 	revealCurrentElementInEditor(): void {
+		if (!this.canClose.get()) { return; }
 		this._setVisible(false, undefined);
 
 		const curElem = this.currentElement.get();
 		if (curElem) {
 			if (curElem.type === LineType.Deleted) {
-				this._editors.original.setSelection(Range.fromPositions(new Position(curElem.originalLineNumber, 1)));
-				this._editors.original.revealLine(curElem.originalLineNumber);
-				this._editors.original.focus();
+				this._models.originalReveal(Range.fromPositions(new Position(curElem.originalLineNumber, 1)));
 			} else {
-				if (curElem.type !== LineType.Header) {
-					this._editors.modified.setSelection(Range.fromPositions(new Position(curElem.modifiedLineNumber, 1)));
-					this._editors.modified.revealLine(curElem.modifiedLineNumber);
-				}
-				this._editors.modified.focus();
+				this._models.modifiedReveal(
+					curElem.type !== LineType.Header
+						? Range.fromPositions(new Position(curElem.modifiedLineNumber, 1))
+						: undefined
+				);
 			}
 		}
 	}
 
 	close(): void {
+		if (!this.canClose.get()) { return; }
 		this._setVisible(false, undefined);
-		this._editors.modified.focus();
+		this._models.modifiedFocus();
 	}
 }
 
@@ -327,7 +348,7 @@ class View extends Disposable {
 		private readonly _model: ViewModel,
 		private readonly _width: IObservable<number>,
 		private readonly _height: IObservable<number>,
-		private readonly _editors: DiffEditorEditors,
+		private readonly _models: IAccessibleDiffViewerModel,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -412,8 +433,8 @@ class View extends Disposable {
 	}
 
 	private _render(store: DisposableStore): void {
-		const originalOptions = this._editors.original.getOptions();
-		const modifiedOptions = this._editors.modified.getOptions();
+		const originalOptions = this._models.getOriginalOptions();
+		const modifiedOptions = this._models.getModifiedOptions();
 
 		const container = document.createElement('div');
 		container.className = 'diff-review-table';
@@ -423,8 +444,8 @@ class View extends Disposable {
 
 		reset(this._content, container);
 
-		const originalModel = this._editors.original.getModel();
-		const modifiedModel = this._editors.modified.getModel();
+		const originalModel = this._models.getOriginalModel();
+		const modifiedModel = this._models.getModifiedModel();
 		if (!originalModel || !modifiedModel) {
 			return;
 		}
@@ -657,5 +678,51 @@ class View extends Disposable {
 		));
 
 		return r.html;
+	}
+}
+
+export class AccessibleDiffViewerModelFromEditors implements IAccessibleDiffViewerModel {
+	constructor(private readonly editors: DiffEditorEditors) { }
+
+	getOriginalModel(): ITextModel {
+		return this.editors.original.getModel()!;
+	}
+
+	getOriginalOptions(): IComputedEditorOptions {
+		return this.editors.original.getOptions();
+	}
+
+	originalReveal(range: Range): void {
+		this.editors.original.revealRange(range);
+		this.editors.original.setSelection(range);
+		this.editors.original.focus();
+	}
+
+	getModifiedModel(): ITextModel {
+		return this.editors.modified.getModel()!;
+	}
+
+	getModifiedOptions(): IComputedEditorOptions {
+		return this.editors.modified.getOptions();
+	}
+
+	modifiedReveal(range?: Range | undefined): void {
+		if (range) {
+			this.editors.modified.revealRange(range);
+			this.editors.modified.setSelection(range);
+		}
+		this.editors.modified.focus();
+	}
+
+	modifiedSetSelection(range: Range): void {
+		this.editors.modified.setSelection(range);
+	}
+
+	modifiedFocus(): void {
+		this.editors.modified.focus();
+	}
+
+	getModifiedPosition(): Position | undefined {
+		return this.editors.modified.getPosition() ?? undefined;
 	}
 }
