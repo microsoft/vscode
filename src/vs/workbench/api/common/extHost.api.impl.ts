@@ -11,7 +11,7 @@ import { Schemas, matchesScheme } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { score } from 'vs/editor/common/languageSelector';
+import { score, targetsNotebooks } from 'vs/editor/common/languageSelector';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -533,8 +533,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				const notebook = extHostDocuments.getDocumentData(document.uri)?.notebook;
-				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true, notebook?.uri, notebook?.notebookType);
+				const interalSelector = typeConverters.LanguageSelector.from(selector);
+				let notebook: vscode.NotebookDocument | undefined;
+				if (targetsNotebooks(interalSelector)) {
+					notebook = extHostNotebook.notebookDocuments.find(value => Boolean(value.getCell(document.uri)))?.apiNotebook;
+				}
+				return score(interalSelector, document.uri, document.languageId, true, notebook?.uri, notebook?.notebookType);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeActionProvider(extension, checkSelector(selector), provider, metadata);
