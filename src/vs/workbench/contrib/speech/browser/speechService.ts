@@ -125,7 +125,10 @@ export class SpeechService extends Disposable implements ISpeechService {
 		const result = new DeferredPromise<KeywordRecognitionStatus>();
 
 		const disposables = new DisposableStore();
-		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+		disposables.add(token.onCancellationRequested(() => {
+			disposables.dispose();
+			result.complete(KeywordRecognitionStatus.Canceled);
+		}));
 
 		const recognizeKeywordDisposables = disposables.add(new DisposableStore());
 		let activeRecognizeKeywordSession: Promise<void> | undefined = undefined;

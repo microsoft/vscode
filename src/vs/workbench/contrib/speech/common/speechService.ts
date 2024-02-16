@@ -39,7 +39,8 @@ export interface ISpeechToTextSession extends IDisposable {
 
 export enum KeywordRecognitionStatus {
 	Recognized = 1,
-	Stopped = 2
+	Stopped = 2,
+	Canceled = 3
 }
 
 export interface IKeywordRecognitionEvent {
