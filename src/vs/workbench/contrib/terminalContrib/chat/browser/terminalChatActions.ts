@@ -228,7 +228,6 @@ registerActiveXtermAction({
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatResponseType.notEqualsTo(undefined)
 	),
-	// TODO: toggled: CTX_INLINE_CHAT_LAST_FEEDBACK.isEqualTo('helpful'),
 	icon: Codicon.thumbsup,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
@@ -252,7 +251,6 @@ registerActiveXtermAction({
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalContextKeys.chatResponseType.notEqualsTo(undefined),
 	),
-	// TODO: toggled: CTX_INLINE_CHAT_LAST_FEEDBACK.isEqualTo('unhelpful'),
 	icon: Codicon.thumbsdown,
 	menu: {
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
@@ -274,27 +272,29 @@ registerActiveXtermAction({
 	title: localize2('reportIssue', 'Report Issue'),
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalContextKeys.chatRequestActive,
+		TerminalContextKeys.chatRequestActive.negate(),
+		TerminalContextKeys.chatResponseType.notEqualsTo(undefined),
+		TerminalContextKeys.chatResponseSupportsIssueReporting
 	),
-	// TODO: precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
 	icon: Codicon.report,
-	menu: [/*{
-		// TODO: Enable this
+	menu: [{
 		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		when: ContextKeyExpr.and(CTX_TERMINAL_CHAT_SUPPORT_ISSUE_REPORTING, CTX_TERMINAL_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
-		group: '2_feedback',
+		when: ContextKeyExpr.and(TerminalContextKeys.chatResponseType.notEqualsTo(undefined), TerminalContextKeys.chatResponseSupportsIssueReporting),
+		group: 'inline',
 		order: 3
-	}, */{
-			id: MENU_TERMINAL_CHAT_WIDGET,
-			group: 'config',
-			order: 3
-		}],
+	}],
+	//  {
+	// 	id: MENU_TERMINAL_CHAT_WIDGET,
+	// 	when: ContextKeyExpr.and(TerminalContextKeys.chatResponseType.notEqualsTo(undefined), TerminalContextKeys.chatResponseSupportsIssueReporting),
+	// 	group: 'config',
+	// 	order: 3
+	// }],
 	run: (_xterm, _accessor, activeInstance) => {
-		// if (isDetachedTerminalInstance(activeInstance)) {
-		// 	return;
-		// }
-		// const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		// contr?.acceptFeedback(true);
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.acceptFeedback();
 	}
 });
 

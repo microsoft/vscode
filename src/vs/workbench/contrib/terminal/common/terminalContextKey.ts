@@ -46,6 +46,7 @@ export const enum TerminalContextKeyStrings {
 	ChatAgentRegistered = 'terminalChatAgentRegistered',
 	ChatResponseEditorFocused = 'terminalChatResponseEditorFocused',
 	ChatResponseType = 'terminalChatResponseType',
+	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting'
 }
 
 export const enum TerminalChatResponseTypes {
@@ -192,4 +193,7 @@ export namespace TerminalContextKeys {
 
 	/** The type of chat response, if any */
 	export const chatResponseType = new RawContextKey<TerminalChatResponseTypes | undefined>(TerminalContextKeyStrings.ChatResponseType, undefined, localize('chatResponseTypeContextKey', "The type of chat response, if any"));
+
+	/** Whether the response supports issue reporting */
+	export const chatResponseSupportsIssueReporting = new RawContextKey<boolean>(TerminalContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));
 }

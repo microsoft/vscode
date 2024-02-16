@@ -17,7 +17,7 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatAgentService, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService, IChatProgress, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, IChatProgress, InteractiveSessionVoteDirection, ChatUserAction } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -55,6 +55,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _requestActiveContextKey!: IContextKey<boolean>;
 	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
 	private readonly _responseTypeContextKey!: IContextKey<TerminalChatResponseTypes | undefined>;
+	private readonly __responseSupportsIssueReportingContextKey!: IContextKey<boolean>;
+
 	private _requestId: number = 0;
 
 	private _messages = this._store.add(new Emitter<Message>());
@@ -96,6 +98,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey = TerminalContextKeys.chatRequestActive.bindTo(this._contextKeyService);
 		this._terminalAgentRegisteredContextKey = TerminalContextKeys.chatAgentRegistered.bindTo(this._contextKeyService);
 		this._responseTypeContextKey = TerminalContextKeys.chatResponseType.bindTo(this._contextKeyService);
+		this.__responseSupportsIssueReportingContextKey = TerminalContextKeys.chatResponseSupportsIssueReporting.bindTo(this._contextKeyService);
 
 		if (!this._chatAgentService.hasAgent(this._terminalAgentId)) {
 			this._register(this._chatAgentService.onDidChangeAgents(() => {
@@ -133,10 +136,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		});
 	}
 
-	acceptFeedback(helpful: boolean): void {
+	acceptFeedback(helpful?: boolean): void {
 		const providerId = this._chatService.getProviderInfos()?.[0]?.id;
 		if (!providerId || !this._currentRequest || !this._model) {
 			return;
+		}
+		let action: ChatUserAction;
+		if (helpful === undefined) {
+			action = { kind: 'bug' };
+		} else {
+			action = { kind: 'vote', direction: helpful ? InteractiveSessionVoteDirection.Up : InteractiveSessionVoteDirection.Down };
 		}
 		// TODO:extract into helper method
 		for (const request of this._model.getRequests()) {
@@ -147,10 +156,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					requestId: request.id,
 					agentId: request.response?.agent?.id,
 					result: request.response?.result,
-					action: {
-						kind: 'vote',
-						direction: helpful ? InteractiveSessionVoteDirection.Up : InteractiveSessionVoteDirection.Down
-					},
+					action
 				});
 			}
 		}
@@ -267,8 +273,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (this._currentRequest) {
 				this._model?.completeResponse(this._currentRequest);
 			}
+			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
+			if (supportIssueReporting !== undefined) {
+				this.__responseSupportsIssueReportingContextKey.set(supportIssueReporting);
+			}
+			this._lastResponseContent = responseContent;
 		}
-		this._lastResponseContent = responseContent;
 		const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
 		const regex = /```(?<language>\w+)\n(?<content>[\s\S]*?)```/g;
 		const match = regex.exec(firstCodeBlockContent);
