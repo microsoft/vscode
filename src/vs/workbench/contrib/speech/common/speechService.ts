@@ -3,15 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-import-patterns */
+/* eslint-disable local/code-layering */
+
 import { localize } from 'vs/nls';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { DeferredPromise } from 'vs/base/common/async';
 
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
@@ -113,7 +118,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 	}
@@ -203,6 +209,46 @@ export class SpeechService extends Disposable implements ISpeechService {
 	get hasActiveKeywordRecognition() { return !!this._activeKeywordRecognitionSession; }
 
 	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
+		const result = new DeferredPromise<KeywordRecognitionStatus>();
+
+		const disposables = new DisposableStore();
+		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+
+		const recognizeKeywordDisposables = disposables.add(new DisposableStore());
+		let activeRecognizeKeywordSession: Promise<void> | undefined = undefined;
+		const recognizeKeyword = () => {
+			recognizeKeywordDisposables.clear();
+
+			const cts = new CancellationTokenSource(token);
+			recognizeKeywordDisposables.add(toDisposable(() => cts.dispose(true)));
+			const currentRecognizeKeywordSession = activeRecognizeKeywordSession = this.doRecognizeKeyword(cts.token).then(status => {
+				if (currentRecognizeKeywordSession === activeRecognizeKeywordSession) {
+					result.complete(status);
+				}
+			}, error => {
+				if (currentRecognizeKeywordSession === activeRecognizeKeywordSession) {
+					result.error(error);
+				}
+			});
+		};
+
+		disposables.add(this.hostService.onDidChangeFocus(focused => {
+			if (!focused && activeRecognizeKeywordSession) {
+				recognizeKeywordDisposables.clear();
+				activeRecognizeKeywordSession = undefined;
+			} else if (!activeRecognizeKeywordSession) {
+				recognizeKeyword();
+			}
+		}));
+
+		if (this.hostService.hasFocus) {
+			recognizeKeyword();
+		}
+
+		return result.p;
+	}
+
+	private async doRecognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
 			throw new Error(`No Speech provider is registered.`);
