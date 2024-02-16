@@ -7,8 +7,8 @@ import { createServer, createConnection } from '@volar/language-server/node';
 import { create as createCssServicePlugin } from 'volar-service-css';
 import { create as createHtmlServicePlugin } from 'volar-service-html';
 import { create as createTypeScriptServicePlugin } from 'volar-service-typescript';
-import { htmlLanguagePlugin } from '../languagePlugin';
-import { serverProjectProviderFactory } from '../projectProvider';
+import { htmlLanguagePlugin } from '../modes/languagePlugin';
+import { serverProjectProviderFactory } from '../modes/projectProvider';
 
 const connection = createConnection();
 const server = createServer(connection);

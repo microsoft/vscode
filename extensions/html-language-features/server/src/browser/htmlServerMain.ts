@@ -6,7 +6,7 @@
 import { createServer, createConnection, createSimpleProjectProvider } from '@volar/language-server/node';
 import { create as createCssServicePlugin } from 'volar-service-css';
 import { create as createHtmlServicePlugin } from 'volar-service-html';
-import { htmlLanguagePlugin } from '../languagePlugin';
+import { htmlLanguagePlugin } from '../modes/languagePlugin';
 
 const connection = createConnection();
 const server = createServer(connection);

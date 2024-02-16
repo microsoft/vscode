@@ -2,7 +2,7 @@ import type { ExtraServiceScript, LanguagePlugin, VirtualCode } from '@volar/lan
 import { forEachEmbeddedCode } from '@volar/language-core';
 import type * as ts from 'typescript';
 import { getLanguageService } from 'vscode-html-languageservice';
-import { getDocumentRegions } from './modes/embeddedSupport';
+import { getDocumentRegions } from './embeddedSupport';
 
 const htmlLanguageService = getLanguageService();
 
