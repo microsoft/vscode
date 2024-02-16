@@ -42,7 +42,7 @@ interface IHoverSettings {
 	readonly enabled: boolean;
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
-	readonly showExtendedInformation: boolean;
+	readonly showExtendedHover: boolean;
 }
 
 interface IHoverState {
@@ -50,7 +50,7 @@ interface IHoverState {
 	// TODO @aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
 	activatedByDecoratorClick: boolean;
-	overrideShowExtendedInformation: boolean | undefined;
+	overrideShowExtendedHover: boolean | undefined;
 }
 
 export class HoverController extends Disposable implements IEditorContribution {
@@ -70,7 +70,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		mouseDown: false,
 		contentHoverFocused: false,
 		activatedByDecoratorClick: false,
-		overrideShowExtendedInformation: undefined
+		overrideShowExtendedHover: undefined
 	};
 
 	constructor(
@@ -106,7 +106,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
 			hidingDelay: hoverOpts.delay,
-			showExtendedInformation: hoverOpts.showExtendedInformation
+			showExtendedHover: hoverOpts.showExtendedHover
 		};
 
 		if (hoverOpts.enabled) {
@@ -292,6 +292,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 
 		const contentWidget = this._getOrCreateContentWidget();
+
 		if (contentWidget.showsOrWillShow(mouseEvent, this.isHoverExtended)) {
 			this._glyphWidget?.hide();
 			return;
@@ -364,7 +365,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 		this._hoverState.activatedByDecoratorClick = false;
 		this._hoverState.contentHoverFocused = false;
-		this._hoverState.overrideShowExtendedInformation = undefined;
+		this._hoverState.overrideShowExtendedHover = undefined;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}
@@ -395,7 +396,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		activatedByColorDecoratorClick: boolean = false,
 		extended: boolean = false
 	): void {
-		this._hoverState.overrideShowExtendedInformation = extended;
+		this._hoverState.overrideShowExtendedHover = extended;
 		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, source, { focus, mode, extended });
 	}
@@ -448,8 +449,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.isVisible;
 	}
 
-	public get isHoverExtended(): boolean | undefined {
-		return this._hoverState.overrideShowExtendedInformation !== undefined ? this._hoverState.overrideShowExtendedInformation : this._hoverSettings.showExtendedInformation;
+	public get isHoverExtended(): boolean {
+		return this._hoverState.overrideShowExtendedHover !== undefined ?
+			this._hoverState.overrideShowExtendedHover : this._hoverSettings.showExtendedHover;
 	}
 
 	public override dispose(): void {
@@ -512,7 +514,6 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		console.log('show normal hover');
 		showOrFocusHover(editor, args, false);
 	}
 }
@@ -541,13 +542,11 @@ class ShowOrFocusExtendedHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		console.log('show extended hover');
 		showOrFocusHover(editor, args, true);
 	}
 }
 
 function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
-	console.log('inside of showOrFocusHover with extended: ', extended);
 	if (!editor.hasModel()) {
 		return;
 	}
@@ -566,7 +565,6 @@ function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
 	}
 
 	const showContentHover = (focus: boolean) => {
-		console.log('before showing the hover');
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus, false, extended);
@@ -574,10 +572,8 @@ function showOrFocusHover(editor: ICodeEditor, args: any, extended: boolean) {
 
 	const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
-	console.log('controller.isHoverVisible : ', controller.isHoverVisible);
 	if (controller.isHoverVisible) {
 		if (focusOption !== HoverFocusBehavior.NoAutoFocus && controller.isHoverExtended === extended) {
-			console.log('before focusing the hover');
 			controller.focus();
 		} else {
 			showContentHover(accessibilitySupportEnabled);

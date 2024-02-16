@@ -313,7 +313,7 @@ export class ContentHoverController extends Disposable {
 	/**
 	 * Returns true if the hover shows now or will show.
 	 */
-	public showsOrWillShow(mouseEvent: IEditorMouseEvent, showExtendedHover?: boolean): boolean {
+	public showsOrWillShow(mouseEvent: IEditorMouseEvent, showExtendedHover: boolean): boolean {
 
 		if (this._widget.isResizing) {
 			return true;
@@ -348,11 +348,11 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (anchorCandidates.length === 0) {
-			return this._startShowingOrUpdateHover(null, HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, focus: false, extended: showExtendedHover ?? false });
+			return this._startShowingOrUpdateHover(null, HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, extended: showExtendedHover, focus: false });
 		}
 
 		anchorCandidates.sort((a, b) => b.priority - a.priority);
-		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, extended: showExtendedHover ?? false, focus: false });
+		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, extended: showExtendedHover, focus: false });
 	}
 
 	public startShowingAtRange(range: Range, source: HoverStartSource, opts: IShowHoverOptions): void {
@@ -1023,9 +1023,9 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	public get insistOnKeepingHoverVisible(): boolean { return this._insistOnKeepingHoverVisible; }
 	public set insistOnKeepingHoverVisible(value: boolean) { this._insistOnKeepingHoverVisible = value; }
 
-	private _showExtendedHover: boolean | undefined = undefined;
-	public get showExtendedHover(): boolean | undefined { return this._showExtendedHover; }
-	public set showExtendedHover(value: boolean | undefined) { this._showExtendedHover = value; }
+	private _showExtendedHover: boolean = false;
+	public get showExtendedHover(): boolean { return this._showExtendedHover; }
+	public set showExtendedHover(value: boolean) { this._showExtendedHover = value; }
 
 	constructor(
 		private readonly _editor: ICodeEditor,

@@ -4052,9 +4052,9 @@ declare namespace monaco.editor {
 		 */
 		above?: boolean;
 		/**
-		 * Whether to show the extended hover information
+		 * Whether to show the extended hover information by default
 		 */
-		showExtendedInformation?: boolean;
+		showExtendedHover?: boolean;
 	}
 
 	/**

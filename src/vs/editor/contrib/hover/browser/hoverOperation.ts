@@ -15,11 +15,11 @@ export interface IHoverComputer<T> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (token: CancellationToken, extended?: boolean) => AsyncIterableObject<T>;
+	computeAsync?: (token: CancellationToken) => AsyncIterableObject<T>;
 	/**
 	 * This is called after all the hover time
 	 */
-	computeSync?: (extended?: boolean) => T[];
+	computeSync?: () => T[];
 }
 
 const enum HoverOperationState {
@@ -63,8 +63,8 @@ export class HoverOperation<T> extends Disposable {
 	private readonly _onResult = this._register(new Emitter<HoverResult<T>>());
 	public readonly onResult = this._onResult.event;
 
-	private _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
-	private _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
+	private readonly _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
+	private readonly _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
 	private readonly _loadingMessageScheduler = this._register(new RunOnceScheduler(() => this._triggerLoadingMessage(), 0));
 
 	private _state = HoverOperationState.Idle;
@@ -85,16 +85,6 @@ export class HoverOperation<T> extends Disposable {
 			this._asyncIterable = null;
 		}
 		super.dispose();
-	}
-
-	private _sheduleFirstWaitScheduler(extended?: boolean) {
-		this._firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
-		this._firstWaitScheduler.schedule(this._firstWaitTime);
-	}
-
-	private _sheduleSecondWaitScheduler(extended?: boolean) {
-		this._secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
-		this._secondWaitScheduler.schedule(this._secondWaitTime);
 	}
 
 	private get _hoverTime(): number {
@@ -120,13 +110,13 @@ export class HoverOperation<T> extends Disposable {
 		}
 	}
 
-	private _triggerAsyncComputation(extended: boolean = false): void {
+	private _triggerAsyncComputation(): void {
 		this._setState(HoverOperationState.SecondWait);
-		this._sheduleSecondWaitScheduler(extended);
+		this._secondWaitScheduler.schedule(this._secondWaitTime);
 
 		if (this._computer.computeAsync) {
 			this._asyncIterableDone = false;
-			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token, extended));
+			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token));
 
 			(async () => {
 				try {
@@ -179,18 +169,18 @@ export class HoverOperation<T> extends Disposable {
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === HoverOperationState.Idle) {
 				this._setState(HoverOperationState.FirstWait);
-				this._sheduleFirstWaitScheduler();
+				this._firstWaitScheduler.schedule(this._firstWaitTime);
 				this._loadingMessageScheduler.schedule(this._loadingMessageTime);
 			}
 		} else {
 			switch (this._state) {
 				case HoverOperationState.Idle:
 					this._triggerAsyncComputation();
-					this._sheduleSecondWaitScheduler();
+					this._secondWaitScheduler.cancel();
 					this._triggerSyncComputation();
 					break;
 				case HoverOperationState.SecondWait:
-					this._sheduleSecondWaitScheduler();
+					this._secondWaitScheduler.cancel();
 					this._triggerSyncComputation();
 					break;
 			}
