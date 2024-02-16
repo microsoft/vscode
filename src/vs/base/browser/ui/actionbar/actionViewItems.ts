@@ -226,7 +226,6 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		const title = this.getTooltip() ?? '';
 		this.updateAriaLabel();
 
-		this.element.title = '';
 		if (!this.customHover) {
 			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
 			this.customHover = setupCustomHover(hoverDelegate, this.element, title);
