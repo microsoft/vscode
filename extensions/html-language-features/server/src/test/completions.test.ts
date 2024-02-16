@@ -6,8 +6,9 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, TextEdit, DiagnosticModel } from '@volar/language-server';
+import { WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, TextEdit, DiagnosticModel, ClientCapabilities } from '@volar/language-server';
 import { startLanguageServer } from '@volar/test-utils';
+
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
@@ -44,7 +45,8 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 }
 
 const testUri = 'test://test/test.html';
-const testServers = new Map<string, ReturnType<typeof startLanguageServer>>();
+
+export const testServers = new Map<string, ReturnType<typeof startLanguageServer>>();
 
 export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri = testUri, workspaceFolder?: WorkspaceFolder): Promise<void> {
 	const offset = value.indexOf('|');
@@ -53,11 +55,8 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 	const document = TextDocument.create(uri, 'html', 0, value);
 	const position = document.positionAt(offset);
 	const server = await getTestServer(workspaceFolder?.uri || uri.substr(0, uri.lastIndexOf('/')));
-
 	await server.openInMemoryDocument(uri, 'html', value);
-
 	const list = await server.sendCompletionRequest(uri, position);
-
 	assert(!!list);
 
 	if (expected.count) {
@@ -70,16 +69,24 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 	}
 }
 
-async function getTestServer(rootUri: string) {
+export async function getTestServer(rootUri: string, capabilities?: ClientCapabilities) {
 	let server = testServers.get(rootUri);
+	let needInit = false;
 	if (!server) {
 		server = startLanguageServer(require.resolve('../node/htmlServerMain'));
 		testServers.set(rootUri, server);
+		needInit = true;
+	}
+	else if (capabilities) {
+		await server.shutdown();
+		needInit = true;
+	}
+	if (needInit) {
 		await server.initialize(rootUri, {
 			typescript: { tsdk: path.dirname(require.resolve('typescript')) },
 			diagnosticModel: DiagnosticModel.Pull,
 			fullCompletionList: true,
-		});
+		}, capabilities);
 	}
 	return server;
 }

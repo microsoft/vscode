@@ -1,5 +1,4 @@
 import { ServerProject, ServerProjectProviderFactory } from '@volar/language-server';
-import { getInferredCompilerOptions } from '@volar/language-server/lib/project/inferredCompilerOptions';
 import { ServerContext, ServerOptions } from '@volar/language-server/lib/server';
 import { createServiceEnvironment, getWorkspaceFolder } from '@volar/language-server/node';
 import { LanguageService, ServiceEnvironment, ServicePlugin, TypeScriptProjectHost, createLanguageService, resolveCommonLanguageId } from '@volar/language-service';
@@ -38,19 +37,17 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 	async function getOrCreateProject(workspaceFolder: URI) {
 		if (!inferredProject) {
 			inferredProject = (async () => {
-				const inferOptions = await getInferredCompilerOptions(context.configurationHost);
 				const serviceEnv = createServiceEnvironment(context, workspaceFolder);
-				return createProject(inferOptions, context, serviceEnv, serverOptions, servicePlugins);
+				return createProject(context, serviceEnv, serverOptions.getLanguagePlugins, servicePlugins);
 			})();
 		}
 		return await inferredProject;
 	}
 
 	async function createProject(
-		tsconfig: string | ts.CompilerOptions,
 		context: ServerContext,
 		serviceEnv: ServiceEnvironment,
-		serverOptions: ServerOptions,
+		getLanguagePlugins: ServerOptions['getLanguagePlugins'],
 		servicePlugins: ServicePlugin[],
 	): Promise<ServerProject> {
 
@@ -89,9 +86,9 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 			getLocalizedDiagnosticMessages: context.tsLocalized ? () => context.tsLocalized : undefined,
 			getLanguageId: uri => context.documents.get(uri)?.languageId ?? resolveCommonLanguageId(uri),
 		};
-		const languagePlugins = await serverOptions.getLanguagePlugins(serviceEnv, {
+		const languagePlugins = await getLanguagePlugins(serviceEnv, {
 			typescript: {
-				configFileName: typeof tsconfig === 'string' ? tsconfig : undefined,
+				configFileName: undefined,
 				host,
 				sys,
 			},
@@ -110,7 +107,7 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 					ts,
 					sys,
 					languagePlugins,
-					typeof tsconfig === 'string' ? tsconfig : undefined,
+					undefined,
 					host,
 					{
 						fileNameToFileId: serviceEnv.typescript!.fileNameToUri,
