@@ -41,7 +41,7 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalChatCommandId.Hide,
+	id: TerminalChatCommandId.Close,
 	title: localize2('closeChat', 'Close Chat'),
 	keybinding: {
 		primary: KeyCode.Escape,
@@ -70,6 +70,32 @@ registerActiveXtermAction({
 });
 
 
+registerActiveXtermAction({
+	id: TerminalChatCommandId.Discard,
+	title: localize2('discard', 'Discard'),
+	icon: Codicon.discard,
+	menu: {
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 2,
+		when: ContextKeyExpr.and(TerminalContextKeys.chatFocused,
+			TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand))
+	},
+	f1: true,
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalContextKeys.chatFocused,
+		TerminalContextKeys.chatResponseType.isEqualTo(TerminalChatResponseTypes.TerminalCommand)
+	),
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.clear();
+	}
+});
 
 
 registerActiveXtermAction({
