@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, MultiEditorAction, registerEditorAction, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { EditorAutoIndentStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -138,147 +138,173 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	return indentEdits;
 }
 
-export const IndentationToSpacesAction = registerMultiEditorAction(new MultiEditorAction({
-	id: 'editor.action.indentationToSpaces',
-	label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
-	alias: 'Convert Indentation to Spaces',
-	precondition: EditorContextKeys.writable
-}));
-IndentationToSpacesAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	const model = editor.getModel();
-	if (!model) {
-		return false;
-	}
-	const modelOpts = model.getOptions();
-	const selection = editor.getSelection();
-	if (!selection) {
-		return false;
-	}
-	const command = new IndentationToSpacesCommand(selection, modelOpts.tabSize);
+export class IndentationToSpacesAction extends EditorAction {
+	public static readonly ID = 'editor.action.indentationToSpaces';
 
-	editor.pushUndoStop();
-	editor.executeCommands(IndentationToSpacesAction.id, [command]);
-	editor.pushUndoStop();
-
-	model.updateOptions({
-		insertSpaces: true
-	});
-
-	return true;
-});
-
-export const IndentationToTabsAction = registerMultiEditorAction(new MultiEditorAction({
-	id: 'editor.action.indentationToTabs',
-	label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
-	alias: 'Convert Indentation to Tabs',
-	precondition: EditorContextKeys.writable
-}));
-IndentationToTabsAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	const model = editor.getModel();
-	if (!model) {
-		return false;
-	}
-	const modelOpts = model.getOptions();
-	const selection = editor.getSelection();
-	if (!selection) {
-		return false;
-	}
-	const command = new IndentationToTabsCommand(selection, modelOpts.tabSize);
-
-	editor.pushUndoStop();
-	editor.executeCommands(IndentationToTabsAction.id, [command]);
-	editor.pushUndoStop();
-
-	model.updateOptions({
-		insertSpaces: false
-	});
-
-	return true;
-});
-
-function changeIndentationSize(accessor: ServicesAccessor, editor: ICodeEditor, insertSpaces: boolean, displaySizeOnly: boolean): void {
-	const quickInputService = accessor.get(IQuickInputService);
-	const modelService = accessor.get(IModelService);
-
-	const model = editor.getModel();
-	if (!model) {
-		return;
-	}
-
-	const creationOpts = modelService.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
-	const modelOpts = model.getOptions();
-	const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
-		id: n.toString(),
-		label: n.toString(),
-		// add description for tabSize value set in the configuration
-		description: (
-			n === creationOpts.tabSize && n === modelOpts.tabSize
-				? nls.localize('configuredTabSize', "Configured Tab Size")
-				: n === creationOpts.tabSize
-					? nls.localize('defaultTabSize', "Default Tab Size")
-					: n === modelOpts.tabSize
-						? nls.localize('currentTabSize', "Current Tab Size")
-						: undefined
-		)
-	}));
-
-	// auto focus the tabSize set for the current editor
-	const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
-
-	setTimeout(() => {
-		quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
-			if (pick) {
-				if (model && !model.isDisposed()) {
-					const pickedVal = parseInt(pick.label, 10);
-					if (displaySizeOnly) {
-						model.updateOptions({
-							tabSize: pickedVal
-						});
-					} else {
-						model.updateOptions({
-							tabSize: pickedVal,
-							indentSize: pickedVal,
-							insertSpaces: insertSpaces
-						});
-					}
-				}
-			}
+	constructor() {
+		super({
+			id: IndentationToSpacesAction.ID,
+			label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
+			alias: 'Convert Indentation to Spaces',
+			precondition: EditorContextKeys.writable
 		});
-	}, 50/* quick input is sensitive to being opened so soon after another */);
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+		const modelOpts = model.getOptions();
+		const selection = editor.getSelection();
+		if (!selection) {
+			return;
+		}
+		const command = new IndentationToSpacesCommand(selection, modelOpts.tabSize);
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
+
+		model.updateOptions({
+			insertSpaces: true
+		});
+	}
 }
 
-export const IndentUsingTabs = registerMultiEditorAction(new MultiEditorAction({
-	id: 'editor.action.indentUsingTabs',
-	label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
-	alias: 'Indent Using Tabs',
-	precondition: undefined
-}));
-IndentUsingTabs.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	changeIndentationSize(accessor, editor, false, false);
-	return true;
-});
+export class IndentationToTabsAction extends EditorAction {
+	public static readonly ID = 'editor.action.indentationToTabs';
 
-export const IndentUsingSpaces = registerMultiEditorAction(new MultiEditorAction({
-	id: 'editor.action.indentUsingSpaces',
-	label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
-	alias: 'Indent Using Spaces',
-	precondition: undefined
-}));
-IndentUsingSpaces.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	changeIndentationSize(accessor, editor, true, false);
-	return true;
-});
+	constructor() {
+		super({
+			id: IndentationToTabsAction.ID,
+			label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
+			alias: 'Convert Indentation to Tabs',
+			precondition: EditorContextKeys.writable
+		});
+	}
 
-export const ChangeTabDisplaySize = registerMultiEditorAction(new MultiEditorAction({
-	id: 'editor.action.changeTabDisplaySize',
-	label: nls.localize('changeTabDisplaySize', "Change Tab Display Size"),
-	alias: 'Change Tab Display Size',
-	precondition: undefined
-}));
-ChangeTabDisplaySize.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor): boolean | Promise<void> => {
-	changeIndentationSize(accessor, editor, true, true);
-	return true;
-});
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+		const modelOpts = model.getOptions();
+		const selection = editor.getSelection();
+		if (!selection) {
+			return;
+		}
+		const command = new IndentationToTabsCommand(selection, modelOpts.tabSize);
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
+
+		model.updateOptions({
+			insertSpaces: false
+		});
+	}
+}
+
+export class ChangeIndentationSizeAction extends EditorAction {
+
+	constructor(private readonly insertSpaces: boolean, private readonly displaySizeOnly: boolean, opts: IActionOptions) {
+		super(opts);
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		const modelService = accessor.get(IModelService);
+
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const creationOpts = modelService.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
+		const modelOpts = model.getOptions();
+		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+			id: n.toString(),
+			label: n.toString(),
+			// add description for tabSize value set in the configuration
+			description: (
+				n === creationOpts.tabSize && n === modelOpts.tabSize
+					? nls.localize('configuredTabSize', "Configured Tab Size")
+					: n === creationOpts.tabSize
+						? nls.localize('defaultTabSize', "Default Tab Size")
+						: n === modelOpts.tabSize
+							? nls.localize('currentTabSize', "Current Tab Size")
+							: undefined
+			)
+		}));
+
+		// auto focus the tabSize set for the current editor
+		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
+
+		setTimeout(() => {
+			quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
+				if (pick) {
+					if (model && !model.isDisposed()) {
+						const pickedVal = parseInt(pick.label, 10);
+						if (this.displaySizeOnly) {
+							model.updateOptions({
+								tabSize: pickedVal
+							});
+						} else {
+							model.updateOptions({
+								tabSize: pickedVal,
+								indentSize: pickedVal,
+								insertSpaces: this.insertSpaces
+							});
+						}
+					}
+				}
+			});
+		}, 50/* quick input is sensitive to being opened so soon after another */);
+	}
+}
+
+export class IndentUsingTabs extends ChangeIndentationSizeAction {
+
+	public static readonly ID = 'editor.action.indentUsingTabs';
+
+	constructor() {
+		super(false, false, {
+			id: IndentUsingTabs.ID,
+			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
+			alias: 'Indent Using Tabs',
+			precondition: undefined
+		});
+	}
+}
+
+export class IndentUsingSpaces extends ChangeIndentationSizeAction {
+
+	public static readonly ID = 'editor.action.indentUsingSpaces';
+
+	constructor() {
+		super(true, false, {
+			id: IndentUsingSpaces.ID,
+			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
+			alias: 'Indent Using Spaces',
+			precondition: undefined
+		});
+	}
+}
+
+export class ChangeTabDisplaySize extends ChangeIndentationSizeAction {
+
+	public static readonly ID = 'editor.action.changeTabDisplaySize';
+
+	constructor() {
+		super(true, true, {
+			id: ChangeTabDisplaySize.ID,
+			label: nls.localize('changeTabDisplaySize', "Change Tab Display Size"),
+			alias: 'Change Tab Display Size',
+			precondition: undefined
+		});
+	}
+}
 
 export class DetectIndentation extends EditorAction {
 
@@ -695,6 +721,11 @@ export class IndentationToTabsCommand implements ICommand {
 }
 
 registerEditorContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorAction(IndentationToSpacesAction);
+registerEditorAction(IndentationToTabsAction);
+registerEditorAction(IndentUsingTabs);
+registerEditorAction(IndentUsingSpaces);
+registerEditorAction(ChangeTabDisplaySize);
 registerEditorAction(DetectIndentation);
 registerEditorAction(ReindentLinesAction);
 registerEditorAction(ReindentSelectedLinesAction);

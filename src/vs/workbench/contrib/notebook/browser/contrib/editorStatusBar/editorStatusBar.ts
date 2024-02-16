@@ -276,7 +276,6 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 				this._update();
 			}
 		}));
-
 	}
 
 	private _update() {
@@ -300,6 +299,10 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 		}
 
 		const cellOptions = editor.getActiveCell()?.textModel?.getOptions();
+		if (!cellOptions) {
+			this._accessor.clear();
+			return;
+		}
 		const indentSize = cellOptions?.indentSize;
 		const tabSize = cellOptions?.tabSize;
 		const insertSpaces = cellOptions?.insertSpaces;

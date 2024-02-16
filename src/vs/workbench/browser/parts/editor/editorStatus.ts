@@ -381,12 +381,12 @@ class EditorStatus extends Disposable {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.id)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.id)),
-			assertIsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.id)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
 			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.id)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.id)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
+			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
 			assertIsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {

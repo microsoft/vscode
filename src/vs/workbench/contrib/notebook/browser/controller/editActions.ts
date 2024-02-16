@@ -14,7 +14,7 @@ import { localize, localize2 } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -33,12 +33,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { Language } from 'vs/base/common/platform';
-import { IEditorAction } from 'vs/editor/common/editorCommon';
-import { assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ChangeTabDisplaySize, IndentUsingSpaces, IndentUsingTabs, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
-import { registerNotebookIndentationActions } from 'vs/workbench/contrib/notebook/browser/controller/notebookIndentationActions';
+import { NotebookChangeTabDisplaySize, NotebookIndentUsingSpaces, NotebookIndentUsingTabs, NotebookIndentationToSpacesAction, NotebookIndentationToTabsAction } from 'vs/workbench/contrib/notebook/browser/controller/notebookIndentationActions';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -582,10 +578,10 @@ registerAction2(class SelectNotebookIndentation extends NotebookAction {
 		await this.showNotebookIndentationPicker(accessor, context);
 	}
 
-	private async showNotebookIndentationPicker(accessor: ServicesAccessor, context: INotebookActionContext): Promise<unknown> {
+	private async showNotebookIndentationPicker(accessor: ServicesAccessor, context: INotebookActionContext) {
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
-		// const configurationService = accessor.get(IConfigurationService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const activeNotebook = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!activeNotebook || activeNotebook.isDisposed) {
@@ -593,43 +589,34 @@ registerAction2(class SelectNotebookIndentation extends NotebookAction {
 		}
 
 		if (activeNotebook.isReadOnly) {
-			return quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active notebook editor is read-only.") }]);
 		}
-
-		// get active focused cell to check for actions
-		const activeCodeEditor = activeNotebook.activeCodeEditor;
-		if (!activeCodeEditor) {
-			return quickInputService.pick([{ label: localize('noFocusedCell', "There is no actively focused cell to interact with.") }]); // TODO@Yoyokrazy better message here i think
-		}
-
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			assertIsDefined(activeCodeEditor.getAction(IndentUsingSpaces.id)), // indent using spaces
-			assertIsDefined(activeCodeEditor.getAction(IndentUsingTabs.id)), // indent using tabs
-			assertIsDefined(activeCodeEditor.getAction(ChangeTabDisplaySize.id)), // change tab display size
-			assertIsDefined(activeCodeEditor.getAction(IndentationToSpacesAction.id)), // convert indentation to spaces
-			assertIsDefined(activeCodeEditor.getAction(IndentationToTabsAction.id)), // convert indentation to tabs
-			// assertIsDefined(activeCodeEditor.getAction(DetectIndentation.ID)),
-		].map((a: IEditorAction) => {
+			new NotebookIndentUsingTabs(), // indent using tabs
+			new NotebookIndentUsingSpaces(), // indent using spaces
+			new NotebookChangeTabDisplaySize(), // change tab size
+			new NotebookIndentationToTabsAction(), // convert indentation to tabs
+			new NotebookIndentationToSpacesAction() // convert indentation to spaces
+		].map(item => {
 			return {
-				id: a.id,
-				label: a.label,
-				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
+				id: item.desc.id,
+				label: item.desc.title.toString(),
 				run: () => {
-					activeCodeEditor?.focus();
-					a.run();
+					instantiationService.invokeFunction(item.run);
 				}
 			};
-
-
 		});
 
 		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "convert file") });
 		picks.unshift({ type: 'separator', label: localize('indentView', "change view") });
 
 		const action = await quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
-		return action?.run();
+		if (!action) {
+			return;
+		}
+		action.run();
+		context.notebookEditor.focus();
+		return;
 	}
 });
-
-registerNotebookIndentationActions();
