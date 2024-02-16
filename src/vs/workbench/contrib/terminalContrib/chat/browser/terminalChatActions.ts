@@ -21,7 +21,7 @@ registerActiveXtermAction({
 	title: localize2('startChat', 'Start Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused.negate(), TerminalContextKeys.focusInAny),
+		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	f1: true,
