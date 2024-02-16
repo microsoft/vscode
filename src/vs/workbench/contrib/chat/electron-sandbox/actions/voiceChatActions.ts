@@ -55,7 +55,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-// TODO: The chat needs to move into contrib/terminal/ as we don't want anything importing from terminalContrib/
+
+// This is a one-off/safe import, changing the eslint rules would require duplicating/complicating the rules
 // eslint-disable-next-line local/code-import-patterns
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
