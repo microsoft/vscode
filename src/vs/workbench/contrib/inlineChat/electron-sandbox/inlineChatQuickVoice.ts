@@ -151,13 +151,9 @@ class QuickVoiceWidget implements IContentWidget {
 			return null;
 		}
 		const selection = this._editor.getSelection();
-		// const position = this._editor.getPosition();
 		return {
-			position: selection.getPosition(),
-			preference: [
-				selection.getPosition().equals(selection.getStartPosition()) ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW,
-				ContentWidgetPositionPreference.EXACT
-			]
+			position: selection.getStartPosition(),
+			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.EXACT]
 		};
 	}
 
