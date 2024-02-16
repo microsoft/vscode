@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } fr
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { deepClone } from 'vs/base/common/objects';
-import { ObservableLazyStatefulPromise, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { ObservableLazyPromise, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { constObservable, mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isObject } from 'vs/base/common/types';
@@ -131,7 +131,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	});
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
-		const source = await this._resolvedSource.getValue();
+		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
 
 		// Enables delayed disposing
@@ -207,7 +207,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		};
 	}
 
-	private readonly _resolvedSource = new ObservableLazyStatefulPromise(async () => {
+	private readonly _resolvedSource = new ObservableLazyPromise(async () => {
 		const source: IResolvedMultiDiffSource | undefined = this.initialResources
 			? new ConstResolvedMultiDiffSource(this.initialResources)
 			: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource);
@@ -229,7 +229,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return false;
 	}
 
-	private readonly _resources = derived(this, reader => this._resolvedSource.cachedValue.read(reader)?.value?.resources.read(reader));
+	private readonly _resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
 	private readonly _isDirtyObservables = mapObservableArrayCached(this, this._resources.map(r => r || []), res => {
 		const isModifiedDirty = res.modified ? isUriDirty(this._textFileService, res.modified) : constObservable(false);
 		const isOriginalDirty = res.original ? isUriDirty(this._textFileService, res.original) : constObservable(false);
