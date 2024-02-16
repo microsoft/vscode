@@ -108,6 +108,18 @@ export class TerminalChatWidget extends Disposable {
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
+		const font = this._instance.xterm?.getFont();
+		if (!font?.charHeight) {
+			return;
+		}
+		const cursorY = this._instance.xterm?.raw.buffer.active.cursorY ?? 0;
+		const height = font.charHeight * font.lineHeight;
+		const top = (cursorY + .5) * height;
+		this._container.style.top = `${top}px`;
+		const terminalHeight = this._instance.domElement.clientHeight;
+		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
+			this._container.style.top = '';
+		}
 	}
 	hide(): void {
 		this._container.classList.add('hide');
