@@ -39,6 +39,8 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { mainWindow } from 'vs/base/browser/window';
+import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 /**
  * Description of an action contribution
@@ -289,6 +291,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		}
 
 		createAriaDomNode(options.ariaContainerElement);
+
+		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {

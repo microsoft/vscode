@@ -27,9 +27,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { hash } from 'vs/base/common/hash';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
 import { IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
@@ -138,39 +136,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
-	private readonly hoverDelegate = new class implements IHoverDelegate {
 
-		private lastHoverHideTime = 0;
-
-		readonly placement = 'element';
-
-		get delay() {
-			if (Date.now() - this.lastHoverHideTime < 200) {
-				return 0; // show instantly when a hover was recently shown
-			}
-
-			return this.configurationService.getValue<number>('workbench.hover.delay');
-		}
-
-		constructor(
-			private readonly configurationService: IConfigurationService,
-			private readonly hoverService: IHoverService
-		) { }
-
-		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
-			return this.hoverService.showHover({
-				...options,
-				persistence: {
-					hideOnKeyDown: true,
-					sticky: focus
-				}
-			}, focus);
-		}
-
-		onDidHideHover(): void {
-			this.lastHoverHideTime = Date.now();
-		}
-	}(this.configurationService, this.hoverService);
+	private readonly hoverDelegate: WorkbenchHoverDelegate;
 
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
@@ -184,10 +151,17 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, (_, focus?: boolean) => (
+			{
+				persistence: {
+					hideOnKeyDown: true,
+					sticky: focus
+				}
+			}
+		)));
 
 		this.registerListeners();
 	}
@@ -667,10 +641,8 @@ export class MainStatusbarPart extends StatusbarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, hoverService, configurationService);
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
 	}
 }
 
@@ -694,11 +666,9 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, hoverService, configurationService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
 	}
 }
 

@@ -21,11 +21,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -121,21 +121,11 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	constructor(
 		private _renderMarker: boolean,
+		target: OutlineTarget,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
 	) {
-		this._hoverDelegate = {
-			delay: 500,
-			showHover: (options: IHoverOptions) => {
-				return hoverService.showHover({
-					...options,
-					persistence: {
-						hideOnHover: true
-					}
-				});
-			}
-		};
+		this._hoverDelegate = getDefaultHoverDelegate(target === OutlineTarget.Breadcrumbs ? 'element' : 'mouse');
 	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {

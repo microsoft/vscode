@@ -32,6 +32,7 @@ import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Language } from 'vs/base/common/platform';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -90,7 +91,8 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 
 const quitEditCondition = ContextKeyExpr.and(
 	NOTEBOOK_EDITOR_FOCUSED,
-	InputFocusedContext
+	InputFocusedContext,
+	CTX_INLINE_CHAT_FOCUSED.toNegated()
 );
 registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	constructor() {

@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator, ActionRunner } from 'vs/base/common/actions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -576,12 +576,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._commentEditorModel?.dispose();
 
-		this._commentEditorDisposables.forEach(dispose => dispose.dispose());
+		dispose(this._commentEditorDisposables);
 		this._commentEditorDisposables = [];
-		if (this._commentEditor) {
-			this._commentEditor.dispose();
-			this._commentEditor = null;
-		}
+		this._commentEditor?.dispose();
+		this._commentEditor = null;
 
 		this._commentEditContainer!.remove();
 	}
@@ -765,6 +763,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 				this.domNode.classList.remove('focus');
 			}, 3000);
 		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+		dispose(this._commentEditorDisposables);
 	}
 }
 

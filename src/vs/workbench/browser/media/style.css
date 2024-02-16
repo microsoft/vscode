@@ -87,6 +87,11 @@ body.web {
 	text-decoration: none;
 }
 
+.monaco-workbench.hc-black p > a,
+.monaco-workbench.hc-light p > a {
+	text-decoration: underline !important;
+}
+
 .monaco-workbench a:active {
 	color: inherit;
 	background-color: inherit;

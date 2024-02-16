@@ -387,7 +387,10 @@ export function registerChatCodeBlockActions() {
 
 	const shellLangIds = [
 		'fish',
+		'ps1',
+		'pwsh',
 		'powershell',
+		'sh',
 		'shellscript',
 		'zsh'
 	];
