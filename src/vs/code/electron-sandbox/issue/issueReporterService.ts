@@ -1246,6 +1246,7 @@ export class IssueReporter extends Disposable {
 
 	private clearExtensionData(): void {
 		this.issueReporterModel.update({ extensionData: undefined });
+		this.configuration.data.issueBody = undefined;
 		this.configuration.data.data = undefined;
 		this.configuration.data.uri = undefined;
 	}
