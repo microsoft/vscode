@@ -8,7 +8,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
@@ -77,11 +77,6 @@ class ChatAgentResponseStream {
 			};
 
 			this._apiObject = {
-				text(value) {
-					throwIfDone(this.text);
-					this.markdown(new MarkdownString().appendText(value));
-					return this;
-				},
 				markdown(value) {
 					throwIfDone(this.markdown);
 					const part = new extHostTypes.ChatResponseMarkdownPart(value);
@@ -389,7 +384,7 @@ class ExtHostChatAgent {
 		}
 		return result
 			.map(c => {
-				if ('repopulate2' in c) {
+				if ('isSticky2' in c) {
 					checkProposedApiEnabled(this.extension, 'chatAgents2Additions');
 				}
 
@@ -397,9 +392,9 @@ class ExtHostChatAgent {
 					name: c.name,
 					description: c.description,
 					followupPlaceholder: c.isSticky2?.placeholder,
-					shouldRepopulate: c.isSticky2?.isSticky ?? c.isSticky,
+					isSticky: c.isSticky2?.isSticky ?? c.isSticky,
 					sampleRequest: c.sampleRequest
-				};
+				} satisfies IChatAgentCommand;
 			});
 	}
 
