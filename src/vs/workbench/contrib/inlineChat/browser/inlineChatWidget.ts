@@ -1118,7 +1118,7 @@ class HunkAccessibleDiffViewer extends AccessibleDiffViewer {
 		const width = observableValue('width', 0);
 		const diff = observableValue('diff', HunkAccessibleDiffViewer._asMapping(hunk));
 		const diffs = derived(r => [diff.read(r)]);
-		const lines = Math.min(6, 3 * diff.get().changedLineCount);
+		const lines = Math.min(10, 8 + diff.get().changedLineCount);
 		const height = models.getModifiedOptions().get(EditorOption.lineHeight) * lines;
 
 		super(parentNode, constObservable(true), () => { }, constObservable(false), width, constObservable(height), diffs, models, instantiationService);
