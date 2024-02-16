@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import { getTestServer, testServers } from './completions.test';
+import 'mocha';
+import { getTestServer, testServers } from './shared';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -223,4 +223,5 @@ suite('HTML Folding', () => {
 	for (const server of testServers.values()) {
 		server.connection.dispose();
 	}
+	testServers.clear();
 });;
