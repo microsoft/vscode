@@ -325,3 +325,47 @@ suite('Editor Contrib - Keep Indent On Paste', () => {
 		});
 	});
 });
+
+
+suite('Editor Contrib - Auto Dedent On Type', () => {
+	const rubyIndentationRules = {
+		// decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif|when|in)\b/,
+		decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b)|((in|when)\s/,
+		increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
+	};
+
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('issue #198350: in or when incorrectly match non keywords for Ruby', () => {
+		const languageId = "ruby";
+		const model = createTextModel("", languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
+			const languageService = instantiationService.get(ILanguageService);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			disposables.add(languageService.registerLanguage({ id: languageId }));
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				indentationRules: rubyIndentationRules,
+			}));
+
+			viewModel.type("def foo\n  in");
+			assert.strictEqual(model.getValue(), "def foo\n  in");
+		});
+	});
+});
