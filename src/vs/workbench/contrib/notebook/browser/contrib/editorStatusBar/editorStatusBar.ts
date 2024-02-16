@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-// import { SELECT_NOTEBOOK_INDENTATION_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { SELECT_NOTEBOOK_INDENTATION_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
+import { INotebookEditor, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -283,6 +283,10 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		if (activeEditor) {
 			this._show(activeEditor);
+			this._itemDisposables.add(activeEditor.onDidChangeSelection(() => {
+				this._accessor.clear();
+				this._show(activeEditor);
+			}));
 		} else {
 			this._accessor.clear();
 		}
@@ -294,11 +298,14 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 			return;
 		}
 
-		const cellEditorOverrides = this._configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
-
-		const indentSize = cellEditorOverrides['editor.indentSize'] ?? this._configurationService.getValue('editor.indentSize');
-		const tabSize = cellEditorOverrides['editor.tabSize'] ?? this._configurationService.getValue('editor.tabSize');
-		const insertSpaces = cellEditorOverrides['editor.insertSpaces'] ?? this._configurationService.getValue('editor.insertSpaces');
+		const cellOptions = editor.getActiveCell()?.textModel?.getOptions();
+		if (!cellOptions) {
+			this._accessor.clear();
+			return;
+		}
+		const indentSize = cellOptions?.indentSize;
+		const tabSize = cellOptions?.tabSize;
+		const insertSpaces = cellOptions?.insertSpaces;
 
 		const width = typeof indentSize === 'number' ? indentSize : tabSize;
 
@@ -313,9 +320,8 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 			name: nls.localize('notebook.indentation', "Notebook Indentation"),
 			text: newText,
 			ariaLabel: newText,
-			// tooltip: nls.localize('selectNotebookIndentation', "Select Notebook Indentation"),
-			tooltip: nls.localize('selectNotebookIndentation', "Notebook Indentation"),
-			// command: SELECT_NOTEBOOK_INDENTATION_ID // TODO@Yoyokrazy -- finish hooking this up
+			tooltip: nls.localize('selectNotebookIndentation', "Select Indentation"),
+			command: SELECT_NOTEBOOK_INDENTATION_ID
 		};
 
 		if (!this._accessor.value) {
