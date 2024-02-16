@@ -27,7 +27,6 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 		},
 	};
 
-
 	async function getOrCreateInferredProject(uri: string, workspaceFolder: URI) {
 		if (!inferredProjects.uriHas(workspaceFolder.toString())) {
 			inferredProjects.uriSet(workspaceFolder.toString(), (async () => {

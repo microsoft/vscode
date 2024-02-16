@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { InitializationOptions } from '@volar/language-server';
+import { DiagnosticModel, type InitializationOptions } from '@volar/language-server';
 import * as serverProtocol from '@volar/language-server/protocol';
 import { activateAutoInsertion, createLabsInfo, getTsdk } from '@volar/vscode';
 import * as vscode from 'vscode';
@@ -32,6 +32,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		typescript: {
 			tsdk: (await getTsdk(context)).tsdk,
 		},
+		diagnosticModel: DiagnosticModel.Pull,
+		fullCompletionList: true,
 	};
 	const clientOptions: lsp.LanguageClientOptions = {
 		documentSelector: [{ language: 'html' }],
