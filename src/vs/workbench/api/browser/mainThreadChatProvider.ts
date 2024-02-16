@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -81,7 +82,15 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	}
 
 	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
-		return this._chatProviderService.lookupChatResponseProvider(providerId);
+		const metadata = this._chatProviderService.lookupChatResponseProvider(providerId);
+		// TODO: This should use a real activation event. Perhaps following what authentication does.
+		for (let i = 0; i < 3; i++) {
+			if (metadata) {
+				return metadata;
+			}
+			await timeout(2000);
+		}
+		return undefined;
 	}
 
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
@@ -111,15 +120,16 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 			return Disposable.None;
 		}
 
+		const accountLabel = auth.accountLabel ?? localize('languageModelsAccountId', 'Language Models');
 		const disposables = new DisposableStore();
-		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, auth.accountLabel));
+		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel));
 		disposables.add(toDisposable(() => {
 			this._authenticationService.unregisterAuthenticationProvider(authProviderId);
 		}));
 		disposables.add(this._authenticationService.onDidChangeSessions(async (e) => {
 			if (e.providerId === authProviderId) {
 				if (e.event.removed?.length) {
-					const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, authProviderId);
+					const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, accountLabel);
 					const extensionsToUpdateAccess = [];
 					for (const allowed of allowedExtensions) {
 						const from = await this._extensionService.getExtension(allowed.id);
@@ -137,7 +147,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 			}
 		}));
 		disposables.add(this._authenticationService.onDidChangeExtensionSessionAccess(async (e) => {
-			const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, authProviderId);
+			const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, accountLabel);
 			const accessList = [];
 			for (const allowedExtension of allowedExtensions) {
 				const from = await this._extensionService.getExtension(allowedExtension.id);
@@ -165,11 +175,7 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 
 	private _session: AuthenticationSession | undefined;
 
-	constructor(
-		readonly id: string,
-		readonly label: string,
-		private readonly _accountLabel: string = localize('languageModelsAccountId', 'Language Models')
-	) { }
+	constructor(readonly id: string, readonly label: string, private readonly _accountLabel: string) { }
 
 	async getSessions(scopes?: string[] | undefined): Promise<readonly AuthenticationSession[]> {
 		// If there are no scopes and no session that means no extension has requested a session yet

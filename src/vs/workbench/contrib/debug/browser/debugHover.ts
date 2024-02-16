@@ -127,7 +127,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer.setAttribute('role', 'tree');
 		const tip = dom.append(this.complexValueContainer, $('.tip'));
 		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
-		const dataSource = new DebugHoverDataSource(this.debugService);
+		const dataSource = this.instantiationService.createInstance(DebugHoverDataSource);
 		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [
 			this.instantiationService.createInstance(VariablesRenderer, linkeDetector),
@@ -414,7 +414,7 @@ class DebugHoverDataSource extends AbstractExpressionDataSource<IExpression, IEx
 		return element.hasChildren;
 	}
 
-	public override doGetChildren(element: IExpression): Promise<IExpression[]> {
+	protected override doGetChildren(element: IExpression): Promise<IExpression[]> {
 		return element.getChildren();
 	}
 }

@@ -130,14 +130,16 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				const itemMatch = item.match;
 				this.editorSequencer.queue(async () => {
 					// disable and re-enable history service so that we can ignore this history entry
-					this._historyService.shouldIgnoreActiveEditorChange = true;
-					const subPreviewDisposable = previewDisposable.localEnable();
+
+					const historyPauseDisposable = this._historyService.suspendTracking();
+					const previewPauseDisposable = previewDisposable.localEnable();
 					await this._editorService.openEditor({
 						resource: itemMatch.parent().resource,
 						options: { pinned: false, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+					}).finally(() => {
+						historyPauseDisposable.dispose();
+						previewPauseDisposable.dispose();
 					});
-					subPreviewDisposable.dispose();
-					this._historyService.shouldIgnoreActiveEditorChange = false;
 				});
 			}
 		}));
@@ -148,7 +150,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			// gesture and not e.g. when focus was lost because that
 			// could mean the user clicked into the editor directly.
 			if (reason === QuickInputHideReason.Gesture) {
-				this.editorViewState.restore();
+				this.editorViewState.restore(true);
 			}
 			this.searchModel.searchResult.toggleHighlights(false);
 		}));

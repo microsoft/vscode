@@ -237,8 +237,7 @@ class InputEditorSlashCommandMode extends Disposable {
 	public readonly id = 'InputEditorSlashCommandMode';
 
 	constructor(
-		private readonly widget: IChatWidget,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		private readonly widget: IChatWidget
 	) {
 		super();
 		this._register(this.widget.onDidSubmitAgent(e => {
@@ -248,10 +247,9 @@ class InputEditorSlashCommandMode extends Disposable {
 
 	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
 		let value: string | undefined;
-		if (slashCommand && slashCommand.shouldRepopulate) {
+		if (slashCommand && slashCommand.isSticky) {
 			value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
-		} else if (agent.id !== this._chatAgentService.getDefaultAgent()?.id) {
-			// Agents always repopulate, and slash commands fall back to the agent if they don't repopulate
+		} else if (agent.metadata.isSticky) {
 			value = `${chatAgentLeader}${agent.id} `;
 		}
 

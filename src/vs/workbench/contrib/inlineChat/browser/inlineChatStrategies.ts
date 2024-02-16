@@ -123,6 +123,8 @@ export abstract class EditModeStrategy {
 
 	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
 
+	move?(next: boolean): void;
+
 	abstract hasFocus(): boolean;
 
 	getWholeRangeDecoration(): IModelDeltaDecoration[] {
@@ -401,6 +403,7 @@ type HunkDisplayData = {
 	discardHunk: () => void;
 	toggleDiff?: () => any;
 	remove(): void;
+	move: (next: boolean) => void;
 };
 
 
@@ -428,7 +431,6 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
-
 
 	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
 	override discardHunk: () => Promise<void> = () => super.discardHunk();
@@ -617,6 +619,33 @@ export class LiveStrategy extends EditModeStrategy {
 							});
 						};
 
+						const move = (next: boolean) => {
+							assertType(widgetData);
+
+							const candidates: Position[] = [];
+							for (const item of this._session.hunkData.getInfo()) {
+								if (item.getState() === HunkState.Pending) {
+									candidates.push(item.getRangesN()[0].getStartPosition().delta(-1));
+								}
+							}
+							if (candidates.length < 2) {
+								return;
+							}
+							for (let i = 0; i < candidates.length; i++) {
+								if (candidates[i].equals(widgetData.position)) {
+									let newPos: Position;
+									if (next) {
+										newPos = candidates[(i + 1) % candidates.length];
+									} else {
+										newPos = candidates[(i + candidates.length - 1) % candidates.length];
+									}
+									this._zone.updatePositionAndHeight(newPos);
+									renderHunks();
+									break;
+								}
+							}
+						};
+
 						const zoneLineNumber = this._zone.position!.lineNumber;
 						const myDistance = zoneLineNumber <= hunkRanges[0].startLineNumber
 							? hunkRanges[0].startLineNumber - zoneLineNumber
@@ -632,6 +661,7 @@ export class LiveStrategy extends EditModeStrategy {
 							discardHunk,
 							toggleDiff: !hunkData.isInsertion() ? toggleDiff : undefined,
 							remove,
+							move
 						};
 
 						this._hunkDisplayData.set(hunkData, data);
@@ -674,6 +704,7 @@ export class LiveStrategy extends EditModeStrategy {
 				this.toggleDiff = widgetData.toggleDiff;
 				this.acceptHunk = async () => widgetData!.acceptHunk();
 				this.discardHunk = async () => widgetData!.discardHunk();
+				this.move = next => widgetData!.move(next);
 
 			} else if (this._hunkDisplayData.size > 0) {
 				// everything accepted or rejected

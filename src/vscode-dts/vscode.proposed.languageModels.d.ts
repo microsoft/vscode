@@ -5,35 +5,91 @@
 
 declare module 'vscode' {
 
+	/**
+	 * Represents a language model response.
+	 *
+	 * @see {@link LanguageModelAccess.makeChatRequest}
+	 */
 	export interface LanguageModelResponse {
 
 		/**
 		 * The overall result of the request which represents failure or success
-		 * but _not_ the actual response or responses
+		 * but. The concrete value is not specified and depends on the selected language model.
+		 *
+		 * *Note* that the actual response represented by the {@link LanguageModelResponse.stream `stream`}-property
 		 */
-		// TODO@API define this type!
 		result: Thenable<unknown>;
 
-		// TODO@API doc what to expect here
+		/**
+		 * An async iterable that is a stream of text chunks forming the overall response.
+		 */
 		stream: AsyncIterable<string>;
 	}
 
-	//TODO@API see https://learn.microsoft.com/en-us/dotnet/api/azure.ai.openai.chatrequestmessage?view=azure-dotnet-preview
-	// this allows to grow message by type, e.g add more content types to User message to support multimodal language models
-
+	/**
+	 * A language model message that represents a system message.
+	 *
+	 * System messages provide instructions to the language model that define the context in
+	 * which user messages are interpreted.
+	 *
+	 * *Note* that a language model may choose to add additional system messages to the ones
+	 * provided by extensions.
+	 */
 	export class LanguageModelSystemMessage {
+
+		/**
+		 * The content of this message.
+		 */
 		content: string;
+
+		/**
+		 * Create a new system message.
+		 *
+		 * @param content The content of the message.
+		 */
 		constructor(content: string);
 	}
 
+	/**
+	 * A language model message that represents a user message.
+	 */
 	export class LanguageModelUserMessage {
+
+		/**
+		 * The content of this message.
+		 */
 		content: string;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
 		name: string | undefined;
+
+		/**
+		 * Create a new user message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
 		constructor(content: string, name?: string);
 	}
 
+	/**
+	 * A language model message that represents an assistant message, usually in response to a user message
+	 * or as a sample response/reply-pair.
+	 */
 	export class LanguageModelAssistantMessage {
+
+		/**
+		 * The content of this message.
+		 */
 		content: string;
+
+		/**
+		 * Create a new assistant message.
+		 *
+		 * @param content The content of the message.
+		 */
 		constructor(content: string);
 	}
 
@@ -96,8 +152,10 @@ declare module 'vscode' {
 		readonly removed: readonly string[];
 	}
 
-	//@API DEFINE the namespace for this: lm (languageModels), copilot, ai, env,?
-	export namespace chat {
+	/**
+	 * Namespace for language model related functionality.
+	 */
+	export namespace lm {
 
 		/**
 		 * Request access to a language model.

@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
@@ -118,7 +118,7 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
-import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 
 /**
@@ -392,7 +392,7 @@ export class CodeApplication extends Disposable {
 		app.on('web-contents-created', (event, contents) => {
 
 			// Auxiliary Window: delegate to `AuxiliaryWindow` class
-			if (isAuxiliaryWindow(contents)) {
+			if (contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`)) {
 				this.logService.trace('[aux window]  app.on("web-contents-created"): Registering auxiliary window');
 
 				this.auxiliaryWindowsMainService?.registerWindow(contents);

@@ -158,13 +158,13 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentExtendedRequestHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
+		export function createChatAgent(name: string, handler: ChatAgentExtendedRequestHandler): ChatAgent2;
 	}
 
 	/*
@@ -243,5 +243,46 @@ declare module 'vscode' {
 			 */
 			placeholder?: string;
 		};
+	}
+
+	export interface ChatVariableResolverResponseStream {
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		 *
+		 * @param value
+		 * @returns This stream.
+		 */
+		progress(value: string): ChatVariableResolverResponseStream;
+
+		/**
+		 * Push a reference to this stream. Short-hand for
+		 * `push(new ChatResponseReferencePart(value))`.
+		 *
+		 * *Note* that the reference is not rendered inline with the response.
+		 *
+		 * @param value A uri or location
+		 * @returns This stream.
+		 */
+		reference(value: Uri | Location): ChatVariableResolverResponseStream;
+
+		/**
+		 * Pushes a part to this stream.
+		 *
+		 * @param part A response part, rendered or metadata
+		 */
+		push(part: ChatVariableResolverResponsePart): ChatVariableResolverResponseStream;
+	}
+
+	export type ChatVariableResolverResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
+
+	export interface ChatVariableResolver {
+		/**
+		 * A callback to resolve the value of a chat variable.
+		 * @param name The name of the variable.
+		 * @param context Contextual information about this chat request.
+		 * @param token A cancellation token.
+		 */
+		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 }

@@ -2239,12 +2239,6 @@ export namespace ChatInlineFollowup {
 	}
 }
 
-export namespace ChatMessage {
-	export function to(message: chatProvider.IChatMessage): vscode.ChatMessage {
-		return new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
-	}
-}
-
 export namespace LanguageModelMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelMessage {
@@ -2264,28 +2258,6 @@ export namespace LanguageModelMessage {
 			return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
 		} else {
 			throw new Error('Invalid LanguageModelMessage');
-		}
-	}
-}
-
-
-export namespace ChatMessageRole {
-
-	export function to(role: chatProvider.ChatMessageRole): vscode.ChatMessageRole {
-		switch (role) {
-			case chatProvider.ChatMessageRole.System: return types.ChatMessageRole.System;
-			case chatProvider.ChatMessageRole.User: return types.ChatMessageRole.User;
-			case chatProvider.ChatMessageRole.Assistant: return types.ChatMessageRole.Assistant;
-		}
-	}
-
-	export function from(role: vscode.ChatMessageRole): chatProvider.ChatMessageRole {
-		switch (role) {
-			case types.ChatMessageRole.System: return chatProvider.ChatMessageRole.System;
-			case types.ChatMessageRole.Assistant: return chatProvider.ChatMessageRole.Assistant;
-			case types.ChatMessageRole.User:
-			default:
-				return chatProvider.ChatMessageRole.User;
 		}
 	}
 }
@@ -2631,11 +2603,8 @@ export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
 		return {
 			prompt: request.message,
-			prompt2: request.variables2.message,
-			variables: ChatVariable.objectTo(request.variables),
 			command: request.command,
-			agentId: request.agentId,
-			variables2: request.variables2.variables.map(ChatAgentResolvedVariable.to)
+			variables: request.variables.variables.map(ChatAgentResolvedVariable.to)
 		};
 	}
 }
