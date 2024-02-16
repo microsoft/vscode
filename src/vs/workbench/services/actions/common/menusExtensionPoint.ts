@@ -325,7 +325,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'issue/reporter',
 		id: MenuId.IssueReporter,
 		description: localize('issue.reporter', "The contributed issue reporter menu"),
-		// proposed: 'contribIssueReporter'
+		proposed: 'contribIssueReporter'
 	},
 	{
 		key: 'testing/item/context',
