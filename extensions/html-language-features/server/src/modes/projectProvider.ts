@@ -65,7 +65,7 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 			getCompilationSettings: () => compilerOptions,
 			getScriptFileNames: () => [uriToFileName(currentTextDocument!.uri), JQUERY_PATH],
 			getCurrentDirectory: () => '',
-			getProjectVersion: () => currentTextDocument!.uri + ',' + currentTextDocument!.version.toString(),
+			getProjectVersion: () => currentTextDocument!.uri + ',' + currentTextDocument!.version.toString() + ',' + sys.version,
 			getScriptSnapshot: fileName => {
 				if (fileNameToUri(fileName) === currentTextDocument!.uri) {
 					const document = context.documents.get(fileNameToUri(fileName));
