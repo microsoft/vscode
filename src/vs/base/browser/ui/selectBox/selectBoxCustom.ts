@@ -9,6 +9,8 @@ import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IListEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -101,6 +103,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
 	private _cachedMaxDetailsHeight?: number;
+	private _hover: ICustomHover;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -130,6 +133,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
 			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
 		}
+
+		this._hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.selectElement, ''));
 
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
@@ -199,7 +204,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				selected: e.target.value
 			});
 			if (!!this.options[this.selected] && !!this.options[this.selected].text) {
-				this.selectElement.title = this.options[this.selected].text;
+				this._hover.update(this.options[this.selected].text);
 			}
 		}));
 
@@ -309,7 +314,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		this.selectElement.selectedIndex = this.selected;
 		if (!!this.options[this.selected] && !!this.options[this.selected].text) {
-			this.selectElement.title = this.options[this.selected].text;
+			this._hover.update(this.options[this.selected].text);
 		}
 	}
 
@@ -837,7 +842,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 				});
 				if (!!this.options[this.selected] && !!this.options[this.selected].text) {
-					this.selectElement.title = this.options[this.selected].text;
+					this._hover.update(this.options[this.selected].text);
 				}
 			}
 
@@ -936,7 +941,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				selected: this.options[this.selected].text
 			});
 			if (!!this.options[this.selected] && !!this.options[this.selected].text) {
-				this.selectElement.title = this.options[this.selected].text;
+				this._hover.update(this.options[this.selected].text);
 			}
 		}
 

@@ -278,6 +278,11 @@ declare module 'vscode' {
 		sampleRequest?: string;
 
 		/**
+		 * Whether invoking the agent puts the chat into a persistent mode, where the agent is automatically added to the chat input for the next message.
+		 */
+		isSticky?: boolean;
+
+		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
 		 * a result.
 		 *

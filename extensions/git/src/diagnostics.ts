@@ -82,6 +82,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 	provideCodeActions(document: TextDocument, range: Range | Selection): CodeAction[] {
 		const codeActions: CodeAction[] = [];
 		const diagnostics = this.diagnosticsManager.getDiagnostics(document.uri);
+		const wrapAllLinesCodeAction = this.getWrapAllLinesCodeAction(document, diagnostics);
 
 		for (const diagnostic of diagnostics) {
 			if (!diagnostic.range.contains(range)) {
@@ -96,17 +97,23 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 					const codeAction = new CodeAction(l10n.t('Remove empty characters'), CodeActionKind.QuickFix);
 					codeAction.diagnostics = [diagnostic];
 					codeAction.edit = workspaceEdit;
-
 					codeActions.push(codeAction);
+
 					break;
 				}
 				case DiagnosticCodes.line_length: {
 					const workspaceEdit = this.getWrapLineWorkspaceEdit(document, diagnostic.range);
+
 					const codeAction = new CodeAction(l10n.t('Hard wrap line'), CodeActionKind.QuickFix);
 					codeAction.diagnostics = [diagnostic];
 					codeAction.edit = workspaceEdit;
-
 					codeActions.push(codeAction);
+
+					if (wrapAllLinesCodeAction) {
+						wrapAllLinesCodeAction.diagnostics = [diagnostic];
+						codeActions.push(wrapAllLinesCodeAction);
+					}
+
 					break;
 				}
 			}
@@ -116,13 +123,45 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 	}
 
 	private getWrapLineWorkspaceEdit(document: TextDocument, range: Range): WorkspaceEdit {
+		const lineSegments = this.wrapTextDocumentLine(document, range.start.line);
+
+		const workspaceEdit = new WorkspaceEdit();
+		workspaceEdit.replace(document.uri, range, lineSegments.join('\n'));
+
+		return workspaceEdit;
+	}
+
+	private getWrapAllLinesCodeAction(document: TextDocument, diagnostics: readonly Diagnostic[]): CodeAction | undefined {
+		const lineLengthDiagnostics = diagnostics.filter(d => d.code === DiagnosticCodes.line_length);
+		if (lineLengthDiagnostics.length < 2) {
+			return undefined;
+		}
+
+		const wrapAllLinesCodeAction = new CodeAction(l10n.t('Hard wrap all lines'), CodeActionKind.QuickFix);
+		wrapAllLinesCodeAction.edit = this.getWrapAllLinesWorkspaceEdit(document, lineLengthDiagnostics);
+
+		return wrapAllLinesCodeAction;
+	}
+
+	private getWrapAllLinesWorkspaceEdit(document: TextDocument, diagnostics: Diagnostic[]): WorkspaceEdit {
+		const workspaceEdit = new WorkspaceEdit();
+
+		for (const diagnostic of diagnostics) {
+			const lineSegments = this.wrapTextDocumentLine(document, diagnostic.range.start.line);
+			workspaceEdit.replace(document.uri, diagnostic.range, lineSegments.join('\n'));
+		}
+
+		return workspaceEdit;
+	}
+
+	private wrapTextDocumentLine(document: TextDocument, line: number): string[] {
 		const config = workspace.getConfiguration('git');
 		const inputValidationLength = config.get<number>('inputValidationLength', 50);
 		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
-		const lineLengthThreshold = range.start.line === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
+		const lineLengthThreshold = line === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
 
 		const lineSegments: string[] = [];
-		const lineText = document.lineAt(range.start.line).text;
+		const lineText = document.lineAt(line).text;
 
 		let position = 0;
 		while (lineText.length - position > lineLengthThreshold) {
@@ -147,10 +186,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 			lineSegments.push(lineText.substring(position));
 		}
 
-		const workspaceEdit = new WorkspaceEdit();
-		workspaceEdit.replace(document.uri, range, lineSegments.join('\n'));
-
-		return workspaceEdit;
+		return lineSegments;
 	}
 
 	dispose() {
