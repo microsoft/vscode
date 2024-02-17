@@ -135,7 +135,40 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 				}
 
 				// Prefer a target group where the input is visible
-				group = groupWithInputActive || groupWithInputOpened;
+				const groupWithInput = groupWithInputActive || groupWithInputOpened;
+
+				if (groupWithInput) {
+					const candidateGroup = editorGroupService.activeGroup;
+					let unlockedGroup: IEditorGroup | undefined = undefined;
+
+					// Locked group: find the next non-locked group
+					// going up the neigbours of the group or create
+					// a new group otherwise
+					if (isGroupLockedForEditor(candidateGroup, editor)) {
+						for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+							if (isGroupLockedForEditor(group, editor)) {
+								continue;
+							}
+
+							unlockedGroup = group;
+							break;
+						}
+					}
+
+					// Non-locked group: take as is
+					else {
+						unlockedGroup = candidateGroup;
+					}
+
+					if (unlockedGroup) {
+            group.moveEditor(editor, unlockedGroup);
+						group = unlockedGroup;
+					}
+
+					else {
+            group = groupWithInput;
+					}
+				}
 			}
 		}
 	}
