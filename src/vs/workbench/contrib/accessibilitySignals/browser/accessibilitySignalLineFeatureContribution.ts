@@ -6,7 +6,7 @@
 import { CachedFunction } from 'vs/base/common/cache';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunDelta, constObservable, debouncedObservable, derived, derivedOpts, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunDelta, constObservable, derived, derivedOpts, observableFromEvent, observableFromPromise } from 'vs/base/common/observable';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
@@ -137,12 +137,6 @@ export class SignalLineFeatureContribution
 				return editor.getPosition();
 			}
 		);
-		const debouncedPosition = debouncedObservable(curPosition, this._configurationService.getValue('accessibility.signals.debouncePositionChanges') ? 300 : 0, store);
-		const isTyping = wasEventTriggeredRecently(
-			editorModel.onDidChangeContent.bind(editorModel),
-			1000,
-			store
-		);
 
 		const featureStates = this.features.map((feature) => {
 			const lineFeatureState = feature.getObservableState(editor, editorModel);
@@ -152,7 +146,7 @@ export class SignalLineFeatureContribution
 					if (!this.isSoundEnabledCache.get(feature.signal).read(reader) && !this.isAnnouncementEnabledCache.get(feature.signal).read(reader)) {
 						return false;
 					}
-					const position = debouncedPosition.read(reader);
+					const position = curPosition.read(reader);
 					if (!position) {
 						return false;
 					}
@@ -161,18 +155,12 @@ export class SignalLineFeatureContribution
 					return lineFeatureState.read(reader).isPresent(position);
 				}
 			);
-			return derivedOpts(
-				{ debugName: `typingDebouncedFeatureState:\n${feature.signal.name}` },
-				(reader) =>
-					feature.debounceWhileTyping && isTyping.read(reader)
-						? (debouncedPosition.read(reader), isFeaturePresent.get())
-						: isFeaturePresent.read(reader)
-			);
+			return isFeaturePresent;
 		});
 
 		const state = derived(
 			(reader) => /** @description states */({
-				lineNumber: debouncedPosition.read(reader),
+				lineNumber: curPosition.read(reader),
 				featureStates: new Map(
 					this.features.map((feature, idx) => [
 						feature,
@@ -205,7 +193,6 @@ export class SignalLineFeatureContribution
 
 interface LineFeature {
 	signal: AccessibilitySignal;
-	debounceWhileTyping?: boolean;
 	getObservableState(
 		editor: ICodeEditor,
 		model: ITextModel
@@ -272,7 +259,6 @@ abstract class BaseLineFeature implements LineFeature {
 }
 
 class MarkerLineFeature extends BaseLineFeature implements LineFeature {
-	public readonly debounceWhileTyping = true;
 	public override readDelaysFromSettings(configurationService: IConfigurationService) {
 		// set delays to "critical" feature type (shorter delays)
 		this.setModalityDelays(
