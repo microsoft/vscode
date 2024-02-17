@@ -39,6 +39,9 @@ declare module 'vscode' {
 		*/
 		value: string;
 
+		/** The code that represents how the variable would be accessed in the runtime environment */
+		expression?: string;
+
 		/** The type of the variable's value */
 		type?: string;
 

@@ -1149,7 +1149,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IThemeService private themeService: IThemeService,
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = getDefaultHoverDelegate('element');
+		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 	}
 
 	private uri: URI | undefined;

@@ -150,7 +150,7 @@ export class StatusBarAction extends Action {
 class StatusBarActionViewItem extends ActionViewItem {
 
 	constructor(action: StatusBarAction, options: IBaseActionViewItemOptions) {
-		super(null, action, options);
+		super(null, action, { ...options, icon: false, label: true });
 	}
 
 	protected override updateLabel(): void {

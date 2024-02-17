@@ -12,6 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { DeferredPromise } from 'vs/base/common/async';
 import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, IKeywordRecognitionSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class SpeechService extends Disposable implements ISpeechService {
 
@@ -32,7 +33,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -68,7 +70,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	private readonly speechToTextInProgress = SpeechToTextInProgress.bindTo(this.contextKeyService);
 
-	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
+	createSpeechToTextSession(token: CancellationToken, context: string = 'speech'): ISpeechToTextSession {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
 			throw new Error(`No Speech provider is registered.`);
@@ -78,6 +80,9 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token);
 
+		const sessionStart = Date.now();
+		let sessionRecognized = false;
+
 		const disposables = new DisposableStore();
 
 		const onSessionStoppedOrCanceled = () => {
@@ -85,6 +90,24 @@ export class SpeechService extends Disposable implements ISpeechService {
 				this._activeSpeechToTextSession = undefined;
 				this.speechToTextInProgress.reset();
 				this._onDidEndSpeechToTextSession.fire();
+
+				type SpeechToTextSessionClassification = {
+					owner: 'bpasero';
+					comment: 'An event that fires when a speech to text session is created';
+					context: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Context of the session.' };
+					duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Duration of the session.' };
+					recognized: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If speech was recognized.' };
+				};
+				type SpeechToTextSessionEvent = {
+					context: string;
+					duration: number;
+					recognized: boolean;
+				};
+				this.telemetryService.publicLog2<SpeechToTextSessionEvent, SpeechToTextSessionClassification>('speechToTextSession', {
+					context,
+					duration: Date.now() - sessionStart,
+					recognized: sessionRecognized
+				});
 			}
 
 			disposables.dispose();
@@ -102,6 +125,10 @@ export class SpeechService extends Disposable implements ISpeechService {
 						this.speechToTextInProgress.set(true);
 						this._onDidStartSpeechToTextSession.fire();
 					}
+					break;
+				case SpeechToTextStatus.Recognizing:
+				case SpeechToTextStatus.Recognized:
+					sessionRecognized = true;
 					break;
 				case SpeechToTextStatus.Stopped:
 					onSessionStoppedOrCanceled();
@@ -161,11 +188,26 @@ export class SpeechService extends Disposable implements ISpeechService {
 			recognizeKeyword();
 		}
 
+		let status: KeywordRecognitionStatus;
 		try {
-			return await result.p;
+			status = await result.p;
 		} finally {
 			disposables.dispose();
 		}
+
+		type KeywordRecognitionClassification = {
+			owner: 'bpasero';
+			comment: 'An event that fires when a speech keyword detection is started';
+			recognized: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the keyword was recognized.' };
+		};
+		type KeywordRecognitionEvent = {
+			recognized: boolean;
+		};
+		this.telemetryService.publicLog2<KeywordRecognitionEvent, KeywordRecognitionClassification>('keywordRecognition', {
+			recognized: status === KeywordRecognitionStatus.Recognized
+		});
+
+		return status;
 	}
 
 	private async doRecognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
