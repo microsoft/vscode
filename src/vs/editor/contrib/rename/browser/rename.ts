@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import * as arrays from 'vs/base/common/arrays';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
+import { assertType, isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
@@ -210,11 +211,20 @@ class RenameController implements IEditorContribution {
 		const cts2 = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range, this._cts.token);
 
 		const model = this.editor.getModel(); // @ulugbekna: assumes editor still has a model, otherwise, cts1 should've been cancelled
-		const newNameCandidates = Promise.all(
-			this._languageFeaturesService.newSymbolNamesProvider
-				.all(model)
-				.map(provider => provider.provideNewSymbolNames(model, loc.range, cts2.token)) // TODO@ulugbekna: make sure this works regardless if the result is then-able
-		).then((candidates) => candidates.filter((c): c is NewSymbolName[] => !!c).flat());
+		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
+		const newSymbolNames = newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, cts2.token));
+		const newNameCandidates = Promise.allSettled(newSymbolNames).then(namesListResults => {
+			if (cts2.token.isCancellationRequested) {
+				return [];
+			}
+			const newNames: NewSymbolName[] = [];
+			for (const namesListResult of namesListResults) {
+				if (namesListResult.status === 'fulfilled' && isDefined(namesListResult.value)) {
+					arrays.pushMany(newNames, namesListResult.value);
+				}
+			}
+			return newNames;
+		});
 
 		const selection = this.editor.getSelection();
 		let selectionStart = 0;
