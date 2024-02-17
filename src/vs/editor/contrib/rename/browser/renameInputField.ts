@@ -254,6 +254,9 @@ export class RenameInputField implements IContentWidget {
 		}
 	}
 
+	/**
+	 * @returns a `boolean` standing for `shouldFocusEditor`, if user didn't pick a new name, or a {@link RenameInputFieldResult}
+	 */
 	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, candidates: Promise<NewSymbolName[]>, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {
 
 		this._domNode!.classList.toggle('preview', supportPreview);
@@ -463,7 +466,10 @@ export class CandidatesView {
 		this._listWidget.rerender();
 	}
 
-	public focusNext() {
+	public focusNext(): void {
+		if (this._listWidget.length === 0) {
+			return;
+		}
 		if (this._listWidget.isDOMFocused()) {
 			this._listWidget.focusNext();
 		} else {
@@ -476,7 +482,10 @@ export class CandidatesView {
 	/**
 	 * @returns true if focus is moved to previous element
 	 */
-	public focusPrevious() {
+	public focusPrevious(): boolean {
+		if (this._listWidget.length === 0) {
+			return false;
+		}
 		this._listWidget.domFocus();
 		const focusedIx = this._listWidget.getFocus()[0];
 		if (focusedIx !== 0) {
