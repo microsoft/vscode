@@ -57,7 +57,7 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 		const { fileNameToUri } = context.runtimeEnv;
 		const ts = context.ts!;
 		const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
-		const sys = createSys(ts, serviceEnv, { getCurrentDirectory: () => '' } as any);
+		const sys = createSys(ts, serviceEnv, '');
 		const host: TypeScriptProjectHost = {
 			getCompilationSettings: () => compilerOptions,
 			getScriptFileNames: () => [uriToFileName(currentTextDocument!.uri), JQUERY_PATH],
