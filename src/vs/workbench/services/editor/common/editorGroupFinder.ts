@@ -114,59 +114,54 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		// We also try to reveal an editor if it has the `Singleton` capability which
 		// indicates that the same editor cannot be opened across groups.
 		if (!group) {
-			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
-				let groupWithInputActive: IEditorGroup | undefined = undefined;
-				let groupWithInputOpened: IEditorGroup | undefined = undefined;
+			const revealIfOpen = configurationService.getValue<boolean>('workbench.editor.revealIfOpen');
+
+			if (options?.revealIfOpened || revealIfOpen || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
+				let groupAndEditorWithInputActive: [IEditorGroup, EditorInput] | undefined = undefined;
+				let groupAndEditorWithInputOpened: [IEditorGroup, EditorInput] | undefined = undefined;
 
 				for (const group of groupsByLastActive) {
-					if (isOpened(group, editor)) {
-						if (!groupWithInputOpened) {
-							groupWithInputOpened = group;
-						}
+					let typedEditor: EditorInput | undefined = undefined;
 
-						if (!groupWithInputActive && group.isActive(editor)) {
-							groupWithInputActive = group;
+					for (const groupTypedEditor of group.editors) {
+						if (groupTypedEditor.matches(editor)) {
+							typedEditor = groupTypedEditor;
+							break;
 						}
 					}
 
-					if (groupWithInputOpened && groupWithInputActive) {
+					if (typedEditor) {
+						if (!groupAndEditorWithInputOpened) {
+							groupAndEditorWithInputOpened = [group, typedEditor];
+						}
+
+						if (!groupAndEditorWithInputActive && group.isActive(editor)) {
+							groupAndEditorWithInputActive = [group, typedEditor];
+						}
+					}
+
+					if (groupAndEditorWithInputOpened && groupAndEditorWithInputActive) {
 						break; // we found all groups we wanted
 					}
 				}
 
 				// Prefer a target group where the input is visible
-				const groupWithInput = groupWithInputActive || groupWithInputOpened;
+				const groupAndEditorWithInput = groupAndEditorWithInputActive || groupAndEditorWithInputOpened;
 
-				if (groupWithInput) {
-					const candidateGroup = editorGroupService.activeGroup;
-					let unlockedGroup: IEditorGroup | undefined = undefined;
+				if (groupAndEditorWithInput) {
+					const [groupWithInput, typedEditor] = groupAndEditorWithInput;
 
-					// Locked group: find the next non-locked group
-					// going up the neigbours of the group or create
-					// a new group otherwise
-					if (isGroupLockedForEditor(candidateGroup, editor)) {
-						for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-							if (isGroupLockedForEditor(group, editor)) {
-								continue;
-							}
+					const revealIfOpenInActiveGroup = configurationService.getValue<boolean>('workbench.editor.revealIfOpenInActiveGroup');
 
-							unlockedGroup = group;
-							break;
-						}
-					}
-
-					// Non-locked group: take as is
-					else {
-						unlockedGroup = candidateGroup;
-					}
-
-					if (unlockedGroup) {
-            group.moveEditor(editor, unlockedGroup);
-						group = unlockedGroup;
+					// If workbench.editor.revealIfOpenInActiveGroup is set,
+					// move editor to active group unless it is locked
+					if (revealIfOpen && revealIfOpenInActiveGroup && !isGroupLockedForEditor(editorGroupService.activeGroup, editor)) {
+						groupWithInput.moveEditor(typedEditor, editorGroupService.activeGroup);
+						group = editorGroupService.activeGroup;
 					}
 
 					else {
-            group = groupWithInput;
+						group = groupWithInput;
 					}
 				}
 			}
