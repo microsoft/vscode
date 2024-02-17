@@ -100,6 +100,18 @@ const signalFeatureBase: IConfigurationPropertySchema = {
 		announcement: 'auto'
 	}
 };
+const signalDelayBase: IConfigurationPropertySchema = {
+	type: 'number',
+	minimum: 0,
+	maximum: 5000,
+	default: 0,
+	tags: ['accessibility'],
+};
+const signalFeatureDelaysBase: IConfigurationPropertySchema = {
+	type: 'object',
+	tags: ['accessibility'],
+	additionalProperties: false,
+};
 
 export const announcementFeatureBase: IConfigurationPropertySchema = {
 	'type': 'string',
@@ -279,6 +291,62 @@ const configuration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': false,
 			tags: ['accessibility']
+		},
+		'accessibility.signals.lineFeatureDelays.critical': {
+			...signalFeatureDelaysBase,
+			'description': localize('accessibility.signals.lineFeatureDelays.critical', "Delays applied to accessibility signals when the active line has a critical feature (e.g. error, warning)."),
+			default: {
+				soundLineDelay: 0,
+				soundInlineDelay: 300,
+				announcementLineDelay: 300,
+				announcementInlineDelay: 600
+			},
+			'properties': {
+				'soundLineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.critical.soundLineDelay', "Delay for sounds when moving to a line with critical features."),
+				},
+				'soundInlineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.critical.soundInlineDelay', "Delay for sounds when moving within a line with critical features."),
+				},
+				'announcementLineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.critical.announcementLineDelay', "Delay for announcements when moving to a line with critical features."),
+				},
+				'announcementInlineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.critical.announcementInlineDelay', "Delay for announcements when moving within a line with critical features."),
+				},
+			},
+		},
+		'accessibility.signals.lineFeatureDelays.informational': {
+			...signalFeatureDelaysBase,
+			'description': localize('accessibility.signals.lineFeatureDelays.informational', "Delays applied to accessibility signals when the active line has an informational feature (e.g. breakpoint, folded area)."),
+			'default': {
+				soundLineDelay: 300,
+				soundInlineDelay: 600,
+				announcementLineDelay: 600,
+				announcementInlineDelay: 1200
+			},
+			'properties': {
+				'soundLineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.informational.soundLineDelay', "Delay for sounds when moving to a line with informational features."),
+				},
+				'soundInlineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.informational.soundInlineDelay', "Delay for sounds when moving within a line with informational features."),
+				},
+				'announcementLineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.informational.announcementLineDelay', "Delay for announcements when moving to a line with informational features."),
+				},
+				'announcementInlineDelay': {
+					...signalDelayBase,
+					'description': localize('accessibility.signals.lineFeatureDelays.informational.announcementInlineDelay', "Delay for announcements when moving within a line with informational features."),
+				},
+			},
 		},
 		'accessibility.signals.lineHasBreakpoint': {
 			...signalFeatureBase,

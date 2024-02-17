@@ -90,6 +90,12 @@ export class SignalLineFeatureContribution
 			}
 		);
 
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.signals.lineFeatureDelays')) {
+				this.features.forEach(f => f.readDelaysFromSettings(this._configurationService));
+			}
+		}));
+
 		this._register(
 			autorun(reader => {
 				/** @description updateSignalsEnabled */
@@ -204,6 +210,7 @@ interface LineFeature {
 		editor: ICodeEditor,
 		model: ITextModel
 	): IObservable<LineFeatureState>;
+	readDelaysFromSettings(configurationService: IConfigurationService): void;
 	trackLineChanged(position: Position): void;
 	getDelay(modality: SignalModality): number;
 }
@@ -213,12 +220,11 @@ interface LineFeatureState {
 }
 
 type DelayType = {
-	line: number;
-	inline: number;
+	lineDelay: number;
+	inlineDelay: number;
 };
 
 abstract class BaseLineFeature implements LineFeature {
-	// mandatory properties of the original LineFeature interface
 	abstract signal: AccessibilitySignal;
 	abstract getObservableState(
 		editor: ICodeEditor,
@@ -227,8 +233,21 @@ abstract class BaseLineFeature implements LineFeature {
 
 	// Holds the current delay values associated with this feature
 	protected _modalityDelays: Map<SignalModality, DelayType> = new Map();
-	protected setModalityDelays(modality: SignalModality, lineDelay: number, inlineDelay: number) {
-		this._modalityDelays.set(modality, { line: lineDelay, inline: inlineDelay });
+	protected setModalityDelays(modality: SignalModality, lineDelay: number | undefined, inlineDelay: number | undefined) {
+		this._modalityDelays.set(modality, { lineDelay: lineDelay || 0, inlineDelay: inlineDelay || 0 });
+	}
+	public readDelaysFromSettings(configurationService: IConfigurationService) {
+		// set default delays to "info" feature type (longer delays)
+		this.setModalityDelays(
+			SignalModality.Sound,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.soundLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.soundInlineDelay')
+		);
+		this.setModalityDelays(
+			SignalModality.Announcement,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.announcementLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.informational.announcementInlineDelay')
+		);
 	}
 
 	protected _previousLine: number = 0;
@@ -238,18 +257,11 @@ abstract class BaseLineFeature implements LineFeature {
 		this._previousLine = position.lineNumber;
 	}
 
-	constructor() {
-		// set default delays to "info" feature type (longer delays)
-		// TODO: Retrieve values from user-configurable settings
-		this.setModalityDelays(SignalModality.Sound, 300, 600);
-		this.setModalityDelays(SignalModality.Announcement, 600, 1500);
-	}
-
 	public getDelay(modality: SignalModality): number {
 		let minDelay = Infinity;
 		for (const [key, delayObj] of this._modalityDelays) {
 			if ((modality & key) !== 0) {
-				const delay = this._lineChanged ? delayObj.line : delayObj.inline;
+				const delay = this._lineChanged ? delayObj.lineDelay : delayObj.inlineDelay;
 				if (delay < minDelay) {
 					minDelay = delay;
 				}
@@ -261,17 +273,28 @@ abstract class BaseLineFeature implements LineFeature {
 
 class MarkerLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
+	public override readDelaysFromSettings(configurationService: IConfigurationService) {
+		// set delays to "critical" feature type (shorter delays)
+		this.setModalityDelays(
+			SignalModality.Sound,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.soundLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.soundInlineDelay')
+		);
+		this.setModalityDelays(
+			SignalModality.Announcement,
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.announcementLineDelay'),
+			configurationService.getValue('accessibility.signals.lineFeatureDelays.critical.announcementInlineDelay')
+		);
+	}
 
 	constructor(
 		public readonly signal: AccessibilitySignal,
 		private readonly severity: MarkerSeverity,
 		@IMarkerService private readonly markerService: IMarkerService,
-
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		// TODO: Retrieve values from user-configurable settings
-		this.setModalityDelays(SignalModality.Sound, 0, 300);
-		this.setModalityDelays(SignalModality.Announcement, 300, 600);
+		this.readDelaysFromSettings(this.configurationService);
 	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
@@ -298,8 +321,9 @@ class MarkerLineFeature extends BaseLineFeature implements LineFeature {
 class FoldedAreaLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly signal = AccessibilitySignal.foldedArea;
 
-	constructor() {
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
 		super();
+		this.readDelaysFromSettings(this.configurationService);
 	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
@@ -329,8 +353,12 @@ class FoldedAreaLineFeature extends BaseLineFeature implements LineFeature {
 class BreakpointLineFeature extends BaseLineFeature implements LineFeature {
 	public readonly signal = AccessibilitySignal.break;
 
-	constructor(@IDebugService private readonly debugService: IDebugService) {
+	constructor(@
+		IDebugService private readonly debugService: IDebugService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		super();
+		this.readDelaysFromSettings(this.configurationService);
 	}
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
