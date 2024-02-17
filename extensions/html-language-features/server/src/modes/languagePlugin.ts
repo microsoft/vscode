@@ -32,6 +32,14 @@ export const htmlLanguagePlugin: LanguagePlugin = {
 						scriptKind: 1,
 					});
 				}
+				else if (code.id.startsWith('typescript_')) {
+					extraScripts.push({
+						fileName: fileName + '.' + code.id.split('_')[1] + '.ts',
+						code,
+						extension: '.ts',
+						scriptKind: 3,
+					});
+				}
 			}
 			return extraScripts
 		},

@@ -34,6 +34,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 		diagnosticModel: DiagnosticModel.Pull,
 		fullCompletionList: true,
+		semanticTokensLegend: {
+			// fill missing modifiers from standard modifiers
+			tokenModifiers: ['local'],
+			tokenTypes: [],
+		},
 	};
 	const clientOptions: lsp.LanguageClientOptions = {
 		documentSelector: [{ language: 'html' }],

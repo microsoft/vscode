@@ -21,6 +21,11 @@ export async function getTestServer(rootUri: string, capabilities?: ClientCapabi
 			typescript: { tsdk: path.dirname(require.resolve('typescript')) },
 			diagnosticModel: DiagnosticModel.Pull,
 			fullCompletionList: true,
+			semanticTokensLegend: {
+				// fill missing modifiers from standard modifiers
+				tokenModifiers: ['local'],
+				tokenTypes: [],
+			},
 		}, capabilities);
 	}
 	return server;
