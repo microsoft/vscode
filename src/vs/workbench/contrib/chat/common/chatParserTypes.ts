@@ -26,8 +26,11 @@ export interface IParsedChatRequestPart {
 	readonly promptText: string;
 }
 
-export function getPromptText(request: ReadonlyArray<IParsedChatRequestPart>): string {
-	return request.map(r => r.promptText).join('');
+export function getPromptText(request: IParsedChatRequest): { message: string; diff: number } {
+	const message = request.parts.map(r => r.promptText).join('').trimStart();
+	const diff = request.text.length - message.length;
+
+	return { message, diff };
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
@@ -138,12 +141,11 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
 
 	get referenceText(): string {
-		return this.text;
+		return this.text.replace(chatVariableLeader, '');
 	}
 
 	get promptText(): string {
-		// This needs to be dynamically generated for de-duping
-		return ``;
+		return this.text;
 	}
 }
 

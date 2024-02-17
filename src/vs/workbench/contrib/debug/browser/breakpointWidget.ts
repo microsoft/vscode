@@ -85,10 +85,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private selectBreakpointContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;
 	private selectBreakpointBox!: SelectBox;
+	private selectModeBox?: SelectBox;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
+	private modeInput?: DebugProtocol.BreakpointMode;
 	private breakpoint: IBreakpoint | undefined;
 	private context: Context;
 	private heightInPx: number | undefined;
@@ -216,6 +218,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			this.updateContextInput();
 		});
 
+		this.createModesInput(container);
+
 		this.inputContainer = $('.inputContainer');
 		this.createBreakpointInput(dom.append(container, this.inputContainer));
 
@@ -230,6 +234,33 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.updateContextInput();
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.focusInput(), 150);
+	}
+
+	private createModesInput(container: HTMLElement) {
+		const modes = this.debugService.getModel().getBreakpointModes('source');
+		if (modes.length <= 1) {
+			return;
+		}
+
+		const sb = this.selectModeBox = new SelectBox(
+			[
+				{ text: nls.localize('bpMode', 'Mode'), isDisabled: true },
+				...modes.map(mode => ({ text: mode.label, description: mode.description })),
+			],
+			modes.findIndex(m => m.mode === this.breakpoint?.mode) + 1,
+			this.contextViewService,
+			defaultSelectBoxStyles,
+		);
+		this.toDispose.push(sb);
+		this.toDispose.push(sb.onDidSelect(e => {
+			this.modeInput = modes[e.index - 1];
+		}));
+
+		const modeWrapper = $('.select-mode-container');
+		const selectionWrapper = $('.select-box-container');
+		dom.append(modeWrapper, selectionWrapper);
+		sb.render(selectionWrapper);
+		dom.append(container, modeWrapper);
 	}
 
 	private createTriggerBreakpointInput(container: HTMLElement) {
@@ -404,10 +435,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (success) {
 			// if there is already a breakpoint on this location - remove it.
 
-			let condition = this.breakpoint && this.breakpoint.condition;
-			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
-			let logMessage = this.breakpoint && this.breakpoint.logMessage;
-			let triggeredBy = this.breakpoint && this.breakpoint.triggeredBy;
+			let condition = this.breakpoint?.condition;
+			let hitCondition = this.breakpoint?.hitCondition;
+			let logMessage = this.breakpoint?.logMessage;
+			let triggeredBy = this.breakpoint?.triggeredBy;
+			let mode = this.breakpoint?.mode;
+			let modeLabel = this.breakpoint?.modeLabel;
 
 			this.rememberInput();
 
@@ -419,6 +452,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			}
 			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
 				logMessage = this.logMessageInput;
+			}
+			if (this.selectModeBox) {
+				mode = this.modeInput?.mode;
+				modeLabel = this.modeInput?.label;
 			}
 			if (this.context === Context.TRIGGER_POINT) {
 				// currently, trigger points don't support additional conditions:
@@ -434,7 +471,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					condition,
 					hitCondition,
 					logMessage,
-					triggeredBy
+					triggeredBy,
+					mode,
+					modeLabel,
 				});
 				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
@@ -447,7 +486,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						condition,
 						hitCondition,
 						logMessage,
-						triggeredBy
+						triggeredBy,
+						mode,
+						modeLabel,
 					}]);
 				}
 			}

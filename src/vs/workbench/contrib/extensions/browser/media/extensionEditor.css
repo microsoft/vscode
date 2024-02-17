@@ -616,6 +616,10 @@
 	padding: 2px 16px 2px 4px;
 }
 
+.extension-editor > .body > .content table td {
+	vertical-align: top;
+}
+
 .extension-editor > .body > .content table th:last-child,
 .extension-editor > .body > .content table td:last-child {
 	padding: 2px 4px;

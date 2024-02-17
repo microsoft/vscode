@@ -25,7 +25,7 @@ declare module 'vscode' {
 	// TODO@API fit this into the stream
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentSubCommand;
+		command?: ChatAgentCommand;
 	}
 
 	// TODO@API fit this into the stream
@@ -45,7 +45,6 @@ declare module 'vscode' {
 	 */
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
-		| ChatAgentFileTree
 		| ChatAgentInlineContentReference
 		| ChatAgentCommandButton;
 
@@ -108,20 +107,6 @@ declare module 'vscode' {
 		content: string;
 	}
 
-	/** @deprecated */
-	export interface ChatAgentFileTree {
-		treeData: ChatAgentFileTreeData;
-	}
-
-	/** @deprecated */
-	export interface ChatAgentFileTreeData {
-		label: string;
-		uri: Uri;
-		type?: FileType;
-		children?: ChatAgentFileTreeData[];
-	}
-
-
 	export interface ChatAgentDocumentContext {
 		uri: Uri;
 		version: number;
@@ -173,13 +158,13 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatAgentExtendedRequestHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
+		export function createChatAgent(name: string, handler: ChatAgentExtendedRequestHandler): ChatAgent2;
 	}
 
 	/*
@@ -223,7 +208,7 @@ declare module 'vscode' {
 		commandButton: ChatAgentCommandButton;
 	}
 
-	export interface ChatAgentSessionFollowupAction {
+	export interface ChatAgentFollowupAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'followUp';
 		followup: ChatAgentFollowup;
@@ -236,7 +221,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentUserActionEvent {
 		readonly result: ChatAgentResult2;
-		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentSessionFollowupAction | ChatAgentBugReportAction;
+		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentFollowupAction | ChatAgentBugReportAction;
 	}
 
 	export interface ChatVariableValue {
@@ -244,5 +229,60 @@ declare module 'vscode' {
 		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
 		 */
 		kind?: string;
+	}
+
+	export interface ChatAgentCommand {
+		readonly isSticky2?: {
+			/**
+			 * Indicates that the command should be automatically repopulated.
+			 */
+			isSticky: true;
+
+			/**
+			 * This can be set to a string to use a different placeholder message in the input box when the command has been repopulated.
+			 */
+			placeholder?: string;
+		};
+	}
+
+	export interface ChatVariableResolverResponseStream {
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		 *
+		 * @param value
+		 * @returns This stream.
+		 */
+		progress(value: string): ChatVariableResolverResponseStream;
+
+		/**
+		 * Push a reference to this stream. Short-hand for
+		 * `push(new ChatResponseReferencePart(value))`.
+		 *
+		 * *Note* that the reference is not rendered inline with the response.
+		 *
+		 * @param value A uri or location
+		 * @returns This stream.
+		 */
+		reference(value: Uri | Location): ChatVariableResolverResponseStream;
+
+		/**
+		 * Pushes a part to this stream.
+		 *
+		 * @param part A response part, rendered or metadata
+		 */
+		push(part: ChatVariableResolverResponsePart): ChatVariableResolverResponseStream;
+	}
+
+	export type ChatVariableResolverResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
+
+	export interface ChatVariableResolver {
+		/**
+		 * A callback to resolve the value of a chat variable.
+		 * @param name The name of the variable.
+		 * @param context Contextual information about this chat request.
+		 * @param token A cancellation token.
+		 */
+		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 }

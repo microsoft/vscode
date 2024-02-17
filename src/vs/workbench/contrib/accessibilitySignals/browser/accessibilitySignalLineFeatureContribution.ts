@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -20,39 +20,39 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class AudioCueLineFeatureContribution
+export class SignalLineFeatureContribution
 	extends Disposable
 	implements IWorkbenchContribution {
 	private readonly store = this._register(new DisposableStore());
 
 	private readonly features: LineFeature[] = [
-		this.instantiationService.createInstance(MarkerLineFeature, AudioCue.error, MarkerSeverity.Error),
-		this.instantiationService.createInstance(MarkerLineFeature, AudioCue.warning, MarkerSeverity.Warning),
+		this.instantiationService.createInstance(MarkerLineFeature, AccessibilitySignal.error, MarkerSeverity.Error),
+		this.instantiationService.createInstance(MarkerLineFeature, AccessibilitySignal.warning, MarkerSeverity.Warning),
 		this.instantiationService.createInstance(FoldedAreaLineFeature),
 		this.instantiationService.createInstance(BreakpointLineFeature),
 	];
 
-	private readonly isEnabledCache = new CachedFunction<AudioCue, IObservable<boolean>>((cue) => observableFromEvent(
-		this.audioCueService.onEnabledChanged(cue),
-		() => this.audioCueService.isCueEnabled(cue)
+	private readonly isSoundEnabledCache = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
+		this.accessibilitySignalService.onSoundEnabledChanged(cue),
+		() => this.accessibilitySignalService.isSoundEnabled(cue)
 	));
 
-	private readonly isAlertEnabledCache = new CachedFunction<AudioCue, IObservable<boolean>>((cue) => observableFromEvent(
-		this.audioCueService.onAlertEnabledChanged(cue),
-		() => this.audioCueService.isAlertEnabled(cue)
+	private readonly isAnnouncmentEnabledCahce = new CachedFunction<AccessibilitySignal, IObservable<boolean>>((cue) => observableFromEvent(
+		this.accessibilitySignalService.onAnnouncementEnabledChanged(cue),
+		() => this.accessibilitySignalService.isAnnouncementEnabled(cue)
 	));
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
-		const someAudioCueFeatureIsEnabled = derived(
-			(reader) => /** @description someAudioCueFeatureIsEnabled */ this.features.some((feature) =>
-				this.isEnabledCache.get(feature.audioCue).read(reader) || this.isAlertEnabledCache.get(feature.audioCue).read(reader)
+		const someAccessibilitySignalIsEnabled = derived(
+			(reader) => /** @description someAccessibilitySignalFeatureIsEnabled */ this.features.some((feature) =>
+				this.isSoundEnabledCache.get(feature.signal).read(reader) || this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)
 			)
 		);
 
@@ -74,22 +74,22 @@ export class AudioCueLineFeatureContribution
 
 		this._register(
 			autorun(reader => {
-				/** @description updateAudioCuesEnabled */
+				/** @description updateSignalsEnabled */
 				this.store.clear();
 
-				if (!someAudioCueFeatureIsEnabled.read(reader)) {
+				if (!someAccessibilitySignalIsEnabled.read(reader)) {
 					return;
 				}
 
 				const activeEditor = activeEditorObservable.read(reader);
 				if (activeEditor) {
-					this.registerAudioCuesForEditor(activeEditor.editor, activeEditor.model, this.store);
+					this.registerAccessibilitySignalsForEditor(activeEditor.editor, activeEditor.model, this.store);
 				}
 			})
 		);
 	}
 
-	private registerAudioCuesForEditor(
+	private registerAccessibilitySignalsForEditor(
 		editor: ICodeEditor,
 		editorModel: ITextModel,
 		store: DisposableStore
@@ -109,7 +109,7 @@ export class AudioCueLineFeatureContribution
 				return editor.getPosition();
 			}
 		);
-		const debouncedPosition = debouncedObservable(curPosition, this._configurationService.getValue('audioCues.debouncePositionChanges') ? 300 : 0, store);
+		const debouncedPosition = debouncedObservable(curPosition, this._configurationService.getValue('accessibility.signals.debouncePositionChanges') ? 300 : 0, store);
 		const isTyping = wasEventTriggeredRecently(
 			editorModel.onDidChangeContent.bind(editorModel),
 			1000,
@@ -119,9 +119,9 @@ export class AudioCueLineFeatureContribution
 		const featureStates = this.features.map((feature) => {
 			const lineFeatureState = feature.getObservableState(editor, editorModel);
 			const isFeaturePresent = derivedOpts(
-				{ debugName: `isPresentInLine:${feature.audioCue.name}` },
+				{ debugName: `isPresentInLine:${feature.signal.name}` },
 				(reader) => {
-					if (!this.isEnabledCache.get(feature.audioCue).read(reader) && !this.isAlertEnabledCache.get(feature.audioCue).read(reader)) {
+					if (!this.isSoundEnabledCache.get(feature.signal).read(reader) && !this.isAnnouncmentEnabledCahce.get(feature.signal).read(reader)) {
 						return false;
 					}
 					const position = debouncedPosition.read(reader);
@@ -132,7 +132,7 @@ export class AudioCueLineFeatureContribution
 				}
 			);
 			return derivedOpts(
-				{ debugName: `typingDebouncedFeatureState:\n${feature.audioCue.name}` },
+				{ debugName: `typingDebouncedFeatureState:\n${feature.signal.name}` },
 				(reader) =>
 					feature.debounceWhileTyping && isTyping.read(reader)
 						? (debouncedPosition.read(reader), isFeaturePresent.get())
@@ -154,21 +154,21 @@ export class AudioCueLineFeatureContribution
 
 		store.add(
 			autorunDelta(state, ({ lastValue, newValue }) => {
-				/** @description Play Audio Cue */
+				/** @description Play Accessibility Signal */
 				const newFeatures = this.features.filter(
 					feature =>
 						newValue?.featureStates.get(feature) &&
 						(!lastValue?.featureStates?.get(feature) || newValue.lineNumber !== lastValue.lineNumber)
 				);
 
-				this.audioCueService.playAudioCues(newFeatures.map(f => f.audioCue));
+				this.accessibilitySignalService.playAccessibilitySignals(newFeatures.map(f => f.signal));
 			})
 		);
 	}
 }
 
 interface LineFeature {
-	audioCue: AudioCue;
+	signal: AccessibilitySignal;
 	debounceWhileTyping?: boolean;
 	getObservableState(
 		editor: ICodeEditor,
@@ -184,7 +184,7 @@ class MarkerLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
 	private _previousLine: number = 0;
 	constructor(
-		public readonly audioCue: AudioCue,
+		public readonly signal: AccessibilitySignal,
 		private readonly severity: MarkerSeverity,
 		@IMarkerService private readonly markerService: IMarkerService,
 
@@ -214,7 +214,7 @@ class MarkerLineFeature implements LineFeature {
 }
 
 class FoldedAreaLineFeature implements LineFeature {
-	public readonly audioCue = AudioCue.foldedArea;
+	public readonly signal = AccessibilitySignal.foldedArea;
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		const foldingController = FoldingController.get(editor);
@@ -241,7 +241,7 @@ class FoldedAreaLineFeature implements LineFeature {
 }
 
 class BreakpointLineFeature implements LineFeature {
-	public readonly audioCue = AudioCue.break;
+	public readonly signal = AccessibilitySignal.break;
 
 	constructor(@IDebugService private readonly debugService: IDebugService) { }
 

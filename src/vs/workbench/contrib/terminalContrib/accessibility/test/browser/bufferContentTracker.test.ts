@@ -30,7 +30,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { Terminal } from '@xterm/xterm';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -67,7 +67,10 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
-		instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
+		instantiationService.stub(IAccessibilitySignalService, {
+			playSignal: async () => { },
+			isSoundEnabled(signal: unknown) { return false; },
+		} as any);
 
 		instantiationService.stub(ILayoutService, new TestLayoutService());
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));

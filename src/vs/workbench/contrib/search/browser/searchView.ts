@@ -80,7 +80,7 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 const $ = dom.$;
 
@@ -192,7 +192,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -901,6 +901,7 @@ export class SearchView extends ViewPane {
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
 		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
+		this._register(this.tree.onDidChangeModel(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
 			if (options.element instanceof Match) {
@@ -1279,7 +1280,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		this.audioCueService.playAudioCue(AudioCue.clear);
+		this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		this.reLayout();
 	}
 

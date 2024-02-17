@@ -261,7 +261,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get messageText() {
-		return 'kind' in this.message ? this.message.message : this.message.text;
+		return this.message.text;
 	}
 
 	currentRenderedHeight: number | undefined;

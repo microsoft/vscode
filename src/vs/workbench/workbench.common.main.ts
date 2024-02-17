@@ -181,7 +181,7 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
 // Speech
-import 'vs/workbench/contrib/speech/common/speech.contribution';
+import 'vs/workbench/contrib/speech/browser/speech.contribution';
 
 // Chat
 import 'vs/workbench/contrib/chat/browser/chat.contribution';
@@ -368,8 +368,8 @@ import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 // List
 import 'vs/workbench/contrib/list/browser/list.contribution';
 
-// Audio Cues
-import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
+// Accessibility Signals
+import 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
 
 // Deprecated Extension Migrator
 import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';

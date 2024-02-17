@@ -268,6 +268,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		}
 
 		this._register(autorun(reader => {
+			/** @description Update CollapsedCodeOverlayWidget canMove* css classes */
 			const isFullyRevealed = this._unchangedRegion.visibleLineCountTop.read(reader) + this._unchangedRegion.visibleLineCountBottom.read(reader) === this._unchangedRegion.lineCount;
 
 			this._nodes.bottom.classList.toggle('canMoveTop', !isFullyRevealed);

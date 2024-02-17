@@ -9,6 +9,8 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IInlineChatFollowup } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
@@ -20,7 +22,8 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 		followups: T[],
 		private readonly options: IButtonStyles | undefined,
 		private readonly clickHandler: (followup: T) => void,
-		private readonly contextService: IContextKeyService,
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -34,7 +37,25 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 			return;
 		}
 
-		const tooltip = 'tooltip' in followup ? followup.tooltip : undefined;
+		if (!this.chatAgentService.getDefaultAgent()) {
+			// No default agent yet, which affects how followups are rendered, so can't render this yet
+			return;
+		}
+
+		let tooltipPrefix = '';
+		if ('agentId' in followup && followup.agentId && followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
+			tooltipPrefix += `${chatAgentLeader}${followup.agentId} `;
+			if ('subCommand' in followup && followup.subCommand) {
+				tooltipPrefix += `${chatSubcommandLeader}${followup.subCommand} `;
+			}
+		}
+
+		const baseTitle = followup.kind === 'reply' ?
+			(followup.title || followup.message)
+			: followup.title;
+
+		const tooltip = tooltipPrefix +
+			('tooltip' in followup && followup.tooltip || baseTitle);
 		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');
@@ -42,9 +63,12 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 			button.element.classList.add('interactive-followup-command');
 		}
 		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
-		const label = followup.kind === 'reply' ?
-			'$(sparkle) ' + (followup.title || followup.message) :
-			followup.title;
+		let label = '';
+		if (followup.kind === 'reply') {
+			label = '$(sparkle) ' + baseTitle;
+		} else {
+			label = baseTitle;
+		}
 		button.label = new MarkdownString(label, { supportThemeIcons: true });
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));
