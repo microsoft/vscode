@@ -152,10 +152,11 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 					const [groupWithInput, typedEditor] = groupAndEditorWithInput;
 
 					const revealIfOpenInActiveGroup = configurationService.getValue<boolean>('workbench.editor.revealIfOpenInActiveGroup');
+					const isActiveGroupLocked = isGroupLockedForEditor(editorGroupService.activeGroup, editor);
 
 					// If workbench.editor.revealIfOpenInActiveGroup is set,
 					// move editor to active group unless it is locked
-					if (revealIfOpen && revealIfOpenInActiveGroup && !isGroupLockedForEditor(editorGroupService.activeGroup, editor)) {
+					if (revealIfOpen && revealIfOpenInActiveGroup && !isActiveGroupLocked) {
 						groupWithInput.moveEditor(typedEditor, editorGroupService.activeGroup);
 						group = editorGroupService.activeGroup;
 					}
