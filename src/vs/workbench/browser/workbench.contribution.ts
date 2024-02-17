@@ -296,7 +296,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.revealIfOpenInActiveGroup': {
 				'type': 'boolean',
-				'markdownDescription': localize('revealIfOpenInActiveGroup', "Moves already opened editors to the active editor group when they are revealed. Note that there are some cases where this setting is ignored, such as when the currently active group is locked. Only applies to `#workbench.editor.revealIfOpen#` is set."),
+				'markdownDescription': localize('revealIfOpenInActiveGroup', "Moves already opened editors to the active editor group when they are revealed. Note that there are some cases where this setting is ignored, such as when the currently active group is locked. Only applies when `#workbench.editor.revealIfOpen#` is set."),
 				'default': false
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
