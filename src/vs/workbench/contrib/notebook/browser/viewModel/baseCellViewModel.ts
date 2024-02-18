@@ -300,6 +300,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._textModelRef.dispose();
 			this._textModelRef = undefined;
 		}
+		this._textModelRefChangeDisposable?.dispose();
+		this._textModelRefChangeDisposable = undefined;
 	}
 
 	getText(): string {
