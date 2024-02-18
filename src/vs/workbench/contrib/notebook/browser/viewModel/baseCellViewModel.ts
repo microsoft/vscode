@@ -103,6 +103,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _editorTransientState: IWordWrapTransientState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
+	private _textModelRefChangeDisposable: IDisposable | undefined;
 
 	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
 	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
@@ -618,8 +619,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			if (!this._textModelRef) {
 				throw new Error(`Cannot resolve text model for ${this.uri}`);
 			}
-
-			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+			this._textModelRefChangeDisposable?.dispose();
+			this._textModelRefChangeDisposable = this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent());
 		}
 
 		return this.textModel!;
@@ -668,6 +669,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textModelRef?.dispose();
+		this._textModelRefChangeDisposable?.dispose();
+		this._textModelRefChangeDisposable = undefined;
 	}
 
 	toJSON(): object {
