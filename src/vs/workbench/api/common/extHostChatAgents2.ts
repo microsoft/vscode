@@ -31,7 +31,7 @@ class ChatAgentResponseStream {
 	private _stopWatch = StopWatch.create(false);
 	private _isClosed: boolean = false;
 	private _firstProgress: number | undefined;
-	private _apiObject: vscode.ChatAgentExtendedResponseStream | undefined;
+	private _apiObject: vscode.ChatExtendedResponseStream | undefined;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -344,10 +344,10 @@ class ExtHostChatAgent {
 	private _sampleRequest?: string;
 	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatResultFeedback>();
-	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
+	private _onDidPerformAction = new Emitter<vscode.ChatUserActionEvent>();
 	private _supportIssueReporting: boolean | undefined;
-	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
-	private _welcomeMessageProvider?: vscode.ChatAgentWelcomeMessageProvider | undefined;
+	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
+	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
 	private _isSticky: boolean | undefined;
 
 	constructor(
@@ -362,11 +362,11 @@ class ExtHostChatAgent {
 		this._onDidReceiveFeedback.fire(feedback);
 	}
 
-	acceptAction(event: vscode.ChatAgentUserActionEvent) {
+	acceptAction(event: vscode.ChatUserActionEvent) {
 		this._onDidPerformAction.fire(event);
 	}
 
-	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatAgentCompletionItem[]> {
+	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatCompletionItem[]> {
 		if (!this._agentVariableProvider) {
 			return [];
 		}
@@ -385,7 +385,7 @@ class ExtHostChatAgent {
 		return result
 			.map(c => {
 				if ('isSticky2' in c) {
-					checkProposedApiEnabled(this.extension, 'chatAgents2Additions');
+					checkProposedApiEnabled(this.extension, 'chatParticipantAdditions');
 				}
 
 				return {
@@ -527,20 +527,20 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get isDefault() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._isDefault;
 			},
 			set isDefault(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._isDefault = v;
 				updateMetadataSoon();
 			},
 			get helpTextPrefix() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._helpTextPrefix;
 			},
 			set helpTextPrefix(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				if (!that._isDefault) {
 					throw new Error('helpTextPrefix is only available on the default chat agent');
 				}
@@ -549,11 +549,11 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get helpTextPostfix() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._helpTextPostfix;
 			},
 			set helpTextPostfix(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				if (!that._isDefault) {
 					throw new Error('helpTextPostfix is only available on the default chat agent');
 				}
@@ -562,11 +562,11 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get isSecondary() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._isSecondary;
 			},
 			set isSecondary(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._isSecondary = v;
 				updateMetadataSoon();
 			},
@@ -578,19 +578,19 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get supportIssueReporting() {
-				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				return that._supportIssueReporting;
 			},
 			set supportIssueReporting(v) {
-				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				that._supportIssueReporting = v;
 				updateMetadataSoon();
 			},
 			get onDidReceiveFeedback() {
 				return that._onDidReceiveFeedback.event;
 			},
-			set agentVariableProvider(v) {
-				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+			set participantVariableProvider(v) {
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				that._agentVariableProvider = v;
 				if (v) {
 					if (!v.triggerCharacters.length) {
@@ -602,20 +602,20 @@ class ExtHostChatAgent {
 					that._proxy.$unregisterAgentCompletionsProvider(that._handle);
 				}
 			},
-			get agentVariableProvider() {
-				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+			get participantVariableProvider() {
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
 				return that._agentVariableProvider;
 			},
 			set welcomeMessageProvider(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._welcomeMessageProvider = v;
 				updateMetadataSoon();
 			},
 			get welcomeMessageProvider() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._welcomeMessageProvider;
 			},
-			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
+			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatParticipantAdditions')
 				? undefined!
 				: this._onDidPerformAction.event
 			,
@@ -636,7 +636,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatParticipant;
 	}
 
-	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, response: vscode.ChatAgentExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult> {
+	invoke(request: vscode.ChatRequest, context: vscode.ChatContext, response: vscode.ChatExtendedResponseStream, token: CancellationToken): vscode.ProviderResult<vscode.ChatResult> {
 		return this._requestHandler(request, context, response, token);
 	}
 }

@@ -4164,7 +4164,7 @@ export enum InteractiveSessionVoteDirection {
 	Up = 1
 }
 
-export enum ChatAgentCopyKind {
+export enum ChatCopyKind {
 	Action = 1,
 	Toolbar = 2
 }
@@ -4175,7 +4175,7 @@ export enum ChatVariableLevel {
 	Full = 3
 }
 
-export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
+export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	label: string | CompletionItemLabel;
 	insertText?: string;
 	values: vscode.ChatVariableValue[];
