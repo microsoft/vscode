@@ -5,12 +5,12 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgent2 {
+	export interface ChatParticipant {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
 		supportIssueReporting?: boolean;
 	}
 
-	export interface ChatAgentErrorDetails {
+	export interface ChatErrorDetails {
 		/**
 		 * If set to true, the message content is completely hidden. Only ChatAgentErrorDetails#message will be shown.
 		 */
@@ -25,7 +25,7 @@ declare module 'vscode' {
 	// TODO@API fit this into the stream
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
-		command?: ChatAgentCommand;
+		command?: ChatCommand;
 	}
 
 	// TODO@API fit this into the stream
@@ -118,7 +118,7 @@ declare module 'vscode' {
 		documents: ChatAgentDocumentContext[];
 	}
 
-	export interface ChatAgentResponseStream {
+	export interface ChatResponseStream {
 		/**
 		 * @deprecated use above methods instread
 		 */
@@ -130,14 +130,14 @@ declare module 'vscode' {
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
 
-	export type ChatAgentExtendedResponseStream = ChatAgentResponseStream & {
+	export type ChatAgentExtendedResponseStream = ChatResponseStream & {
 		/**
 		 * @deprecated
 		 */
 		report(value: ChatAgentExtendedProgress): void;
 	};
 
-	export interface ChatAgent2 {
+	export interface ChatParticipant {
 		/**
 		 * Provide a set of variables that can only be used with this agent.
 		 */
@@ -158,13 +158,13 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatAgentExtendedRequestHandler = (request: ChatAgentRequest, context: ChatAgentContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatAgentExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
 
 	export namespace chat {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent(name: string, handler: ChatAgentExtendedRequestHandler): ChatAgent2;
+		export function createChatParticipant(name: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 	}
 
 	/*
@@ -211,7 +211,7 @@ declare module 'vscode' {
 	export interface ChatAgentFollowupAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'followUp';
-		followup: ChatAgentFollowup;
+		followup: ChatFollowup;
 	}
 
 	export interface ChatAgentBugReportAction {
@@ -220,7 +220,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatAgentUserActionEvent {
-		readonly result: ChatAgentResult2;
+		readonly result: ChatResult;
 		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentFollowupAction | ChatAgentBugReportAction;
 	}
 
@@ -231,7 +231,7 @@ declare module 'vscode' {
 		kind?: string;
 	}
 
-	export interface ChatAgentCommand {
+	export interface ChatCommand {
 		readonly isSticky2?: {
 			/**
 			 * Indicates that the command should be automatically repopulated.

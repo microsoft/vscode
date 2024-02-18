@@ -2195,10 +2195,10 @@ export namespace DataTransfer {
 }
 
 export namespace ChatFollowup {
-	export function from(followup: vscode.ChatAgentFollowup, request: IChatAgentRequest | undefined): IChatFollowup {
+	export function from(followup: vscode.ChatFollowup, request: IChatAgentRequest | undefined): IChatFollowup {
 		return {
 			kind: 'reply',
-			agentId: followup.agentId ?? request?.agentId ?? '',
+			agentId: followup.participant ?? request?.agentId ?? '',
 			subCommand: followup.command ?? request?.command,
 			message: followup.prompt,
 			title: followup.title,
@@ -2206,11 +2206,11 @@ export namespace ChatFollowup {
 		};
 	}
 
-	export function to(followup: IChatFollowup): vscode.ChatAgentFollowup {
+	export function to(followup: IChatFollowup): vscode.ChatFollowup {
 		return {
 			prompt: followup.message,
 			title: followup.title,
-			agentId: followup.agentId,
+			participant: followup.agentId,
 			command: followup.subCommand,
 			tooltip: followup.tooltip,
 		};
@@ -2600,7 +2600,7 @@ export namespace ChatResponseProgress {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
+	export function to(request: IChatAgentRequest): vscode.ChatRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
@@ -2610,7 +2610,7 @@ export namespace ChatAgentRequest {
 }
 
 export namespace ChatAgentResolvedVariable {
-	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatAgentResolvedVariable {
+	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatResolvedVariable {
 		return {
 			name: request.name,
 			range: [request.range.start, request.range.endExclusive],
@@ -2632,7 +2632,7 @@ export namespace ChatAgentCompletionItem {
 }
 
 export namespace ChatAgentResult {
-	export function to(result: IChatAgentResult): vscode.ChatAgentResult2 {
+	export function to(result: IChatAgentResult): vscode.ChatResult {
 		return {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,

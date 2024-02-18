@@ -12,7 +12,7 @@ declare module 'vscode' {
 		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
 	}
 
-	export interface ChatAgent2 {
+	export interface ChatParticipant {
 		/**
 		 * When true, this agent is invoked by default when no other agent is being invoked
 		 */

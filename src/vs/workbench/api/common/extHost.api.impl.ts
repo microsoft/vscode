@@ -1417,7 +1417,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
-			createChatAgent(name: string, handler: vscode.ChatAgentExtendedRequestHandler) {
+			createChatParticipant(name: string, handler: vscode.ChatExtendedRequestHandler) {
 				checkProposedApiEnabled(extension, 'chatAgents2');
 				return extHostChatAgents2.createChatAgent(extension, name, handler);
 			},
@@ -1472,7 +1472,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
 			TerminalOutputAnchor: extHostTypes.TerminalOutputAnchor,
-			ChatAgentResultFeedbackKind: extHostTypes.ChatAgentResultFeedbackKind,
+			ChatResultFeedbackKind: extHostTypes.ChatResultFeedbackKind,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
 			ChatAgentCompletionItem: extHostTypes.ChatAgentCompletionItem,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
@@ -1678,8 +1678,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
-			ChatAgentRequestTurn: extHostTypes.ChatAgentRequestTurn,
-			ChatAgentResponseTurn: extHostTypes.ChatAgentResponseTurn,
+			ChatRequestTurn: extHostTypes.ChatRequestTurn,
+			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			LanguageModelSystemMessage: extHostTypes.LanguageModelSystemMessage,
 			LanguageModelUserMessage: extHostTypes.LanguageModelUserMessage,
 			LanguageModelAssistantMessage: extHostTypes.LanguageModelAssistantMessage,
