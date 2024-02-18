@@ -160,12 +160,15 @@ class RenameController implements IEditorContribution {
 
 	async run(): Promise<void> {
 
+		const trace = this._logService.trace.bind(this._logService, '[rename]');
+
 		// set up cancellation token to prevent reentrant rename, this
 		// is the parent to the resolve- and rename-tokens
 		this._cts.dispose(true);
 		this._cts = new CancellationTokenSource();
 
 		if (!this.editor.hasModel()) {
+			trace('editor has no model');
 			return undefined;
 		}
 
@@ -173,6 +176,7 @@ class RenameController implements IEditorContribution {
 		const skeleton = new RenameSkeleton(this.editor.getModel(), position, this._languageFeaturesService.renameProvider);
 
 		if (!skeleton.hasProvider()) {
+			trace('skeleton has no provider');
 			return undefined;
 		}
 
@@ -181,11 +185,13 @@ class RenameController implements IEditorContribution {
 
 		let loc: RenameLocation & Rejection | undefined;
 		try {
+			trace('resolving rename location');
 			const resolveLocationOperation = skeleton.resolveRenameLocation(cts1.token);
 			this._progressService.showWhile(resolveLocationOperation, 250);
 			loc = await resolveLocationOperation;
-
+			trace('resolved rename location');
 		} catch (e) {
+			trace('resolve rename location failed', JSON.stringify(e, null, '\t'));
 			MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
 			return undefined;
 
@@ -194,15 +200,18 @@ class RenameController implements IEditorContribution {
 		}
 
 		if (!loc) {
+			trace('returning early - no loc');
 			return undefined;
 		}
 
 		if (loc.rejectReason) {
+			trace(`returning early - rejected with reason: ${loc.rejectReason}`, loc.rejectReason);
 			MessageController.get(this.editor)?.showMessage(loc.rejectReason, position);
 			return undefined;
 		}
 
 		if (cts1.token.isCancellationRequested) {
+			trace('returning early - cts1 cancelled');
 			return undefined;
 		}
 
@@ -215,6 +224,7 @@ class RenameController implements IEditorContribution {
 		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
 		// TODO@ulugbekna: providers should get timeout token (use createTimeoutCancellation(x))
 		const newSymbolNameProvidersResults = newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, renameCandidatesCts.token));
+		trace(`requested new symbol names from ${newSymbolNamesProviders.length} providers`);
 
 		const selection = this.editor.getSelection();
 		let selectionStart = 0;
@@ -225,11 +235,14 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
+		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
 		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
+		trace('received response from rename input field');
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
+			trace(`returning early - rename input field response - ${inputFieldResult}`);
 			if (inputFieldResult) {
 				this.editor.focus();
 			}
@@ -239,19 +252,28 @@ class RenameController implements IEditorContribution {
 
 		this.editor.focus();
 
+		trace('requesting rename edits');
 		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, cts2.token), cts2.token).then(async renameResult => {
 
-			if (!renameResult || !this.editor.hasModel()) {
+			if (!renameResult) {
+				trace('returning early - no rename edits result');
+				return;
+			}
+			if (!this.editor.hasModel()) {
+				trace('returning early - no model after rename edits are provided');
 				return;
 			}
 
 			if (renameResult.rejectReason) {
+				trace(`returning early - rejected with reason: ${renameResult.rejectReason}`);
 				this._notificationService.info(renameResult.rejectReason);
 				return;
 			}
 
 			// collapse selection to active end
 			this.editor.setSelection(Range.fromPositions(this.editor.getSelection().getPosition()));
+
+			trace('applying edits');
 
 			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
@@ -261,21 +283,27 @@ class RenameController implements IEditorContribution {
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
 				respectAutoSaveConfig: true
 			}).then(result => {
+				trace('edits applied');
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, inputFieldResult.newName, result.ariaSummary));
 				}
 			}).catch(err => {
+				trace(`error when applying edits ${JSON.stringify(err, null, '\t')}`);
 				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));
 				this._logService.error(err);
 			});
 
 		}, err => {
+			trace('error when providing rename edits', JSON.stringify(err, null, '\t'));
+
 			this._notificationService.error(nls.localize('rename.failed', "Rename failed to compute edits"));
 			this._logService.error(err);
 
 		}).finally(() => {
 			cts2.dispose();
 		});
+
+		trace('returning rename operation');
 
 		this._progressService.showWhile(renameOperation, 250);
 		return renameOperation;
@@ -342,10 +370,15 @@ export class RenameAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const logService = accessor.get(ILogService);
+
 		const controller = RenameController.get(editor);
+
 		if (controller) {
+			logService.trace('[RenameAction] got controller, running...');
 			return controller.run();
 		}
+		logService.trace('[RenameAction] returning early - controller missing');
 		return Promise.resolve();
 	}
 }
