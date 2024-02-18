@@ -38,6 +38,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
+	private extensionQ: string[] = [];
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -98,6 +99,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			actions.forEach(async action => {
 				try {
 					if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
+						console.log(extensionId + ' from ipc');
 						this.extensionIdentifierSet.add(extensionId);
 						await action.run();
 					}
@@ -106,11 +108,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				}
 			});
 
-			if (this.extensionIdentifierSet.size === 0) {
+			if (!this.extensionIdentifierSet.has(extensionId)) {
 				// send undefined to indicate no action was taken
-				ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
+				ipcRenderer.send(`vscode:triggerReporterMenuResponse:${extensionId}`, undefined);
 			}
-
 			menu.dispose();
 		});
 	}
@@ -187,7 +188,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}, dataOverrides);
 
 		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
-			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
+			ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
 		}
 		return this.issueMainService.openReporter(issueReporterData);
