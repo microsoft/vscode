@@ -315,7 +315,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		const firstPick = picks[firstIndex];
-		if (!('resource' in firstPick) || !firstPick.resource || firstPick.resource?.fsPath !== this.editorService.activeEditor?.resource?.fsPath) {
+		if (!('resource' in firstPick) || !firstPick.resource || firstPick.resource.fsPath !== this.editorService.activeEditor?.resource?.fsPath) {
 			// first pick is not the active editor
 			return picks;
 		}
