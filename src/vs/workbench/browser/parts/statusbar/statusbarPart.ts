@@ -591,7 +591,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 
 				/* Status bar item focus outline */
-				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible:not(.disabled) {
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible {
 					outline: 1px solid ${this.getColor(activeContrastBorder) ?? itemBorderColor};
 					outline-offset: ${borderColor ? '-2px' : '-1px'};
 				}
