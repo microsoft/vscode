@@ -64,6 +64,8 @@ declare module 'vscode' {
 		 * All of the chat messages so far in the current chat session.
 		 */
 		readonly history: ReadonlyArray<ChatAgentRequestTurn | ChatAgentResponseTurn>;
+
+		resolveVariable(variable: ChatVariableIdentifier, level: ChatVariableLevel): { value: string | Uri | any | undefined };
 	}
 
 	/**
@@ -299,6 +301,25 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	export interface ChatVariableIdentifier {
+
+		/**
+		 * The name of the variable.
+		 *
+		 * *Note* that the name doesn't include the leading `#`-character,
+		 * e.g `selection` for `#selection`.
+		 */
+		readonly name: string;
+
+		/**
+		 * The start and end index of the variable in the {@link ChatAgentRequest.prompt prompt}.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
+		readonly range: [start: number, end: number];
+	}
+
 	/**
 	 * A resolved variable value is a name-value pair as well as the range in the prompt where a variable was used.
 	 */
@@ -320,8 +341,8 @@ declare module 'vscode' {
 		 */
 		readonly range: [start: number, end: number];
 
-		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
-		readonly values: ChatVariableValue[];
+		// This type is just used in history, and `values` is set if the participant resolved this variable.
+		readonly values?: ChatVariableValue[];
 	}
 
 	export interface ChatAgentRequest {
@@ -351,7 +372,7 @@ declare module 'vscode' {
 		 * string-manipulation of the prompt.
 		 */
 		// TODO@API Q? are there implicit variables that are not part of the prompt?
-		readonly variables: readonly ChatAgentResolvedVariable[];
+		readonly variables: readonly ChatVariableIdentifier[];
 	}
 
 	export interface ChatAgentResponseStream {
