@@ -392,6 +392,10 @@ export interface IdentifiableInlineCompletion extends languages.InlineCompletion
 	idx: number;
 }
 
+export interface IdentifiableInlineEdit extends languages.IInlineEdit {
+	pid: number;
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
@@ -422,6 +426,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, yieldsToExtensionIds: string[]): void;
+	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
 	$emitInlayHintsEvent(eventHandle: number): void;
@@ -1119,6 +1124,7 @@ export interface VariablesResult {
 	id: number;
 	name: string;
 	value: string;
+	type?: string;
 	hasNamedChildren: boolean;
 	indexedChildrenCount: number;
 	extensionId: string;
@@ -2146,6 +2152,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto | undefined>;
 	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
+	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
+	$freeInlineEdit(handle: number, pid: number): void;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -2277,11 +2285,13 @@ export interface IBreakpointDto {
 	condition?: string;
 	hitCondition?: string;
 	logMessage?: string;
+	mode?: string;
 }
 
 export interface IFunctionBreakpointDto extends IBreakpointDto {
 	type: 'function';
 	functionName: string;
+	mode?: string;
 }
 
 export interface IDataBreakpointDto extends IBreakpointDto {
@@ -2291,6 +2301,7 @@ export interface IDataBreakpointDto extends IBreakpointDto {
 	label: string;
 	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
 	accessType: DebugProtocol.DataBreakpointAccessType;
+	mode?: string;
 }
 
 export interface ISourceBreakpointDto extends IBreakpointDto {
@@ -2317,6 +2328,7 @@ export interface ISourceMultiBreakpointDto {
 		logMessage?: string;
 		line: number;
 		character: number;
+		mode?: string;
 	}[];
 }
 

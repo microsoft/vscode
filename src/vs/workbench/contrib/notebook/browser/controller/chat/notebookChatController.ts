@@ -39,7 +39,7 @@ import { IInlineChatMessageAppender, InlineChatWidget } from 'vs/workbench/contr
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { INotebookEditor, INotebookEditorContribution, INotebookViewZone, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
@@ -180,6 +180,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
+	private readonly _ctxOuterFocusPosition: IContextKey<'above' | 'below' | ''>;
 	private readonly _userEditingDisposables = this._register(new DisposableStore());
 	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private _widget: NotebookChatWidget | undefined;
@@ -203,6 +204,29 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._ctxCellWidgetFocused = CTX_NOTEBOOK_CELL_CHAT_FOCUSED.bindTo(this._contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(this._contextKeyService);
 		this._ctxUserDidEdit = CTX_NOTEBOOK_CHAT_USER_DID_EDIT.bindTo(this._contextKeyService);
+		this._ctxOuterFocusPosition = CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION.bindTo(this._contextKeyService);
+
+		this._registerFocusTracker();
+	}
+
+	private _registerFocusTracker() {
+		this._register(this._notebookEditor.onDidChangeFocus(() => {
+			if (!this._widget) {
+				this._ctxOuterFocusPosition.set('');
+				return;
+			}
+
+			const widgetIndex = this._widget.afterModelPosition;
+			const focus = this._notebookEditor.getFocus().start;
+
+			if (focus + 1 === widgetIndex) {
+				this._ctxOuterFocusPosition.set('above');
+			} else if (focus === widgetIndex) {
+				this._ctxOuterFocusPosition.set('below');
+			} else {
+				this._ctxOuterFocusPosition.set('');
+			}
+		}));
 	}
 
 	run(index: number, input: string | undefined, autoSend: boolean | undefined): void {
@@ -672,6 +696,25 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this.dismiss();
 	}
 
+	async focusAbove() {
+		if (!this._widget) {
+			return;
+		}
+
+		const index = this._widget.afterModelPosition;
+		const prev = index - 1;
+		if (prev < 0) {
+			return;
+		}
+
+		const cell = this._notebookEditor.cellAt(prev);
+		if (!cell) {
+			return;
+		}
+
+		await this._notebookEditor.focusNotebookCell(cell, 'editor');
+	}
+
 	async focusNext() {
 		if (!this._widget) {
 			return;
@@ -684,6 +727,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		await this._notebookEditor.focusNotebookCell(cell, 'editor');
+	}
+
+	focus() {
+		this._focusWidget();
 	}
 
 	focusNearestWidget(index: number, direction: 'above' | 'below') {

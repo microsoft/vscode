@@ -125,12 +125,15 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				const itemMatch = item.match;
 				this.editorSequencer.queue(async () => {
 					// disable and re-enable history service so that we can ignore this history entry
-					this._historyService.shouldIgnoreActiveEditorChange = true;
-					await this._editorService.openEditor({
-						resource: itemMatch.parent().resource,
-						options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
-					});
-					this._historyService.shouldIgnoreActiveEditorChange = false;
+					const disposable = this._historyService.suspendTracking();
+					try {
+						await this._editorService.openEditor({
+							resource: itemMatch.parent().resource,
+							options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+						});
+					} finally {
+						disposable.dispose();
+					}
 				});
 			}
 		}));

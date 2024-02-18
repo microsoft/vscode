@@ -195,7 +195,7 @@ class ChatAccessibleViewContribution extends Disposable {
 				accessibleViewService.show({
 					id: AccessibleViewProviderId.Chat,
 					verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-					provideContent(): string { return responseContent; },
+					provideContent(): string { return responseContent!; },
 					onClose() {
 						verifiedWidget.reveal(focusedItem);
 						if (chatInputFocused) {
@@ -231,9 +231,9 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'newChat',
-			detail: nls.localize('newChat', "Start a new chat"),
-			sortText: 'z2_newChat',
+			command: 'clear',
+			detail: nls.localize('clear', "Start a new chat"),
+			sortText: 'z2_clear',
 			executeImmediately: true
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);

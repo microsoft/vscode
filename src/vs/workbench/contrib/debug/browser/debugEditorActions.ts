@@ -67,7 +67,7 @@ class ToggleBreakpointAction extends Action2 {
 				if (toRemove) {
 					debugService.removeInstructionBreakpoints(toRemove.instructionReference, toRemove.offset);
 				} else {
-					debugService.addInstructionBreakpoint(location.reference, location.offset, location.address);
+					debugService.addInstructionBreakpoint({ instructionReference: location.reference, offset: location.offset, address: location.address, canPersist: false });
 				}
 			}
 			return;
