@@ -110,7 +110,10 @@ export class RenameInputField implements IContentWidget {
 			this._disposables.add(addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
 			this._domNode.appendChild(this._input);
 
-			this._candidatesView = new CandidatesView(this._domNode, { fontInfo: this._editor.getOption(EditorOption.fontInfo) });
+			this._candidatesView = new CandidatesView(this._domNode, {
+				fontInfo: this._editor.getOption(EditorOption.fontInfo),
+				onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
+			});
 
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
@@ -374,7 +377,7 @@ export class CandidatesView {
 	private _lineHeight: number;
 	private _availableHeight: number;
 
-	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo }) {
+	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo; onSelectionChange: () => void }) {
 
 		this._availableHeight = 0;
 
@@ -426,6 +429,12 @@ export class CandidatesView {
 			}
 		);
 
+		this._listWidget.onDidChangeSelection(e => {
+			if (e.elements.length > 0) {
+				opts.onSelectionChange();
+			}
+		});
+
 		this._listWidget.style(defaultListStyles);
 	}
 
@@ -464,7 +473,18 @@ export class CandidatesView {
 	}
 
 	public get focusedCandidate(): string | undefined {
-		return this._listWidget.isDOMFocused() ? this._listWidget.getFocusedElements()[0].newSymbolName : undefined;
+		if (this._listWidget.length === 0) {
+			return;
+		}
+		const selectedElement = this._listWidget.getSelectedElements()[0];
+		if (selectedElement !== undefined) {
+			return selectedElement.newSymbolName;
+		}
+		const focusedElement = this._listWidget.getFocusedElements()[0];
+		if (focusedElement !== undefined) {
+			return focusedElement.newSymbolName;
+		}
+		return;
 	}
 
 	public updateFont(fontInfo: FontInfo): void {
