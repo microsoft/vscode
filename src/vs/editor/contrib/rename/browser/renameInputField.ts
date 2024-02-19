@@ -25,6 +25,7 @@ import { NewSymbolName, NewSymbolNameTag, ProviderResult } from 'vs/editor/commo
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
 import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import {
 	editorWidgetBackground,
@@ -72,6 +73,7 @@ export class RenameInputField implements IContentWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 		this._focusedContextKey = CONTEXT_RENAME_INPUT_FOCUSED.bindTo(contextKeyService);
@@ -206,9 +208,10 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null): void {
+		this._trace('invoking afterRender, position: ', position ? 'not null' : 'null');
 		if (position === null) {
 			// cancel rename when input widget isn't rendered anymore
-			this.cancelInput(true);
+			this.cancelInput(true, 'afterRender (because position is null)');
 			return;
 		}
 
@@ -241,10 +244,12 @@ export class RenameInputField implements IContentWidget {
 	private _currentCancelInput?: (focusEditor: boolean) => void;
 
 	acceptInput(wantsPreview: boolean): void {
+		this._trace(`invoking acceptInput`);
 		this._currentAcceptInput?.(wantsPreview);
 	}
 
-	cancelInput(focusEditor: boolean): void {
+	cancelInput(focusEditor: boolean, caller: string): void {
+		this._trace(`invoking cancelInput, caller: ${caller}, _currentCancelInput: ${this._currentAcceptInput ? 'not undefined' : 'undefined'}`);
 		this._currentCancelInput?.(focusEditor);
 	}
 
@@ -280,6 +285,7 @@ export class RenameInputField implements IContentWidget {
 		return new Promise<RenameInputFieldResult | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
+				this._trace('invoking _currentCancelInput');
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
 				this._candidatesView?.clearCandidates();
@@ -288,12 +294,13 @@ export class RenameInputField implements IContentWidget {
 			};
 
 			this._currentAcceptInput = (wantsPreview) => {
+				this._trace('invoking _currentAcceptInput');
 				assertType(this._input !== undefined);
 				assertType(this._candidatesView !== undefined);
 
 				const candidateName = this._candidatesView.focusedCandidate;
 				if ((candidateName === undefined && this._input.value === value) || this._input.value.trim().length === 0) {
-					this.cancelInput(true);
+					this.cancelInput(true, '_currentAcceptInput (because candidateName is undefined or input.value is empty)');
 					return;
 				}
 
@@ -307,9 +314,9 @@ export class RenameInputField implements IContentWidget {
 				});
 			};
 
-			disposeOnDone.add(cts.token.onCancellationRequested(() => this.cancelInput(true)));
+			disposeOnDone.add(cts.token.onCancellationRequested(() => this.cancelInput(true, 'cts.token.onCancellationRequested')));
 			if (!_sticky) {
-				disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!this._domNode?.ownerDocument.hasFocus())));
+				disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!this._domNode?.ownerDocument.hasFocus(), 'editor.onDidBlurEditorWidget')));
 			}
 
 			this._show();
@@ -321,6 +328,7 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private _show(): void {
+		this._trace('invoking _show');
 		this._editor.revealLineInCenterIfOutsideViewport(this._position!.lineNumber, ScrollType.Smooth);
 		this._visible = true;
 		this._visibleContextKey.set(true);
@@ -335,9 +343,13 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private async _updateRenameCandidates(candidates: ProviderResult<NewSymbolName[]>[], currentName: string, token: CancellationToken) {
+		const trace = (...args: any[]) => this._trace('_updateRenameCandidates', ...args);
+
+		trace('start');
 		const namesListResults = await raceCancellation(Promise.allSettled(candidates), token);
 
 		if (namesListResults === undefined) {
+			trace('returning early - received updateRenameCandidates results - undefined');
 			return;
 		}
 
@@ -346,26 +358,38 @@ export class RenameInputField implements IContentWidget {
 				? namesListResult.value
 				: []
 		);
+		trace(`received updateRenameCandidates results - total (unfiltered) ${newNames.length} candidates.`);
 
 		// deduplicate and filter out the current value
 		const distinctNames = arrays.distinct(newNames, v => v.newSymbolName);
+		trace(`distinct candidates - ${distinctNames.length} candidates.`);
+
 		const validDistinctNames = distinctNames.filter(({ newSymbolName }) => newSymbolName.trim().length > 0 && newSymbolName !== this._input?.value && newSymbolName !== currentName);
+		trace(`valid distinct candidates - ${newNames.length} candidates.`);
 
 		if (validDistinctNames.length < 1) {
+			trace('returning early - no valid distinct candidates');
 			return;
 		}
 
 		// show the candidates
+		trace('setting candidates');
 		this._candidatesView!.setCandidates(validDistinctNames);
 
 		// ask editor to re-layout given that the widget is now of a different size after rendering rename candidates
+		trace('asking editor to re-layout');
 		this._editor.layoutContentWidget(this);
 	}
 
 	private _hide(): void {
+		this._trace('invoked _hide');
 		this._visible = false;
 		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
+	}
+
+	private _trace(...args: any[]) {
+		this._logService.trace('RenameInputField', ...args);
 	}
 }
 

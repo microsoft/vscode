@@ -315,7 +315,7 @@ class RenameController implements IEditorContribution {
 	}
 
 	cancelRenameInput(): void {
-		this._renameInputField.cancelInput(true);
+		this._renameInputField.cancelInput(true, 'cancelRenameInput command');
 	}
 
 	focusNextRenameSuggestion(): void {
