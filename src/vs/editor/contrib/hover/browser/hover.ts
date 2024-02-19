@@ -245,16 +245,14 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
 
-		const enabled = this._hoverSettings.enabled;
-		const activatedByDecoratorClick = this._activatedByDecoratorClick;
 		if (
 			(
 				mouseOnDecorator && (
-					(decoratorActivatedOn === 'click' && !activatedByDecoratorClick) ||
-					(decoratorActivatedOn === 'hover' && !enabled && !_sticky) ||
-					(decoratorActivatedOn === 'clickAndHover' && !enabled && !activatedByDecoratorClick))
+					(decoratorActivatedOn === 'click' && !this._activatedByDecoratorClick) ||
+					(decoratorActivatedOn === 'hover' && !this._hoverSettings.enabled && !_sticky) ||
+					(decoratorActivatedOn === 'clickAndHover' && !this._hoverSettings.enabled && !this._activatedByDecoratorClick))
 			) || (
-				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
+				!mouseOnDecorator && !this._hoverSettings.enabled && !this._activatedByDecoratorClick
 			)
 		) {
 			this._hideWidgets();
