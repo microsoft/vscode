@@ -2195,10 +2195,10 @@ export namespace DataTransfer {
 }
 
 export namespace ChatFollowup {
-	export function from(followup: vscode.ChatAgentFollowup, request: IChatAgentRequest | undefined): IChatFollowup {
+	export function from(followup: vscode.ChatFollowup, request: IChatAgentRequest | undefined): IChatFollowup {
 		return {
 			kind: 'reply',
-			agentId: followup.agentId ?? request?.agentId ?? '',
+			agentId: followup.participant ?? request?.agentId ?? '',
 			subCommand: followup.command ?? request?.command,
 			message: followup.prompt,
 			title: followup.title,
@@ -2206,11 +2206,11 @@ export namespace ChatFollowup {
 		};
 	}
 
-	export function to(followup: IChatFollowup): vscode.ChatAgentFollowup {
+	export function to(followup: IChatFollowup): vscode.ChatFollowup {
 		return {
 			prompt: followup.message,
 			title: followup.title,
-			agentId: followup.agentId,
+			participant: followup.agentId,
 			command: followup.subCommand,
 			tooltip: followup.tooltip,
 		};
@@ -2490,13 +2490,13 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
+	export function from(extension: IExtensionDescription, progress: vscode.ChatExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
 		if ('markdownContent' in progress) {
-			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
 			if ('vulnerabilities' in progress && progress.vulnerabilities) {
-				checkProposedApiEnabled(extension, 'chatAgents2Additions');
+				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return { content: progress.content, vulnerabilities: progress.vulnerabilities, kind: 'vulnerability' };
 			}
 
@@ -2504,7 +2504,7 @@ export namespace ChatResponseProgress {
 				return { content: progress.content, kind: 'content' };
 			}
 
-			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
 		} else if ('documents' in progress) {
 			return {
@@ -2534,9 +2534,9 @@ export namespace ChatResponseProgress {
 				name: progress.title,
 				kind: 'inlineReference'
 			};
-		} else if ('agentName' in progress) {
-			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
+		} else if ('participant' in progress) {
+			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+			return { agentName: progress.participant, command: progress.command, kind: 'agentDetection' };
 		} else if ('message' in progress) {
 			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
@@ -2544,7 +2544,7 @@ export namespace ChatResponseProgress {
 		}
 	}
 
-	export function to(progress: extHostProtocol.IChatProgressDto): vscode.ChatAgentProgress | undefined {
+	export function to(progress: extHostProtocol.IChatProgressDto): vscode.ChatProgress | undefined {
 		switch (progress.kind) {
 			case 'markdownContent':
 			case 'inlineReference':
@@ -2574,7 +2574,7 @@ export namespace ChatResponseProgress {
 		}
 	}
 
-	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto, commandsConverter: Command.ICommandsConverter): vscode.ChatAgentContentProgress | undefined {
+	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto, commandsConverter: Command.ICommandsConverter): vscode.ChatContentProgress | undefined {
 		switch (progress.kind) {
 			case 'markdownContent':
 				// For simplicity, don't sent back the 'extended' types, so downgrade markdown to just some text
@@ -2600,7 +2600,7 @@ export namespace ChatResponseProgress {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest): vscode.ChatAgentRequest {
+	export function to(request: IChatAgentRequest): vscode.ChatRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
@@ -2610,7 +2610,7 @@ export namespace ChatAgentRequest {
 }
 
 export namespace ChatAgentResolvedVariable {
-	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatAgentResolvedVariable {
+	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatResolvedVariable {
 		return {
 			name: request.name,
 			range: [request.range.start, request.range.endExclusive],
@@ -2620,7 +2620,7 @@ export namespace ChatAgentResolvedVariable {
 }
 
 export namespace ChatAgentCompletionItem {
-	export function from(item: vscode.ChatAgentCompletionItem): extHostProtocol.IChatAgentCompletionItem {
+	export function from(item: vscode.ChatCompletionItem): extHostProtocol.IChatAgentCompletionItem {
 		return {
 			label: item.label,
 			values: item.values.map(ChatVariable.from),
@@ -2632,7 +2632,7 @@ export namespace ChatAgentCompletionItem {
 }
 
 export namespace ChatAgentResult {
-	export function to(result: IChatAgentResult): vscode.ChatAgentResult2 {
+	export function to(result: IChatAgentResult): vscode.ChatResult {
 		return {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
@@ -2641,7 +2641,7 @@ export namespace ChatAgentResult {
 }
 
 export namespace ChatAgentUserActionEvent {
-	export function to(result: IChatAgentResult, event: IChatUserActionEvent, commandsConverter: CommandsConverter): vscode.ChatAgentUserActionEvent | undefined {
+	export function to(result: IChatAgentResult, event: IChatUserActionEvent, commandsConverter: CommandsConverter): vscode.ChatUserActionEvent | undefined {
 		if (event.action.kind === 'vote') {
 			// Is the "feedback" type
 			return;
@@ -2649,10 +2649,10 @@ export namespace ChatAgentUserActionEvent {
 
 		const ehResult = ChatAgentResult.to(result);
 		if (event.action.kind === 'command') {
-			const commandAction: vscode.ChatAgentCommandAction = { kind: 'command', commandButton: ChatResponseProgress.toProgressContent(event.action.commandButton, commandsConverter) as vscode.ChatAgentCommandButton };
+			const commandAction: vscode.ChatCommandAction = { kind: 'command', commandButton: ChatResponseProgress.toProgressContent(event.action.commandButton, commandsConverter) as vscode.ChatCommandButton };
 			return { action: commandAction, result: ehResult };
 		} else if (event.action.kind === 'followUp') {
-			const followupAction: vscode.ChatAgentFollowupAction = { kind: 'followUp', followup: ChatFollowup.to(event.action.followup) };
+			const followupAction: vscode.ChatFollowupAction = { kind: 'followUp', followup: ChatFollowup.to(event.action.followup) };
 			return { action: followupAction, result: ehResult };
 		} else {
 			return { action: event.action, result: ehResult };
