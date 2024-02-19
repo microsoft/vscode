@@ -459,8 +459,8 @@ export class IssueMainService implements IIssueMainService {
 		const replyChannel = `vscode:triggerReporterMenu`;
 		const cts = new CancellationTokenSource();
 		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
-		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterMenuResponse', (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
-			this.logService.error('Error: Extension timed out waiting for menu response');
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterMenuResponse:${extensionId}', (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
+			this.logService.error('Error: Extension ${extensionId} timed out waiting for menu response');
 			cts.cancel();
 		});
 		return result as IssueReporterData | undefined;

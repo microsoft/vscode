@@ -51,7 +51,7 @@ export class IssueReporter extends Disposable {
 	private hasBeenSubmitted = false;
 	private openReporter = false;
 	private loadingExtensionData = false;
-	private changeExtension: string = '';
+	private selectedExtension = '';
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
 
@@ -1196,45 +1196,48 @@ export class IssueReporter extends Disposable {
 			this.addEventListener('extension-selector', 'change', async (e: Event) => {
 				this.clearExtensionData();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
-				this.changeExtension = selectedExtensionId;
+				this.selectedExtension = selectedExtensionId;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-					if (selectedExtension && !this.loadingExtensionData) {
+					if (selectedExtension) {
 						const iconElement = document.createElement('span');
 						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 						this.setLoading(iconElement);
 						const openReporterData = await this.sendReporterMenu(selectedExtension);
-						if (openReporterData && (this.changeExtension === selectedExtensionId)) {
-							this.removeLoading(iconElement, true);
-							this.configuration.data = openReporterData;
-						} else if (openReporterData && this.changeExtension !== selectedExtensionId) {
-							this.removeLoading(iconElement, this.openReporter);
-						} else {
+						if (openReporterData) {
+							if (this.selectedExtension === selectedExtensionId) {
+								this.removeLoading(iconElement, true);
+								this.configuration.data = openReporterData;
+							} else if (this.selectedExtension !== selectedExtensionId) {
+							}
+						}
+						else {
+							if (!this.loadingExtensionData) {
+								iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+							}
 							this.removeLoading(iconElement);
 							// if not using command, should have no configuration data in fields we care about and check later.
-							this.configuration.data.issueBody = undefined;
-							this.configuration.data.data = undefined;
-							this.configuration.data.uri = undefined;
+							this.clearExtensionData();
 
 							// case when previous extension was opened from normal openIssueReporter command
 							selectedExtension.data = undefined;
 							selectedExtension.uri = undefined;
 						}
-					}
-					if (this.changeExtension === selectedExtensionId) {
-						// repopulates the fields with the new data given the selected extension.
+						if (this.selectedExtension === selectedExtensionId) {
+							// repopulates the fields with the new data given the selected extension.
+							this.updateExtensionStatus(matches[0]);
+							this.openReporter = false;
+						}
+					} else {
+						this.issueReporterModel.update({ selectedExtension: undefined });
+						this.clearSearchResults();
+						this.clearExtensionData();
+						this.validateSelectedExtension();
 						this.updateExtensionStatus(matches[0]);
-						this.openReporter = false;
 					}
-				} else {
-					this.issueReporterModel.update({ selectedExtension: undefined });
-					this.clearSearchResults();
-					this.clearExtensionData();
-					this.validateSelectedExtension();
-					this.updateExtensionStatus(matches[0]);
 				}
 			});
 		}
@@ -1381,6 +1384,9 @@ export class IssueReporter extends Disposable {
 
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
+		while (showLoading.firstChild) {
+			showLoading.removeChild(showLoading.firstChild);
+		}
 		showLoading.append(element);
 
 		this.renderBlocks();
@@ -1399,8 +1405,9 @@ export class IssueReporter extends Disposable {
 
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
-		hideLoading.removeChild(element);
-
+		if (hideLoading.firstChild) {
+			hideLoading.removeChild(element);
+		}
 		this.renderBlocks();
 	}
 
