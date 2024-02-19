@@ -2201,18 +2201,16 @@ export namespace ChatFollowup {
 			agentId: followup.participant ?? request?.agentId ?? '',
 			subCommand: followup.command ?? request?.command,
 			message: followup.prompt,
-			title: followup.title,
-			tooltip: followup.tooltip,
+			title: followup.label
 		};
 	}
 
 	export function to(followup: IChatFollowup): vscode.ChatFollowup {
 		return {
 			prompt: followup.message,
-			title: followup.title,
+			label: followup.title,
 			participant: followup.agentId,
 			command: followup.subCommand,
-			tooltip: followup.tooltip,
 		};
 	}
 }

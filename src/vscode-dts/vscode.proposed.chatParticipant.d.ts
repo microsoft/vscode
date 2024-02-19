@@ -5,7 +5,6 @@
 
 declare module 'vscode' {
 
-	// TODO@API name: Turn?
 	export class ChatRequestTurn {
 
 		/**
@@ -36,7 +35,6 @@ declare module 'vscode' {
 		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; participant: string });
 	}
 
-	// TODO@API name: Turn?
 	export class ChatResponseTurn {
 
 		/**
@@ -186,8 +184,13 @@ declare module 'vscode' {
 		prompt: string;
 
 		/**
+		 * A title to show the user, when it is different than the message.
+		 */
+		label?: string;
+
+		/**
 		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different participant.
-		 * TODO@API do extensions need to specify the extensionID of the participant here as well?
+		 * Followups can only invoke a participant that was contributed by the same extension.
 		 */
 		participant?: string;
 
@@ -195,17 +198,6 @@ declare module 'vscode' {
 		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different command.
 		 */
 		command?: string;
-
-		/**
-		 * A tooltip to show when hovering over the followup.
-		 */
-		tooltip?: string;
-
-		/**
-		 * A title to show the user, when it is different than the message.
-		 */
-		// TODO@API title vs tooltip?
-		title?: string;
 	}
 
 	/**
@@ -400,9 +392,6 @@ declare module 'vscode' {
 		 * @param value
 		 * @returns This stream.
 		 */
-		// TODO@API is this always inline or not
-		// TODO@API is this markdown or string?
-		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
 		progress(value: string): ChatResponseStream;
 
 		/**
@@ -414,8 +403,6 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @returns This stream.
 		 */
-		// TODO@API support non-file uris, like http://example.com
-		// TODO@API support mapped edits
 		reference(value: Uri | Location): ChatResponseStream;
 
 		/**
@@ -426,8 +413,6 @@ declare module 'vscode' {
 		push(part: ChatResponsePart): ChatResponseStream;
 	}
 
-	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
-	// and metadata like XYZItem
 	export class ChatResponseTextPart {
 		value: string;
 		constructor(value: string);
@@ -457,7 +442,6 @@ declare module 'vscode' {
 
 	export class ChatResponseProgressPart {
 		value: string;
-		// TODO@API inline
 		constructor(value: string);
 	}
 
@@ -489,21 +473,11 @@ declare module 'vscode' {
 		 * @returns A new chat participant
 		 */
 		export function createChatParticipant(name: string, handler: ChatRequestHandler): ChatParticipant;
-
-		/**
-		 * Register a variable which can be used in a chat request to any participant.
-		 * @param name The name of the variable, to be used in the chat input as `#name`.
-		 * @param description A description of the variable for the chat input suggest widget.
-		 * @param resolver Will be called to provide the chat variable's value when it is used.
-		 */
-		// TODO@API NAME: registerChatVariable, registerChatVariableResolver
-		export function registerVariable(name: string, description: string, resolver: ChatVariableResolver): Disposable;
 	}
 
 	/**
 	 * The detail level of this chat variable value.
 	 */
-	// TODO@API maybe for round2
 	export enum ChatVariableLevel {
 		Short = 1,
 		Medium = 2,
@@ -525,22 +499,5 @@ declare module 'vscode' {
 		 * A description of this value, which could be provided to the LLM as a hint.
 		 */
 		description?: string;
-	}
-
-	export interface ChatVariableContext {
-		/**
-		 * The message entered by the user, which includes this variable.
-		 */
-		prompt: string;
-	}
-
-	export interface ChatVariableResolver {
-		/**
-		 * A callback to resolve the value of a chat variable.
-		 * @param name The name of the variable.
-		 * @param context Contextual information about this chat request.
-		 * @param token A cancellation token.
-		 */
-		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 }
