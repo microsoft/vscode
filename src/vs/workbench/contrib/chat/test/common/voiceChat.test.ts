@@ -88,12 +88,11 @@ suite('VoiceChat', () => {
 
 	let service: VoiceChatService;
 	let event: IVoiceChatTextEvent | undefined;
-	let session: ISpeechToTextSession | undefined;
 
 	function createSession(options: IVoiceChatSessionOptions) {
 		const cts = new CancellationTokenSource();
 		disposables.add(toDisposable(() => cts.dispose(true)));
-		session = service.createVoiceChatSession(cts.token, options);
+		const session = service.createVoiceChatSession(cts.token, options);
 		disposables.add(session.onDidChange(e => {
 			event = e;
 		}));
