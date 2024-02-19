@@ -33,7 +33,7 @@ export interface ISpeechToTextEvent {
 	readonly text?: string;
 }
 
-export interface ISpeechToTextSession extends IDisposable {
+export interface ISpeechToTextSession {
 	readonly onDidChange: Event<ISpeechToTextEvent>;
 }
 
@@ -48,7 +48,7 @@ export interface IKeywordRecognitionEvent {
 	readonly text?: string;
 }
 
-export interface IKeywordRecognitionSession extends IDisposable {
+export interface IKeywordRecognitionSession {
 	readonly onDidChange: Event<IKeywordRecognitionEvent>;
 }
 

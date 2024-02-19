@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { rtrim } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -41,7 +41,7 @@ export interface IVoiceChatTextEvent extends ISpeechToTextEvent {
 	readonly waitingForInput?: boolean;
 }
 
-export interface IVoiceChatSession extends IDisposable {
+export interface IVoiceChatSession {
 	readonly onDidChange: Event<IVoiceChatTextEvent>;
 }
 
@@ -131,12 +131,13 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 	createVoiceChatSession(token: CancellationToken, options: IVoiceChatSessionOptions): IVoiceChatSession {
 		const disposables = new DisposableStore();
+		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
 		let detectedAgent = false;
 		let detectedSlashCommand = false;
 
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
-		const session = disposables.add(this.speechService.createSpeechToTextSession(token, 'chat'));
+		const session = this.speechService.createSpeechToTextSession(token, 'chat');
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
 				case SpeechToTextStatus.Recognizing:
@@ -212,8 +213,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		}));
 
 		return {
-			onDidChange: emitter.event,
-			dispose: () => disposables.dispose()
+			onDidChange: emitter.event
 		};
 	}
 
