@@ -263,7 +263,6 @@ export class InlineChatQuickVoice implements IEditorContribution {
 
 		const done = (abort: boolean) => {
 			cts.dispose(true);
-			session.dispose();
 			listener.dispose();
 			this._widget.hide();
 			this._ctxQuickChatInProgress.reset();

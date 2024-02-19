@@ -106,11 +106,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				}
 			});
 
-			if (this.extensionIdentifierSet.size === 0) {
+			if (!this.extensionIdentifierSet.has(extensionId)) {
 				// send undefined to indicate no action was taken
-				ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
+				ipcRenderer.send('vscode:triggerReporterMenuResponse:${extensionId}', undefined);
 			}
-
 			menu.dispose();
 		});
 	}
@@ -187,7 +186,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}, dataOverrides);
 
 		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
-			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
+			ipcRenderer.send('vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}', issueReporterData);
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
 		}
 		return this.issueMainService.openReporter(issueReporterData);

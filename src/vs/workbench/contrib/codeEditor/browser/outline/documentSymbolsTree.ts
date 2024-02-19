@@ -26,6 +26,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -125,7 +126,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
-		this._hoverDelegate = getDefaultHoverDelegate(target === OutlineTarget.Breadcrumbs ? 'element' : 'mouse');
+		this._hoverDelegate = target === OutlineTarget.OutlinePane ? getDefaultHoverDelegate('mouse') : nativeHoverDelegate;
 	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {

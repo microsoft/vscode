@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -74,8 +74,7 @@ suite('VoiceChat', () => {
 
 		createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 			return {
-				onDidChange: emitter.event,
-				dispose: () => { }
+				onDidChange: emitter.event
 			};
 		}
 
@@ -89,12 +88,11 @@ suite('VoiceChat', () => {
 
 	let service: VoiceChatService;
 	let event: IVoiceChatTextEvent | undefined;
-	let session: ISpeechToTextSession | undefined;
 
 	function createSession(options: IVoiceChatSessionOptions) {
-		session?.dispose();
-
-		session = disposables.add(service.createVoiceChatSession(CancellationToken.None, options));
+		const cts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cts.dispose(true)));
+		const session = service.createVoiceChatSession(cts.token, options);
 		disposables.add(session.onDidChange(e => {
 			event = e;
 		}));
