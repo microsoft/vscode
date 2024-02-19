@@ -340,6 +340,7 @@ class ExtHostChatAgent {
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _isDefault: boolean | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
+	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
 	private _sampleRequest?: string;
 	private _isSecondary: boolean | undefined;
@@ -470,6 +471,7 @@ class ExtHostChatAgent {
 					isDefault: this._isDefault,
 					isSecondary: this._isSecondary,
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
+					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
 					supportIssueReporting: this._supportIssueReporting,
@@ -546,6 +548,19 @@ class ExtHostChatAgent {
 				}
 
 				that._helpTextPrefix = v;
+				updateMetadataSoon();
+			},
+			get helpTextVariablesPrefix() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				return that._helpTextVariablesPrefix;
+			},
+			set helpTextVariablesPrefix(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				if (!that._isDefault) {
+					throw new Error('helpTextVariablesPrefix is only available on the default chat agent');
+				}
+
+				that._helpTextVariablesPrefix = v;
 				updateMetadataSoon();
 			},
 			get helpTextPostfix() {
