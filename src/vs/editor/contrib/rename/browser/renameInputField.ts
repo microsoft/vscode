@@ -414,7 +414,11 @@ class CandidatesView {
 	private _lineHeight: number;
 	private _availableHeight: number;
 
+	private _disposables: DisposableStore;
+
 	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo; onSelectionChange: () => void }) {
+
+		this._disposables = new DisposableStore();
 
 		this._availableHeight = 0;
 
@@ -466,11 +470,15 @@ class CandidatesView {
 			}
 		);
 
-		this._listWidget.onDidChangeSelection(e => {
+		this._disposables.add(this._listWidget.onDidChangeSelection(e => {
 			if (e.elements.length > 0) {
 				opts.onSelectionChange();
 			}
-		});
+		}));
+
+		this._disposables.add(this._listWidget.onDidBlur(e => {
+			this._listWidget.setFocus([]);
+		}));
 
 		this._listWidget.style(defaultListStyles);
 	}
@@ -565,6 +573,7 @@ class CandidatesView {
 
 	dispose() {
 		this._listWidget.dispose();
+		this._disposables.dispose();
 	}
 }
 
