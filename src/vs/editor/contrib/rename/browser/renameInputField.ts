@@ -406,7 +406,7 @@ export class RenameInputField implements IContentWidget {
 	}
 }
 
-export class CandidatesView {
+class CandidatesView {
 
 	private readonly _listWidget: List<NewSymbolName>;
 	private readonly _listContainer: HTMLDivElement;
@@ -568,7 +568,7 @@ export class CandidatesView {
 	}
 }
 
-export class CandidateView { // TODO@ulugbekna: remove export
+class CandidateView {
 
 	// TODO@ulugbekna: accessibility
 
