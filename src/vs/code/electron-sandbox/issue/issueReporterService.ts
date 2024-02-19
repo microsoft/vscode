@@ -1212,10 +1212,12 @@ export class IssueReporter extends Disposable {
 								this.removeLoading(iconElement, true);
 								this.configuration.data = openReporterData;
 							} else if (this.selectedExtension !== selectedExtensionId) {
-								this.removeLoading(iconElement, this.openReporter);
 							}
 						}
 						else {
+							if (!this.loadingExtensionData) {
+								iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+							}
 							this.removeLoading(iconElement);
 							// if not using command, should have no configuration data in fields we care about and check later.
 							this.clearExtensionData();
@@ -1382,6 +1384,9 @@ export class IssueReporter extends Disposable {
 
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
+		while (showLoading.firstChild) {
+			showLoading.removeChild(showLoading.firstChild);
+		}
 		showLoading.append(element);
 
 		this.renderBlocks();
@@ -1400,8 +1405,9 @@ export class IssueReporter extends Disposable {
 
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
-		hideLoading.removeChild(element);
-
+		if (hideLoading.firstChild) {
+			hideLoading.removeChild(element);
+		}
 		this.renderBlocks();
 	}
 

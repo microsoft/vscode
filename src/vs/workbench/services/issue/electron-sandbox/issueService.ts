@@ -38,7 +38,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	private readonly _providers = new Map<string, IIssueDataProvider>();
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
-	private extensionQ: string[] = [];
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -99,7 +98,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			actions.forEach(async action => {
 				try {
 					if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-						console.log(extensionId + ' from ipc');
 						this.extensionIdentifierSet.add(extensionId);
 						await action.run();
 					}
