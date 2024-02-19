@@ -3222,6 +3222,13 @@ export class SCMViewPane extends ViewPane {
 				actionRunner = new HistoryItemGroupActionRunner();
 				createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
 			}
+		} else if (isSCMHistoryItemTreeElement(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.historyItemGroup.repository.provider);
+			const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
+			if (menu) {
+				actionRunner = new HistoryItemActionRunner();
+				actions = collectContextMenuActions(menu);
+			}
 		}
 
 		actionRunner.onWillRun(() => this.tree.domFocus());

@@ -1882,6 +1882,11 @@
           "command": "git.viewAllChanges",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewAllChanges",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "scm/incomingChanges/historyItem/context": [
@@ -1889,6 +1894,11 @@
           "command": "git.viewCommit",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewCommit",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "scm/outgoingChanges": [
@@ -1906,13 +1916,13 @@
       "scm/outgoingChanges/context": [
         {
           "command": "git.pushRef",
-          "group": "1_modification@1",
-          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream",
+          "group": "1_modification@1"
         },
         {
           "command": "git.publish",
-          "group": "1_modification@1",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream",
+          "group": "1_modification@1"
         }
       ],
       "scm/outgoingChanges/allChanges/context": [
@@ -1920,6 +1930,11 @@
           "command": "git.viewAllChanges",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewAllChanges",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "scm/outgoingChanges/historyItem/context": [
@@ -1927,6 +1942,11 @@
           "command": "git.viewCommit",
           "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
+        },
+        {
+          "command": "git.viewCommit",
+          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
+          "group": "1_view@1"
         }
       ],
       "editor/title": [

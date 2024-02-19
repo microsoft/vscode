@@ -54,6 +54,8 @@ declare module 'vscode' {
 		 */
 		readonly agent: { readonly extensionId: string; readonly agent: string };
 
+		readonly command?: string;
+
 		private constructor(response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatAgentResult2, agentId: { extensionId: string; agent: string });
 	}
 
@@ -355,17 +357,6 @@ declare module 'vscode' {
 	export interface ChatAgentResponseStream {
 
 		/**
-		 * Push a text part to this stream. Short-hand for
-		 * `push(new ChatResponseTextPart(value))`.
-		 *
-		 * @see {@link ChatAgentResponseStream.push}
-		 * @param value A plain text value.
-		 * @returns This stream.
-		 */
-		// TODO@API remove?
-		text(value: string): ChatAgentResponseStream;
-
-		/**
 		 * Push a markdown part to this stream. Short-hand for
 		 * `push(new ChatResponseMarkdownPart(value))`.
 		 *
@@ -373,7 +364,6 @@ declare module 'vscode' {
 		 * @param value A markdown string or a string that should be interpreted as markdown.
 		 * @returns This stream.
 		 */
-		// TODO@API NAME: content
 		markdown(value: string | MarkdownString): ChatAgentResponseStream;
 
 		/**
