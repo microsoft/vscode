@@ -264,7 +264,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return (await agent.provideFollowups(ehResult, token))
 			.filter(f => {
 				// The followup must refer to a participant that exists from the same extension
-				const isValid = Iterable.some(
+				const isValid = !f.participant || Iterable.some(
 					this._agents.values(),
 					a => a.id === f.participant && ExtensionIdentifier.equals(a.extension.identifier, agent.extension.identifier));
 				if (!isValid) {
