@@ -103,7 +103,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 	}
 
-	private async registerListeners(): Promise<void> {
+	private registerListeners(): void {
 
 		// Open files trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateOpenFilesTrustRequest(async () => {
