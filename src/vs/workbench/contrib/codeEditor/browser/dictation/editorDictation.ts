@@ -231,7 +231,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		const cts = new CancellationTokenSource();
 		disposables.add(toDisposable(() => cts.dispose(true)));
 
-		const session = disposables.add(this.speechService.createSpeechToTextSession(cts.token));
+		const session = this.speechService.createSpeechToTextSession(cts.token);
 		disposables.add(session.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;

@@ -74,8 +74,7 @@ suite('VoiceChat', () => {
 
 		createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 			return {
-				onDidChange: emitter.event,
-				dispose: () => { }
+				onDidChange: emitter.event
 			};
 		}
 
@@ -92,9 +91,7 @@ suite('VoiceChat', () => {
 	let session: ISpeechToTextSession | undefined;
 
 	function createSession(options: IVoiceChatSessionOptions) {
-		session?.dispose();
-
-		session = disposables.add(service.createVoiceChatSession(CancellationToken.None, options));
+		session = service.createVoiceChatSession(CancellationToken.None, options);
 		disposables.add(session.onDidChange(e => {
 			event = e;
 		}));
