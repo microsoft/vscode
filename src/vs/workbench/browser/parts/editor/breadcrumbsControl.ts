@@ -206,8 +206,7 @@ export class BreadcrumbsControl {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('breadcrumbs-control');

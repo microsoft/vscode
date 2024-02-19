@@ -238,7 +238,6 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	private lastHoverHideTime = Number.MAX_VALUE;
 	private timeLimit = 200;
 
-
 	private _delay: number;
 	get delay(): number {
 		if (this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit) {
