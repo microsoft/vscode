@@ -202,8 +202,7 @@ export class RenameInputField implements IContentWidget {
 		const [accept, preview] = this._acceptKeybindings;
 		this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
 
-		this._domNode!.style.minWidth = `250px`; // to prevent from widening when candidates come in
-		this._domNode!.style.maxWidth = `400px`; // TODO@ulugbekna: what if we have a very long name?
+		this._domNode!.style.minWidth = `200px`; // to prevent from widening when candidates come in
 
 		return null;
 	}
@@ -438,7 +437,7 @@ class CandidatesView {
 			}
 
 			getHeight(element: NewSymbolName): number {
-				return that.candidateViewHeight;
+				return that._candidateViewHeight;
 			}
 		};
 
@@ -483,9 +482,9 @@ class CandidatesView {
 		this._listWidget.style(defaultListStyles);
 	}
 
-	public get candidateViewHeight(): number {
-		const { totalHeight } = CandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
-		return totalHeight;
+	dispose() {
+		this._listWidget.dispose();
+		this._disposables.dispose();
 	}
 
 	// height - max height allowed by parent element
@@ -496,18 +495,12 @@ class CandidatesView {
 		}
 	}
 
-	private _pickListHeight(nCandidates: number) {
-		const heightToFitAllCandidates = this.candidateViewHeight * nCandidates;
-		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this.candidateViewHeight * 7 /* max # of candidates we want to show at once */);
-		return height;
-	}
-
 	public setCandidates(candidates: NewSymbolName[]): void {
 		const height = this._pickListHeight(candidates.length);
 
 		this._listWidget.splice(0, 0, candidates);
 
-		this._listWidget.layout(height);
+		this._listWidget.layout(height, this._pickListWidth(candidates));
 
 		this._listContainer.style.height = `${height}px`;
 	}
@@ -571,10 +564,21 @@ class CandidatesView {
 		return focusedIx > 0;
 	}
 
-	dispose() {
-		this._listWidget.dispose();
-		this._disposables.dispose();
+	private get _candidateViewHeight(): number {
+		const { totalHeight } = CandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
+		return totalHeight;
 	}
+
+	private _pickListHeight(nCandidates: number) {
+		const heightToFitAllCandidates = this._candidateViewHeight * nCandidates;
+		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this._candidateViewHeight * 7 /* max # of candidates we want to show at once */);
+		return height;
+	}
+
+	private _pickListWidth(candidates: NewSymbolName[]): number {
+		return Math.max(...candidates.map(c => c.newSymbolName.length)) * 7 /* approximate # of pixes taken by a single character */;
+	}
+
 }
 
 class CandidateView {
