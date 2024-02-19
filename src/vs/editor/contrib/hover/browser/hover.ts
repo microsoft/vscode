@@ -55,6 +55,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
+	private _activatedByDecoratorClick: boolean = false;
 
 	private _hoverSettings!: IHoverSettings;
 
@@ -209,8 +210,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
-		const sticky = this._hoverSettings.sticky;
-		if (sticky && this._contentWidget?.isVisibleFromKeyboard) {
+		if (this._hoverSettings.sticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
 			return;
@@ -226,7 +226,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		// If the mouse is not over the widget, and if sticky is on,
 		// then give it a grace period before reacting to the mouse event
 		const hidingDelay = this._hoverSettings.hidingDelay;
-		if (this._contentWidget?.isVisible && sticky && hidingDelay > 0) {
+		if (this._hoverSettings.sticky && this._contentWidget?.isVisible && hidingDelay > 0) {
 			if (!this._reactToEditorMouseMoveRunner.isScheduled()) {
 				this._reactToEditorMouseMoveRunner.schedule(hidingDelay);
 			}
@@ -242,6 +242,25 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 
 		const target = mouseEvent.target;
+		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
+		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
+
+		const enabled = this._hoverSettings.enabled;
+		const activatedByDecoratorClick = this._activatedByDecoratorClick;
+		if (
+			(
+				mouseOnDecorator && (
+					(decoratorActivatedOn === 'click' && !activatedByDecoratorClick) ||
+					(decoratorActivatedOn === 'hover' && !enabled && !_sticky) ||
+					(decoratorActivatedOn === 'clickAndHover' && !enabled && !activatedByDecoratorClick))
+			) || (
+				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
+			)
+		) {
+			this._hideWidgets();
+			return;
+		}
+
 		const contentWidget = this._getOrCreateContentWidget();
 
 		if (contentWidget.showsOrWillShow(mouseEvent)) {
@@ -306,6 +325,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
+		this._activatedByDecoratorClick = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}
@@ -333,7 +353,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 		mode: HoverStartMode,
 		source: HoverStartSource,
 		focus: boolean,
+		activatedByColorDecoratorClick: boolean = false
 	): void {
+		this._activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
