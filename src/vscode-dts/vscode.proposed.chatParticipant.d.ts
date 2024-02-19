@@ -186,8 +186,13 @@ declare module 'vscode' {
 		prompt: string;
 
 		/**
+		 * A title to show the user, when it is different than the message.
+		 */
+		label?: string;
+
+		/**
 		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different participant.
-		 * TODO@API do extensions need to specify the extensionID of the participant here as well?
+		 * Followups can only invoke a participant that was contributed by the same extension.
 		 */
 		participant?: string;
 
@@ -195,17 +200,6 @@ declare module 'vscode' {
 		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different command.
 		 */
 		command?: string;
-
-		/**
-		 * A tooltip to show when hovering over the followup.
-		 */
-		tooltip?: string;
-
-		/**
-		 * A title to show the user, when it is different than the message.
-		 */
-		// TODO@API title vs tooltip?
-		title?: string;
 	}
 
 	/**
