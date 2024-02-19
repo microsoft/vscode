@@ -1270,14 +1270,14 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 		templateData.label.element.style.display = 'flex';
 		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
 		if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
+			templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: Codicon.globe });
+		} else {
 			templateData.label.setFile(uri, {
 				fileKind: FileKind.FILE,
 				// Should not have this live-updating data on a historical reference
 				fileDecorations: { badges: false, colors: false },
 				range: 'range' in element.reference ? element.reference.range : undefined
 			});
-		} else {
-			templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: Codicon.globe });
 		}
 	}
 
