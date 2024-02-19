@@ -104,10 +104,11 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 
 	private async registerListeners(): Promise<void> {
-		await this.workspaceTrustManagementService.workspaceResolved;
 
 		// Open files trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateOpenFilesTrustRequest(async () => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
 			// Details
 			const markdownDetails = [
 				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
@@ -148,6 +149,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		// Workspace trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
 			// Title
 			const message = this.useWorkspaceLanguage ?
 				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
