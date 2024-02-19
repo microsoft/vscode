@@ -473,21 +473,11 @@ declare module 'vscode' {
 		 * @returns A new chat participant
 		 */
 		export function createChatParticipant(name: string, handler: ChatRequestHandler): ChatParticipant;
-
-		/**
-		 * Register a variable which can be used in a chat request to any participant.
-		 * @param name The name of the variable, to be used in the chat input as `#name`.
-		 * @param description A description of the variable for the chat input suggest widget.
-		 * @param resolver Will be called to provide the chat variable's value when it is used.
-		 */
-		// TODO@API NAME: registerChatVariable, registerChatVariableResolver
-		export function registerVariable(name: string, description: string, resolver: ChatVariableResolver): Disposable;
 	}
 
 	/**
 	 * The detail level of this chat variable value.
 	 */
-	// TODO@API maybe for round2
 	export enum ChatVariableLevel {
 		Short = 1,
 		Medium = 2,
@@ -509,22 +499,5 @@ declare module 'vscode' {
 		 * A description of this value, which could be provided to the LLM as a hint.
 		 */
 		description?: string;
-	}
-
-	export interface ChatVariableContext {
-		/**
-		 * The message entered by the user, which includes this variable.
-		 */
-		prompt: string;
-	}
-
-	export interface ChatVariableResolver {
-		/**
-		 * A callback to resolve the value of a chat variable.
-		 * @param name The name of the variable.
-		 * @param context Contextual information about this chat request.
-		 * @param token A cancellation token.
-		 */
-		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 }
