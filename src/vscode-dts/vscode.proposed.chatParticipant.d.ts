@@ -5,7 +5,6 @@
 
 declare module 'vscode' {
 
-	// TODO@API name: Turn?
 	export class ChatRequestTurn {
 
 		/**
@@ -36,7 +35,6 @@ declare module 'vscode' {
 		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; participant: string });
 	}
 
-	// TODO@API name: Turn?
 	export class ChatResponseTurn {
 
 		/**
@@ -394,9 +392,6 @@ declare module 'vscode' {
 		 * @param value
 		 * @returns This stream.
 		 */
-		// TODO@API is this always inline or not
-		// TODO@API is this markdown or string?
-		// TODO@API this influences the rendering, it inserts new lines which is likely a bug
 		progress(value: string): ChatResponseStream;
 
 		/**
@@ -408,8 +403,6 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @returns This stream.
 		 */
-		// TODO@API support non-file uris, like http://example.com
-		// TODO@API support mapped edits
 		reference(value: Uri | Location): ChatResponseStream;
 
 		/**
@@ -420,8 +413,6 @@ declare module 'vscode' {
 		push(part: ChatResponsePart): ChatResponseStream;
 	}
 
-	// TODO@API should the name suffix differentiate between rendered items (XYZPart)
-	// and metadata like XYZItem
 	export class ChatResponseTextPart {
 		value: string;
 		constructor(value: string);
@@ -451,7 +442,6 @@ declare module 'vscode' {
 
 	export class ChatResponseProgressPart {
 		value: string;
-		// TODO@API inline
 		constructor(value: string);
 	}
 
