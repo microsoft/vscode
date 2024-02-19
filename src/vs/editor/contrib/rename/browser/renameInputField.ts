@@ -179,9 +179,12 @@ export class RenameInputField implements IContentWidget {
 
 		const bodyBox = getClientArea(this.getDomNode().ownerDocument.body);
 		const editorBox = getDomNodePagePosition(this._editor.getDomNode());
-		const cursorBox = this._editor.getScrolledVisiblePosition(this._position!);
 
-		this._nPxAvailableAbove = cursorBox.top + editorBox.top;
+		// FIXME@ulugbekna: can getVisibleRanges() be empty? if so what to do about it
+		const firstLineInViewport = this._editor.getVisibleRanges()[0].startLineNumber;
+		const cursorBoxTop = this._editor.getTopForLineNumber(this._position!.lineNumber) - this._editor.getTopForLineNumber(firstLineInViewport);
+
+		this._nPxAvailableAbove = cursorBoxTop + editorBox.top;
 		this._nPxAvailableBelow = bodyBox.height - this._nPxAvailableAbove;
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
