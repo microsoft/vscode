@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,6 +21,8 @@ import { InlineEditHintsWidget } from 'vs/editor/contrib/inlineEdit/browser/inli
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IProductConfiguration } from 'vs/base/common/product';
 
 export class InlineEditWidget implements IDisposable {
 	constructor(public readonly widget: GhostTextWidget, public readonly edit: IInlineEdit) { }
@@ -51,7 +53,9 @@ export class InlineEditController extends Disposable {
 	private _jumpBackPosition: Position | undefined;
 	private _isAccepting: boolean = false;
 
-	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
+	private readonly _enabledSetting = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
+	private readonly _enabled = derived(this, reader => isInsidersOrDebug(this._productService) && this._enabledSetting.read(reader));
+
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).fontFamily);
 	private readonly _backgroundColoring = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).backgroundColoring);
 
@@ -63,6 +67,7 @@ export class InlineEditController extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 
@@ -72,9 +77,7 @@ export class InlineEditController extends Disposable {
 		const modelChangedSignal = observableSignalFromEvent('InlineEditController.modelContentChangedSignal', editor.onDidChangeModelContent);
 		this._register(autorun(reader => {
 			/** @description InlineEditController.modelContentChanged model */
-			if (!this._enabled.read(reader)) {
-				return;
-			}
+			if (!this._enabled.read(reader)) { return; }
 			modelChangedSignal.read(reader);
 			this.getInlineEdit(editor, true);
 		}));
@@ -113,9 +116,7 @@ export class InlineEditController extends Disposable {
 		const editorBlurSingal = observableSignalFromEvent('InlineEditController.editorBlurSignal', editor.onDidBlurEditorWidget);
 		this._register(autorun(reader => {
 			/** @description InlineEditController.editorBlur */
-			if (!this._enabled.read(reader)) {
-				return;
-			}
+			if (!this._enabled.read(reader)) { return; }
 			editorBlurSingal.read(reader);
 			// This is a hidden setting very useful for debugging
 			if (this._configurationService.getValue('editor.experimentalInlineEdit.keepOnBlur') || editor.getOption(EditorOption.inlineEdit).keepOnBlur) {
@@ -130,9 +131,7 @@ export class InlineEditController extends Disposable {
 		const editorFocusSignal = observableSignalFromEvent('InlineEditController.editorFocusSignal', editor.onDidFocusEditorText);
 		this._register(autorun(reader => {
 			/** @description InlineEditController.editorFocus */
-			if (!this._enabled.read(reader)) {
-				return;
-			}
+			if (!this._enabled.read(reader)) { return; }
 			editorFocusSignal.read(reader);
 			this.getInlineEdit(editor, true);
 		}));
@@ -350,4 +349,8 @@ function wait(ms: number, cancellationToken?: CancellationToken): Promise<void> 
 			});
 		}
 	});
+}
+
+function isInsidersOrDebug(productService: IProductConfiguration): boolean {
+	return productService.quality === 'insiders' || productService.quality === undefined;
 }
