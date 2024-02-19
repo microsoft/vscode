@@ -272,6 +272,10 @@ export class ReleaseNotesManager {
 						padding-right: 0px;
 					}
 
+					code:has(.codesetting):focus {
+						border: 1px solid var(--vscode-button-border, transparent);
+					}
+
 					.codesetting {
 						color: var(--vscode-textPreformat-foreground);
 						padding: 0px 1px 1px 0px;
@@ -323,11 +327,10 @@ export class ReleaseNotesManager {
 						filter: brightness(140%);
 						text-decoration: none !important;
 					}
-					.codesetting svg :focus {
+					.codesetting:focus {
 						outline: 0 !important;
 						text-decoration: none !important;
 						color: var(--vscode-button-hoverForeground) !important;
-						border: 1px solid var(--vscode-button-border, transparent);
 					}
 					.codesetting .separator {
 						width: 1px;
@@ -462,6 +465,15 @@ export class ReleaseNotesManager {
 								if (featureInput instanceof HTMLInputElement) {
 									featureInput.checked = !featureInput.checked;
 								}
+							}
+						}
+					});
+
+					window.addEventListener('keypress', event => {
+						if (event.keyCode === 13) {
+							if (event.target.children.length > 0 && event.target.children[0].href) {
+								const clientRect = event.target.getBoundingClientRect();
+								vscode.postMessage({ type: 'clickSetting', value: { uri: event.target.children[0].href, x: clientRect.right , y: clientRect.bottom }});
 							}
 						}
 					});
