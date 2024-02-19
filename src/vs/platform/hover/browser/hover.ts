@@ -283,3 +283,12 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 		}
 	}
 }
+
+// TODO@benibenj remove this, only temp fix for contextviews
+export const nativeHoverDelegate: IHoverDelegate = {
+	showHover: function (): IHoverWidget | undefined {
+		throw new Error('Native hover function not implemented.');
+	},
+	delay: 0,
+	showNativeHover: true
+};
