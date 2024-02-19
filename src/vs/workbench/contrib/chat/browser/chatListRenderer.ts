@@ -24,7 +24,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
@@ -68,7 +68,6 @@ import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownR
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
@@ -143,7 +142,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ILogService private readonly logService: ILogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -786,15 +784,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		listDisposables.add(list.onDidOpen((e) => {
 			if (e.element) {
-				this.editorService.openEditor({
-					resource: 'uri' in e.element.reference ? e.element.reference.uri : e.element.reference,
-					options: {
-						...e.editorOptions,
-						...{
-							selection: 'range' in e.element.reference ? e.element.reference.range : undefined
+				this.openerService.open(
+					'uri' in e.element.reference ? e.element.reference.uri : e.element.reference,
+					{
+						fromUserGesture: true,
+						editorOptions: {
+							...e.editorOptions,
+							...{
+								selection: 'range' in e.element.reference ? e.element.reference.range : undefined
+							}
 						}
-					}
-				});
+					});
 			}
 		}));
 		listDisposables.add(list.onContextMenu((e) => {
@@ -1204,7 +1204,7 @@ class ContentReferencesListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new ContentReferencesListDelegate(),
-			[new ContentReferencesListRenderer(resourceLabels)],
+			[this.instantiationService.createInstance(ContentReferencesListRenderer, resourceLabels)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -1256,7 +1256,9 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 	static TEMPLATE_ID = 'contentReferencesListRenderer';
 	readonly templateId: string = ContentReferencesListRenderer.TEMPLATE_ID;
 
-	constructor(private labels: ResourceLabels) { }
+	constructor(
+		private labels: ResourceLabels,
+	) { }
 
 	renderTemplate(container: HTMLElement): IChatContentReferenceListTemplate {
 		const templateDisposables = new DisposableStore();
@@ -1266,12 +1268,17 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
-			fileKind: FileKind.FILE,
-			// Should not have this live-updating data on a historical reference
-			fileDecorations: { badges: false, colors: false },
-			range: 'range' in element.reference ? element.reference.range : undefined
-		});
+		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
+		if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
+			templateData.label.setFile(uri, {
+				fileKind: FileKind.FILE,
+				// Should not have this live-updating data on a historical reference
+				fileDecorations: { badges: false, colors: false },
+				range: 'range' in element.reference ? element.reference.range : undefined
+			});
+		} else {
+			templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: Codicon.globe });
+		}
 	}
 
 	disposeTemplate(templateData: IChatContentReferenceListTemplate): void {
