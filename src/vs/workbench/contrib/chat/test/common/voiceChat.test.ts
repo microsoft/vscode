@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -89,9 +89,12 @@ suite('VoiceChat', () => {
 	let service: VoiceChatService;
 	let event: IVoiceChatTextEvent | undefined;
 	let session: ISpeechToTextSession | undefined;
+	let cts: CancellationTokenSource | undefined;
 
 	function createSession(options: IVoiceChatSessionOptions) {
-		session = service.createVoiceChatSession(CancellationToken.None, options);
+		cts?.dispose(true);
+		cts = new CancellationTokenSource();
+		session = service.createVoiceChatSession(cts.token, options);
 		disposables.add(session.onDidChange(e => {
 			event = e;
 		}));
