@@ -331,10 +331,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		};
 
 		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
-		const top = Math.min(...targetBounds.map(e => e.top));
-		const right = Math.max(...targetBounds.map(e => e.right));
-		const bottom = Math.max(...targetBounds.map(e => e.bottom));
-		const left = Math.min(...targetBounds.map(e => e.left));
+		const { top, right, bottom, left } = targetBounds[0];
 		const width = right - left;
 		const height = bottom - top;
 
