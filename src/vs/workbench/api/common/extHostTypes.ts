@@ -4164,7 +4164,7 @@ export enum InteractiveSessionVoteDirection {
 	Up = 1
 }
 
-export enum ChatAgentCopyKind {
+export enum ChatCopyKind {
 	Action = 1,
 	Toolbar = 2
 }
@@ -4175,7 +4175,7 @@ export enum ChatVariableLevel {
 	Full = 3
 }
 
-export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
+export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	label: string | CompletionItemLabel;
 	insertText?: string;
 	values: vscode.ChatVariableValue[];
@@ -4200,7 +4200,7 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Bug = 4
 }
 
-export enum ChatAgentResultFeedbackKind {
+export enum ChatResultFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 }
@@ -4260,21 +4260,21 @@ export class ChatResponseReferencePart {
 }
 
 
-export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
+export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatAgentResolvedVariable[],
-		readonly agent: { extensionId: string; agent: string },
+		readonly variables: vscode.ChatResolvedVariable[],
+		readonly participant: { extensionId: string; participant: string },
 	) { }
 }
 
-export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
+export class ChatResponseTurn implements vscode.ChatResponseTurn {
 
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
-		readonly result: vscode.ChatAgentResult2,
-		readonly agent: { extensionId: string; agent: string },
+		readonly result: vscode.ChatResult,
+		readonly participant: { extensionId: string; participant: string },
 		readonly command?: string
 	) { }
 }
