@@ -4945,8 +4945,7 @@ declare namespace monaco.editor {
 		layoutInfo = 144,
 		wrappingInfo = 145,
 		defaultColorDecorators = 146,
-		colorDecoratorsActivatedOn = 147,
-		inlineCompletionsAccessibilityVerbose = 148
+		inlineCompletionsAccessibilityVerbose = 147
 	}
 
 	export const EditorOptions: {
@@ -4972,7 +4971,6 @@ declare namespace monaco.editor {
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
-		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'clickAndHover' | 'click' | 'hover'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
