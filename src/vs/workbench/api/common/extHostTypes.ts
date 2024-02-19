@@ -4205,14 +4205,6 @@ export enum ChatResultFeedbackKind {
 	Helpful = 1,
 }
 
-
-export class ChatResponseTextPart {
-	value: string;
-	constructor(value: string) {
-		this.value = value;
-	}
-}
-
 export class ChatResponseMarkdownPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
@@ -4272,7 +4264,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 export class ChatResponseTurn implements vscode.ChatResponseTurn {
 
 	constructor(
-		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
 		readonly result: vscode.ChatResult,
 		readonly participant: { extensionId: string; participant: string },
 		readonly command?: string

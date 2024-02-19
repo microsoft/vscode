@@ -234,7 +234,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', participant: h.request.agentId }));
 
 			// RESPONSE turn
-			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter)));
+			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.fromContent(r, this.commands.converter)));
 			res.push(new extHostTypes.ChatResponseTurn(parts, result, { extensionId: '', participant: h.request.agentId }, h.request.command));
 		}
 
@@ -402,7 +402,7 @@ class ExtHostChatAgent {
 
 				return {
 					name: c.name,
-					description: c.description,
+					description: c.description ?? '',
 					followupPlaceholder: c.isSticky2?.placeholder,
 					isSticky: c.isSticky2?.isSticky ?? c.isSticky,
 					sampleRequest: c.sampleRequest
