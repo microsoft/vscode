@@ -42,12 +42,12 @@ export class GitCommitInputBoxDiagnosticsManager {
 			}
 
 			// Workspace setting
-			if (typeof inputValidation.workspaceValue !== 'boolean') {
+			if (typeof inputValidation.workspaceValue === 'string') {
 				await config.update('inputValidation', inputValidation.workspaceValue !== 'off', false);
 			}
 
 			// User setting
-			if (typeof inputValidation.globalValue !== 'boolean') {
+			if (typeof inputValidation.globalValue === 'string') {
 				await config.update('inputValidation', inputValidation.workspaceValue !== 'off', true);
 			}
 		} catch { }
