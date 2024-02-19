@@ -33,6 +33,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -44,6 +45,7 @@ export class ReleaseNotesManager {
 	private readonly disposables = new DisposableStore();
 
 	public constructor(
+		private readonly _useCurrentFile: boolean,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -52,6 +54,7 @@ export class ReleaseNotesManager {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
@@ -196,7 +199,7 @@ export class ReleaseNotesManager {
 		const fetchReleaseNotes = async () => {
 			let text;
 			try {
-				text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+				text = this._useCurrentFile ? this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue() : await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}
@@ -517,4 +520,3 @@ export class ReleaseNotesManager {
 		}
 	}
 }
-
