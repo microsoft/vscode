@@ -29,7 +29,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 
 const $ = dom.$;
 
-interface IShowHoverOptions {
+export interface IHoverOptions {
 	mode: HoverStartMode;
 	focus: boolean;
 	extended: boolean;
@@ -90,7 +90,7 @@ export class ContentHoverController extends Disposable {
 		anchor: HoverAnchor | null,
 		source: HoverStartSource,
 		mouseEvent: IEditorMouseEvent | null,
-		opts: IShowHoverOptions
+		opts: IHoverOptions
 	): boolean {
 
 		if (!this._widget.position || !this._currentResult) {
@@ -143,7 +143,7 @@ export class ContentHoverController extends Disposable {
 		return true;
 	}
 
-	private _startHoverOperationIfNecessary(anchor: HoverAnchor, source: HoverStartSource, insistOnKeepingHoverVisible: boolean, opts: IShowHoverOptions): void {
+	private _startHoverOperationIfNecessary(anchor: HoverAnchor, source: HoverStartSource, insistOnKeepingHoverVisible: boolean, opts: IHoverOptions): void {
 
 		if (this._computer.anchor && this._computer.anchor.equals(anchor) && this._computer.showExtendedHover === opts.extended) {
 			// We have to start a hover operation at the exact same anchor as before, so no work is needed
@@ -347,15 +347,16 @@ export class ContentHoverController extends Disposable {
 			}
 		}
 
+		const showHoverOptions = { mode: HoverStartMode.Delayed, extended: showExtendedHover, focus: false };
 		if (anchorCandidates.length === 0) {
-			return this._startShowingOrUpdateHover(null, HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, extended: showExtendedHover, focus: false });
+			return this._startShowingOrUpdateHover(null, HoverStartSource.Mouse, mouseEvent, showHoverOptions);
 		}
 
 		anchorCandidates.sort((a, b) => b.priority - a.priority);
-		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartSource.Mouse, mouseEvent, { mode: HoverStartMode.Delayed, extended: showExtendedHover, focus: false });
+		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartSource.Mouse, mouseEvent, showHoverOptions);
 	}
 
-	public startShowingAtRange(range: Range, source: HoverStartSource, opts: IShowHoverOptions): void {
+	public startShowingAtRange(range: Range, source: HoverStartSource, opts: IHoverOptions): void {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), source, null, opts);
 	}
 

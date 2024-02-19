@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProvider } from 'vs/editor/common/languages';
+import { Hover, HoverProvider, ProviderResult } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -23,12 +23,13 @@ export class HoverProviderResult {
 
 async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, showExtendedHover: boolean, token: CancellationToken): Promise<HoverProviderResult | undefined> {
 	try {
-		let result = undefined;
+		let provideHoverFunc: (model: ITextModel, position: Position, token: CancellationToken) => ProviderResult<Hover>;
 		if (showExtendedHover && typeof provider['provideExtendedHover'] === 'function') {
-			result = await Promise.resolve(provider.provideExtendedHover(model, position, token));
+			provideHoverFunc = provider.provideExtendedHover;
 		} else {
-			result = await Promise.resolve(provider.provideHover(model, position, token));
+			provideHoverFunc = provider.provideHover;
 		}
+		const result = await Promise.resolve(provideHoverFunc(model, position, token));
 		if (result && isValid(result)) {
 			return new HoverProviderResult(provider, result, ordinal);
 		}
@@ -49,6 +50,7 @@ export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>
 }
 
 registerHoverCommand('_executeHoverProvider', false);
+
 registerHoverCommand('_executeExtendedHoverProvider', true);
 
 function registerHoverCommand(command: string, showExtendedHover: boolean) {

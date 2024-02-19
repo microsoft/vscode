@@ -272,12 +272,13 @@ class HoverAdapter {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		let value: vscode.Hover | null | undefined;
+		let provideHoverFunc: (document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) => languages.ProviderResult<vscode.Hover>;
 		if (showExtendedHover && typeof this._provider['provideExtendedHover'] === 'function') {
-			value = await this._provider.provideExtendedHover(doc, pos, token);
+			provideHoverFunc = this._provider.provideExtendedHover;
 		} else {
-			value = await this._provider.provideHover(doc, pos, token);
+			provideHoverFunc = this._provider.provideHover;
 		}
+		const value = await provideHoverFunc(doc, pos, token);
 		if (!value || isFalsyOrEmpty(value.contents)) {
 			return undefined;
 		}

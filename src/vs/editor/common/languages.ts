@@ -180,7 +180,6 @@ export interface HoverProvider {
 	 * to the word range at the position when omitted.
 	 */
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
-
 	/**
 	 * Provide an extended hover for the given position and document. Multiple hovers at the same
 	 * position will be merged by the editor. A hover can have a range which defaults
