@@ -229,6 +229,12 @@ export interface IEditorOptions {
 	pinned?: boolean;
 
 	/**
+	 * Forces the editor to open not as pinned, even if user settings have disabled editor pinning.
+	 * As such, the editor will always get replaced by another editor that is not pinned.
+	 */
+	forceUnpinned?: boolean;
+
+	/**
 	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
 	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
 	 */
