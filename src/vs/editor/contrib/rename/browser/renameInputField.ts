@@ -298,9 +298,10 @@ export class RenameInputField implements IContentWidget {
 				assertType(this._input !== undefined);
 				assertType(this._candidatesView !== undefined);
 
-				const candidateName = this._candidatesView.focusedCandidate;
-				if ((candidateName === undefined && this._input.value === value) || this._input.value.trim().length === 0) {
-					this.cancelInput(true, '_currentAcceptInput (because candidateName is undefined or input.value is empty)');
+				const newName = this._candidatesView.focusedCandidate ?? this._input.value;
+
+				if (newName === value || newName.trim().length === 0 /* is just whitespace */) {
+					this.cancelInput(true, '_currentAcceptInput (because newName === value || newName.trim().length === 0)');
 					return;
 				}
 
@@ -309,7 +310,7 @@ export class RenameInputField implements IContentWidget {
 				this._candidatesView.clearCandidates();
 
 				resolve({
-					newName: candidateName ?? this._input.value,
+					newName,
 					wantsPreview: supportPreview && wantsPreview
 				});
 			};
