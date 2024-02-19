@@ -180,9 +180,7 @@ export class RenameInputField implements IContentWidget {
 		const bodyBox = getClientArea(this.getDomNode().ownerDocument.body);
 		const editorBox = getDomNodePagePosition(this._editor.getDomNode());
 
-		// FIXME@ulugbekna: can getVisibleRanges() be empty? if so what to do about it
-		const firstLineInViewport = this._editor.getVisibleRanges()[0].startLineNumber;
-		const cursorBoxTop = this._editor.getTopForLineNumber(this._position!.lineNumber) - this._editor.getTopForLineNumber(firstLineInViewport);
+		const cursorBoxTop = this._getTopForPosition();
 
 		this._nPxAvailableAbove = cursorBoxTop + editorBox.top;
 		this._nPxAvailableBelow = bodyBox.height - this._nPxAvailableAbove;
@@ -389,6 +387,18 @@ export class RenameInputField implements IContentWidget {
 		this._visible = false;
 		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
+	}
+
+	private _getTopForPosition(): number {
+		const visibleRanges = this._editor.getVisibleRanges();
+		let firstLineInViewport: number;
+		if (visibleRanges.length > 0) {
+			firstLineInViewport = visibleRanges[0].startLineNumber;
+		} else {
+			this._logService.warn('RenameInputField#_getTopForPosition: this should not happen - visibleRanges is empty');
+			firstLineInViewport = Math.max(1, this._position!.lineNumber - 5); // @ulugbekna: fallback to current line minus 5
+		}
+		return this._editor.getTopForLineNumber(this._position!.lineNumber) - this._editor.getTopForLineNumber(firstLineInViewport);
 	}
 
 	private _trace(...args: any[]) {
