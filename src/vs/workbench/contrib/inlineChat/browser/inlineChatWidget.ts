@@ -179,13 +179,13 @@ export class InlineChatWidget {
 				h('div.messageActions@messageActions')
 			]),
 			h('div.followUps.hidden@followUps'),
+			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label.status.hidden@statusLabel'),
 				h('div.actions.hidden@feedbackToolbar'),
 			]),
-			h('div.accessibleViewer@accessibleViewer')
 		]
 	);
 
