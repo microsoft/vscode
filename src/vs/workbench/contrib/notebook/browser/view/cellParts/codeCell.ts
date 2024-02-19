@@ -148,10 +148,12 @@ export class CodeCell extends Disposable {
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
 			if (this._isDisposed) {
+				model?.dispose();
 				return;
 			}
 
 			if (model) {
+				this._register(model);
 				model.updateOptions({
 					indentSize: this._cellEditorOptions.indentSize,
 					tabSize: this._cellEditorOptions.tabSize,
@@ -201,8 +203,14 @@ export class CodeCell extends Disposable {
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
 			if (this._isDisposed) {
+				model?.dispose();
 				return;
 			}
+
+			if (model) {
+				this._register(model);
+			}
+
 
 			if (model && this.templateData.editor) {
 				this._reigsterModelListeners(model);
@@ -559,6 +567,7 @@ export class CodeCell extends Disposable {
 			this.notebookEditor.focusContainer();
 		}
 
+		this.templateData.editor = null!; // Strict null override - nulling out in dispose
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
