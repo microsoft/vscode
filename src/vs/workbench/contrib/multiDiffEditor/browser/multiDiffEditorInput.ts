@@ -92,7 +92,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			/** @description Updates name */
 			const resources = this._resources.read(reader) ?? [];
 			const label = this.label ?? localize('name', "Multi Diff Editor");
-			this._name = label + localize('files', " ({0} files)", resources?.length ?? 0);
+			this._name = label + localize({
+				key: 'files',
+				comment: ['the number of files being shown']
+			}, " ({0} files)", resources?.length ?? 0);
 			this._onDidChangeLabel.fire();
 		}));
 	}
