@@ -107,15 +107,15 @@ export class RenameInputField implements IContentWidget {
 			this._input.className = 'rename-input';
 			this._input.type = 'text';
 			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
-			// TODO@ulugbekna: is using addDisposableListener's right way to do it?
 			this._disposables.add(addDisposableListener(this._input, 'focus', () => { this._focusedContextKey.set(true); }));
 			this._disposables.add(addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
 			this._domNode.appendChild(this._input);
 
-			this._candidatesView = new CandidatesView(this._domNode, {
-				fontInfo: this._editor.getOption(EditorOption.fontInfo),
-				onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
-			});
+			this._candidatesView = this._disposables.add(
+				new CandidatesView(this._domNode, {
+					fontInfo: this._editor.getOption(EditorOption.fontInfo),
+					onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
+				}));
 
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
@@ -561,6 +561,10 @@ export class CandidatesView {
 			this._listWidget.reveal(this._listWidget.getFocus()[0]);
 		}
 		return focusedIx > 0;
+	}
+
+	dispose() {
+		this._listWidget.dispose();
 	}
 }
 
