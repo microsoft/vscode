@@ -38,10 +38,12 @@
 
 .open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-pinned::before {
 	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	font-family: 'codicon';
 }
 
 .open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
 	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+	font-family: 'codicon';
 }
 
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
