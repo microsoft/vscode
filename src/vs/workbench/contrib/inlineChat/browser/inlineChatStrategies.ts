@@ -36,6 +36,7 @@ import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export interface IEditObserver {
 	start(): void;
@@ -404,6 +405,8 @@ type HunkDisplayData = {
 	toggleDiff?: () => any;
 	remove(): void;
 	move: (next: boolean) => void;
+
+	hunk: HunkInformation;
 };
 
 
@@ -441,6 +444,7 @@ export class LiveStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
@@ -652,6 +656,7 @@ export class LiveStrategy extends EditModeStrategy {
 							: zoneLineNumber - hunkRanges[0].endLineNumber;
 
 						data = {
+							hunk: hunkData,
 							decorationIds,
 							viewZoneId: '',
 							viewZone: viewZoneData,
@@ -661,7 +666,7 @@ export class LiveStrategy extends EditModeStrategy {
 							discardHunk,
 							toggleDiff: !hunkData.isInsertion() ? toggleDiff : undefined,
 							remove,
-							move
+							move,
 						};
 
 						this._hunkDisplayData.set(hunkData, data);
@@ -699,6 +704,10 @@ export class LiveStrategy extends EditModeStrategy {
 
 				const remainingHunks = this._session.hunkData.pending;
 				this._updateSummaryMessage(remainingHunks);
+
+				if (this._accessibilityService.isScreenReaderOptimized()) {
+					this._zone.widget.showAccessibleHunk(this._session, widgetData.hunk);
+				}
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 				this.toggleDiff = widgetData.toggleDiff;

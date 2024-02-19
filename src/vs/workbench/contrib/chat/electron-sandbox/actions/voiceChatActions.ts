@@ -292,7 +292,7 @@ class VoiceChatSessions {
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const voiceChatSession = session.disposables.add(this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline' }));
+		const voiceChatSession = this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline' });
 
 		let inputValue = controller.getInput();
 
