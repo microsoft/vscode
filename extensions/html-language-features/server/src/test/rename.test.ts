@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getTestServer, testServers } from './shared';
+import { getTestServer, onTestEnd, onTestStart } from './shared';
 import { TextDocument } from '@volar/language-server';
 
 const testUri = 'test://test/test.html';
@@ -44,6 +44,9 @@ async function testNoRename(value: string, newName: string): Promise<void> {
 }
 
 suite('HTML Javascript Rename', () => {
+
+	onTestStart();
+
 	test('Rename Variable', async () => {
 		const input = [
 			'<html>',
@@ -183,9 +186,4 @@ suite('HTML Javascript Rename', () => {
 		await testNoRename(stringLiteralInput.join('\n'), 'something');
 		await testNoRename(numberLiteralInput.join('\n'), 'hhhh');
 	});
-}).afterAll(() => {
-	for (const server of testServers.values()) {
-		server.connection.dispose();
-	}
-	testServers.clear();
-});
+}).afterAll(onTestEnd);

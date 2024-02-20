@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { getTestServer, testServers } from './shared';
+import { getTestServer, onTestEnd, onTestStart } from './shared';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -41,6 +41,8 @@ function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRan
 }
 
 suite('HTML Folding', () => {
+
+	onTestStart();
 
 	test('Embedded JavaScript', async () => {
 		const input = [
@@ -179,49 +181,39 @@ suite('HTML Folding', () => {
 		await assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
 	});
 
-	{
+	test('Test limit', async () => {
 		const input = [
-			/* 0*/'<div>',
-			/* 1*/' <span>',
-			/* 2*/'  <b>',
-			/* 3*/'  ',
-			/* 4*/'  </b>,',
-			/* 5*/'  <b>',
-			/* 6*/'   <pre>',
-			/* 7*/'  ',
-			/* 8*/'   </pre>,',
-			/* 9*/'   <pre>',
-			/*10*/'  ',
-			/*11*/'   </pre>,',
-			/*12*/'  </b>,',
-			/*13*/'  <b>',
-			/*14*/'  ',
-			/*15*/'  </b>,',
-			/*16*/'  <b>',
-			/*17*/'  ',
-			/*18*/'  </b>',
-			/*19*/' </span>',
-			/*20*/'</div>',
+				/* 0*/'<div>',
+				/* 1*/' <span>',
+				/* 2*/'  <b>',
+				/* 3*/'  ',
+				/* 4*/'  </b>,',
+				/* 5*/'  <b>',
+				/* 6*/'   <pre>',
+				/* 7*/'  ',
+				/* 8*/'   </pre>,',
+				/* 9*/'   <pre>',
+				/*10*/'  ',
+				/*11*/'   </pre>,',
+				/*12*/'  </b>,',
+				/*13*/'  <b>',
+				/*14*/'  ',
+				/*15*/'  </b>,',
+				/*16*/'  <b>',
+				/*17*/'  ',
+				/*18*/'  </b>',
+				/*19*/' </span>',
+				/*20*/'</div>',
 		];
-		test('Test limit', async () => {
-			await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', undefined);
-			await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
-			await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(13, 14), r(16, 17)], 'limit 7', 7);
-			await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6', 6);
-			await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14)], 'limit 5', 5);
-		});
-		// Avoid timeout
-		test('Test limit', async () => {
-			await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11)], 'limit 4', 4);
-			await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3)], 'limit 3', 3);
-			await assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
-			await assertRanges(input, [r(0, 19)], 'limit 1', 1);
-		});
-	}
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', undefined);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(13, 14), r(16, 17)], 'limit 7', 7);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6', 6);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14)], 'limit 5', 5);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11)], 'limit 4', 4);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3)], 'limit 3', 3);
+		await assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
+		await assertRanges(input, [r(0, 19)], 'limit 1', 1);
+	}).timeout(4000);
 
-}).afterAll(() => {
-	for (const server of testServers.values()) {
-		server.connection.dispose();
-	}
-	testServers.clear();
-});;
+}).afterAll(onTestEnd);

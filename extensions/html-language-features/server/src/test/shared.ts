@@ -30,3 +30,19 @@ export async function getTestServer(rootUri: string, capabilities?: ClientCapabi
 	}
 	return server;
 }
+
+let testsCount = 0;
+
+export function onTestStart() {
+	testsCount++;
+}
+
+export function onTestEnd() {
+	testsCount--;
+	if (testsCount === 0) {
+		for (const server of testServers.values()) {
+			server.connection.dispose();
+		}
+		testServers.clear();
+	}
+}

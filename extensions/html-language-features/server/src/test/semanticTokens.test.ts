@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { getTestServer, testServers } from './shared';
+import { getTestServer, onTestEnd, onTestStart } from './shared';
 import { standardSemanticTokensLegend } from '@volar/language-service';
 import { Range, Position, SemanticTokensLegend } from '@volar/language-server';
 
@@ -50,6 +50,8 @@ function t(startLine: number, character: number, length: number, tokenClassifict
 }
 
 suite('HTML Semantic Tokens', () => {
+
+	onTestStart();
 
 	test('Variables', async () => {
 		const input = [
@@ -224,9 +226,4 @@ suite('HTML Semantic Tokens', () => {
 			t(6, 2, 6, 'variable.defaultLibrary'),
 		], Range.create(Position.create(6, 2), Position.create(6, 8)));
 	});
-}).afterAll(() => {
-	for (const server of testServers.values()) {
-		server.connection.dispose();
-	}
-	testServers.clear();
-});
+}).afterAll(onTestEnd);

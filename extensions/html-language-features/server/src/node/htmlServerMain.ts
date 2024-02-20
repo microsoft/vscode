@@ -23,6 +23,18 @@ connection.onInitialize(params => {
 				createCssServicePlugin(),
 				createHtmlServicePlugin(),
 				createTypeScriptServicePlugin(server.modules.typescript!),
+				{
+					create() {
+						return {
+							resolveEmbeddedCodeFormattingOptions(code, options) {
+								if (code.id.startsWith('css_')) {
+									options.initialIndentLevel++;
+								}
+								return options;
+							},
+						};
+					},
+				},
 			];
 		},
 	});

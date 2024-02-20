@@ -24,7 +24,7 @@ export const htmlLanguagePlugin: LanguagePlugin = {
 		getExtraScripts(fileName, rootCode) {
 			const extraScripts: ExtraServiceScript[] = [];
 			for (const code of forEachEmbeddedCode(rootCode)) {
-				if (code.id.startsWith('javascript_')) {
+				if (code.id.startsWith('javascript_') && !code.id.endsWith('_format')) {
 					extraScripts.push({
 						fileName: fileName + '.' + code.id.split('_')[1] + '.js',
 						code,
@@ -32,7 +32,7 @@ export const htmlLanguagePlugin: LanguagePlugin = {
 						scriptKind: 1,
 					});
 				}
-				else if (code.id.startsWith('typescript_')) {
+				else if (code.id.startsWith('typescript_') && !code.id.endsWith('_format')) {
 					extraScripts.push({
 						fileName: fileName + '.' + code.id.split('_')[1] + '.ts',
 						code,
@@ -55,14 +55,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 			sourceOffsets: [0],
 			generatedOffsets: [0],
 			lengths: [snapshot.getLength()],
-			data: {
-				verification: true,
-				completion: true,
-				semantic: true,
-				navigation: true,
-				structure: true,
-				format: true,
-			},
+			data: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: true },
 		}],
 		embeddedCodes: [],
 	};
@@ -73,6 +66,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 			continue;
 		}
 		languageIdIndexes[documentRegion.languageId] ??= 0;
+		const isJsOrTs = documentRegion.languageId === 'javascript' || documentRegion.languageId === 'typescript';
 		root.embeddedCodes.push({
 			languageId: documentRegion.languageId,
 			id: documentRegion.languageId + '_' + languageIdIndexes[documentRegion.languageId],
@@ -91,24 +85,49 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 				sourceOffsets: [documentRegion.start],
 				generatedOffsets: [documentRegion.generatedStart],
 				lengths: [documentRegion.length],
-				data: documentRegion.attributeValue ? {
-					verification: false,
-					completion: true,
-					semantic: true,
-					navigation: true,
-					structure: true,
-					format: false,
-				} : {
-					verification: true,
-					completion: true,
-					semantic: true,
-					navigation: true,
-					structure: true,
-					format: false,
-				},
+				data: documentRegion.attributeValue
+					? { verification: false, completion: true, semantic: true, navigation: true, structure: true, format: false }
+					: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: !isJsOrTs },
 			}],
 			embeddedCodes: [],
 		});
+		if (documentRegion.languageId === 'javascript' || documentRegion.languageId === 'typescript') {
+			let prefix = '{';
+			let suffix = '}';
+			const lines = documentRegion.content.split('\n');
+			if (lines.length) {
+				if (lines[0].trim()) {
+					prefix += '; ';
+				}
+				if (lines[lines.length - 1].trim()) {
+					suffix = '; ' + suffix;
+				}
+			}
+			const content = `${prefix}${documentRegion.content}${suffix}`
+			const generatedStart = documentRegion.generatedStart + prefix.length;
+			root.embeddedCodes.push({
+				languageId: documentRegion.languageId,
+				id: documentRegion.languageId + '_' + languageIdIndexes[documentRegion.languageId] + '_format',
+				snapshot: {
+					getText(start, end) {
+						return content.substring(start, end);
+					},
+					getLength() {
+						return content.length;
+					},
+					getChangeRange() {
+						return undefined;
+					},
+				},
+				mappings: [{
+					sourceOffsets: [documentRegion.start],
+					generatedOffsets: [generatedStart],
+					lengths: [documentRegion.length],
+					data: { verification: false, completion: false, semantic: false, navigation: false, structure: false, format: true },
+				}],
+				embeddedCodes: [],
+			});
+		}
 		languageIdIndexes[documentRegion.languageId]++;
 	}
 	return root;

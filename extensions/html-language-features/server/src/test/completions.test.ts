@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { getTestServer, testServers } from './shared';
+import { getTestServer, onTestEnd, onTestStart } from './shared';
 
 export interface ItemDescription {
 	label: string;
@@ -98,6 +98,8 @@ suite('HTML Path Completion', () => {
 	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
 	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
 	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
+
+	onTestStart();
 
 	test('Basics - Correct label/kind/result/command', async () => {
 		await testCompletionFor('<script src="./|">', {
@@ -310,9 +312,4 @@ suite('HTML Path Completion', () => {
 		}, testUri);
 		*/
 	});
-}).afterAll(() => {
-	for (const server of testServers.values()) {
-		server.connection.dispose();
-	}
-	testServers.clear();
-});
+}).afterAll(onTestEnd);
