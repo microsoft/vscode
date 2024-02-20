@@ -97,6 +97,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	async resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+		console.log('inside of resolveEditor');
 		// Update the flattened editors
 		this._flattenedEditors = this._flattenEditorsMap();
 
@@ -149,7 +150,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
+		console.log('resource : ', resource);
 		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
+		console.log('selectedEditor : ', selectedEditor);
 		// If no editor was found and this was a typed editor or an editor with an explicit override we could not resolve it
 		if (!selectedEditor && (untypedEditor.options?.override || isEditorInputWithOptions(editor))) {
 			return ResolvedStatus.NONE;
@@ -188,7 +191,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return ResolvedStatus.NONE;
 		}
 
+		console.log('untypedEditor : ', untypedEditor);
 		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
+		console.log('input : ', input);
+
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog
 			await this.doHandleConflictingDefaults(resource, selectedEditor.editorInfo.label, untypedEditor, input.editor, group);
@@ -311,6 +317,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		for (const [glob, value] of this._editors) {
 			const registeredEditors: RegisteredEditors = [];
 			for (const editors of value.values()) {
+				console.log('editors : ', editors);
 				let registeredEditor: RegisteredEditor | undefined = undefined;
 				// Merge all editors with the same id and glob pattern together
 				for (const editor of editors) {
@@ -400,6 +407,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 */
 	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined; conflictingDefault: boolean } {
 
+		console.log('inside of getEditor');
+		console.log('resource : ', resource);
+
 		const findMatchingEditor = (editors: RegisteredEditors, viewType: string) => {
 			return editors.find((editor) => {
 				if (editor.options && editor.options.canSupportResource !== undefined) {
@@ -412,6 +422,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (editorId && editorId !== EditorResolution.EXCLUSIVE_ONLY) {
 			// Specific id passed in doesn't have to match the resource, it can be anything
 			const registeredEditors = this._registeredEditors;
+			console.log('registeredEditors : ', registeredEditors);
+			console.log('first return');
 			return {
 				editor: findMatchingEditor(registeredEditors, editorId),
 				conflictingDefault: false
@@ -419,12 +431,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		const editors = this.findMatchingEditors(resource);
+		console.log('editors : ', editors);
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor
 		const minPriority = editorId === EditorResolution.EXCLUSIVE_ONLY ? RegisteredEditorPriority.exclusive : RegisteredEditorPriority.builtin;
 		let possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		if (possibleEditors.length === 0) {
+			console.log('second return');
 			return {
 				editor: associationsFromSetting[0] && minPriority !== RegisteredEditorPriority.exclusive ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
 				conflictingDefault: false
@@ -442,6 +456,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (associationsFromSetting.length === 0 && possibleEditors.length > 1) {
 			conflictingDefault = true;
 		}
+
+
+		console.log('third return : ', editors);
 
 		return {
 			editor: findMatchingEditor(editors, selectedViewType),
@@ -477,6 +494,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// If it's a diff list editor we trigger the create diff list editor input
 		if (isResourceDiffListEditorInput(editor)) {
+			console.log('is list diff editor input');
 			if (!selectedEditor.editorFactoryObject.createMultiDiffEditorInput) {
 				return;
 			}
@@ -486,7 +504,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// If it's a refactor preview editor we trigger the create refactor preview editor input
 		if (isResourceRefactorPreviewEditorInput(editor)) {
+			console.log('is refactor preview editor input');
+			console.log('selectedEditor.editorFactoryObject : ', selectedEditor.editorFactoryObject);
 			if (!selectedEditor.editorFactoryObject.createRefactorPreviewEditorInput) {
+				console.log('early return');
 				return;
 			}
 			const inputWithOptions = await selectedEditor.editorFactoryObject.createRefactorPreviewEditorInput(editor, group);

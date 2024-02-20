@@ -518,7 +518,7 @@ export interface IResourceRefactorPreviewInput extends IBaseUntypedEditorInput {
 	 * The list of resources to compare.
 	 * If not set, the resources are dynamically derived from the {@link refactorPreviewSource}.
 	 */
-	readonly resources?: IResourceDiffEditorInput[];
+	readonly diffResources?: IResourceDiffEditorInput[];
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
@@ -598,11 +598,11 @@ export function isResourceRefactorPreviewEditorInput(editor: unknown): editor is
 	if (!candidate) {
 		return false;
 	}
-	if (candidate.resources && !Array.isArray(candidate.resources)) {
+	if (candidate.diffResources && !Array.isArray(candidate.diffResources)) {
 		return false;
 	}
 
-	return !!candidate.resources || !!candidate.refactorPreviewSource;
+	return !!candidate.diffResources || !!candidate.refactorPreviewSource;
 }
 
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {

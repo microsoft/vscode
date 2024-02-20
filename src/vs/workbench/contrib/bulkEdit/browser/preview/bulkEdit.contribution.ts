@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { BulkEditPane, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
@@ -20,7 +20,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorResourceAccessor, IEditorFactoryRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -29,14 +29,8 @@ import Severity from 'vs/base/common/severity';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-
-export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
-	const view = await viewsService.openView(BulkEditPane.ID, true);
-	if (view instanceof BulkEditPane) {
-		return view;
-	}
-	return undefined;
-}
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolverContribution, BulkEditEditorSerializer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
 
 class UXState {
 
@@ -345,3 +339,15 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 	containerIcon: refactorPreviewViewIcon,
 }], container);
+
+// Refactor preview contribution
+registerWorkbenchContribution2(BulkEditEditorResolverContribution.ID, BulkEditEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
+	.registerEditorPane(
+		EditorPaneDescriptor.create(BulkEditEditor, BulkEditEditor.ID, localize('name', "Bulk Edit Editor")),
+		[new SyncDescriptor(BulkEditEditorInput)]
+	);
+
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
+	.registerEditorSerializer(BulkEditEditorInput.ID, BulkEditEditorSerializer);

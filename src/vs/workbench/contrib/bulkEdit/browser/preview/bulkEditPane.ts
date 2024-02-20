@@ -39,6 +39,15 @@ import { Mutable } from 'vs/base/common/types';
 import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { Range } from 'vs/editor/common/core/range';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+
+export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
+	const view = await viewsService.openView(BulkEditPane.ID, true);
+	if (view instanceof BulkEditPane) {
+		return view;
+	}
+	return undefined;
+}
 
 const enum State {
 	Data = 'data',
@@ -334,7 +343,7 @@ export class BulkEditPane extends ViewPane {
 			return;
 		}
 
-		const resources = await this._resolveResources(fileOperations);
+		const diffResources = await this._resolveResources(fileOperations);
 		const options: Mutable<IMultiDiffEditorOptions> = {
 			...e.editorOptions,
 			viewState: {
@@ -348,7 +357,7 @@ export class BulkEditPane extends ViewPane {
 		const label = 'Refactor Preview';
 		this._editorService.openEditor({
 			refactorPreviewSource,
-			resources,
+			diffResources,
 			label,
 			options,
 			description: label

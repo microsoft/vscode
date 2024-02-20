@@ -16,8 +16,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
 import { ICompositeControl } from 'vs/workbench/common/composite';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, IEditorOpenContext, IEditorSerializer, IResourceRefactorPreviewInput, IUntypedEditorInput, GroupIdentifier, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,8 +26,30 @@ import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEdit
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
+import { parse } from 'vs/base/common/marshalling';
+import { ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
+import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ObservableLazyPromise, autorun, derived } from 'vs/base/common/observable';
+import { localize } from 'vs/nls';
+import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
+import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
+import { constObservable, mapObservableArrayCached, observableFromEvent } from 'vs/base/common/observableInternal/utils';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Emitter, Event } from 'vs/base/common/event';
+import { isDefined, isObject } from 'vs/base/common/types';
+import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { deepClone } from 'vs/base/common/objects';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
+import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
+import { getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 
 export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'bulkEditEditor';
@@ -170,5 +192,381 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 				label.dispose();
 			}
 		};
+	}
+}
+
+export interface ISerializedBulkEditEditorInput {
+	refactorResourceUri: string;
+	label: string | undefined;
+	diffResources: {
+		originalUri: string | undefined;
+		modifiedUri: string | undefined;
+	}[] | undefined;
+}
+
+export class BulkEditEditorSerializer implements IEditorSerializer {
+	canSerialize(editor: EditorInput): boolean {
+		return editor instanceof BulkEditEditorInput;
+	}
+
+	serialize(editor: BulkEditEditorInput): string | undefined {
+		return JSON.stringify(editor.serialize());
+	}
+
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+		try {
+			const data = parse(serializedEditor) as ISerializedBulkEditEditorInput;
+			return BulkEditEditorInput.fromSerialized(data, instantiationService);
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
+	}
+}
+
+export class BulkEditEditorInput extends EditorInput implements ILanguageSupport {
+	public static fromResourceMultiDiffEditorInput(input: IResourceRefactorPreviewInput, instantiationService: IInstantiationService): BulkEditEditorInput {
+		if (!input.refactorPreviewSource && !input.diffResources) {
+			throw new BugIndicatingError('BulkEditEditorInput requires either multiDiffSource or resources');
+		}
+		const refactorPreviewSource = input.refactorPreviewSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
+		return instantiationService.createInstance(
+			BulkEditEditorInput,
+			refactorPreviewSource,
+			input.label,
+			input.diffResources?.map(resource => {
+				return new MultiDiffEditorItem(
+					resource.original.resource,
+					resource.modified.resource,
+				);
+			}),
+		);
+	}
+
+	public static fromSerialized(data: ISerializedBulkEditEditorInput, instantiationService: IInstantiationService): BulkEditEditorInput {
+		return instantiationService.createInstance(
+			BulkEditEditorInput,
+			URI.parse(data.refactorResourceUri),
+			data.label,
+			data.diffResources?.map(resource => new MultiDiffEditorItem(
+				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
+				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
+			))
+		);
+	}
+
+	static readonly ID: string = 'workbench.input.refactorPreviewEditor';
+
+	get resource(): URI | undefined { return this.refactorPreviewSource; }
+
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly; }
+	override get typeId(): string { return BulkEditEditorInput.ID; }
+
+	private _name: string = '';
+	override getName(): string { return this._name; }
+
+	override get editorId(): string { return DEFAULT_EDITOR_ASSOCIATION.id; }
+	override getIcon(): ThemeIcon { return MultiDiffEditorIcon; }
+
+	constructor(
+		public readonly refactorPreviewSource: URI,
+		public readonly label: string | undefined,
+		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+	) {
+		super();
+
+		this._register(autorun((reader) => {
+			/** @description Updates name */
+			const resources = this._resources.read(reader) ?? [];
+			const label = this.label ?? localize('name', "Multi Diff Editor");
+			this._name = label + localize({
+				key: 'files',
+				comment: ['the number of files being shown']
+			}, " ({0} files)", resources?.length ?? 0);
+			this._onDidChangeLabel.fire();
+		}));
+	}
+
+	public serialize(): ISerializedMultiDiffEditorInput {
+		return {
+			label: this.label,
+			multiDiffSourceUri: this.refactorPreviewSource.toString(),
+			resources: this.initialResources?.map(resource => ({
+				originalUri: resource.original?.toString(),
+				modifiedUri: resource.modified?.toString(),
+			})),
+		};
+	}
+
+	public setLanguageId(languageId: string, source?: string | undefined): void {
+		const activeDiffItem = this._viewModel.requireValue().activeDiffItem.get();
+		const value = activeDiffItem?.entry?.value;
+		if (!value) { return; }
+		const target = value.modified ?? value.original;
+		if (!target) { return; }
+		target.setLanguage(languageId, source);
+	}
+
+	public async getViewModel(): Promise<MultiDiffEditorViewModel> {
+		return this._viewModel.getPromise();
+	}
+
+	private readonly _viewModel = new LazyStatefulPromise(async () => {
+		const model = await this._createModel();
+		this._register(model);
+		const vm = new MultiDiffEditorViewModel(model, this._instantiationService);
+		this._register(vm);
+		await raceTimeout(vm.waitForDiffs(), 1000);
+		return vm;
+	});
+
+	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
+		const source = await this._resolvedSource.getPromise();
+		const textResourceConfigurationService = this._textResourceConfigurationService;
+
+		// Enables delayed disposing
+		const garbage = new DisposableStore();
+
+		const documentsWithPromises = mapObservableArrayCached(undefined, source.resources, async (r, store) => {
+			/** @description documentsWithPromises */
+			let original: IReference<IResolvedTextEditorModel> | undefined;
+			let modified: IReference<IResolvedTextEditorModel> | undefined;
+			const store2 = new DisposableStore();
+			store.add(toDisposable(() => {
+				// Mark the text model references as garbage when they get stale (don't dispose them yet)
+				garbage.add(store2);
+			}));
+
+			try {
+				[original, modified] = await Promise.all([
+					r.original ? this._textModelService.createModelReference(r.original) : undefined,
+					r.modified ? this._textModelService.createModelReference(r.modified) : undefined,
+				]);
+				if (original) { store.add(original); }
+				if (modified) { store.add(modified); }
+			} catch (e) {
+				// e.g. "File seems to be binary and cannot be opened as text"
+				console.error(e);
+				onUnexpectedError(e);
+				return undefined;
+			}
+
+			const uri = (r.modified ?? r.original)!;
+			return new ConstLazyPromise<IDocumentDiffItem>({
+				original: original?.object.textEditorModel,
+				modified: modified?.object.textEditorModel,
+				get options() {
+					return {
+						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),
+						...computeOptions(textResourceConfigurationService.getValue(uri)),
+					} satisfies IDiffEditorOptions;
+				},
+				onOptionsDidChange: h => this._textResourceConfigurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration(uri, 'editor') || e.affectsConfiguration(uri, 'diffEditor')) {
+						h();
+					}
+				}),
+			});
+		}, i => JSON.stringify([i.modified?.toString(), i.original?.toString()]));
+
+		let documents: readonly LazyPromise<IDocumentDiffItem>[] = [];
+		const documentChangeEmitter = new Emitter<void>();
+
+		const p = Event.toPromise(documentChangeEmitter.event);
+
+		const a = autorun(async reader => {
+			/** @description Update documents */
+			const docsPromises = documentsWithPromises.read(reader);
+			const docs = await Promise.all(docsPromises);
+			documents = docs.filter(isDefined);
+			documentChangeEmitter.fire();
+
+			garbage.clear(); // Only dispose text models after the documents have been updated
+		});
+
+		await p;
+
+		return {
+			dispose: () => {
+				a.dispose();
+				garbage.dispose();
+			},
+			onDidChange: documentChangeEmitter.event,
+			get documents() { return documents; },
+			contextKeys: source.source?.contextKeys,
+		};
+	}
+
+	private readonly _resolvedSource = new ObservableLazyPromise(async () => {
+		const source: IResolvedMultiDiffSource | undefined = this.initialResources
+			? new ConstResolvedMultiDiffSource(this.initialResources)
+			: await this._multiDiffSourceResolverService.resolve(this.refactorPreviewSource);
+		return {
+			source,
+			resources: source ? observableFromEvent(source.onDidChange, () => source.resources) : constObservable([]),
+		};
+	});
+
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
+			return true;
+		}
+
+		if (otherInput instanceof BulkEditEditorInput) {
+			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString();
+		}
+
+		return false;
+	}
+
+	private readonly _resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
+	private readonly _isDirtyObservables = mapObservableArrayCached(this, this._resources.map(r => r || []), res => {
+		const isModifiedDirty = res.modified ? isUriDirty(this._textFileService, res.modified) : constObservable(false);
+		const isOriginalDirty = res.original ? isUriDirty(this._textFileService, res.original) : constObservable(false);
+		return derived(reader => /** @description modifiedDirty||originalDirty */ isModifiedDirty.read(reader) || isOriginalDirty.read(reader));
+	}, i => JSON.stringify([i.modified?.toString(), i.original?.toString()]));
+	private readonly _isDirtyObservable = derived(this, reader => this._isDirtyObservables.read(reader).some(isDirty => isDirty.read(reader)))
+		.keepObserved(this._store);
+
+	override readonly onDidChangeDirty = Event.fromObservableLight(this._isDirtyObservable);
+	override isDirty() { return this._isDirtyObservable.get(); }
+
+	override async save(group: number, options?: ISaveOptions | undefined): Promise<EditorInput> {
+		await this.doSaveOrRevert('save', group, options);
+		return this;
+	}
+
+	override  revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		return this.doSaveOrRevert('revert', group, options);
+	}
+
+	private async doSaveOrRevert(mode: 'save', group: GroupIdentifier, options?: ISaveOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'revert', group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'save' | 'revert', group: GroupIdentifier, options?: ISaveOptions | IRevertOptions): Promise<void> {
+		const items = this._viewModel.currentValue?.items.get();
+		if (items) {
+			await Promise.all(items.map(async item => {
+				const model = item.diffEditorViewModel.model;
+				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
+
+				await Promise.all([
+					handleOriginal ? mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options) : Promise.resolve(),
+					mode === 'save' ? this._textFileService.save(model.modified.uri, options) : this._textFileService.revert(model.modified.uri, options),
+				]);
+			}));
+		}
+		return undefined;
+	}
+
+	override readonly closeHandler: IEditorCloseHandler = {
+
+		// TODO@bpasero TODO@hediet this is a workaround for
+		// not having a better way to figure out if the
+		// editors this input wraps around are opened or not
+
+		async confirm() {
+			return ConfirmResult.DONT_SAVE;
+		},
+		showConfirm() {
+			return false;
+		}
+	};
+}
+
+function isUriDirty(textFileService: ITextFileService, uri: URI) {
+	return observableFromEvent(
+		Event.filter(textFileService.files.onDidChangeDirty, e => e.resource.toString() === uri.toString()),
+		() => textFileService.isDirty(uri)
+	);
+}
+
+function getReadonlyConfiguration(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {
+	return {
+		readOnly: !!isReadonly,
+		readOnlyMessage: typeof isReadonly !== 'boolean' ? isReadonly : undefined
+	};
+}
+
+function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions {
+	const editorConfiguration = deepClone(configuration.editor);
+
+	// Handle diff editor specially by merging in diffEditor configuration
+	if (isObject(configuration.diffEditor)) {
+		const diffEditorConfiguration: IDiffEditorOptions = deepClone(configuration.diffEditor);
+
+		// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
+		diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;
+		delete diffEditorConfiguration.codeLens;
+
+		// User settings defines `diffEditor.wordWrap`, but here we rename that to `diffEditor.diffWordWrap` to avoid collisions with `editor.wordWrap`.
+		diffEditorConfiguration.diffWordWrap = <'off' | 'on' | 'inherit' | undefined>diffEditorConfiguration.wordWrap;
+		delete diffEditorConfiguration.wordWrap;
+
+		Object.assign(editorConfiguration, diffEditorConfiguration);
+	}
+	return editorConfiguration;
+}
+
+export class BulkEditEditorResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.bulkEditEditorResolver';
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this._register(editorResolverService.registerEditor(
+			`*`,
+			{
+				id: DEFAULT_EDITOR_ASSOCIATION.id,
+				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				priority: RegisteredEditorPriority.builtin
+			},
+			{},
+			{
+				createRefactorPreviewEditorInput: (refactorPreviewEditorInput: IResourceRefactorPreviewInput): EditorInputWithOptions => {
+					return {
+						editor: BulkEditEditorInput.fromResourceMultiDiffEditorInput(refactorPreviewEditorInput, instantiationService),
+					};
+				},
+			}
+		));
+	}
+}
+
+interface ISerializedMultiDiffEditorInput {
+	multiDiffSourceUri: string;
+	label: string | undefined;
+	resources: {
+		originalUri: string | undefined;
+		modifiedUri: string | undefined;
+	}[] | undefined;
+}
+
+export class MultiDiffEditorSerializer implements IEditorSerializer {
+	canSerialize(editor: EditorInput): boolean {
+		return editor instanceof BulkEditEditorInput;
+	}
+
+	serialize(editor: BulkEditEditorInput): string | undefined {
+		return JSON.stringify(editor.serialize());
+	}
+
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+		try {
+			const data = parse(serializedEditor) as ISerializedBulkEditEditorInput;
+			return BulkEditEditorInput.fromSerialized(data, instantiationService);
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
 	}
 }

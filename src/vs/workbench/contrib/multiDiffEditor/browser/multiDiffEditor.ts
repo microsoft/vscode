@@ -57,6 +57,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			editorService,
 			editorGroupService
 		);
+		console.log('inside of multi diff editor');
 	}
 
 	protected createEditor(parent: HTMLElement): void {
