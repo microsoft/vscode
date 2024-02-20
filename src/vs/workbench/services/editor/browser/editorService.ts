@@ -525,9 +525,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Resolve override unless disabled
 		if (!isEditorInput(editor)) {
-			console.log('editor : ', editor);
 			const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
-			console.log('resolvedEditor : ', resolvedEditor);
+
 			if (resolvedEditor === ResolvedStatus.ABORT) {
 				return; // skip editor if override is aborted
 			}
