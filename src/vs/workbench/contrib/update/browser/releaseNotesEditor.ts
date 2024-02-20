@@ -33,6 +33,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -44,6 +45,7 @@ export class ReleaseNotesManager {
 	private readonly disposables = new DisposableStore();
 
 	public constructor(
+		private readonly _useCurrentFile: boolean,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -52,6 +54,7 @@ export class ReleaseNotesManager {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
@@ -196,7 +199,7 @@ export class ReleaseNotesManager {
 		const fetchReleaseNotes = async () => {
 			let text;
 			try {
-				text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+				text = this._useCurrentFile ? this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue() : await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}
@@ -258,48 +261,91 @@ export class ReleaseNotesManager {
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
 
+					/* codesetting */
+
+					code:has(.codesetting)+code {
+						display: none;
+					}
+
+					code:has(.codesetting) {
+						background-color: var(--vscode-textPreformat-background);
+						color: var(--vscode-textPreformat-foreground);
+						padding-left: 1px;
+						margin-right: 3px;
+						padding-right: 0px;
+					}
+
+					code:has(.codesetting):focus {
+						border: 1px solid var(--vscode-button-border, transparent);
+					}
+
 					.codesetting {
-						color: var(--vscode-button-foreground);
-						background-color: var(--vscode-button-background);
-						width: fit-content;
+						color: var(--vscode-textPreformat-foreground);
 						padding: 0px 1px 1px 0px;
-						font-size: 12px;
+						font-size: 0px;
 						overflow: hidden;
 						text-overflow: ellipsis;
 						outline-offset: 2px !important;
 						box-sizing: border-box;
-						border-radius: 2px;
 						text-align: center;
 						cursor: pointer;
-						border: 1px solid var(--vscode-button-border, transparent);
-						line-height: 9px;
-						outline: 1px solid transparent;
-						display: inline-block;
-						margin-top: 3px;
-						margin-bottom: -4px !important;
-					}
-					.codesetting:hover {
-						background-color: var(--vscode-button-hoverBackground);
-						text-decoration: none !important;
-						color: var(--vscode-button-hoverForeground) !important;
-					}
-					.codesetting:focus {
-						outline: 0 !important;
-						text-decoration: none !important;
-						color: var(--vscode-button-hoverForeground) !important;
-						border: 1px solid var(--vscode-button-border, transparent);
+						display: inline;
+						margin-right: 3px;
 					}
 					.codesetting svg {
+						font-size: 12px;
+						text-align: center;
+						cursor: pointer;
+						border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+						outline: 1px solid transparent;
+						line-height: 9px;
+						margin-bottom: -5px;
+						padding-left: 0px;
+						padding-top: 2px;
+						padding-bottom: 2px;
+						padding-right: 2px;
 						display: inline-block;
 						text-decoration: none;
 						text-rendering: auto;
-						text-align: center;
 						text-transform: none;
 						-webkit-font-smoothing: antialiased;
 						-moz-osx-font-smoothing: grayscale;
 						user-select: none;
 						-webkit-user-select: none;
 					}
+					.codesetting .setting-name {
+						font-size: 13px;
+						padding-left: 2px;
+						padding-right: 3px;
+						padding-top: 1px;
+						padding-bottom: 1px;
+						margin-left: -5px;
+						margin-top: -3px;
+					}
+					.codesetting:hover {
+						color: var(--vscode-textPreformat-foreground) !important;
+						text-decoration: none !important;
+					}
+					code:has(.codesetting):hover {
+						filter: brightness(140%);
+						text-decoration: none !important;
+					}
+					.codesetting:focus {
+						outline: 0 !important;
+						text-decoration: none !important;
+						color: var(--vscode-button-hoverForeground) !important;
+					}
+					.codesetting .separator {
+						width: 1px;
+						height: 14px;
+						margin-bottom: -3px;
+						display: inline-block;
+						background-color: var(--vscode-editor-background);
+						font-size: 12px;
+						margin-right: 8px;
+					}
+
+					/* codefeature */
 
 					.codefeature-container {
 						display: flex;
@@ -342,66 +388,6 @@ export class ReleaseNotesManager {
 
 					input:checked+.codefeature > .toggle:before {
 						transform: translateX(22px);
-					}
-
-					.codefeature-container:has(input) .title {
-						line-height: 30px;
-						padding-left: 4px;
-						font-weight: bold;
-					}
-
-					.codefeature-container:has(input:checked) .title:after {
-						content: "${nls.localize('disableFeature', "Disable this feature")}";
-					}
-					.codefeature-container:has(input:not(:checked)) .title:after {
-						content: "${nls.localize('enableFeature', "Enable this feature")}";
-					}
-
-					.codefeature-container {
-						display: flex;
-					}
-
-					.codefeature {
-						position: relative;
-						display: inline-block;
-						width: 58px;
-						height: 30px;
-					}
-
-					.codefeature-container input {
-						display: none;
-					}
-
-					.toggle {
-						position: absolute;
-						cursor: pointer;
-						top: 0;
-						left: 0;
-						right: 0;
-						bottom: 0;
-						background-color: var(--vscode-disabledForeground);
-						transition: .4s;
-						border-radius: 30px;
-					}
-
-					.toggle:before {
-						position: absolute;
-						content: "";
-						height: 22px;
-						width: 22px;
-						left: 4px;
-						bottom: 4px;
-						background-color: var(--vscode-editor-foreground);
-						transition: .4s;
-						border-radius: 50%;
-					}
-
-					input:checked+.codefeature > .toggle:before {
-						transform: translateX(26px);
-					}
-
-					input:checked+.codefeature > .toggle {
-						background-color: var(--vscode-button-background);
 					}
 
 					.codefeature-container:has(input) .title {
@@ -486,6 +472,15 @@ export class ReleaseNotesManager {
 						}
 					});
 
+					window.addEventListener('keypress', event => {
+						if (event.keyCode === 13) {
+							if (event.target.children.length > 0 && event.target.children[0].href) {
+								const clientRect = event.target.getBoundingClientRect();
+								vscode.postMessage({ type: 'clickSetting', value: { uri: event.target.children[0].href, x: clientRect.right , y: clientRect.bottom }});
+							}
+						}
+					});
+
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');
 					});
@@ -525,4 +520,3 @@ export class ReleaseNotesManager {
 		}
 	}
 }
-

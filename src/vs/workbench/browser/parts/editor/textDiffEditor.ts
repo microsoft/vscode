@@ -195,6 +195,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 			control.restoreViewState(editorViewState);
 
+			if (options?.revealIfVisible) {
+				control.revealFirstDiff();
+			}
+
 			return true;
 		}
 

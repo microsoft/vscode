@@ -589,5 +589,15 @@
 		"prependLicenseText": [
 			"Copyright (c) heap.js authors"
 		]
+	},
+	{
+		// Reason: mono-repo where the individual packages are also dual-licensed under MIT and Apache-2.0
+		"name": "system-configuration",
+		"fullLicenseTextUri": "https://github.com/mullvad/system-configuration-rs/blob/main/system-configuration/LICENSE-MIT"
+	},
+	{
+		// Reason: mono-repo where the individual packages are also dual-licensed under MIT and Apache-2.0
+		"name": "system-configuration-sys",
+		"fullLicenseTextUri": "https://github.com/mullvad/system-configuration-rs/blob/main/system-configuration-sys/LICENSE-MIT"
 	}
 ]

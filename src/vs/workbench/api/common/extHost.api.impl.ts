@@ -1409,8 +1409,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostChatProvider.registerLanguageModel(extension, id, provider, metadata);
 			},
-			registerVariable(name: string, description: string, resolver: vscode.ChatVariableResolver) {
-				checkProposedApiEnabled(extension, 'chatParticipant');
+			registerChatVariableResolver(name: string, description: string, resolver: vscode.ChatVariableResolver) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
 				return extHostChatVariables.registerVariableResolver(extension, name, description, resolver);
 			},
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
@@ -1671,7 +1671,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			RelatedInformationType: extHostTypes.RelatedInformationType,
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
-			ChatResponseTextPart: extHostTypes.ChatResponseTextPart,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,

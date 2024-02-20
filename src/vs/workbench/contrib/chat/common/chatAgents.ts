@@ -70,6 +70,7 @@ export interface IChatAgentMetadata {
 	description?: string;
 	isDefault?: boolean; // The agent invoked when no agent is specified
 	helpTextPrefix?: string | IMarkdownString;
+	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
 	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
 	fullName?: string;

@@ -10,6 +10,7 @@
     "chatParticipant",
     "languageModels",
     "defaultChatParticipant",
+    "chatVariableResolver",
     "contribViewsRemote",
     "contribStatusBarItems",
     "createFileSystemWatcher",
