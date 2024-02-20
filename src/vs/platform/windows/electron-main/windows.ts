@@ -115,7 +115,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 
-export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState?: IWindowState, overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -129,10 +129,14 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
 		...overrides,
+		x: windowState.x,
+		y: windowState.y,
+		width: windowState.width,
+		height: windowState.height,
 		webPreferences: {
 			enableWebSQL: false,
 			spellcheck: false,
-			zoomFactor: zoomLevelToZoomFactor(windowState?.zoomLevel ?? windowSettings?.zoomLevel),
+			zoomFactor: zoomLevelToZoomFactor(windowState.zoomLevel ?? windowSettings?.zoomLevel),
 			autoplayPolicy: 'user-gesture-required',
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
@@ -142,13 +146,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		},
 		experimentalDarkMode: true
 	};
-
-	if (windowState) {
-		options.x = windowState.x;
-		options.y = windowState.y;
-		options.width = windowState.width;
-		options.height = windowState.height;
-	}
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
