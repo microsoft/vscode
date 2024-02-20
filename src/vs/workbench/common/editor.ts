@@ -507,6 +507,20 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly resources?: IResourceDiffEditorInput[];
 }
 
+export interface IResourceRefactorPreviewInput extends IBaseUntypedEditorInput {
+	/**
+	 * A unique identifier of this multi diff editor input.
+	 * If a second multi diff editor with the same uri is opened, the existing one is revealed instead (even if the resources list is different!).
+	 */
+	readonly refactorPreviewSource?: URI;
+
+	/**
+	 * The list of resources to compare.
+	 * If not set, the resources are dynamically derived from the {@link refactorPreviewSource}.
+	 */
+	readonly resources?: IResourceDiffEditorInput[];
+}
+
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
 
 /**
@@ -573,6 +587,22 @@ export function isResourceDiffListEditorInput(editor: unknown): editor is IResou
 	}
 
 	return !!candidate.resources || !!candidate.multiDiffSource;
+}
+
+export function isResourceRefactorPreviewEditorInput(editor: unknown): editor is IResourceRefactorPreviewInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceRefactorPreviewInput | undefined;
+	if (!candidate) {
+		return false;
+	}
+	if (candidate.resources && !Array.isArray(candidate.resources)) {
+		return false;
+	}
+
+	return !!candidate.resources || !!candidate.refactorPreviewSource;
 }
 
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
@@ -794,7 +824,7 @@ export const enum EditorInputCapabilities {
 	AuxWindowUnsupported = 1 << 10
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput | IResourceRefactorPreviewInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -1305,7 +1335,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceRefactorPreviewEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1374,7 +1404,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceRefactorPreviewEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

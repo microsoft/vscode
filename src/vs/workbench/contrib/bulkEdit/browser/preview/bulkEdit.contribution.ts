@@ -30,7 +30,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
-async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
+export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
 	if (view instanceof BulkEditPane) {
 		return view;

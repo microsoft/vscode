@@ -107,7 +107,7 @@ export class BulkEditPane extends ViewPane {
 		super.dispose();
 	}
 
-	protected override renderBody(parent: HTMLElement): void {
+	public override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
 		const resourceLabels = this._instaService.createInstance(
@@ -344,10 +344,10 @@ export class BulkEditPane extends ViewPane {
 				}
 			}
 		};
-		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
+		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
 		this._editorService.openEditor({
-			multiDiffSource,
+			refactorPreviewSource,
 			resources,
 			label,
 			options,
