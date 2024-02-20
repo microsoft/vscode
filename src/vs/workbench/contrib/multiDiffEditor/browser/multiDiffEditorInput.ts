@@ -53,7 +53,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	public static fromSerialized(data: ISerializedMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
-		console.log('inside of fromSerialized');
 		return instantiationService.createInstance(
 			MultiDiffEditorInput,
 			URI.parse(data.multiDiffSourceUri),
@@ -90,7 +89,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
-		console.log('isTransient from the constructor : ', isTransient);
 		super();
 
 		this._register(autorun((reader) => {
@@ -365,19 +363,18 @@ interface ISerializedMultiDiffEditorInput {
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {
+
+	// TODO@bpasero, @aiday-mar: following should be removed
 	canSerialize(editor: EditorInput): boolean {
-		console.log('inside of can serialize');
-		console.log('editor instanceof MultiDiffEditorInput && !editor.isTransient : ', editor instanceof MultiDiffEditorInput && !editor.isTransient);
 		return editor instanceof MultiDiffEditorInput && !editor.isTransient;
 	}
 
 	serialize(editor: MultiDiffEditorInput): string | undefined {
-		console.log('inside of serialize');
-		return JSON.stringify(editor.serialize());
+		const shouldSerialize = editor instanceof MultiDiffEditorInput && !editor.isTransient;
+		return shouldSerialize ? JSON.stringify(editor.serialize()) : undefined;
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
-		console.log('inside of deserialize');
 		try {
 			const data = parse(serializedEditor) as ISerializedMultiDiffEditorInput;
 			return MultiDiffEditorInput.fromSerialized(data, instantiationService);

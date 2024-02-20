@@ -1032,10 +1032,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			let canSerializeEditor = false;
 
 			const editorSerializer = registry.getEditorSerializer(editor);
-			if (editorSerializer && editorSerializer.canSerialize(editor)) {
+			if (editorSerializer) {
 				const value = editorSerializer.serialize(editor);
 
-				console.log('value : ', value);
 				// Editor can be serialized
 				if (typeof value === 'string') {
 					canSerializeEditor = true;
