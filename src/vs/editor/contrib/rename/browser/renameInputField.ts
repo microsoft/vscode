@@ -501,9 +501,11 @@ class CandidatesView {
 
 		this._listWidget.splice(0, 0, candidates);
 
-		this._listWidget.layout(height, this._pickListWidth(candidates));
+		const width = Math.max(200, 4 /* padding */ + 16 /* sparkle icon */ + 5 /* margin-left */ + this._pickListWidth(candidates)); // TODO@ulugbekna: approximate calc - clean this up
+		this._listWidget.layout(height, width);
 
 		this._listContainer.style.height = `${height}px`;
+		this._listContainer.style.width = `${width}px`;
 	}
 
 	public clearCandidates(): void {
@@ -577,7 +579,7 @@ class CandidatesView {
 	}
 
 	private _pickListWidth(candidates: NewSymbolName[]): number {
-		return Math.max(...candidates.map(c => c.newSymbolName.length)) * 7 /* approximate # of pixes taken by a single character */;
+		return Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * 7.2) /* approximate # of pixes taken by a single character */;
 	}
 
 }
