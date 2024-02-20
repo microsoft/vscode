@@ -18,7 +18,7 @@ suite('HTML Embedded Support', () => {
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
 		const virtualCode = htmlLanguagePlugin.createVirtualCode('', 'html', {
-			getText: () => value,
+			getText: (start, end) => value.substring(start, end),
 			getLength: () => value.length,
 			getChangeRange: () => undefined,
 		});
