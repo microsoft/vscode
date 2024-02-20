@@ -45,6 +45,7 @@ export async function activate(context: ExtensionContext) {
 		}
 	};
 
+
 	// pass the location of the localization bundle to the server
 	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
@@ -55,8 +56,11 @@ export async function activate(context: ExtensionContext) {
 	return labsInfo.extensionExports;
 }
 
-export function deactivate(): Thenable<any> | undefined {
-	return client?.dispose();
+export async function deactivate(): Promise<void> {
+	if (client) {
+		await client.dispose();
+		client = undefined;
+	}
 }
 
 interface IPackageInfo {
