@@ -123,7 +123,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 					const workspaceEdit = new WorkspaceEdit();
 					workspaceEdit.delete(document.uri, diagnostic.range);
 
-					const codeAction = new CodeAction(l10n.t('Remove empty characters'), CodeActionKind.QuickFix);
+					const codeAction = new CodeAction(l10n.t('Clear whitespace characters'), CodeActionKind.QuickFix);
 					codeAction.diagnostics = [diagnostic];
 					codeAction.edit = workspaceEdit;
 					codeActions.push(codeAction);
