@@ -74,7 +74,7 @@ suite('chat', () => {
 	});
 
 	test('participant and variable', async () => {
-		disposables.push(chat.registerVariable('myVar', 'My variable', {
+		disposables.push(chat.registerChatVariableResolver('myVar', 'My variable', {
 			resolve(_name, _context, _token) {
 				return [{ level: ChatVariableLevel.Full, value: 'myValue' }];
 			}

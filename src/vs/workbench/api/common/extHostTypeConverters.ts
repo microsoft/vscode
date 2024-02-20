@@ -2201,18 +2201,16 @@ export namespace ChatFollowup {
 			agentId: followup.participant ?? request?.agentId ?? '',
 			subCommand: followup.command ?? request?.command,
 			message: followup.prompt,
-			title: followup.title,
-			tooltip: followup.tooltip,
+			title: followup.label
 		};
 	}
 
 	export function to(followup: IChatFollowup): vscode.ChatFollowup {
 		return {
 			prompt: followup.message,
-			title: followup.title,
+			label: followup.title,
 			participant: followup.agentId,
 			command: followup.subCommand,
-			tooltip: followup.tooltip,
 		};
 	}
 }
@@ -2329,18 +2327,6 @@ export namespace InteractiveEditorResponseFeedbackKind {
 			case InlineChatResponseFeedbackKind.Bug:
 				return types.InteractiveEditorResponseFeedbackKind.Bug;
 		}
-	}
-}
-
-export namespace ChatResponseTextPart {
-	export function to(part: vscode.ChatResponseTextPart): Dto<IChatMarkdownContent> {
-		return {
-			kind: 'markdownContent',
-			content: MarkdownString.from(new types.MarkdownString().appendText(part.value))
-		};
-	}
-	export function from(part: Dto<IChatMarkdownContent>): vscode.ChatResponseTextPart {
-		return new types.ChatResponseTextPart(part.content.value);
 	}
 }
 
@@ -2478,13 +2464,26 @@ export namespace ChatResponsePart {
 
 	export function from(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart | undefined {
 		switch (part.kind) {
+			case 'reference': return ChatResponseReferencePart.from(part);
+			case 'markdownContent':
+			case 'inlineReference':
+			case 'progressMessage':
+			case 'treeData':
+			case 'command':
+				return fromContent(part, commandsConverter);
+		}
+		return undefined;
+	}
+
+	export function fromContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | undefined {
+		switch (part.kind) {
 			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
 			case 'inlineReference': return ChatResponseAnchorPart.from(part);
-			case 'reference': return ChatResponseReferencePart.from(part);
-			case 'progressMessage': return ChatResponseProgressPart.from(part);
+			case 'progressMessage': return undefined;
 			case 'treeData': return ChatResponseFilesPart.from(part);
 			case 'command': return ChatResponseCommandButtonPart.from(part, commandsConverter);
 		}
+
 		return undefined;
 	}
 }
