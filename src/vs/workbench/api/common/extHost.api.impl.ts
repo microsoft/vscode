@@ -1671,7 +1671,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			RelatedInformationType: extHostTypes.RelatedInformationType,
 			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
-			ChatResponseTextPart: extHostTypes.ChatResponseTextPart,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
 			ChatResponseFileTreePart: extHostTypes.ChatResponseFileTreePart,
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
