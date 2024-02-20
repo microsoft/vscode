@@ -170,6 +170,7 @@ export class BulkEditService implements IBulkEditService {
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
 		this._previewHandler = handler;
 		return toDisposable(() => {
+			console.log('inside of dispose of set preview handler');
 			if (this._previewHandler === handler) {
 				this._previewHandler = undefined;
 			}

@@ -50,6 +50,7 @@ class UXState {
 	}
 
 	async restore(panels: boolean, editors: boolean): Promise<void> {
+		console.log('inside of restore');
 
 		// (1) restore previous panel
 		if (panels) {
@@ -105,11 +106,13 @@ class BulkEditPreviewContribution {
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		console.log('inside of preview contribution');
 		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
 		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
+		console.log('inside of _previewEdit');
 		this._ctxEnabled.set(true);
 
 		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);

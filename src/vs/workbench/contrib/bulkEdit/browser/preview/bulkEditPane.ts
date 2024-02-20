@@ -184,6 +184,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
+		console.log('inside of setInput');
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 		this._treeViewStates.clear();
@@ -208,7 +209,11 @@ export class BulkEditPane extends ViewPane {
 
 		return new Promise<ResourceEdit[] | undefined>(resolve => {
 
-			token.onCancellationRequested(() => resolve(undefined));
+			console.log('inside of the resolve');
+			token.onCancellationRequested(() => {
+				console.log('inside of on cancellation requested');
+				resolve(undefined);
+			});
 
 			this._currentResolve = resolve;
 			this._setTreeInput(input);
@@ -273,6 +278,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
+		console.log('inside of _done');
 		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 		this._currentInput = undefined;
 		this._setState(State.Message);

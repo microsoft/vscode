@@ -185,8 +185,11 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const p = Event.toPromise(documentChangeEmitter.event);
 
 		const a = autorun(async reader => {
+			console.log('inside of autorun');
 			/** @description Update documents */
+			console.log('documentsWithPromises : ', documentsWithPromises);
 			const docsPromises = documentsWithPromises.read(reader);
+			console.log('docsPromise : ', docsPromises);
 			const docs = await Promise.all(docsPromises);
 			documents = docs.filter(isDefined);
 			documentChangeEmitter.fire();
@@ -208,9 +211,14 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	private readonly _resolvedSource = new ObservableLazyPromise(async () => {
+		console.log('this.initialResources : ', this.initialResources);
+		console.log('this.multiDiffSource : ', this.multiDiffSource);
+
 		const source: IResolvedMultiDiffSource | undefined = this.initialResources
 			? new ConstResolvedMultiDiffSource(this.initialResources)
 			: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource);
+
+		console.log('source : ', source);
 		return {
 			source,
 			resources: source ? observableFromEvent(source.onDidChange, () => source.resources) : constObservable([]),
@@ -249,6 +257,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	override  revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.doSaveOrRevert('revert', group, options);
 	}
+
+	// Need a method to cancel the auto run on the diff editor input
 
 	private async doSaveOrRevert(mode: 'save', group: GroupIdentifier, options?: ISaveOptions): Promise<void>;
 	private async doSaveOrRevert(mode: 'revert', group: GroupIdentifier, options?: IRevertOptions): Promise<void>;

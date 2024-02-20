@@ -72,6 +72,9 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		console.log('inside of setInput');
+
+		// In here, we can remove the editors if there are editors to remove
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		this._multiDiffEditorWidget!.setViewModel(this._viewModel);

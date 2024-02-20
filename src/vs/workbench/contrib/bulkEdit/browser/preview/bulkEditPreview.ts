@@ -376,6 +376,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	}
 
 	dispose(): void {
+		console.log('inside of dispose of bulk edit preview provider');
 		this._disposables.dispose();
 	}
 
