@@ -507,7 +507,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
 
-		await VoiceChatSessionControllerFactory.revealChatView(accessor);
+		(await VoiceChatSessionControllerFactory.revealChatView(accessor))?.focusInput();
 
 		await holdMode;
 		handle.dispose();
