@@ -364,7 +364,7 @@ interface ISerializedMultiDiffEditorInput {
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {
 
-	// TODO@bpasero, @aiday-mar: following should be removed
+	// TODO@bpasero, @aiday-mar: following canSerialize should be removed (debt item)
 	canSerialize(editor: EditorInput): boolean {
 		return editor instanceof MultiDiffEditorInput && !editor.isTransient;
 	}
