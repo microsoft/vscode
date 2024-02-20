@@ -24,7 +24,7 @@ export class GitCommitInputBoxDiagnosticsManager {
 		this.migrateInputValidationSettings()
 			.then(() => {
 				mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
-				filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation'))(this.onDidChangeConfiguration, this, this.disposables);
+				filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation') || e.affectsConfiguration('git.inputValidationLength') || e.affectsConfiguration('git.inputValidationSubjectLength'))(this.onDidChangeConfiguration, this, this.disposables);
 			});
 	}
 
