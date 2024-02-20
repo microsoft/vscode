@@ -46,9 +46,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IPeekViewService, PeekViewWidget, peekViewResultsBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -78,7 +78,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
@@ -585,7 +586,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			});
 
 			this.visible.set(true);
-			this.peek.value!.create();
+			this.peek.value.create();
 		}
 
 		if (subject instanceof MessageSubject) {
@@ -1067,11 +1068,11 @@ class TestResultsPeek extends PeekViewWidget {
 }
 
 export class TestResultsView extends ViewPane {
-	private readonly content = this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
+	private readonly content = new Lazy(() => this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
 		historyVisible: staticObservableValue(true),
 		showRevealLocationOnMessages: true,
 		locationForProgress: Testing.ExplorerViewId,
-	}));
+	})));
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1090,7 +1091,7 @@ export class TestResultsView extends ViewPane {
 	}
 
 	public get subject() {
-		return this.content.current;
+		return this.content.rawValue?.current;
 	}
 
 	public showLatestRun(preserveFocus = false) {
@@ -1099,27 +1100,34 @@ export class TestResultsView extends ViewPane {
 			return;
 		}
 
-		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
-	}
-
-	public showMessage(result: ITestResult, test: TestResultItem, taskIndex: number, messageIndex: number) {
-		this.content.reveal({ preserveFocus: false, subject: new MessageSubject(result, test, taskIndex, messageIndex) });
+		this.content.rawValue?.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.content.fillBody(container);
-		this.content.onDidRequestReveal(subject => this.content.reveal({ preserveFocus: true, subject }));
-
-		const [lastResult] = this.resultService.results;
-		if (lastResult && lastResult.tasks.length) {
-			this.content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
+		// Avoid rendering into the body until it's attached the DOM, as it can
+		// result in rendering issues in the terminal (#194156)
+		if (this.isBodyVisible()) {
+			this.renderContent(container);
+		} else {
+			this._register(Event.once(Event.filter(this.onDidChangeBodyVisibility, Boolean))(() => this.renderContent(container)));
 		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.content.onLayoutBody(height, width);
+		this.content.rawValue?.onLayoutBody(height, width);
+	}
+
+	private renderContent(container: HTMLElement) {
+		const content = this.content.value;
+		content.fillBody(container);
+		content.onDidRequestReveal(subject => content.reveal({ preserveFocus: true, subject }));
+
+		const [lastResult] = this.resultService.results;
+		if (lastResult && lastResult.tasks.length) {
+			content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
+		}
 	}
 }
 
@@ -1717,7 +1725,7 @@ class CoverageElement implements ITreeElement {
 	}
 
 	public get icon() {
-		return this.isOpen ? widgetClose : icons.testingCoverage;
+		return this.isOpen ? widgetClose : icons.testingCoverageReport;
 	}
 
 	public get isOpen() {
@@ -2474,7 +2482,7 @@ export class GoToNextMessageAction extends Action2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
+			title: localize2('testing.goToNextMessage', 'Go to Next Test Failure'),
 			icon: Codicon.arrowDown,
 			category: Categories.Test,
 			keybinding: {
@@ -2507,7 +2515,7 @@ export class GoToPreviousMessageAction extends Action2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
+			title: localize2('testing.goToPreviousMessage', 'Go to Previous Test Failure'),
 			icon: Codicon.arrowUp,
 			category: Categories.Test,
 			keybinding: {
@@ -2540,7 +2548,7 @@ export class OpenMessageInEditorAction extends Action2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
+			title: localize2('testing.openMessageInEditor', 'Open in Editor'),
 			icon: Codicon.goToFile,
 			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
@@ -2558,7 +2566,7 @@ export class ToggleTestingPeekHistory extends Action2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
+			title: localize2('testing.toggleTestingPeekHistory', 'Toggle Test History in Peek'),
 			icon: Codicon.history,
 			category: Categories.Test,
 			menu: [{

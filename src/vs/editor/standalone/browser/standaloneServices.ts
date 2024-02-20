@@ -10,6 +10,7 @@ import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/services/languageFeatureDebounce';
 import 'vs/editor/common/services/semanticTokensStylingService';
 import 'vs/editor/common/services/languageFeaturesService';
+import 'vs/editor/browser/services/hoverService';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -70,7 +71,7 @@ import { StandaloneQuickInputService } from 'vs/editor/standalone/browser/quickI
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
@@ -87,7 +88,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService, Sound } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -593,6 +594,13 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
 		// noop
 	}
+
+	/**
+	 * not yet supported
+	 */
+	public override enableKeybindingHoldMode(commandId: string): Promise<void> | undefined {
+		return undefined;
+	}
 }
 
 class DomNodeListeners extends Disposable {
@@ -654,7 +662,6 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		if (changedKeys.length > 0) {
 			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
 			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
-			configurationChangeEvent.sourceConfig = null;
 			this._onDidChangeConfiguration.fire(configurationChangeEvent);
 		}
 
@@ -1050,34 +1057,34 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-class StandaloneAudioService implements IAudioCueService {
+class StandaloneAccessbilitySignalService implements IAccessibilitySignalService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
+	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
 	}
 
-	async playAudioCues(cues: AudioCue[]): Promise<void> {
+	async playAccessibilitySignals(cues: AccessibilitySignal[]): Promise<void> {
 	}
 
-	isEnabled(cue: AudioCue): boolean {
+	isSoundEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
 
-	onEnabledChanged(cue: AudioCue): Event<void> {
+	isAnnouncementEnabled(cue: AccessibilitySignal): boolean {
+		return false;
+	}
+
+	onSoundEnabledChanged(cue: AccessibilitySignal): Event<void> {
+		return Event.None;
+	}
+
+	onAnnouncementEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
-	playAudioCueLoop(cue: AudioCue): IDisposable {
+	playSignalLoop(cue: AccessibilitySignal): IDisposable {
 		return toDisposable(() => { });
-	}
-}
-
-class StandaloneAccessibleNotificationService implements IAccessibleNotificationService {
-	_serviceBrand: undefined;
-
-	notify(event: AccessibleNotificationEvent, userGesture?: boolean | undefined): void {
-		// NOOP
 	}
 }
 
@@ -1118,8 +1125,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Eager);
 registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Eager);
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
-registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
-registerSingleton(IAccessibleNotificationService, StandaloneAccessibleNotificationService, InstantiationType.Eager);
+registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

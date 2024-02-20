@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/menubarControl';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
+import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, hasNativeTitlebar, TitleBarSetting } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
@@ -28,8 +28,7 @@ import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
 import { Direction } from 'vs/base/browser/ui/menu/menu';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { isFullscreen } from 'vs/base/browser/browser';
+import { isFullscreen, onDidChangeFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -352,7 +351,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.APPLICATION, false);
-		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
+		const usingCustomMenubar = !hasNativeTitlebar(this.configurationService);
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
 			return;
@@ -363,7 +362,7 @@ export abstract class MenubarControl extends Disposable {
 			{
 				label: localize('goToSetting', "Open Settings"),
 				run: () => {
-					return this.preferencesService.openUserSettings({ query: 'window.titleBarStyle' });
+					return this.preferencesService.openUserSettings({ query: TitleBarSetting.TITLE_BAR_STYLE });
 				}
 			}
 		]);
@@ -398,7 +397,6 @@ export class CustomMenubarControl extends MenubarControl {
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
 		@ICommandService commandService: ICommandService
@@ -440,7 +438,7 @@ export class CustomMenubarControl extends MenubarControl {
 				constructor() {
 					super({
 						id: `workbench.actions.menubar.focus`,
-						title: { value: localize('focusMenu', "Focus Application Menu"), original: 'Focus Application Menu' },
+						title: localize2('focusMenu', 'Focus Application Menu'),
 						keybinding: {
 							primary: KeyMod.Alt | KeyCode.F10,
 							weight: KeybindingWeight.WorkbenchContrib,
@@ -535,7 +533,7 @@ export class CustomMenubarControl extends MenubarControl {
 			enableMenuBarMnemonics = true;
 		}
 
-		return enableMenuBarMnemonics && (!isWeb || isFullscreen());
+		return enableMenuBarMnemonics && (!isWeb || isFullscreen(mainWindow));
 	}
 
 	private get currentCompactMenuMode(): Direction | undefined {
@@ -667,7 +665,7 @@ export class CustomMenubarControl extends MenubarControl {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
 						updateActions(this.toActionsArray(menu), actions, title);
-						this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+						this.menubar?.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 					}
 				}));
 
@@ -677,7 +675,7 @@ export class CustomMenubarControl extends MenubarControl {
 						if (!this.focusInsideMenubar) {
 							const actions: IAction[] = [];
 							updateActions(this.toActionsArray(menu), actions, title);
-							this.menubar?.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+							this.menubar?.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 						}
 					}));
 				}
@@ -690,9 +688,9 @@ export class CustomMenubarControl extends MenubarControl {
 
 			if (this.menubar) {
 				if (!firstTime) {
-					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+					this.menubar.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 				} else {
-					this.menubar.push({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+					this.menubar.push({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 				}
 			}
 		}
@@ -798,7 +796,11 @@ export class CustomMenubarControl extends MenubarControl {
 
 		// Mnemonics require fullscreen in web
 		if (isWeb) {
-			this._register(this.layoutService.onDidChangeFullscreen(e => this.updateMenubar()));
+			this._register(onDidChangeFullscreen(windowId => {
+				if (windowId === mainWindow.vscodeWindowId) {
+					this.updateMenubar();
+				}
+			}));
 			this._register(this.webNavigationMenu.onDidChange(() => this.updateMenubar()));
 		}
 	}

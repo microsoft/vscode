@@ -13,7 +13,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { registerChatCodeBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
@@ -37,7 +37,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
-import { ACTION_ID_CLEAR_CHAT, registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
+import { ACTION_ID_NEW_CHAT, registerNewChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
@@ -56,8 +56,9 @@ import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/a
 import { QuickChatService } from 'vs/workbench/contrib/chat/browser/chatQuick';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
-import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -108,6 +109,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 class ChatResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatResolver';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -224,15 +228,16 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
 		@ICommandService commandService: ICommandService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatVariablesService chatVariablesService: IChatVariablesService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
-			detail: nls.localize('clear', "Clear the session"),
+			detail: nls.localize('clear', "Start a new chat"),
 			sortText: 'z2_clear',
 			executeImmediately: true
 		}, async () => {
-			commandService.executeCommand(ACTION_ID_CLEAR_CHAT);
+			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
@@ -242,6 +247,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent();
 			const agents = chatAgentService.getAgents();
+
+			// Report prefix
 			if (defaultAgent?.metadata.helpTextPrefix) {
 				if (isMarkdownString(defaultAgent.metadata.helpTextPrefix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'markdownContent' });
@@ -251,6 +258,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				progress.report({ content: '\n\n', kind: 'content' });
 			}
 
+			// Report agent list
 			const agentText = (await Promise.all(agents
 				.filter(a => a.id !== defaultAgent?.id)
 				.map(async a => {
@@ -265,9 +273,26 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${c.description}`;
 					}).join('\n');
 
-					return agentLine + '\n' + commandText;
+					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
 			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'markdownContent' });
+
+			// Report variables
+			if (defaultAgent?.metadata.helpTextVariablesPrefix) {
+				progress.report({ content: '\n\n', kind: 'content' });
+				if (isMarkdownString(defaultAgent.metadata.helpTextVariablesPrefix)) {
+					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'markdownContent' });
+				} else {
+					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'content' });
+				}
+
+				const variableText = Array.from(chatVariablesService.getVariables())
+					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
+					.join('\n');
+				progress.report({ content: '\n' + variableText, kind: 'content' });
+			}
+
+			// Report help text ending
 			if (defaultAgent?.metadata.helpTextPostfix) {
 				progress.report({ content: '\n\n', kind: 'content' });
 				if (isMarkdownString(defaultAgent.metadata.helpTextPostfix)) {
@@ -281,7 +306,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(ChatResolverContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibleViewContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
@@ -295,7 +320,7 @@ registerChatExecuteActions();
 registerQuickChatActions();
 registerChatExportActions();
 registerMoveActions();
-registerClearActions();
+registerNewChatActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatContributionService, ChatContributionService, InstantiationType.Delayed);
@@ -307,3 +332,4 @@ registerSingleton(IChatProviderService, ChatProviderService, InstantiationType.D
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
+registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);

@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 
 interface ProviderWithMetadata {
 	label: string;
@@ -19,8 +20,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, ProviderWithMetadata> = new Map<string, ProviderWithMetadata>();
 
-	private _providers: vscode.AuthenticationProviderInformation[] = [];
-
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
@@ -29,11 +28,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
-	}
-
-	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
-		this._providers = providers;
-		return Promise.resolve();
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
@@ -75,33 +69,12 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		this._authenticationProviders.set(id, { label, provider, options: options ?? { supportsMultipleAccounts: false } });
-
-		if (!this._providers.find(p => p.id === id)) {
-			this._providers.push({
-				id: id,
-				label: label
-			});
-		}
-
-		const listener = provider.onDidChangeSessions(e => {
-			this._proxy.$sendDidChangeSessions(id, {
-				added: e.added ?? [],
-				changed: e.changed ?? [],
-				removed: e.removed ?? []
-			});
-		});
-
+		const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
 		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false);
 
 		return new Disposable(() => {
 			listener.dispose();
 			this._authenticationProviders.delete(id);
-
-			const i = this._providers.findIndex(p => p.id === id);
-			if (i > -1) {
-				this._providers.splice(i);
-			}
-
 			this._proxy.$unregisterAuthenticationProvider(id);
 		});
 	}
@@ -134,7 +107,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	$onDidChangeAuthenticationSessions(id: string, label: string) {
-		this._onDidChangeSessions.fire({ provider: { id, label } });
+		// Don't fire events for the internal auth providers
+		if (!id.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
+			this._onDidChangeSessions.fire({ provider: { id, label } });
+		}
 		return Promise.resolve();
 	}
 }

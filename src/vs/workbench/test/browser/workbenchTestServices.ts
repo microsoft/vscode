@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata, IFileSystemWatcher, IWatchOptionsWithCorrelation } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata, IFileSystemWatcher, IWatchOptionsWithCorrelation, IFileSystemProviderActivationEvent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -59,7 +59,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/
 import { IDimension } from 'vs/base/browser/dom';
 import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
@@ -73,7 +73,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -98,8 +98,9 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -162,13 +163,14 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { EnablementState, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
-import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
+import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -278,8 +280,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
-	const accessibleNotificationService = disposables.add(new TestAccessibleNotificationService());
-	instantiationService.stub(IAccessibleNotificationService, accessibleNotificationService);
+	instantiationService.stub(IAccessibilitySignalService, {
+		playSignal: async () => { },
+		isSoundEnabled(signal: unknown) { return false; },
+	} as any);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());
@@ -320,6 +324,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
 	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : disposables.add(new TestEditorService(editorGroupService));
 	instantiationService.stub(IEditorService, editorService);
+	instantiationService.stub(IEditorPaneService, new EditorPaneService());
 	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
 	instantiationService.stub(IEditorResolverService, disposables.add(instantiationService.createInstance(EditorResolverService)));
 	const textEditorService = overrides?.textEditorService ? overrides.textEditorService(instantiationService) : disposables.add(instantiationService.createInstance(TextEditorService));
@@ -327,8 +332,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
-	const hoverService = instantiationService.stub(IHoverService, instantiationService.createInstance(TestHoverService));
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, hoverService)));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(false)));
@@ -353,6 +357,7 @@ export class TestServiceAccessor {
 		@IDialogService public dialogService: TestDialogService,
 		@IWorkingCopyService public workingCopyService: TestWorkingCopyService,
 		@IEditorService public editorService: TestEditorService,
+		@IEditorPaneService public editorPaneService: IEditorPaneService,
 		@IWorkbenchEnvironmentService public environmentService: IWorkbenchEnvironmentService,
 		@IPathService public pathService: IPathService,
 		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
@@ -537,27 +542,6 @@ export class TestMenuService implements IMenuService {
 	}
 }
 
-export class TestHistoryService implements IHistoryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(private root?: URI) { }
-
-	async reopenLastClosedEditor(): Promise<void> { }
-	async goForward(): Promise<void> { }
-	async goBack(): Promise<void> { }
-	async goPrevious(): Promise<void> { }
-	async goLast(): Promise<void> { }
-	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
-	clear(): void { }
-	clearRecentlyOpened(): void { }
-	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
-	async openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void> { }
-	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }
-	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
-	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
-}
-
 export class TestFileDialogService implements IFileDialogService {
 
 	declare readonly _serviceBrand: undefined;
@@ -604,8 +588,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainer: HTMLElement = mainWindow.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
-	onDidChangeCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeFullscreen: Event<boolean> = Event.None;
+	onDidChangeMainEditorCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
@@ -750,25 +733,6 @@ export class TestSideBarPart implements IPaneCompositePart {
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
-class TestHoverService implements IHoverService {
-	private currentHover: IHoverWidget | undefined;
-	_serviceBrand: undefined;
-	showHover(options: IHoverOptions, focus?: boolean | undefined): IHoverWidget | undefined {
-		this.currentHover = new class implements IHoverWidget {
-			private _isDisposed = false;
-			get isDisposed(): boolean { return this._isDisposed; }
-			dispose(): void {
-				this._isDisposed = true;
-			}
-		};
-		return this.currentHover;
-	}
-	showAndFocusLastHover(): void { }
-	hideHover(): void {
-		this.currentHover?.dispose();
-	}
-}
-
 export class TestPanelPart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
 
@@ -827,6 +791,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	constructor(public groups: TestEditorGroupView[] = []) { }
 
 	readonly parts: readonly IEditorPart[] = [this];
+
+	windowId = mainWindow.vscodeWindowId;
 
 	onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent> = Event.None;
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
@@ -893,6 +859,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
+	windowId = mainWindow.vscodeWindowId;
 	groupsView: IEditorGroupsView = undefined!;
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: EditorInput;
@@ -966,7 +933,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 export class TestEditorGroupAccessor implements IEditorGroupsView {
 
 	label: string = '';
-	isAuxiliary: boolean = false;
+	windowId = mainWindow.vscodeWindowId;
 
 	groups: IEditorGroupView[] = [];
 	activeGroup!: IEditorGroupView;
@@ -997,6 +964,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
 	onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
+	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
@@ -1071,7 +1039,8 @@ export class TestFileService implements IFileService {
 	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
 	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
 
-	readonly onWillActivateFileSystemProvider = Event.None;
+	private _onWillActivateFileSystemProvider = new Emitter<IFileSystemProviderActivationEvent>();
+	readonly onWillActivateFileSystemProvider = this._onWillActivateFileSystemProvider.event;
 	readonly onDidWatchError = Event.None;
 
 	private content = 'Hello Html';
@@ -1163,7 +1132,9 @@ export class TestFileService implements IFileService {
 		return this.providers.get(scheme);
 	}
 
-	async activateProvider(_scheme: string): Promise<void> { return; }
+	async activateProvider(_scheme: string): Promise<void> {
+		this._onWillActivateFileSystemProvider.fire({ scheme: _scheme, join: () => { } });
+	}
 	async canHandleResource(resource: URI): Promise<boolean> { return this.hasProvider(resource); }
 	hasProvider(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
 	listCapabilities() {
@@ -1307,7 +1278,41 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 	declare readonly _serviceBrand: undefined;
 
-	phase!: LifecyclePhase;
+	usePhases = false;
+	_phase!: LifecyclePhase;
+	get phase(): LifecyclePhase { return this._phase; }
+	set phase(value: LifecyclePhase) {
+		this._phase = value;
+		if (value === LifecyclePhase.Starting) {
+			this.whenStarted.complete();
+		} else if (value === LifecyclePhase.Ready) {
+			this.whenReady.complete();
+		} else if (value === LifecyclePhase.Restored) {
+			this.whenRestored.complete();
+		} else if (value === LifecyclePhase.Eventually) {
+			this.whenEventually.complete();
+		}
+	}
+
+	private readonly whenStarted = new DeferredPromise<void>();
+	private readonly whenReady = new DeferredPromise<void>();
+	private readonly whenRestored = new DeferredPromise<void>();
+	private readonly whenEventually = new DeferredPromise<void>();
+	async when(phase: LifecyclePhase): Promise<void> {
+		if (!this.usePhases) {
+			return;
+		}
+		if (phase === LifecyclePhase.Starting) {
+			await this.whenStarted.p;
+		} else if (phase === LifecyclePhase.Ready) {
+			await this.whenReady.p;
+		} else if (phase === LifecyclePhase.Restored) {
+			await this.whenRestored.p;
+		} else if (phase === LifecyclePhase.Eventually) {
+			await this.whenEventually.p;
+		}
+	}
+
 	startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
@@ -1324,8 +1329,6 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 	private readonly _onDidShutdown = this._register(new Emitter<void>());
 	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
-
-	async when(): Promise<void> { }
 
 	shutdownJoiners: Promise<void>[] = [];
 
@@ -1492,7 +1495,7 @@ export class TestHostService implements IHostService {
 	private _onDidChangeWindow = new Emitter<number>();
 	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
 
-	readonly onDidChangeFullScreen: Event<number> = Event.None;
+	readonly onDidChangeFullScreen: Event<{ windowId: number; fullscreen: boolean }> = Event.None;
 
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;

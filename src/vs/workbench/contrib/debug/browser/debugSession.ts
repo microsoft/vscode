@@ -5,7 +5,7 @@
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { distinct } from 'vs/base/common/arrays';
-import { Queue, RunOnceScheduler } from 'vs/base/common/async';
+import { Queue, RunOnceScheduler, raceTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -42,6 +42,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 
+const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
+
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
 
@@ -77,6 +79,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
+
+	/**
+	 * Promise set while enabling dependent breakpoints to block the debugger
+	 * from continuing from a stopped state.
+	 */
+	private _waitToResume?: Promise<unknown>;
 
 	constructor(
 		private id: string,
@@ -314,7 +322,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 			await this.raw.start();
 			this.registerListeners();
-			await this.raw!.initialize({
+			await this.raw.initialize({
 				clientID: 'vscode',
 				clientName: this.productService.nameLong,
 				adapterID: this.configuration.type,
@@ -336,6 +344,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.initialized = true;
 			this._onDidChangeState.fire();
 			this.debugService.setExceptionBreakpointsForSession(this, (this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
+			this.debugService.getModel().registerBreakpointModes(this.configuration.type, this.raw.capabilities.breakpointModes || []);
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
@@ -449,7 +458,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		const response = await this.raw.setBreakpoints({
 			source: rawSource,
 			lines: breakpointsToSend.map(bp => bp.sessionAgnosticData.lineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.sessionAgnosticData.lineNumber, column: bp.sessionAgnosticData.column, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage })),
+			breakpoints: breakpointsToSend.map(bp => bp.toDAP()),
 			sourceModified
 		});
 		if (response && response.body) {
@@ -468,7 +477,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setFunctionBreakpoints({ breakpoints: fbpts });
+			const response = await this.raw.setFunctionBreakpoints({ breakpoints: fbpts.map(bp => bp.toDAP()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < fbpts.length; i++) {
@@ -526,7 +535,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setDataBreakpoints({ breakpoints: dataBreakpoints });
+			const response = await this.raw.setDataBreakpoints({ breakpoints: dataBreakpoints.map(bp => bp.toDAP()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < dataBreakpoints.length; i++) {
@@ -543,7 +552,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toJSON()) });
+			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toDAP()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < instructionBreakpoints.length; i++) {
@@ -636,6 +645,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'restartFrame'));
 		}
@@ -651,6 +661,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'next'));
 		}
@@ -660,6 +671,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepIn'));
 		}
@@ -669,6 +681,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepOut'));
 		}
@@ -678,6 +691,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepBack'));
 		}
@@ -687,6 +701,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async continue(threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'continue'));
 		}
@@ -695,6 +710,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async reverseContinue(threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'reverse continue'));
 		}
@@ -927,6 +943,17 @@ export class DebugSession implements IDebugSession, IDisposable {
 				}
 			}
 		}
+	}
+
+	private waitForTriggeredBreakpoints() {
+		if (!this._waitToResume) {
+			return;
+		}
+
+		return raceTimeout(
+			this._waitToResume,
+			TRIGGERED_BREAKPOINT_MAX_DELAY
+		);
 	}
 
 	private async fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
@@ -1227,6 +1254,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.passFocusScheduler.cancel();
 		this.stoppedDetails.push(event);
 
+		// do this very eagerly if we have hitBreakpointIds, since it may take a
+		// moment for breakpoints to set and we want to do our best to not miss
+		// anything
+		if (event.hitBreakpointIds) {
+			this._waitToResume = this.enableDependentBreakpoints(event.hitBreakpointIds);
+		}
+
 		this.statusQueue.run(
 			this.fetchThreads(event).then(() => event.threadId === undefined ? this.threadIds : [event.threadId]),
 			async (threadId, token) => {
@@ -1238,6 +1272,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 				if (focusedThreadDoesNotExist) {
 					this.debugService.focusStackFrame(undefined, undefined);
 				}
+
 				const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
@@ -1269,6 +1304,11 @@ export class DebugSession implements IDebugSession, IDisposable {
 					};
 
 					await promises.topCallStack;
+
+					if (!event.hitBreakpointIds) { // if hitBreakpointIds are present, this is handled earlier on
+						this._waitToResume = this.enableDependentBreakpoints(thread);
+					}
+
 					if (token.isCancellationRequested) {
 						return;
 					}
@@ -1289,6 +1329,54 @@ export class DebugSession implements IDebugSession, IDisposable {
 				this._onDidChangeState.fire();
 			},
 		);
+	}
+
+	private async enableDependentBreakpoints(hitBreakpointIdsOrThread: Thread | number[]) {
+		let breakpoints: IBreakpoint[];
+		if (Array.isArray(hitBreakpointIdsOrThread)) {
+			breakpoints = this.model.getBreakpoints().filter(bp => hitBreakpointIdsOrThread.includes(bp.getIdFromAdapter(this.id)!));
+		} else {
+			const frame = hitBreakpointIdsOrThread.getTopStackFrame();
+			if (frame === undefined) {
+				return;
+			}
+
+			if (hitBreakpointIdsOrThread.stoppedDetails && hitBreakpointIdsOrThread.stoppedDetails.reason !== 'breakpoint') {
+				return;
+			}
+
+			breakpoints = this.getBreakpointsAtPosition(frame.source.uri, frame.range.startLineNumber, frame.range.endLineNumber, frame.range.startColumn, frame.range.endColumn);
+		}
+
+		// find the current breakpoints
+
+		// check if the current breakpoints are dependencies, and if so collect and send the dependents to DA
+		const urisToResend = new Set<string>();
+		this.model.getBreakpoints({ triggeredOnly: true, enabledOnly: true }).forEach(bp => {
+			breakpoints.forEach(cbp => {
+				if (bp.enabled && bp.triggeredBy === cbp.getId()) {
+					bp.setSessionDidTrigger(this.getId());
+					urisToResend.add(bp.uri.toString());
+				}
+			});
+		});
+
+		const results: Promise<any>[] = [];
+		urisToResend.forEach((uri) => results.push(this.debugService.sendBreakpoints(URI.parse(uri), undefined, this)));
+		return Promise.all(results);
+	}
+
+	private getBreakpointsAtPosition(uri: URI, startLineNumber: number, endLineNumber: number, startColumn: number, endColumn: number): IBreakpoint[] {
+		return this.model.getBreakpoints({ uri: uri }).filter(bp => {
+			if (bp.lineNumber < startLineNumber || bp.lineNumber > endLineNumber) {
+				return false;
+			}
+
+			if (bp.column && (bp.column < startColumn || bp.column > endColumn)) {
+				return false;
+			}
+			return true;
+		});
 	}
 
 	private onDidExitAdapter(event?: AdapterEndEvent): void {

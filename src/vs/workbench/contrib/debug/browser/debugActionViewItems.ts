@@ -18,7 +18,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -40,6 +40,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	constructor(
 		private context: unknown,
 		action: IAction,
+		options: IBaseActionViewItemOptions,
 		@IDebugService private readonly debugService: IDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -47,7 +48,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		@IContextViewService contextViewService: IContextViewService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
-		super(context, action);
+		super(context, action, options);
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.selectBox.setFocusable(false);

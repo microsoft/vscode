@@ -54,7 +54,7 @@ import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from 'vs/workbench/contrib/scm/browser/dirtyDiffSwitcher';
@@ -280,9 +280,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, contextIndex];
 		if (usePosition) {
 			this.show(position, height);
+			this.editor.setPosition(position);
+			this.editor.focus();
 		}
-		this.editor.setPosition(position);
-		this.editor.focus();
 	}
 
 	private renderTitle(label: string): void {
@@ -578,7 +578,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
-		const audioCueService = accessor.get(IAudioCueService);
+		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 
@@ -600,7 +600,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
-		await playAudioCueForChange(change.change, audioCueService);
+		await playAccessibilitySymbolForChange(change.change, accessibilitySignalService);
 		setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
@@ -619,7 +619,7 @@ export class GotoNextChangeAction extends EditorAction {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const audioCueService = accessor.get(IAudioCueService);
+		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const codeEditorService = accessor.get(ICodeEditorService);
@@ -643,7 +643,7 @@ export class GotoNextChangeAction extends EditorAction {
 
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index].change;
-		await playAudioCueForChange(change, audioCueService);
+		await playAccessibilitySymbolForChange(change, accessibilitySignalService);
 		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
@@ -658,17 +658,17 @@ function setPositionAndSelection(change: IChange, editor: ICodeEditor, accessibi
 	}
 }
 
-async function playAudioCueForChange(change: IChange, audioCueService: IAudioCueService) {
+async function playAccessibilitySymbolForChange(change: IChange, accessibilitySignalService: IAccessibilitySignalService) {
 	const changeType = getChangeType(change);
 	switch (changeType) {
 		case ChangeType.Add:
-			audioCueService.playAudioCue(AudioCue.diffLineInserted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
 			break;
 		case ChangeType.Delete:
-			audioCueService.playAudioCue(AudioCue.diffLineDeleted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
 			break;
 		case ChangeType.Modify:
-			audioCueService.playAudioCue(AudioCue.diffLineModified, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
 			break;
 	}
 }

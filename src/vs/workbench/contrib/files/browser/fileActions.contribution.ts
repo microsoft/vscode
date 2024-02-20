@@ -204,73 +204,73 @@ export function appendToCommandPalette({ id, title, category, metadata }: IComma
 
 appendToCommandPalette({
 	id: COPY_PATH_COMMAND_ID,
-	title: { value: nls.localize('copyPathOfActive', "Copy Path of Active File"), original: 'Copy Path of Active File' },
+	title: nls.localize2('copyPathOfActive', "Copy Path of Active File"),
 	category: Categories.File
 });
 appendToCommandPalette({
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	title: { value: nls.localize('copyRelativePathOfActive', "Copy Relative Path of Active File"), original: 'Copy Relative Path of Active File' },
+	title: nls.localize2('copyRelativePathOfActive', "Copy Relative Path of Active File"),
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: SAVE_FILE_COMMAND_ID,
-	title: { value: SAVE_FILE_LABEL, original: 'Save' },
+	title: SAVE_FILE_LABEL,
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
-	title: { value: SAVE_FILE_WITHOUT_FORMATTING_LABEL, original: 'Save without Formatting' },
+	title: SAVE_FILE_WITHOUT_FORMATTING_LABEL,
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	title: { value: nls.localize('saveAllInGroup', "Save All in Group"), original: 'Save All in Group' },
+	title: nls.localize2('saveAllInGroup', "Save All in Group"),
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: SAVE_FILES_COMMAND_ID,
-	title: { value: nls.localize('saveFiles', "Save All Files"), original: 'Save All Files' },
+	title: nls.localize2('saveFiles', "Save All Files"),
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: REVERT_FILE_COMMAND_ID,
-	title: { value: nls.localize('revert', "Revert File"), original: 'Revert File' },
+	title: nls.localize2('revert', "Revert File"),
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
-	title: { value: nls.localize('compareActiveWithSaved', "Compare Active File with Saved"), original: 'Compare Active File with Saved' },
+	title: nls.localize2('compareActiveWithSaved', "Compare Active File with Saved"),
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: SAVE_FILE_AS_COMMAND_ID,
-	title: { value: SAVE_FILE_AS_LABEL, original: 'Save As...' },
+	title: SAVE_FILE_AS_LABEL,
 	category: Categories.File
 });
 
 appendToCommandPalette({
 	id: NEW_FILE_COMMAND_ID,
-	title: { value: NEW_FILE_LABEL, original: 'New File' },
+	title: NEW_FILE_LABEL,
 	category: Categories.File
 }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
 appendToCommandPalette({
 	id: NEW_FOLDER_COMMAND_ID,
-	title: { value: NEW_FOLDER_LABEL, original: 'New Folder' },
+	title: NEW_FOLDER_LABEL,
 	category: Categories.File,
 	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
 }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
 appendToCommandPalette({
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	title: { value: NEW_UNTITLED_FILE_LABEL, original: 'New Untitled Text File' },
+	title: NEW_UNTITLED_FILE_LABEL,
 	category: Categories.File
 });
 

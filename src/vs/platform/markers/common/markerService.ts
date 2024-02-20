@@ -14,7 +14,7 @@ import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, 
 
 export const unsupportedSchemas = new Set([Schemas.inMemory, Schemas.vscodeSourceControl, Schemas.walkThrough, Schemas.walkThroughSnippet]);
 
-class DoubleResourceMap<V>{
+class DoubleResourceMap<V> {
 
 	private _byResource = new ResourceMap<Map<string, V>>();
 	private _byOwner = new Map<string, ResourceMap<V>>();

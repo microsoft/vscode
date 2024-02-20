@@ -37,7 +37,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -57,7 +57,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -69,7 +70,7 @@ import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 const $ = dom.$;
 
@@ -420,7 +421,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		if (session) {
 			this.replElementsChangeListener?.dispose();
 			this.replElementsChangeListener = session.onDidChangeReplElements(() => {
-				this.refreshReplElements(session!.getReplElements().length === 0);
+				this.refreshReplElements(session.getReplElements().length === 0);
 			});
 
 			if (this.tree && treeInput !== session) {
@@ -625,7 +626,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplRawObjectsRenderer(linkDetector),
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
-			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>,
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
@@ -971,7 +972,7 @@ registerAction2(class extends ViewAction<Repl> {
 		super({
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
-			title: { value: localize('clearRepl', "Clear Console"), original: 'Clear Console' },
+			title: localize2('clearRepl', 'Clear Console'),
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{
@@ -988,9 +989,9 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 
 	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		const accessibleNotificationService = _accessor.get(IAccessibleNotificationService);
+		const accessibilitySignalService = _accessor.get(IAccessibilitySignalService);
 		view.clearRepl();
-		accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+		accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 });
 

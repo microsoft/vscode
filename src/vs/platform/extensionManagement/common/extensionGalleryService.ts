@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -167,9 +167,8 @@ enum Flags {
 	IncludeLatestVersionOnly = 0x200,
 
 	/**
-	 * This flag switches the asset uri to use GetAssetByName instead of CDN
-	 * When this is used, values of base asset uri and base asset uri fallback are switched
-	 * When this is used, source of asset files are pointed to Gallery service always even if CDN is available
+	 * The Unpublished extension flag indicates that the extension can't be installed/downloaded.
+	 * Users who have installed such an extension can continue to use the extension.
 	 */
 	Unpublished = 0x1000,
 
@@ -212,7 +211,8 @@ const PropertyType = {
 	PreRelease: 'Microsoft.VisualStudio.Code.PreRelease',
 	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages',
 	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension',
-	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink'
+	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink',
+	SupportLink: 'Microsoft.VisualStudio.Services.Links.Support',
 };
 
 interface ICriterium {
@@ -439,6 +439,10 @@ function getSponsorLink(version: IRawGalleryExtensionVersion): string | undefine
 	return version.properties?.find(p => p.key === PropertyType.SponsorLink)?.value;
 }
 
+function getSupportLink(version: IRawGalleryExtensionVersion): string | undefined {
+	return version.properties?.find(p => p.key === PropertyType.SupportLink)?.value;
+}
+
 function getIsPreview(flags: string): boolean {
 	return flags.indexOf('preview') !== -1;
 }
@@ -550,7 +554,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		hasReleaseVersion: true,
 		preview: getIsPreview(galleryExtension.flags),
 		isSigned: !!assets.signature,
-		queryContext
+		queryContext,
+		supportLink: getSupportLink(latestVersion)
 	};
 }
 
@@ -950,7 +955,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		};
 
 		const stopWatch = new StopWatch();
-		let context: IRequestContext | undefined, error: any, total: number = 0;
+		let context: IRequestContext | undefined, error: ExtensionGalleryError | undefined, total: number = 0;
 
 		try {
 			context = await this.requestService.request({
@@ -982,8 +987,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			return { galleryExtensions: [], total };
 
 		} catch (e) {
-			error = e;
-			throw e;
+			const errorCode = isCancellationError(e) ? ExtensionGalleryErrorCode.Cancelled : getErrorMessage(e).startsWith('XHR timeout') ? ExtensionGalleryErrorCode.Timeout : ExtensionGalleryErrorCode.Failed;
+			error = new ExtensionGalleryError(getErrorMessage(e), errorCode);
+			throw error;
 		} finally {
 			this.telemetryService.publicLog2<GalleryServiceQueryEvent, GalleryServiceQueryClassification>('galleryService:query', {
 				...query.telemetryData,
@@ -992,9 +998,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				success: !!context && isSuccess(context),
 				responseBodySize: context?.res.headers['Content-Length'],
 				statusCode: context ? String(context.res.statusCode) : undefined,
-				errorCode: error
-					? isCancellationError(error) ? 'canceled' : getErrorMessage(error).startsWith('XHR timeout') ? 'timeout' : 'failed'
-					: undefined,
+				errorCode: error?.code,
 				count: String(total)
 			});
 		}

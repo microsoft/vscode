@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor, isResourceEditorInput, IFileEditorInputOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, IUntypedEditorOptions } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -318,7 +318,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// and it could result in bad UX where an editor can be closed even though
 		// it shows up as dirty and has not finished saving yet.
 
-		if (this.filesConfigurationService.isShortAutoSaveDelayConfigured(this)) {
+		if (this.filesConfigurationService.hasShortAutoSaveDelay(this)) {
 			return true; // a short auto save is configured, treat this as being saved
 		}
 
@@ -418,7 +418,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
+	override toUntyped(options?: IUntypedEditorOptions): ITextResourceEditorInput {
 		const untypedInput: IUntypedFileEditorInput = {
 			resource: this.preferredResource,
 			forceFile: true,

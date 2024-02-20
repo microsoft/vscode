@@ -5,9 +5,9 @@
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType } from 'vs/base/browser/ui/tree/abstractTree';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -152,7 +152,8 @@ function asTreeContextMenuEvent<TInput, T>(e: ITreeContextMenuEvent<IAsyncDataTr
 	return {
 		browserEvent: e.browserEvent,
 		element: e.element && e.element.element as T,
-		anchor: e.anchor
+		anchor: e.anchor,
+		isStickyScroll: e.isStickyScroll
 	};
 }
 
@@ -199,12 +200,12 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 		this.dnd.onDragStart?.(asAsyncDataTreeDragAndDropData(data), originalEvent);
 	}
 
-	onDragOver(data: IDragAndDropData, targetNode: IAsyncDataTreeNode<TInput, T> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
-		return this.dnd.onDragOver(asAsyncDataTreeDragAndDropData(data), targetNode && targetNode.element as T, targetIndex, originalEvent);
+	onDragOver(data: IDragAndDropData, targetNode: IAsyncDataTreeNode<TInput, T> | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
+		return this.dnd.onDragOver(asAsyncDataTreeDragAndDropData(data), targetNode && targetNode.element as T, targetIndex, targetSector, originalEvent);
 	}
 
-	drop(data: IDragAndDropData, targetNode: IAsyncDataTreeNode<TInput, T> | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
-		this.dnd.drop(asAsyncDataTreeDragAndDropData(data), targetNode && targetNode.element as T, targetIndex, originalEvent);
+	drop(data: IDragAndDropData, targetNode: IAsyncDataTreeNode<TInput, T> | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
+		this.dnd.drop(asAsyncDataTreeDragAndDropData(data), targetNode && targetNode.element as T, targetIndex, targetSector, originalEvent);
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {
@@ -238,10 +239,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			...options.accessibilityProvider,
 			getPosInSet: undefined,
 			getSetSize: undefined,
-			getRole: options.accessibilityProvider!.getRole ? (el) => {
+			getRole: options.accessibilityProvider.getRole ? (el) => {
 				return options.accessibilityProvider!.getRole!(el.element as T);
 			} : () => 'treeitem',
-			isChecked: options.accessibilityProvider!.isChecked ? (e) => {
+			isChecked: options.accessibilityProvider.isChecked ? (e) => {
 				return !!(options.accessibilityProvider?.isChecked!(e.element as T));
 			} : undefined,
 			getAriaLabel(e) {
@@ -250,8 +251,8 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			getWidgetAriaLabel() {
 				return options.accessibilityProvider!.getWidgetAriaLabel();
 			},
-			getWidgetRole: options.accessibilityProvider!.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
-			getAriaLevel: options.accessibilityProvider!.getAriaLevel && (node => {
+			getWidgetRole: options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
+			getAriaLevel: options.accessibilityProvider.getAriaLevel && (node => {
 				return options.accessibilityProvider!.getAriaLevel!(node.element as T);
 			}),
 			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
@@ -362,6 +363,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
 	get onDidChangeFindOpenState(): Event<boolean> { return this.tree.onDidChangeFindOpenState; }
+	get onDidChangeStickyScrollFocused(): Event<boolean> { return this.tree.onDidChangeStickyScrollFocused; }
 
 	get findMode(): TreeFindMode { return this.tree.findMode; }
 	set findMode(mode: TreeFindMode) { this.tree.findMode = mode; }
@@ -756,6 +758,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return nodes.map(n => n!.element as T);
 	}
 
+	getStickyScrollFocus(): T[] {
+		const nodes = this.tree.getStickyScrollFocus();
+		return nodes.map(n => n!.element as T);
+	}
+
+	getFocusedPart(): AbstractTreePart {
+		return this.tree.getFocusedPart();
+	}
+
 	reveal(element: T, relativeTop?: number): void {
 		this.tree.reveal(this.getDataNode(element), relativeTop);
 	}
@@ -814,8 +825,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const treeNode = this.tree.getNode(node);
 
 			if (treeNode.collapsed) {
-				node.hasChildren = !!this.dataSource.hasChildren(node.element!);
+				node.hasChildren = !!this.dataSource.hasChildren(node.element);
 				node.stale = true;
+				this.setChildren(node, [], recursive, viewStateContext);
 				return;
 			}
 		}
@@ -844,7 +856,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private async doRefreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<IAsyncDataTreeNode<TInput, T>[]> {
-		node.hasChildren = !!this.dataSource.hasChildren(node.element!);
+		node.hasChildren = !!this.dataSource.hasChildren(node.element);
 
 		let childrenPromise: Promise<Iterable<T>>;
 
@@ -893,7 +905,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (result) {
 			return result;
 		}
-		const children = this.dataSource.getChildren(node.element!);
+		const children = this.dataSource.getChildren(node.element);
 		if (isIterable(children)) {
 			return this.processChildren(children);
 		} else {
@@ -1022,9 +1034,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const children = node.children.map(node => this.asTreeElement(node, viewStateContext));
 		const objectTreeOptions: IObjectTreeSetChildrenOptions<IAsyncDataTreeNode<TInput, T>> | undefined = options && {
 			...options,
-			diffIdentityProvider: options!.diffIdentityProvider && {
+			diffIdentityProvider: options.diffIdentityProvider && {
 				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string } {
-					return options!.diffIdentityProvider!.getId(node.element as T);
+					return options.diffIdentityProvider!.getId(node.element as T);
 				}
 			}
 		};
@@ -1199,7 +1211,7 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 		keyboardNavigationLabelProvider: objectTreeOptions.keyboardNavigationLabelProvider && {
 			...objectTreeOptions.keyboardNavigationLabelProvider,
 			getCompressedNodeKeyboardNavigationLabel(els) {
-				return options!.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
+				return options.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
 			}
 		}
 	};
@@ -1286,7 +1298,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		return { focus, selection, expanded, scrollTop: this.scrollTop };
 	}
 
-	protected override render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
+	protected override render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): void {
 		if (!this.identityProvider) {
 			return super.render(node, viewStateContext);
 		}
@@ -1316,7 +1328,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		const oldSelection = getUncompressedIds(this.tree.getSelection() as IAsyncDataTreeNode<TInput, T>[]);
 		const oldFocus = getUncompressedIds(this.tree.getFocus() as IAsyncDataTreeNode<TInput, T>[]);
 
-		super.render(node, viewStateContext);
+		super.render(node, viewStateContext, options);
 
 		const selection = this.getSelection();
 		let didChangeSelection = false;

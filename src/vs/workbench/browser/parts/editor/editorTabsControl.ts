@@ -25,7 +25,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -44,6 +44,9 @@ import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/edit
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -121,6 +124,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private renderDropdownAsChildElement: boolean;
 
+	private readonly tabsHoverDelegate: IHoverDelegate;
+
 	constructor(
 		protected readonly parent: HTMLElement,
 		protected readonly editorPartsView: IEditorPartsView,
@@ -135,7 +140,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super(themeService);
 
@@ -158,6 +163,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
 
 		this.renderDropdownAsChildElement = false;
+
+		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
 
 		this.create(parent);
 	}
@@ -202,7 +209,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		// Toolbar Widget
 		this.editorActionsToolbar = this.editorActionsToolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
@@ -228,12 +235,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}));
 	}
 
-	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		const activeEditorPane = this.groupView.activeEditorPane;
 
 		// Check Active Editor
 		if (activeEditorPane instanceof EditorPane) {
-			const result = activeEditorPane.getActionViewItem(action);
+			const result = activeEditorPane.getActionViewItem(action, options);
 
 			if (result) {
 				return result;
@@ -241,7 +248,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 
 		// Check extensions
-		return createActionViewItem(this.instantiationService, action, { menuAsChild: this.renderDropdownAsChildElement });
+		return createActionViewItem(this.instantiationService, action, { ...options, menuAsChild: this.renderDropdownAsChildElement });
 	}
 
 	protected updateEditorActionsToolbar(): void {
@@ -402,7 +409,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected onTabContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
-		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
+		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 		this.editorPinnedContext.set(this.tabsModel.isPinned(editor));
 		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));
 		this.editorIsLastContext.set(this.tabsModel.isLast(editor));
@@ -442,6 +449,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected get tabHeight() {
 		return this.groupsView.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
+	}
+
+	protected getHoverTitle(editor: EditorInput): string {
+		return editor.getTitle(Verbosity.LONG);
+	}
+
+	protected getHoverDelegate(): IHoverDelegate {
+		return this.tabsHoverDelegate;
 	}
 
 	protected updateTabHeight(): void {

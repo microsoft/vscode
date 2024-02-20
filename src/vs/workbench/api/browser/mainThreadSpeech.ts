@@ -3,33 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
+import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 type SpeechToTextSession = {
 	readonly onDidChange: Emitter<ISpeechToTextEvent>;
 };
 
+type KeywordRecognitionSession = {
+	readonly onDidChange: Emitter<IKeywordRecognitionEvent>;
+};
+
 @extHostNamedCustomer(MainContext.MainThreadSpeech)
-export class MainThreadSpeech extends Disposable implements MainThreadSpeechShape {
+export class MainThreadSpeech implements MainThreadSpeechShape {
 
 	private readonly proxy: ExtHostSpeechShape;
 
 	private readonly providerRegistrations = new Map<number, IDisposable>();
-	private readonly providerSessions = new Map<number, SpeechToTextSession>();
+
+	private readonly speechToTextSessions = new Map<number, SpeechToTextSession>();
+	private readonly keywordRecognitionSessions = new Map<number, KeywordRecognitionSession>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISpeechService private readonly speechService: ISpeechService,
 		@ILogService private readonly logService: ILogService
 	) {
-		super();
-
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostSpeech);
 	}
 
@@ -39,23 +42,53 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 		const registration = this.speechService.registerSpeechProvider(identifier, {
 			metadata,
 			createSpeechToTextSession: token => {
+				if (token.isCancellationRequested) {
+					return {
+						onDidChange: Event.None
+					};
+				}
+
 				const disposables = new DisposableStore();
-				const cts = new CancellationTokenSource(token);
 				const session = Math.random();
 
 				this.proxy.$createSpeechToTextSession(handle, session);
-				disposables.add(token.onCancellationRequested(() => this.proxy.$cancelSpeechToTextSession(session)));
 
 				const onDidChange = disposables.add(new Emitter<ISpeechToTextEvent>());
-				this.providerSessions.set(session, { onDidChange });
+				this.speechToTextSessions.set(session, { onDidChange });
+
+				disposables.add(token.onCancellationRequested(() => {
+					this.proxy.$cancelSpeechToTextSession(session);
+					this.speechToTextSessions.delete(session);
+					disposables.dispose();
+				}));
 
 				return {
-					onDidChange: onDidChange.event,
-					dispose: () => {
-						cts.dispose(true);
-						this.providerSessions.delete(session);
-						disposables.dispose();
-					}
+					onDidChange: onDidChange.event
+				};
+			},
+			createKeywordRecognitionSession: token => {
+				if (token.isCancellationRequested) {
+					return {
+						onDidChange: Event.None
+					};
+				}
+
+				const disposables = new DisposableStore();
+				const session = Math.random();
+
+				this.proxy.$createKeywordRecognitionSession(handle, session);
+
+				const onDidChange = disposables.add(new Emitter<IKeywordRecognitionEvent>());
+				this.keywordRecognitionSessions.set(session, { onDidChange });
+
+				disposables.add(token.onCancellationRequested(() => {
+					this.proxy.$cancelKeywordRecognitionSession(session);
+					this.keywordRecognitionSessions.delete(session);
+					disposables.dispose();
+				}));
+
+				return {
+					onDidChange: onDidChange.event
 				};
 			}
 		});
@@ -75,9 +108,23 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 	}
 
 	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void {
-		const providerSession = this.providerSessions.get(session);
-		if (providerSession) {
-			providerSession.onDidChange.fire(event);
-		}
+		const providerSession = this.speechToTextSessions.get(session);
+		providerSession?.onDidChange.fire(event);
+	}
+
+	$emitKeywordRecognitionEvent(session: number, event: IKeywordRecognitionEvent): void {
+		const providerSession = this.keywordRecognitionSessions.get(session);
+		providerSession?.onDidChange.fire(event);
+	}
+
+	dispose(): void {
+		this.providerRegistrations.forEach(disposable => disposable.dispose());
+		this.providerRegistrations.clear();
+
+		this.speechToTextSessions.forEach(session => session.onDidChange.dispose());
+		this.speechToTextSessions.clear();
+
+		this.keywordRecognitionSessions.forEach(session => session.onDidChange.dispose());
+		this.keywordRecognitionSessions.clear();
 	}
 }

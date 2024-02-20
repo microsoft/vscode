@@ -18,8 +18,6 @@ import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBrack
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
-/* hot-reload:patch-prototype-methods */
-
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());
 

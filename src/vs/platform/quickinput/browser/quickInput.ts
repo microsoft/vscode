@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -30,6 +30,8 @@ import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEve
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -46,7 +48,11 @@ export interface IQuickInputOptions {
 		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 	): List<T>;
-	hoverDelegate?: IHoverDelegate;
+	/**
+	 * @todo With IHover in vs/editor, can we depend on the service directly
+	 * instead of passing it through a hover delegate?
+	 */
+	hoverDelegate: IHoverDelegate;
 	styles: IQuickInputStyles;
 }
 
@@ -1249,5 +1255,36 @@ export class QuickWidget extends QuickInput implements IQuickWidget {
 
 		this.ui.setVisibilities(visibilities);
 		super.update();
+	}
+}
+
+export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService
+	) {
+		super('mouse', true, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+	}
+
+	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
+		// Only show the hover hint if the content is of a decent size
+		const showHoverHint = (
+			options.content instanceof HTMLElement
+				? options.content.textContent ?? ''
+				: typeof options.content === 'string'
+					? options.content
+					: options.content.value
+		).includes('\n');
+
+		return {
+			persistence: {
+				hideOnKeyDown: false,
+			},
+			appearance: {
+				showHoverHint,
+				skipFadeInAnimation: true,
+			},
+		};
 	}
 }

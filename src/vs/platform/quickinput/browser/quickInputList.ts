@@ -35,6 +35,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 
 const $ = dom.$;
 
@@ -314,10 +315,23 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		}
 
 		// Label
+		let descriptionTitle: ITooltipMarkdownString | undefined;
+		// if we have a tooltip, that will be the hover,
+		// with the saneDescription as fallback if it
+		// is defined
+		if (!element.saneTooltip && element.saneDescription) {
+			descriptionTitle = {
+				markdown: {
+					value: element.saneDescription,
+					supportThemeIcons: true
+				},
+				markdownNotSupportedFallback: element.saneDescription
+			};
+		}
 		const options: IIconLabelValueOptions = {
 			matches: labelHighlights || [],
 			// If we have a tooltip, we want that to be shown and not any other hover
-			descriptionTitle: element.saneTooltip ? undefined : element.saneDescription,
+			descriptionTitle,
 			descriptionMatches: descriptionHighlights || [],
 			labelEscapeNewLines: true
 		};
@@ -336,11 +350,21 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 		// Detail
 		if (element.saneDetail) {
+			let title: ITooltipMarkdownString | undefined;
+			// If we have a tooltip, we want that to be shown and not any other hover
+			if (!element.saneTooltip) {
+				title = {
+					markdown: {
+						value: element.saneDetail,
+						supportThemeIcons: true
+					},
+					markdownNotSupportedFallback: element.saneDetail
+				};
+			}
 			data.detail.element.style.display = '';
 			data.detail.setLabel(element.saneDetail, undefined, {
 				matches: detailHighlights,
-				// If we have a tooltip, we want that to be shown and not any other hover
-				title: element.saneTooltip ? undefined : element.saneDetail,
+				title,
 				labelEscapeNewLines: true
 			});
 		} else {
@@ -530,49 +554,47 @@ export class QuickInputList {
 			}
 		}));
 
-		if (options.hoverDelegate) {
-			const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
-			// onMouseOver triggers every time a new element has been moused over
-			// even if it's on the same list item.
-			this.disposables.push(this.list.onMouseOver(async e => {
-				// If we hover over an anchor element, we don't want to show the hover because
-				// the anchor may have a tooltip that we want to show instead.
-				if (e.browserEvent.target instanceof HTMLAnchorElement) {
-					delayer.cancel();
-					return;
-				}
-				if (
-					// anchors are an exception as called out above so we skip them here
-					!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
-					// check if the mouse is still over the same element
-					dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
-				) {
-					return;
-				}
-				try {
-					await delayer.trigger(async () => {
-						if (e.element) {
-							this.showHover(e.element);
-						}
-					});
-				} catch (e) {
-					// Ignore cancellation errors due to mouse out
-					if (!isCancellationError(e)) {
-						throw e;
-					}
-				}
-			}));
-			this.disposables.push(this.list.onMouseOut(e => {
-				// onMouseOut triggers every time a new element has been moused over
-				// even if it's on the same list item. We only want one event, so we
-				// check if the mouse is still over the same element.
-				if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
-					return;
-				}
+		const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
+		// onMouseOver triggers every time a new element has been moused over
+		// even if it's on the same list item.
+		this.disposables.push(this.list.onMouseOver(async e => {
+			// If we hover over an anchor element, we don't want to show the hover because
+			// the anchor may have a tooltip that we want to show instead.
+			if (e.browserEvent.target instanceof HTMLAnchorElement) {
 				delayer.cancel();
-			}));
-			this.disposables.push(delayer);
-		}
+				return;
+			}
+			if (
+				// anchors are an exception as called out above so we skip them here
+				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+				// check if the mouse is still over the same element
+				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
+			) {
+				return;
+			}
+			try {
+				await delayer.trigger(async () => {
+					if (e.element) {
+						this.showHover(e.element);
+					}
+				});
+			} catch (e) {
+				// Ignore cancellation errors due to mouse out
+				if (!isCancellationError(e)) {
+					throw e;
+				}
+			}
+		}));
+		this.disposables.push(this.list.onMouseOut(e => {
+			// onMouseOut triggers every time a new element has been moused over
+			// even if it's on the same list item. We only want one event, so we
+			// check if the mouse is still over the same element.
+			if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
+				return;
+			}
+			delayer.cancel();
+		}));
+		this.disposables.push(delayer);
 		this.disposables.push(this._listElementChecked.event(_ => this.fireCheckedEvents()));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
@@ -830,9 +852,6 @@ export class QuickInputList {
 	 * @param element The element to show the hover for
 	 */
 	private showHover(element: IListElement): void {
-		if (this.options.hoverDelegate === undefined) {
-			return;
-		}
 		if (this._lastHover && !this._lastHover.isDisposed) {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
@@ -842,8 +861,8 @@ export class QuickInputList {
 			return;
 		}
 		this._lastHover = this.options.hoverDelegate.showHover({
-			content: element.saneTooltip!,
-			target: element.element!,
+			content: element.saneTooltip,
+			target: element.element,
 			linkHandler: (url) => {
 				this.options.linkOpenerDelegate(url);
 			},

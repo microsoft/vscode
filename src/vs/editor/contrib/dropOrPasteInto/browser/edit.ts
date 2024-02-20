@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { DropYieldTo, WorkspaceEdit } from 'vs/editor/common/languages';
 import { Range } from 'vs/editor/common/core/range';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 export interface DropOrPasteEdit {
 	readonly label: string;
@@ -14,14 +15,23 @@ export interface DropOrPasteEdit {
 	readonly additionalEdit?: WorkspaceEdit;
 }
 
+/**
+ * Given a {@link DropOrPasteEdit} and set of ranges, creates a {@link WorkspaceEdit} that applies the insert text from
+ * the {@link DropOrPasteEdit} at each range plus any additional edits.
+ */
 export function createCombinedWorkspaceEdit(uri: URI, ranges: readonly Range[], edit: DropOrPasteEdit): WorkspaceEdit {
+	// If the edit insert text is empty, skip applying at each range
+	if (typeof edit.insertText === 'string' ? edit.insertText === '' : edit.insertText.snippet === '') {
+		return {
+			edits: edit.additionalEdit?.edits ?? []
+		};
+	}
+
 	return {
 		edits: [
 			...ranges.map(range =>
 				new ResourceTextEdit(uri,
-					typeof edit.insertText === 'string'
-						? { range, text: edit.insertText, insertAsSnippet: false }
-						: { range, text: edit.insertText.snippet, insertAsSnippet: true }
+					{ range, text: typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) + '$0' : edit.insertText.snippet, insertAsSnippet: true }
 				)),
 			...(edit.additionalEdit?.edits ?? [])
 		]

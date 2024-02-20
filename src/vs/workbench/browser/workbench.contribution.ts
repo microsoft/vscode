@@ -6,12 +6,12 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchConfigurationWorkbenchContribution, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
+import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ActivityBarPosition, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import { defaultWindowTitle, defaultWindowTitleSeparator } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -19,10 +19,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 (function registerConfiguration(): void {
 
 	// Migration support
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, LifecyclePhase.Eventually);
+	registerWorkbenchContribution2(ConfigurationMigrationWorkbenchContribution.ID, ConfigurationMigrationWorkbenchContribution, WorkbenchPhase.Eventually);
 
 	// Dynamic Configuration
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicWorkbenchConfigurationWorkbenchContribution, LifecyclePhase.Ready);
+	registerWorkbenchContribution2(DynamicWorkbenchSecurityConfiguration.ID, DynamicWorkbenchSecurityConfiguration, WorkbenchPhase.AfterRestored);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -49,12 +49,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('showEditorTabs', "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown."),
 				'default': 'multiple'
 			},
-			'workbench.editor.editorActionsLocation': {
+			[LayoutSettings.EDITOR_ACTIONS_LOCATION]: {
 				'type': 'string',
-				'enum': ['default', 'titleBar', 'hidden'],
-				'enumDescriptions': [
+				'enum': [EditorActionsLocation.DEFAULT, EditorActionsLocation.TITLEBAR, EditorActionsLocation.HIDDEN],
+				'markdownEnumDescriptions': [
 					localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'workbench.editor.editorActionsLocation.default' }, "Show editor actions in the window title bar when {0} is set to {1}. Otherwise, editor actions are shown in the editor tab bar.", '`#workbench.editor.showTabs#`', '`none`'),
-					localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'workbench.editor.editorActionsLocation.titleBar' }, "Show editor actions in the window title bar. If {0} is set to {1}, editor actions are hidden.", '`#window.titleBarStyle#`', '`native`'),
+					localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'workbench.editor.editorActionsLocation.titleBar' }, "Show editor actions in the window title bar. If {0} is set to {1}, editor actions are hidden.", '`#window.customTitleBarVisibility#`', '`never`'),
 					localize('workbench.editor.editorActionsLocation.hidden', "Editor actions are not shown."),
 				],
 				'markdownDescription': localize('editorActionsLocation', "Controls where the editor actions are shown."),
@@ -499,12 +499,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['side', 'top', 'hidden'],
 				'default': 'side',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `side` or `top` (requires {0} set to {1}) of the Primary Side Bar or `hidden`.", '`#window.titleBarStyle#`', '`custom`'),
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `side` or `top` of the Primary Side Bar or `hidden`."),
 				'enumDescriptions': [
 					localize('workbench.activityBar.location.side', "Show the Activity Bar to the side of the Primary Side Bar."),
 					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
 					localize('workbench.activityBar.location.hide', "Hide the Activity Bar.")
-				]
+				],
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
@@ -566,12 +566,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
-			'workbench.layoutControl.enabled': {
+			[LayoutSettings.LAYOUT_ACTIONS]: {
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': isWeb ?
 					localize('layoutControlEnabledWeb', "Controls whether the layout control in the title bar is shown.") :
-					localize({ key: 'layoutControlEnabled', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Controls whether the layout control is shown in the custom title bar. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
+					localize({ key: 'layoutControlEnabled', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Controls whether the layout control is shown in the custom title bar. This setting only has an effect when {0} is not set to {1}.", '`#window.customTitleBarVisibility#`', '`never`')
 			},
 			'workbench.layoutControl.type': {
 				'type': 'string',
@@ -612,6 +612,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
 		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
 		localize('focusedView', "`${focusedView}`: the name of the view that is currently focused."),
+		localize('activeRepositoryName', "`${activeRepositoryName}`: the name of the active repository (e.g. vscode)."),
+		localize('activeRepositoryBranchName', "`${activeRepositoryBranchName}`: the name of the active branch in the active repository (e.g. main)."),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -623,23 +625,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		'properties': {
 			'window.title': {
 				'type': 'string',
-				'default': (() => {
-					if (isMacintosh && isNative) {
-						return '${activeEditorShort}${separator}${rootName}${separator}${profileName}'; // macOS has native dirty indicator
-					}
-
-					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
-					if (isWeb) {
-						return base + '${separator}${remoteName}'; // Web: always show remote name
-					}
-
-					return base;
-				})(),
+				'default': defaultWindowTitle,
 				'markdownDescription': windowTitleDescription
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				'default': isMacintosh ? ' \u2014 ' : ' - ',
+				'default': defaultWindowTitleSeparator,
 				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
 			},
 			[LayoutSettings.COMMAND_CENTER]: {
@@ -647,7 +638,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: true,
 				markdownDescription: isWeb ?
 					localize('window.commandCenterWeb', "Show command launcher together with the window title.") :
-					localize({ key: 'window.commandCenter', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
+					localize({ key: 'window.commandCenter', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Show command launcher together with the window title. This setting only has an effect when {0} is not set to {1}.", '`#window.customTitleBarVisibility#`', '`never`')
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -733,6 +724,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing a window or quitting the application."),
 				'scope': ConfigurationScope.APPLICATION
 			}
+		}
+	});
+
+	// Problems
+	registry.registerConfiguration({
+		...problemsConfigurationNodeBase,
+		'properties': {
+			'problems.visibility': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
+			},
 		}
 	});
 

@@ -503,19 +503,31 @@
             "%configuration.copyIntoWorkspace.never%"
           ]
         },
+        "markdown.editor.filePaste.videoSnippet": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.filePaste.videoSnippet%",
+          "default": "<video controls src=\"${src}\" title=\"${title}\"></video>"
+        },
+        "markdown.editor.filePaste.audioSnippet": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.filePaste.audioSnippet%",
+          "default": "<audio controls src=\"${src}\" title=\"${title}\"></audio>"
+        },
         "markdown.editor.pasteUrlAsFormattedLink.enabled": {
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default": "never",
+          "default": "smartWithSelection",
           "enum": [
             "always",
             "smart",
+            "smartWithSelection",
             "never"
           ],
           "markdownEnumDescriptions": [
             "%configuration.pasteUrlAsFormattedLink.always%",
             "%configuration.pasteUrlAsFormattedLink.smart%",
+            "%configuration.pasteUrlAsFormattedLink.smartWithSelection%",
             "%configuration.pasteUrlAsFormattedLink.never%"
           ]
         },
@@ -744,6 +756,7 @@
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
+    "@vscode/markdown-it-katex": "^1.0.2",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
     "vscode-markdown-languageservice": "^0.3.0-alpha.3"

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI as uri, UriComponents } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
@@ -16,6 +16,8 @@ import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstract
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths, isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -27,10 +29,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
 	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
 	private readonly _extHostKnownSessions: Set<DebugSessionUUID>;
+	private readonly _visualizerHandles = new Map<string, IDisposable>();
+	private readonly _visualizerTreeHandles = new Map<string, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private readonly debugService: IDebugService
+		@IDebugService private readonly debugService: IDebugService,
+		@IDebugVisualizerService private readonly visualizerService: IDebugVisualizerService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 
@@ -88,7 +93,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				const dto: IThreadFocusDto = {
 					kind: 'thread',
 					threadId: thread?.threadId,
-					sessionId: session!.getId(),
+					sessionId: session.getId(),
 				};
 				this._proxy.$acceptStackFrameFocus(dto);
 			}
@@ -106,6 +111,38 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		}));
 		this.sendBreakpointsAndListen();
+	}
+
+	$registerDebugVisualizerTree(treeId: string, canEdit: boolean): void {
+		this.visualizerService.registerTree(treeId, {
+			disposeItem: id => this._proxy.$disposeVisualizedTree(id),
+			getChildren: e => this._proxy.$getVisualizerTreeItemChildren(treeId, e),
+			getTreeItem: e => this._proxy.$getVisualizerTreeItem(treeId, e),
+			editItem: canEdit ? ((e, v) => this._proxy.$editVisualizerTreeItem(e, v)) : undefined
+		});
+	}
+
+	$unregisterDebugVisualizerTree(treeId: string): void {
+		this._visualizerTreeHandles.get(treeId)?.dispose();
+		this._visualizerTreeHandles.delete(treeId);
+	}
+
+	$registerDebugVisualizer(extensionId: string, id: string): void {
+		const handle = this.visualizerService.register({
+			extensionId: new ExtensionIdentifier(extensionId),
+			id,
+			disposeDebugVisualizers: ids => this._proxy.$disposeDebugVisualizers(ids),
+			executeDebugVisualizerCommand: id => this._proxy.$executeDebugVisualizerCommand(id),
+			provideDebugVisualizers: (context, token) => this._proxy.$provideDebugVisualizers(extensionId, id, context, token).then(r => r.map(IDebugVisualization.deserialize)),
+			resolveDebugVisualizer: (viz, token) => this._proxy.$resolveDebugVisualizer(viz.id, token),
+		});
+		this._visualizerHandles.set(`${extensionId}/${id}`, handle);
+	}
+
+	$unregisterDebugVisualizer(extensionId: string, id: string): void {
+		const key = `${extensionId}/${id}`;
+		this._visualizerHandles.get(key)?.dispose();
+		this._visualizerHandles.delete(key);
 	}
 
 	private sendBreakpointsAndListen(): void {
@@ -180,14 +217,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
 						condition: l.condition,
 						hitCondition: l.hitCondition,
-						logMessage: l.logMessage
+						logMessage: l.logMessage,
+						mode: l.mode,
 					}
 				);
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
-				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
+				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id, dto.mode);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType, dto.mode);
 			}
 		}
 		return Promise.resolve();

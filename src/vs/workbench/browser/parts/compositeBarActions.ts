@@ -20,12 +20,13 @@ import { Color } from 'vs/base/common/color';
 import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export interface ICompositeBar {
 
@@ -143,7 +144,7 @@ export interface ICompositeBarActionViewItemOptions extends IActionViewItemOptio
 	readonly compact?: boolean;
 }
 
-export class CompoisteBarActionViewItem extends BaseActionViewItem {
+export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 	private static hoverLeaveTime = 0;
 
@@ -393,7 +394,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 			if (!this.showHoverScheduler.isScheduled()) {
-				if (Date.now() - CompoisteBarActionViewItem.hoverLeaveTime < 200) {
+				if (Date.now() - CompositeBarActionViewItem.hoverLeaveTime < 200) {
 					this.showHover(true);
 				} else {
 					this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
@@ -403,7 +404,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 
 		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, e => {
 			if (e.target === this.container) {
-				CompoisteBarActionViewItem.hoverLeaveTime = Date.now();
+				CompositeBarActionViewItem.hoverLeaveTime = Date.now();
 				this.hoverService.hideHover();
 				this.showHoverScheduler.cancel();
 			}
@@ -420,7 +421,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const hoverPosition = this.options.hoverOptions!.position();
+		const hoverPosition = this.options.hoverOptions.position();
 		this.lastHover = this.hoverService.showHover({
 			target: this.container,
 			content: this.computeTitle(),
@@ -466,7 +467,7 @@ export class CompositeOverflowActivityAction extends CompositeBarAction {
 	}
 }
 
-export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionViewItem {
+export class CompositeOverflowActivityActionViewItem extends CompositeBarActionViewItem {
 
 	constructor(
 		action: CompositeBarAction,
@@ -528,7 +529,7 @@ class ManageExtensionAction extends Action {
 	}
 }
 
-export class CompositeActionViewItem extends CompoisteBarActionViewItem {
+export class CompositeActionViewItem extends CompositeBarActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 

@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
 export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'string', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
+export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'string', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
 
 export interface ISpeechProviderMetadata {
 	readonly extension: ExtensionIdentifier;
@@ -34,14 +33,30 @@ export interface ISpeechToTextEvent {
 	readonly text?: string;
 }
 
+export interface ISpeechToTextSession {
+	readonly onDidChange: Event<ISpeechToTextEvent>;
+}
+
+export enum KeywordRecognitionStatus {
+	Recognized = 1,
+	Stopped = 2,
+	Canceled = 3
+}
+
+export interface IKeywordRecognitionEvent {
+	readonly status: KeywordRecognitionStatus;
+	readonly text?: string;
+}
+
+export interface IKeywordRecognitionSession {
+	readonly onDidChange: Event<IKeywordRecognitionEvent>;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
-}
-
-export interface ISpeechToTextSession extends IDisposable {
-	readonly onDidChange: Event<ISpeechToTextEvent>;
+	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
 export interface ISpeechService {
@@ -55,59 +70,26 @@ export interface ISpeechService {
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
-	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
-}
+	readonly onDidStartSpeechToTextSession: Event<void>;
+	readonly onDidEndSpeechToTextSession: Event<void>;
 
-export class SpeechService implements ISpeechService {
+	readonly hasActiveSpeechToTextSession: boolean;
 
-	readonly _serviceBrand: undefined;
+	/**
+	 * Starts to transcribe speech from the default microphone. The returned
+	 * session object provides an event to subscribe for transcribed text.
+	 */
+	createSpeechToTextSession(token: CancellationToken, context?: string): ISpeechToTextSession;
 
-	private readonly _onDidRegisterSpeechProvider = new Emitter<ISpeechProvider>();
-	readonly onDidRegisterSpeechProvider = this._onDidRegisterSpeechProvider.event;
+	readonly onDidStartKeywordRecognition: Event<void>;
+	readonly onDidEndKeywordRecognition: Event<void>;
 
-	private readonly _onDidUnregisterSpeechProvider = new Emitter<ISpeechProvider>();
-	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
+	readonly hasActiveKeywordRecognition: boolean;
 
-	get hasSpeechProvider(): boolean { return this.providers.size > 0; }
-
-	private readonly providers = new Map<string, ISpeechProvider>();
-
-	private readonly hasSpeechProviderContext = HasSpeechProvider.bindTo(this.contextKeyService);
-
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
-	) {
-	}
-
-	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable {
-		if (this.providers.has(identifier)) {
-			throw new Error(`Speech provider with identifier ${identifier} is already registered.`);
-		}
-
-		this.providers.set(identifier, provider);
-		this.hasSpeechProviderContext.set(true);
-
-		this._onDidRegisterSpeechProvider.fire(provider);
-
-		return toDisposable(() => {
-			this.providers.delete(identifier);
-			this._onDidUnregisterSpeechProvider.fire(provider);
-
-			if (this.providers.size === 0) {
-				this.hasSpeechProviderContext.set(false);
-			}
-		});
-	}
-
-	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
-		const provider = firstOrDefault(Array.from(this.providers.values()));
-		if (!provider) {
-			throw new Error(`No Speech provider is registered.`);
-		} else if (this.providers.size > 1) {
-			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
-		}
-
-		return provider.createSpeechToTextSession(token);
-	}
+	/**
+	 * Starts to recognize a keyword from the default microphone. The returned
+	 * status indicates if the keyword was recognized or if the session was
+	 * stopped.
+	 */
+	recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus>;
 }

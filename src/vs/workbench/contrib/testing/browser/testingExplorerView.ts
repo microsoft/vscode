@@ -24,7 +24,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -473,7 +473,7 @@ class ResultSummaryView extends Disposable {
 		}));
 
 		const ab = this._register(new ActionBar(this.elements.rerun, {
-			actionViewItemProvider: action => createActionViewItem(instantiationService, action),
+			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
 		ab.push(instantiationService.createInstance(MenuItemAction,
 			{ ...new ReRunLastRun().desc, icon: icons.testingRerunIcon },

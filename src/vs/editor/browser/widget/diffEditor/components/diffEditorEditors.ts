@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorunHandleChanges, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, IReader, autorunHandleChanges, derivedOpts, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -36,6 +36,8 @@ export class DiffEditorEditors extends Disposable {
 	public readonly modifiedSelections: IObservable<Selection[]>;
 	public readonly modifiedCursor: IObservable<Position>;
 
+	public readonly originalCursor: IObservable<Position>;
+
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
 		private readonly modifiedEditorElement: HTMLElement,
@@ -56,7 +58,9 @@ export class DiffEditorEditors extends Disposable {
 		this.modifiedScrollHeight = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
 		this.modifiedSelections = observableFromEvent(this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
-		this.modifiedCursor = observableFromEvent(this.modified.onDidChangeCursorPosition, () => this.modified.getPosition() ?? new Position(1, 1));
+		this.modifiedCursor = derivedOpts({ owner: this, equalityComparer: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
+
+		this.originalCursor = observableFromEvent(this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
 
 		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),

@@ -45,7 +45,8 @@ export function createAndFillInActionBarActions(
 	target: IAction[] | { primary: IAction[]; secondary: IAction[] },
 	primaryGroup?: string | ((actionGroup: string) => boolean),
 	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
-	useSeparatorsInPrimaryActions?: boolean): void {
+	useSeparatorsInPrimaryActions?: boolean
+): void {
 	const groups = menu.getActions(options);
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
@@ -514,7 +515,7 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 /**
  * Creates action view items for menu actions or submenu actions.
  */
-export function createActionViewItem(instaService: IInstantiationService, action: IAction, options?: IDropdownMenuActionViewItemOptions | IMenuEntryActionViewItemOptions): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
+export function createActionViewItem(instaService: IInstantiationService, action: IAction, options: IDropdownMenuActionViewItemOptions | IMenuEntryActionViewItemOptions | undefined): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, options);
 	} else if (action instanceof SubmenuItemAction) {

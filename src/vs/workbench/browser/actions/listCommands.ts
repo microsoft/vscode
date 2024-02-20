@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { equals, range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -19,6 +19,9 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 import { isActiveElement } from 'vs/base/browser/dom';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize, localize2 } from 'vs/nls';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -252,6 +255,22 @@ function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unkno
 	}
 }
 
+function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, any> | AsyncDataTree<any, any>, postRevealAction?: (focus: any) => void): void {
+	const focus = tree.getStickyScrollFocus();
+
+	if (focus.length === 0) {
+		throw new Error(`StickyScroll has no focus`);
+	}
+	if (focus.length > 1) {
+		throw new Error(`StickyScroll can only have a single focused item`);
+	}
+
+	tree.reveal(focus[0]);
+	tree.getHTMLElement().focus(); // domfocus() would focus stiky scroll dom and not the tree todo@benibenj
+	tree.setFocus(focus);
+	postRevealAction?.(focus[0]);
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.expandSelectionDown',
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -347,6 +366,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				});
 			}
 		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScroll.collapse',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.LeftArrow,
+	mac: {
+		primary: KeyCode.LeftArrow,
+		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow]
+	},
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget, focus => widget.collapse(focus));
 	}
 });
 
@@ -530,6 +569,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScrollselect',
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+	},
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget, focus => widget.setSelection([focus]));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.selectAndPreserveFocus',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
@@ -655,6 +714,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		selectElement(accessor, true);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScrolltoggleExpand',
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.Space,
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget);
 	}
 });
 
@@ -830,5 +905,25 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		focused.scrollLeft += 10;
+	}
+});
+
+registerAction2(class ToggleStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'tree.toggleStickyScroll',
+			title: {
+				...localize2('toggleTreeStickyScroll', "Toggle Tree Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleTreeStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Tree Sticky Scroll"),
+			},
+			category: 'View',
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue<boolean>('workbench.tree.enableStickyScroll');
+		configurationService.updateValue('workbench.tree.enableStickyScroll', newValue);
 	}
 });

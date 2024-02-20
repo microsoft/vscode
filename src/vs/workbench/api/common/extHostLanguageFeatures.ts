@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { equals, mixin } from 'vs/base/common/objects';
-import type * as vscode from 'vscode';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import * as languages from 'vs/editor/common/languages';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import * as extHostProtocol from './extHost.protocol';
-import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { assertType, isObject } from 'vs/base/common/types';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { Cache } from './cache';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
+import { coalesce, isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
 import { raceCancellationError } from 'vs/base/common/async';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { localize } from 'vs/nls';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { NotImplementedError, isCancellationError } from 'vs/base/common/errors';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { equals, mixin } from 'vs/base/common/objects';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { assertType, isObject } from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IURITransformer } from 'vs/base/common/uriIpc';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IPosition } from 'vs/editor/common/core/position';
+import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import * as languages from 'vs/editor/common/languages';
 import { IAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
+import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { localize } from 'vs/nls';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { CodeActionKind, CompletionList, Disposable, DocumentSymbol, InlineCompletionTriggerKind, InternalDataTransferItem, Location, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType, InlineEditTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import type * as vscode from 'vscode';
+import { Cache } from './cache';
+import * as extHostProtocol from './extHost.protocol';
 
 // --- adapter
 
@@ -474,6 +474,9 @@ class CodeActionAdapter {
 					}
 				}
 
+				// Ensures that this is either a Range[] or an empty array so we don't get Array<Range | undefined>
+				const range = candidate.ranges ?? [];
+
 				// new school: convert code action
 				actions.push({
 					cacheId: [cacheId, i],
@@ -484,6 +487,7 @@ class CodeActionAdapter {
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
+					ranges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? coalesce(range.map(typeConvert.Range.from)) : undefined,
 					disabled: candidate.disabled?.reason
 				});
 			}
@@ -812,6 +816,47 @@ class RenameAdapter {
 	}
 }
 
+class NewSymbolNamesAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.NewSymbolNamesProvider,
+		private readonly _logService: ILogService
+	) { }
+
+	async provideNewSymbolNames(resource: URI, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Range.to(range);
+
+		try {
+			const value = await this._provider.provideNewSymbolNames(doc, pos, token);
+			if (!value) {
+				return undefined;
+			}
+			return value.map(v =>
+				typeof v === 'string' /* @ulugbekna: for backward compatibility because `value` used to be just `string[]` */
+					? { newSymbolName: v }
+					: { newSymbolName: v.newSymbolName, tags: v.tags }
+			);
+		} catch (err: unknown) {
+			this._logService.error(NewSymbolNamesAdapter._asMessage(err) ?? JSON.stringify(err, null, '\t') /* @ulugbekna: assuming `err` doesn't have circular references that could result in an exception when converting to JSON */);
+			return undefined;
+		}
+	}
+
+	// @ulugbekna: this method is also defined in RenameAdapter but seems OK to be duplicated
+	private static _asMessage(err: any): string | undefined {
+		if (typeof err === 'string') {
+			return err;
+		} else if (err instanceof Error && typeof err.message === 'string') {
+			return err.message;
+		} else {
+			return undefined;
+		}
+	}
+}
+
 class SemanticTokensPreviousResult {
 	constructor(
 		readonly resultId: string | undefined,
@@ -1067,7 +1112,7 @@ class CompletionsAdapter {
 
 		const dto1 = this._convertCompletionItem(item, id);
 
-		const resolvedItem = await this._provider.resolveCompletionItem!(item, token);
+		const resolvedItem = await this._provider.resolveCompletionItem(item, token);
 
 		if (!resolvedItem) {
 			return undefined;
@@ -1310,6 +1355,81 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 	}
 }
 
+class InlineEditAdapter {
+	private readonly _references = new ReferenceMap<{
+		dispose(): void;
+		item: vscode.InlineEdit;
+	}>();
+
+	private languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineEditTriggerKind, InlineEditTriggerKind> = {
+		[languages.InlineEditTriggerKind.Automatic]: InlineEditTriggerKind.Automatic,
+		[languages.InlineEditTriggerKind.Invoke]: InlineEditTriggerKind.Invoke,
+	};
+
+	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
+		const doc = this._documents.getDocument(uri);
+		const result = await this._provider.provideInlineEdit(doc, {
+			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
+		}, token);
+
+		if (!result) {
+			// undefined and null are valid results
+			return undefined;
+		}
+
+		if (token.isCancellationRequested) {
+			// cancelled -> return without further ado, esp no caching
+			// of results as they will leak
+			return undefined;
+		}
+		let disposableStore: DisposableStore | undefined = undefined;
+		const pid = this._references.createReferenceId({
+			dispose() {
+				disposableStore?.dispose();
+			},
+			item: result
+		});
+
+		let acceptCommand: languages.Command | undefined = undefined;
+		if (result.accepted) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			acceptCommand = this._commands.toInternal(result.accepted, disposableStore);
+		}
+		let rejectCommand: languages.Command | undefined = undefined;
+		if (result.rejected) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
+		}
+
+		const langResult: extHostProtocol.IdentifiableInlineEdit = {
+			pid,
+			text: result.text,
+			range: typeConvert.Range.from(result.range),
+			accepted: acceptCommand,
+			rejected: rejectCommand,
+		};
+
+		return langResult;
+	}
+
+	disposeEdit(pid: number) {
+		const data = this._references.disposeReferenceId(pid);
+		data?.dispose();
+	}
+
+	constructor(
+		_extension: IExtensionDescription,
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.InlineEditProvider,
+		private readonly _commands: CommandsConverter,
+	) {
+	}
+}
+
 class ReferenceMap<T> {
 	private readonly _references = new Map<number, T>();
 	private _idPool = 1;
@@ -1422,7 +1542,7 @@ class InlayHintsAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const hint = await this._provider.resolveInlayHint!(item, token);
+		const hint = await this._provider.resolveInlayHint(item, token);
 		if (!hint) {
 			return undefined;
 		}
@@ -1556,7 +1676,7 @@ class LinkProviderAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const link = await this._provider.resolveDocumentLink!(item, token);
+		const link = await this._provider.resolveDocumentLink(item, token);
 		if (!link || !LinkProviderAdapter._validateLink(link)) {
 			return undefined;
 		}
@@ -1901,7 +2021,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentOnDropEditAdapter | MappedEditsAdapter;
+	| DocumentOnDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
 
 class AdapterData {
 	constructor(
@@ -2283,6 +2403,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined, token);
 	}
 
+	registerNewSymbolNamesProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.NewSymbolNamesProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new NewSymbolNamesAdapter(this._documents, provider, this._logService), extension);
+		this._proxy.$registerNewSymbolNamesProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> {
+		return this._withAdapter(handle, NewSymbolNamesAdapter, adapter => adapter.provideNewSymbolNames(URI.revive(resource), range, token), undefined, token);
+	}
+
 	//#region semantic coloring
 
 	registerDocumentSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
@@ -2367,6 +2497,23 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$freeInlineCompletionsList(handle: number, pid: number): void {
 		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => { adapter.disposeCompletions(pid); }, undefined, undefined);
+	}
+
+	// --- inline edit
+
+	registerInlineEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
+		const adapter = new InlineEditAdapter(extension, this._documents, provider, this._commands.converter);
+		const handle = this._addNewAdapter(adapter, extension);
+		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier);
+		return this._createDisposable(handle);
+	}
+
+	$provideInlineEdit(handle: number, resource: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
+		return this._withAdapter(handle, InlineEditAdapter, adapter => adapter.provideInlineEdits(URI.revive(resource), context, token), undefined, token);
+	}
+
+	$freeInlineEdit(handle: number, pid: number): void {
+		this._withAdapter(handle, InlineEditAdapter, async adapter => { adapter.disposeEdit(pid); }, undefined, undefined);
 	}
 
 	// --- parameter hints

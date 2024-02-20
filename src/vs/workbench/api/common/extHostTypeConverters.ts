@@ -14,10 +14,12 @@ import { marked } from 'vs/base/common/marked/marked';
 import { parse, revive } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
+import { basename } from 'vs/base/common/resources';
 import { isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -31,10 +33,16 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
+import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
-import { IChatFollowup, IChatReplyFollowup, IChatResponseCommandFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatCommandButton, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTreeData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
+import { IInlineChatCommandFollowup, IInlineChatFollowup, IInlineChatReplyFollowup, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -42,12 +50,10 @@ import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId
 import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export namespace Command {
 
@@ -117,6 +123,20 @@ export namespace Range {
 		}
 		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
 		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
+	}
+}
+
+export namespace Location {
+
+	export function from(location: vscode.Location): Dto<languages.Location> {
+		return {
+			uri: location.uri,
+			range: Range.from(location.range)
+		};
+	}
+
+	export function to(location: Dto<languages.Location>): vscode.Location {
+		return new types.Location(URI.revive(location.uri), Range.to(location.range));
 	}
 }
 
@@ -1371,6 +1391,8 @@ export namespace TextEditorLineNumbersStyle {
 				return RenderLineNumbersType.Off;
 			case types.TextEditorLineNumbersStyle.Relative:
 				return RenderLineNumbersType.Relative;
+			case types.TextEditorLineNumbersStyle.Interval:
+				return RenderLineNumbersType.Interval;
 			case types.TextEditorLineNumbersStyle.On:
 			default:
 				return RenderLineNumbersType.On;
@@ -1382,6 +1404,8 @@ export namespace TextEditorLineNumbersStyle {
 				return types.TextEditorLineNumbersStyle.Off;
 			case RenderLineNumbersType.Relative:
 				return types.TextEditorLineNumbersStyle.Relative;
+			case RenderLineNumbersType.Interval:
+				return types.TextEditorLineNumbersStyle.Interval;
 			case RenderLineNumbersType.On:
 			default:
 				return types.TextEditorLineNumbersStyle.On;
@@ -1991,18 +2015,18 @@ export namespace TestCoverage {
 	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
-				count: coverage.executionCount,
+				count: coverage.executed,
 				location: fromLocation(coverage.location),
 				type: DetailType.Statement,
 				branches: coverage.branches.length
-					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location) }))
+					? coverage.branches.map(b => ({ count: b.executed, location: b.location && fromLocation(b.location), label: b.label }))
 					: undefined,
 			};
 		} else {
 			return {
-				type: DetailType.Function,
+				type: DetailType.Declaration,
 				name: coverage.name,
-				count: coverage.executionCount,
+				count: coverage.executed,
 				location: fromLocation(coverage.location),
 			};
 		}
@@ -2013,7 +2037,7 @@ export namespace TestCoverage {
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			function: coverage.functionCoverage && fromCoveredCount(coverage.functionCoverage),
+			declaration: coverage.declarationCoverage && fromCoveredCount(coverage.declarationCoverage),
 			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}
@@ -2170,72 +2194,68 @@ export namespace DataTransfer {
 	}
 }
 
-export namespace ChatReplyFollowup {
-	export function from(followup: vscode.InteractiveSessionReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
+export namespace ChatFollowup {
+	export function from(followup: vscode.ChatFollowup, request: IChatAgentRequest | undefined): IChatFollowup {
 		return {
 			kind: 'reply',
-			message: followup.message,
-			title: followup.title,
-			tooltip: followup.tooltip,
+			agentId: followup.participant ?? request?.agentId ?? '',
+			subCommand: followup.command ?? request?.command,
+			message: followup.prompt,
+			title: followup.label
+		};
+	}
+
+	export function to(followup: IChatFollowup): vscode.ChatFollowup {
+		return {
+			prompt: followup.message,
+			label: followup.title,
+			participant: followup.agentId,
+			command: followup.subCommand,
 		};
 	}
 }
 
-export namespace ChatFollowup {
-	export function from(followup: string | vscode.ChatAgentFollowup): IChatFollowup {
-		if (typeof followup === 'string') {
-			return <IChatReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
-		} else if ('commandId' in followup) {
-			return <IChatResponseCommandFollowup>{
+export namespace ChatInlineFollowup {
+	export function from(followup: vscode.InteractiveEditorFollowup): IInlineChatFollowup {
+		if ('commandId' in followup) {
+			return {
 				kind: 'command',
 				title: followup.title ?? '',
 				commandId: followup.commandId ?? '',
 				when: followup.when ?? '',
 				args: followup.args
-			};
+			} satisfies IInlineChatCommandFollowup;
 		} else {
-			return ChatReplyFollowup.from(followup);
+			return {
+				kind: 'reply',
+				message: followup.message,
+				title: followup.title,
+				tooltip: followup.tooltip,
+			} satisfies IInlineChatReplyFollowup;
 		}
+
 	}
 }
 
-export namespace ChatMessage {
-	export function to(message: chatProvider.IChatMessage): vscode.ChatMessage {
-		const res = new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
-		res.name = message.name;
-		return res;
-	}
+export namespace LanguageModelMessage {
 
-
-	export function from(message: vscode.ChatMessage): chatProvider.IChatMessage {
-		return {
-			role: ChatMessageRole.from(message.role),
-			content: message.content,
-			name: message.name
-		};
-	}
-}
-
-
-export namespace ChatMessageRole {
-
-	export function to(role: chatProvider.ChatMessageRole): vscode.ChatMessageRole {
-		switch (role) {
-			case chatProvider.ChatMessageRole.System: return types.ChatMessageRole.System;
-			case chatProvider.ChatMessageRole.User: return types.ChatMessageRole.User;
-			case chatProvider.ChatMessageRole.Assistant: return types.ChatMessageRole.Assistant;
-			case chatProvider.ChatMessageRole.Function: return types.ChatMessageRole.Function;
+	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelMessage {
+		switch (message.role) {
+			case chatProvider.ChatMessageRole.System: return new types.LanguageModelSystemMessage(message.content);
+			case chatProvider.ChatMessageRole.User: return new types.LanguageModelUserMessage(message.content);
+			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelAssistantMessage(message.content);
 		}
 	}
 
-	export function from(role: vscode.ChatMessageRole): chatProvider.ChatMessageRole {
-		switch (role) {
-			case types.ChatMessageRole.System: return chatProvider.ChatMessageRole.System;
-			case types.ChatMessageRole.Assistant: return chatProvider.ChatMessageRole.Assistant;
-			case types.ChatMessageRole.Function: return chatProvider.ChatMessageRole.Function;
-			case types.ChatMessageRole.User:
-			default:
-				return chatProvider.ChatMessageRole.User;
+	export function from(message: vscode.LanguageModelMessage): chatProvider.IChatMessage {
+		if (message instanceof types.LanguageModelSystemMessage) {
+			return { role: chatProvider.ChatMessageRole.System, content: message.content };
+		} else if (message instanceof types.LanguageModelUserMessage) {
+			return { role: chatProvider.ChatMessageRole.User, content: message.content };
+		} else if (message instanceof types.LanguageModelAssistantMessage) {
+			return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
+		} else {
+			throw new Error('Invalid LanguageModelMessage');
 		}
 	}
 }
@@ -2254,7 +2274,7 @@ export namespace ChatVariable {
 		return {
 			level: ChatVariableLevel.to(variable.level),
 			kind: variable.kind,
-			value: revive(variable.value),
+			value: isUriComponents(variable.value) ? URI.revive(variable.value) : variable.value,
 			description: variable.description
 		};
 	}
@@ -2310,16 +2330,172 @@ export namespace InteractiveEditorResponseFeedbackKind {
 	}
 }
 
+export namespace ChatResponseMarkdownPart {
+	export function to(part: vscode.ChatResponseMarkdownPart): Dto<IChatMarkdownContent> {
+		return {
+			kind: 'markdownContent',
+			content: MarkdownString.from(part.value)
+		};
+	}
+	export function from(part: Dto<IChatMarkdownContent>): vscode.ChatResponseMarkdownPart {
+		return new types.ChatResponseMarkdownPart(MarkdownString.to(part.content));
+	}
+}
+
+export namespace ChatResponseFilesPart {
+	export function to(part: vscode.ChatResponseFileTreePart): IChatTreeData {
+		const { value, baseUri } = part;
+		function convert(items: vscode.ChatResponseFileTree[], baseUri: URI): extHostProtocol.IChatResponseProgressFileTreeData[] {
+			return items.map(item => {
+				const myUri = URI.joinPath(baseUri, item.name);
+				return {
+					label: item.name,
+					uri: myUri,
+					children: item.children && convert(item.children, myUri)
+				};
+			});
+		}
+		return {
+			kind: 'treeData',
+			treeData: {
+				label: basename(baseUri),
+				uri: baseUri,
+				children: convert(value, baseUri)
+			}
+		};
+	}
+	export function from(part: Dto<IChatTreeData>): vscode.ChatResponseFileTreePart {
+		const treeData = revive<extHostProtocol.IChatResponseProgressFileTreeData>(part.treeData);
+		function convert(items: extHostProtocol.IChatResponseProgressFileTreeData[]): vscode.ChatResponseFileTree[] {
+			return items.map(item => {
+				return {
+					name: item.label,
+					children: item.children && convert(item.children)
+				};
+			});
+		}
+
+		const baseUri = treeData.uri;
+		const items = treeData.children ? convert(treeData.children) : [];
+		return new types.ChatResponseFileTreePart(items, baseUri);
+	}
+}
+
+export namespace ChatResponseAnchorPart {
+	export function to(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
+		return {
+			kind: 'inlineReference',
+			name: part.title,
+			inlineReference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+		};
+	}
+
+	export function from(part: Dto<IChatContentInlineReference>): vscode.ChatResponseAnchorPart {
+		const value = revive<IChatContentInlineReference>(part);
+		return new types.ChatResponseAnchorPart(
+			URI.isUri(value.inlineReference) ? value.inlineReference : Location.to(value.inlineReference),
+			part.name
+		);
+	}
+}
+
+export namespace ChatResponseProgressPart {
+	export function to(part: vscode.ChatResponseProgressPart): Dto<IChatProgressMessage> {
+		return {
+			kind: 'progressMessage',
+			content: MarkdownString.from(part.value)
+		};
+	}
+	export function from(part: Dto<IChatProgressMessage>): vscode.ChatResponseProgressPart {
+		return new types.ChatResponseProgressPart(part.content.value);
+	}
+}
+
+export namespace ChatResponseCommandButtonPart {
+	export function to(part: vscode.ChatResponseCommandButtonPart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): Dto<IChatCommandButton> {
+		// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
+		const command = commandsConverter.toInternal(part.value, commandDisposables) ?? { command: part.value.command, title: part.value.title };
+		return {
+			kind: 'command',
+			command
+		};
+	}
+	export function from(part: Dto<IChatCommandButton>, commandsConverter: CommandsConverter): vscode.ChatResponseCommandButtonPart {
+		// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
+		return new types.ChatResponseCommandButtonPart(commandsConverter.fromInternal(part.command) ?? { command: part.command.id, title: part.command.title });
+	}
+}
+
+export namespace ChatResponseReferencePart {
+	export function to(part: vscode.ChatResponseReferencePart): Dto<IChatContentReference> {
+		return {
+			kind: 'reference',
+			reference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+		};
+	}
+	export function from(part: Dto<IChatContentReference>): vscode.ChatResponseReferencePart {
+		const value = revive<IChatContentReference>(part);
+		return new types.ChatResponseReferencePart(
+			URI.isUri(value.reference) ? value.reference : Location.to(value.reference)
+		);
+	}
+}
+
+export namespace ChatResponsePart {
+
+	export function to(part: vscode.ChatResponsePart): extHostProtocol.IChatProgressDto {
+		if (part instanceof types.ChatResponseMarkdownPart) {
+			return ChatResponseMarkdownPart.to(part);
+		} else if (part instanceof types.ChatResponseAnchorPart) {
+			return ChatResponseAnchorPart.to(part);
+		} else if (part instanceof types.ChatResponseReferencePart) {
+			return ChatResponseReferencePart.to(part);
+		} else if (part instanceof types.ChatResponseProgressPart) {
+			return ChatResponseProgressPart.to(part);
+		} else if (part instanceof types.ChatResponseFileTreePart) {
+			return ChatResponseFilesPart.to(part);
+		}
+		return {
+			kind: 'content',
+			content: ''
+		};
+
+	}
+
+	export function from(part: extHostProtocol.IChatProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponsePart | undefined {
+		switch (part.kind) {
+			case 'reference': return ChatResponseReferencePart.from(part);
+			case 'markdownContent':
+			case 'inlineReference':
+			case 'progressMessage':
+			case 'treeData':
+			case 'command':
+				return fromContent(part, commandsConverter);
+		}
+		return undefined;
+	}
+
+	export function fromContent(part: extHostProtocol.IChatContentProgressDto, commandsConverter: CommandsConverter): vscode.ChatResponseMarkdownPart | vscode.ChatResponseFileTreePart | vscode.ChatResponseAnchorPart | vscode.ChatResponseCommandButtonPart | undefined {
+		switch (part.kind) {
+			case 'markdownContent': return ChatResponseMarkdownPart.from(part);
+			case 'inlineReference': return ChatResponseAnchorPart.from(part);
+			case 'progressMessage': return undefined;
+			case 'treeData': return ChatResponseFilesPart.from(part);
+			case 'command': return ChatResponseCommandButtonPart.from(part, commandsConverter);
+		}
+
+		return undefined;
+	}
+}
+
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
-		if ('placeholder' in progress && 'resolvedContent' in progress) {
-			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
-		} else if ('markdownContent' in progress) {
-			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+	export function from(extension: IExtensionDescription, progress: vscode.ChatExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
+		if ('markdownContent' in progress) {
+			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
 			if ('vulnerabilities' in progress && progress.vulnerabilities) {
-				checkProposedApiEnabled(extension, 'chatAgents2Additions');
+				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return { content: progress.content, vulnerabilities: progress.vulnerabilities, kind: 'vulnerability' };
 			}
 
@@ -2327,7 +2503,7 @@ export namespace ChatResponseProgress {
 				return { content: progress.content, kind: 'content' };
 			}
 
-			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
 		} else if ('documents' in progress) {
 			return {
@@ -2357,21 +2533,93 @@ export namespace ChatResponseProgress {
 				name: progress.title,
 				kind: 'inlineReference'
 			};
-		} else if ('agentName' in progress) {
-			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
-		} else if ('treeData' in progress) {
-			return { treeData: progress.treeData, kind: 'treeData' };
+		} else if ('participant' in progress) {
+			checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+			return { agentName: progress.participant, command: progress.command, kind: 'agentDetection' };
 		} else if ('message' in progress) {
-			return { content: progress.message, kind: 'progressMessage' };
+			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
 			return undefined;
 		}
 	}
+
+	export function to(progress: extHostProtocol.IChatProgressDto): vscode.ChatProgress | undefined {
+		switch (progress.kind) {
+			case 'markdownContent':
+			case 'inlineReference':
+			case 'treeData':
+				return ChatResponseProgress.to(progress);
+			case 'content':
+				return { content: progress.content };
+			case 'usedContext':
+				return { documents: progress.documents.map(d => ({ uri: URI.revive(d.uri), version: d.version, ranges: d.ranges.map(r => Range.to(r)) })) };
+			case 'reference':
+				return {
+					reference:
+						isUriComponents(progress.reference) ?
+							URI.revive(progress.reference) :
+							Location.to(progress.reference)
+				};
+			case 'agentDetection':
+				// For simplicity, don't sent back the 'extended' types
+				return undefined;
+			case 'progressMessage':
+				return { message: progress.content.value };
+			case 'vulnerability':
+				return { content: progress.content, vulnerabilities: progress.vulnerabilities };
+			default:
+				// Unknown type, eg something in history that was removed? Ignore
+				return undefined;
+		}
+	}
+
+	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto, commandsConverter: Command.ICommandsConverter): vscode.ChatContentProgress | undefined {
+		switch (progress.kind) {
+			case 'markdownContent':
+				// For simplicity, don't sent back the 'extended' types, so downgrade markdown to just some text
+				return { content: progress.content.value };
+			case 'inlineReference':
+				return {
+					inlineReference:
+						isUriComponents(progress.inlineReference) ?
+							URI.revive(progress.inlineReference) :
+							Location.to(progress.inlineReference),
+					title: progress.name
+				};
+			case 'command':
+				// If the command isn't in the converter, then this session may have been restored, and the command args don't exist anymore
+				return {
+					command: commandsConverter.fromInternal(progress.command) ?? { command: progress.command.id, title: progress.command.title },
+				};
+			default:
+				// Unknown type, eg something in history that was removed? Ignore
+				return undefined;
+		}
+	}
+}
+
+export namespace ChatAgentRequest {
+	export function to(request: IChatAgentRequest): vscode.ChatRequest {
+		return {
+			prompt: request.message,
+			command: request.command,
+			variables: request.variables.variables.map(ChatAgentResolvedVariable.to)
+		};
+	}
+}
+
+export namespace ChatAgentResolvedVariable {
+	export function to(request: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }): vscode.ChatResolvedVariable {
+		return {
+			name: request.name,
+			range: [request.range.start, request.range.endExclusive],
+			values: request.values.map(ChatVariable.to)
+		};
+	}
 }
 
 export namespace ChatAgentCompletionItem {
-	export function from(item: vscode.ChatAgentCompletionItem): extHostProtocol.IChatAgentCompletionItem {
+	export function from(item: vscode.ChatCompletionItem): extHostProtocol.IChatAgentCompletionItem {
 		return {
 			label: item.label,
 			values: item.values.map(ChatVariable.from),
@@ -2379,6 +2627,35 @@ export namespace ChatAgentCompletionItem {
 			detail: item.detail,
 			documentation: item.documentation,
 		};
+	}
+}
+
+export namespace ChatAgentResult {
+	export function to(result: IChatAgentResult): vscode.ChatResult {
+		return {
+			errorDetails: result.errorDetails,
+			metadata: result.metadata,
+		};
+	}
+}
+
+export namespace ChatAgentUserActionEvent {
+	export function to(result: IChatAgentResult, event: IChatUserActionEvent, commandsConverter: CommandsConverter): vscode.ChatUserActionEvent | undefined {
+		if (event.action.kind === 'vote') {
+			// Is the "feedback" type
+			return;
+		}
+
+		const ehResult = ChatAgentResult.to(result);
+		if (event.action.kind === 'command') {
+			const commandAction: vscode.ChatCommandAction = { kind: 'command', commandButton: ChatResponseProgress.toProgressContent(event.action.commandButton, commandsConverter) as vscode.ChatCommandButton };
+			return { action: commandAction, result: ehResult };
+		} else if (event.action.kind === 'followUp') {
+			const followupAction: vscode.ChatFollowupAction = { kind: 'followUp', followup: ChatFollowup.to(event.action.followup) };
+			return { action: followupAction, result: ehResult };
+		} else {
+			return { action: event.action, result: ehResult };
+		}
 	}
 }
 
@@ -2392,5 +2669,18 @@ export namespace TerminalQuickFix {
 			return { uri: quickFix.uri };
 		}
 		return converter.toInternal(quickFix, disposables);
+	}
+}
+
+export namespace DebugTreeItem {
+	export function from(item: vscode.DebugTreeItem, id: number): IDebugVisualizationTreeItem {
+		return {
+			id,
+			label: item.label,
+			description: item.description,
+			canEdit: item.canEdit,
+			collapsibleState: (item.collapsibleState || DebugTreeItemCollapsibleState.None) as DebugTreeItemCollapsibleState,
+			contextValue: item.contextValue,
+		};
 	}
 }

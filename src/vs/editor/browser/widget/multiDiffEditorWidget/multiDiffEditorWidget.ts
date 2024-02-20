@@ -8,13 +8,18 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
-import { MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, IMultiDiffResource, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
 import { DiffEditorItemTemplate } from 'vs/editor/browser/widget/multiDiffEditorWidget/diffEditorItemTemplate';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
@@ -41,6 +46,10 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
+	public reveal(resource: IMultiDiffResource, range: Range): void {
+		this._widgetImpl.get().reveal(resource, range);
+	}
+
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {
 		return new MultiDiffEditorViewModel(model, this._instantiationService);
 	}
@@ -55,27 +64,21 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));
 
-	public getActiveControl(): any | undefined {
+	public getActiveControl(): DiffEditorWidget | undefined {
 		return this._activeControl.get();
 	}
 
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
 
-	private readonly _scrollState = derived(this, (reader) => {
-		const w = this._widgetImpl.read(reader);
-		const top = w.scrollTop.read(reader);
-		const left = w.scrollLeft.read(reader);
-		return { top, left };
-	});
-
-	public getScrollState(): { top: number; left: number } {
-		return this._scrollState.get();
+	public getViewState(): IMultiDiffEditorViewState {
+		return this._widgetImpl.get().getViewState();
 	}
 
-	public setScrollState(scrollState: { top?: number; left?: number }): void {
-		const w = this._widgetImpl.get();
-		w.setScrollState(scrollState);
+	public setViewState(viewState: IMultiDiffEditorViewState): void {
+		this._widgetImpl.get().setViewState(viewState);
 	}
 
-	public readonly onDidChangeScrollState = Event.fromObservableLight(this._scrollState);
+	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		return this._widgetImpl.get().tryGetCodeEditor(resource);
+	}
 }

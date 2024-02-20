@@ -15,7 +15,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IBaseFileStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason, GroupIdentifier } from 'vs/workbench/common/editor';
@@ -165,6 +165,7 @@ export class TestHistoryService implements IHistoryService {
 	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }
 	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
 	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
+	suspendTracking() { return Disposable.None; }
 }
 
 export class TestWorkingCopy extends Disposable implements IWorkingCopy {
@@ -253,7 +254,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	readonly hasSaveParticipants = false;
 	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable { return Disposable.None; }
-	async runSaveParticipants(workingCopy: IWorkingCopy, context: { reason: SaveReason }, token: CancellationToken): Promise<void> { }
+	async runSaveParticipants(workingCopy: IWorkingCopy, context: IStoredFileWorkingCopySaveParticipantContext, token: CancellationToken): Promise<void> { }
 
 	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> { }
 
@@ -311,6 +312,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	_serviceBrand: undefined;
 
 	readonly onDidChangeAutoSaveConfiguration = Event.None;
+	readonly onDidChangeAutoSaveDisabled = Event.None;
 	readonly onDidChangeReadonly = Event.None;
 	readonly onDidChangeFilesAssociation = Event.None;
 
@@ -319,8 +321,9 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration { throw new Error('Method not implemented.'); }
 	getAutoSaveMode(): IAutoSaveMode { throw new Error('Method not implemented.'); }
-	isShortAutoSaveDelayConfigured(): boolean { throw new Error('Method not implemented.'); }
+	hasShortAutoSaveDelay(): boolean { throw new Error('Method not implemented.'); }
 	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
+	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
 	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }

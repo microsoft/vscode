@@ -91,7 +91,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -147,6 +147,13 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 	override getControl(): NotebookEditorWidget | undefined {
 		return this._widget.value;
+	}
+
+	override setVisible(visible: boolean, group?: IEditorGroup | undefined): void {
+		super.setVisible(visible, group);
+		if (!visible) {
+			this._widget.value?.onWillHide();
+		}
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
@@ -205,7 +212,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(group.windowId, true).window);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');
@@ -301,16 +308,16 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
 			// We might be moving the notebook widget between groups, and these services are tied to the group
-			this._widget.value!.setParentContextKeyService(this._contextKeyService);
-			this._widget.value!.setEditorProgressService(this._editorProgressService);
+			this._widget.value.setParentContextKeyService(this._contextKeyService);
+			this._widget.value.setEditorProgressService(this._editorProgressService);
 
-			await this._widget.value!.setModel(model.notebook, viewState, perf);
+			await this._widget.value.setModel(model.notebook, viewState, perf);
 			const isReadOnly = !!input.isReadonly();
-			await this._widget.value!.setOptions({ ...options, isReadOnly });
-			this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
-			this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
+			await this._widget.value.setOptions({ ...options, isReadOnly });
+			this._widgetDisposableStore.add(this._widget.value.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
+			this._widgetDisposableStore.add(this._widget.value.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
 
-			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value!.getDomNode(), {
+			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value.getDomNode(), {
 				containsGroup: (group) => this.group?.id === group.id
 			}));
 
@@ -551,7 +558,9 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			return;
 		}
 
-		this._widget.value.layout(dimension, this._rootElement, position);
+		if (this.isVisible()) {
+			this._widget.value.layout(dimension, this._rootElement, position);
+		}
 	}
 
 	//#endregion

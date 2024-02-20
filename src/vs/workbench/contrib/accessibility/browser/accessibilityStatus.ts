@@ -43,6 +43,9 @@ class ScreenReaderModeStatusEntry extends Disposable {
 }
 
 export class AccessibilityStatus extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.accessibilityStatus';
+
 	private screenReaderNotification: INotificationHandle | null = null;
 	private promptedScreenReader: boolean = false;
 	private readonly screenReaderModeElements = new Set<ScreenReaderModeStatusEntry>();

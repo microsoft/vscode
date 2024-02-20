@@ -42,11 +42,20 @@ export const {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
-	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
+	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
+	windows.set(mainWindow.vscodeWindowId, mainWindowRegistration);
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
 	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
 	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
+
+	function getWindowById(windowId: number): IRegisteredCodeWindow | undefined;
+	function getWindowById(windowId: number | undefined, fallbackToMain: true): IRegisteredCodeWindow;
+	function getWindowById(windowId: number | undefined, fallbackToMain?: boolean): IRegisteredCodeWindow | undefined {
+		const window = typeof windowId === 'number' ? windows.get(windowId) : undefined;
+
+		return window ?? (fallbackToMain ? mainWindowRegistration : undefined);
+	}
 
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
@@ -90,9 +99,7 @@ export const {
 		hasWindow(windowId: number): boolean {
 			return windows.has(windowId);
 		},
-		getWindowById(windowId: number): IRegisteredCodeWindow | undefined {
-			return windows.get(windowId);
-		},
+		getWindowById,
 		getWindow(e: Node | UIEvent | undefined | null): CodeWindow {
 			const candidateNode = e as Node | undefined | null;
 			if (candidateNode?.ownerDocument?.defaultView) {
@@ -261,7 +268,7 @@ export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runne
  */
 export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 
-export function disposableWindowInterval(targetWindow: Window & typeof globalThis, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
+export function disposableWindowInterval(targetWindow: Window, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
 	let iteration = 0;
 	const timer = targetWindow.setInterval(() => {
 		iteration++;
@@ -277,8 +284,19 @@ export function disposableWindowInterval(targetWindow: Window & typeof globalThi
 
 export class WindowIntervalTimer extends IntervalTimer {
 
-	override cancelAndSet(runner: () => void, interval: number, targetWindow: Window & typeof globalThis): void {
-		return super.cancelAndSet(runner, interval, targetWindow);
+	private readonly defaultTarget?: Window & typeof globalThis;
+
+	/**
+	 *
+	 * @param node The optional node from which the target window is determined
+	 */
+	constructor(node?: Node) {
+		super();
+		this.defaultTarget = node && getWindow(node);
+	}
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow?: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow ?? this.defaultTarget);
 	}
 }
 
@@ -914,6 +932,38 @@ const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HT
 
 export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+/**
+ * A version of createStyleSheet which has a unified API to initialize/set the style content.
+ */
+export function createStyleSheet2(): WrappedStyleElement {
+	return new WrappedStyleElement();
+}
+
+class WrappedStyleElement {
+	private _currentCssStyle = '';
+	private _styleSheet: HTMLStyleElement | undefined = undefined;
+
+	public setStyle(cssStyle: string): void {
+		if (cssStyle === this._currentCssStyle) {
+			return;
+		}
+		this._currentCssStyle = cssStyle;
+
+		if (!this._styleSheet) {
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
+		} else {
+			this._styleSheet.innerText = cssStyle;
+		}
+	}
+
+	public dispose(): void {
+		if (this._styleSheet) {
+			this._styleSheet.remove();
+			this._styleSheet = undefined;
+		}
+	}
 }
 
 export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
@@ -2298,9 +2348,11 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-export function copyAttributes(from: Element, to: Element): void {
+export function copyAttributes(from: Element, to: Element, filter?: string[]): void {
 	for (const { name, value } of from.attributes) {
-		to.setAttribute(name, value);
+		if (!filter || filter.includes(name)) {
+			to.setAttribute(name, value);
+		}
 	}
 }
 
@@ -2314,7 +2366,7 @@ function copyAttribute(from: Element, to: Element, name: string): void {
 }
 
 export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
-	copyAttributes(from, to);
+	copyAttributes(from, to, filter);
 
 	const disposables = new DisposableStore();
 
