@@ -101,7 +101,11 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 			}
 		}
 
-		return WindowStateValidator.validateWindowState(this.logService, windowState);
+		const state = WindowStateValidator.validateWindowState(this.logService, windowState);
+
+		this.logService.trace('[aux window] using window state', state);
+
+		return state;
 	}
 
 	registerWindow(webContents: WebContents): void {

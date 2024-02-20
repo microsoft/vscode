@@ -324,6 +324,7 @@ export namespace WindowStateValidator {
 			// Electron has weird conditions under which it throws errors
 			// e.g. https://github.com/microsoft/vscode/issues/100334 when
 			// large numbers are passed in
+			logService.error('window#validateWindowState: error finding display for window state', error);
 		}
 
 		if (
