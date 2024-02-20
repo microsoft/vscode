@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createServer, createConnection, createSimpleProjectProvider } from '@volar/language-server/node';
-import { create as createCssServicePlugin } from 'volar-service-css';
-import { create as createHtmlServicePlugin } from 'volar-service-html';
 import { htmlLanguagePlugin } from '../modes/languagePlugin';
+import { getLanguageServices } from '../modes/servicePlugins';
 
 const connection = createConnection();
 const server = createServer(connection);
@@ -17,10 +16,7 @@ connection.onInitialize(params => {
 			return [htmlLanguagePlugin];
 		},
 		getServicePlugins() {
-			return [
-				createCssServicePlugin(),
-				createHtmlServicePlugin(),
-			];
+			return getLanguageServices(server.modules.typescript!);
 		},
 	});
 });
