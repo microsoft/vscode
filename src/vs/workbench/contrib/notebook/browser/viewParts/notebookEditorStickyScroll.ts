@@ -26,9 +26,8 @@ import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/fol
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { isNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { IRunEvent } from 'vs/base/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -81,22 +80,24 @@ export class RunInSectionStickyScroll extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const notebookEditorService = accessor.get(INotebookEditorService);
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const selectedElement: HTMLElement = args[0].parentElement;
+		const stickyLines: Map<OutlineEntry, {
+			line: NotebookStickyLine;
+			rendered: boolean;
+		}> = args[1];
 
-		const activeInput = editorService.activeEditorPane?.input;
-		const isNotebook = isNotebookEditorInput(activeInput);
-		if (!isNotebook) {
-			return;
-		}
-		const notebookEditor = notebookEditorService.retrieveExistingWidgetFromURI(activeInput.resource)?.value;
-		if (!notebookEditor) {
+		const selectedOutlineEntry = Array.from(stickyLines.values()).find(entry => entry.line.element.contains(selectedElement))?.line.entry;
+		if (!selectedOutlineEntry) {
 			return;
 		}
 
-		const notebookStickyScrollComponent = notebookEditor.notebookStickyScroll;
-		notebookStickyScrollComponent.executeStickySection();
+		const flatList: OutlineEntry[] = [];
+		selectedOutlineEntry.asFlatList(flatList);
+
+		const cellViewModels = flatList.map(entry => entry.cell);
+		const notebookEditor: INotebookEditor = args[2];
+		notebookEditor.executeNotebookCells(cellViewModels);
 	}
 }
 
@@ -181,8 +182,6 @@ export class NotebookStickyScroll extends Disposable {
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 
-	private targetStickyElement: HTMLElement | null = null;
-
 	getDomNode(): HTMLElement {
 		return this.domNode;
 	}
@@ -222,6 +221,7 @@ export class NotebookStickyScroll extends Disposable {
 		private readonly notebookOutline: NotebookCellOutlineProvider,
 		private readonly notebookCellList: INotebookCellList,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -245,31 +245,19 @@ export class NotebookStickyScroll extends Disposable {
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
+			actionRunner: {
+				run: async (action) => {
+					if (action.id === 'notebook.action.runInSection') {
+						this.commandService.executeCommand(action.id, event.target, this.currentStickyLines, this.notebookEditor);
+					} else {
+						this.commandService.executeCommand(action.id);
+					}
+				},
+				onDidRun: new Emitter<IRunEvent>().event,
+				onWillRun: new Emitter<IRunEvent>().event,
+				dispose: () => { }
+			},
 		});
-		this.targetStickyElement = event.target;
-	}
-
-	public executeStickySection() {
-		// get the cells that are in the section
-		if (!this.targetStickyElement) {
-			return;
-		}
-
-		const selectedElement = this.targetStickyElement.parentElement;
-		const selectedOutlineEntry = Array.from(this.currentStickyLines.values()).find(entry => entry.line.element.contains(selectedElement))?.line.entry;
-		if (!selectedOutlineEntry) {
-			return;
-		}
-
-		const flatList: OutlineEntry[] = [];
-		selectedOutlineEntry.asFlatList(flatList);
-
-		// execute cells with INotebookEditor executeNotebookCells
-		const cellViewModels = flatList.map(entry => entry.cell);
-		this.notebookEditor.executeNotebookCells(cellViewModels);
-
-		// clear stickyElement target
-		this.targetStickyElement = null;
 	}
 
 	private updateConfig(e: NotebookOptionsChangeEvent) {
