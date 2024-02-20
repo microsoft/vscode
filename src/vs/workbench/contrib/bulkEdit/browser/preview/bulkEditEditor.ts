@@ -82,7 +82,6 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			editorService,
 			editorGroupService
 		);
-		console.log('inside of bulk edit editor');
 	}
 
 	protected async createEditor(parent: HTMLElement): Promise<void> {
@@ -512,7 +511,7 @@ function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions
 	return editorConfiguration;
 }
 
-export class BulkEditEditorResolverContribution extends Disposable {
+export class BulkEditEditorResolver extends Disposable {
 
 	static readonly ID = 'workbench.contrib.bulkEditEditorResolver';
 
