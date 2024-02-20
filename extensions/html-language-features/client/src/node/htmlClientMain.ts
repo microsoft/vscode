@@ -3,62 +3,75 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DiagnosticModel, type InitializationOptions } from '@volar/language-server';
 import * as serverProtocol from '@volar/language-server/protocol';
-import { activateAutoInsertion, createLabsInfo, getTsdk } from '@volar/vscode';
-import * as vscode from 'vscode';
-import * as lsp from 'vscode-languageclient/node';
+import { createLabsInfo, LanguageClientOptions } from '@volar/vscode';
+import { BaseLanguageClient, LanguageClient, ServerOptions, TransportKind } from '@volar/vscode/node';
+import TelemetryReporter from '@vscode/extension-telemetry';
+import * as fs from 'fs';
+import { Disposable, ExtensionContext, l10n } from 'vscode';
+import { AsyncDisposable, LanguageClientConstructor, startClient } from '../htmlClient';
 
-let client: lsp.BaseLanguageClient;
+let telemetry: TelemetryReporter | undefined;
+let client: AsyncDisposable | undefined;
 
-export async function activate(context: vscode.ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 
-	const serverModule = context.asAbsolutePath('./server/out/node/htmlServerMain');
-	const runOptions = { execArgv: <string[]>[] };
+	const clientPackageJSON = getPackageInfo(context);
+	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
+
+	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmlServerMain`;
+	const serverModule = context.asAbsolutePath(serverMain);
+
+	// The debug options for the server
 	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (8000 + Math.round(Math.random() * 999))] };
-	const serverOptions: lsp.ServerOptions = {
-		run: {
-			module: serverModule,
-			transport: lsp.TransportKind.ipc,
-			options: runOptions
-		},
-		debug: {
-			module: serverModule,
-			transport: lsp.TransportKind.ipc,
-			options: debugOptions
-		},
-	};
-	const initializationOptions: InitializationOptions = {
-		typescript: {
-			tsdk: (await getTsdk(context)).tsdk,
-		},
-		diagnosticModel: DiagnosticModel.Pull,
-		fullCompletionList: true,
-		semanticTokensLegend: {
-			// fill missing modifiers from standard modifiers
-			tokenModifiers: ['local'],
-			tokenTypes: [],
-		},
-	};
-	const clientOptions: lsp.LanguageClientOptions = {
-		documentSelector: [{ language: 'html' }],
-		initializationOptions,
-	};
-	client = new lsp.LanguageClient(
-		'html',
-		'HTML',
-		serverOptions,
-		clientOptions,
-	);
-	await client.start();
 
-	activateAutoInsertion('html', client);
+	// If the extension is launch in debug mode the debug server options are use
+	// Otherwise the run options are used
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	};
+
+	let languageClient!: BaseLanguageClient;
+	const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
+		languageClient = new LanguageClient(id, name, serverOptions, clientOptions);
+		return languageClient;
+	};
+
+	const timer = {
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
+			const handle = setTimeout(callback, ms, ...args);
+			return { dispose: () => clearTimeout(handle) };
+		}
+	};
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
+
+	client = await startClient(context, newLanguageClient, { TextDecoder, telemetry, timer });
 
 	const labsInfo = createLabsInfo(serverProtocol);
-	labsInfo.addLanguageClient(client);
+	labsInfo.addLanguageClient(languageClient);
 	return labsInfo.extensionExports;
 }
 
 export function deactivate(): Thenable<any> | undefined {
-	return client?.stop();
+	return client?.dispose();
+}
+
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
+	main: string;
+}
+
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	const location = context.asAbsolutePath('./package.json');
+	try {
+		return JSON.parse(fs.readFileSync(location).toString());
+	} catch (e) {
+		console.log(`Problems reading ${location}: ${e}`);
+		return { name: '', version: '', aiKey: '', main: '' };
+	}
 }
