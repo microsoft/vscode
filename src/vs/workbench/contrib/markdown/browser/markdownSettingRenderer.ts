@@ -13,6 +13,7 @@ import { DefaultSettings } from 'vs/workbench/services/preferences/common/prefer
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAction } from 'vs/base/common/actions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const codeSettingRegex = /^<code (codesetting)="([^\s"\:]+)(?::([^\s"]+))?">/;
 const codeFeatureRegex = /^<span (codefeature)="([^\s"\:]+)(?::([^\s"]+))?">/;
@@ -26,7 +27,8 @@ export class SimpleSettingRenderer {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
 	}
@@ -291,6 +293,17 @@ export class SimpleSettingRenderer {
 
 	async updateSetting(uri: URI, x: number, y: number) {
 		if (uri.scheme === Schemas.codeSetting) {
+			type ReleaseNotesSettingUsedClassification = {
+				owner: 'alexr00';
+				comment: 'Used to understand if the the action to update settings from the release notes is used.';
+				settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the setting that was clicked on in the release notes' };
+			};
+			type ReleaseNotesSettingUsed = {
+				settingId: string;
+			};
+			this._telemetryService.publicLog2<ReleaseNotesSettingUsed, ReleaseNotesSettingUsedClassification>('releaseNotesSettingAction', {
+				settingId: uri.authority
+			});
 			return this.showContextMenu(uri, x, y);
 		} else if (uri.scheme === Schemas.codeFeature) {
 			return this.setFeatureState(uri);
