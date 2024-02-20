@@ -48,10 +48,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					resource.modified.resource,
 				);
 			}),
+			input.isTransient ?? false
 		);
 	}
 
 	public static fromSerialized(data: ISerializedMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
+		console.log('inside of fromSerialized');
 		return instantiationService.createInstance(
 			MultiDiffEditorInput,
 			URI.parse(data.multiDiffSourceUri),
@@ -59,7 +61,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			data.resources?.map(resource => new MultiDiffEditorItem(
 				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
 				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
-			))
+			)),
+			false
 		);
 	}
 
@@ -80,12 +83,14 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		public readonly multiDiffSource: URI,
 		public readonly label: string | undefined,
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
+		public readonly isTransient: boolean = false,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
+		console.log('isTransient from the constructor : ', isTransient);
 		super();
 
 		this._register(autorun((reader) => {
@@ -361,14 +366,18 @@ interface ISerializedMultiDiffEditorInput {
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {
 	canSerialize(editor: EditorInput): boolean {
-		return editor instanceof MultiDiffEditorInput;
+		console.log('inside of can serialize');
+		console.log('editor instanceof MultiDiffEditorInput && !editor.isTransient : ', editor instanceof MultiDiffEditorInput && !editor.isTransient);
+		return editor instanceof MultiDiffEditorInput && !editor.isTransient;
 	}
 
 	serialize(editor: MultiDiffEditorInput): string | undefined {
+		console.log('inside of serialize');
 		return JSON.stringify(editor.serialize());
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+		console.log('inside of deserialize');
 		try {
 			const data = parse(serializedEditor) as ISerializedMultiDiffEditorInput;
 			return MultiDiffEditorInput.fromSerialized(data, instantiationService);

@@ -430,19 +430,24 @@ export class EditorsObserver extends Disposable {
 			entries: coalesce(entries.map(({ editor, groupId }) => {
 
 				// Find group for entry
+				console.log('editor: ', editor);
+				console.log('groupId : ', groupId);
 				const group = this.editorGroupsContainer.getGroup(groupId);
+				console.log('group : ', group);
 				if (!group) {
 					return undefined;
 				}
 
 				// Find serializable editors of group
 				let serializableEditorsOfGroup = mapGroupToSerializableEditorsOfGroup.get(group);
+				console.log('serializableEditorsOfGroup : ', serializableEditorsOfGroup);
 				if (!serializableEditorsOfGroup) {
 					serializableEditorsOfGroup = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
 						const editorSerializer = registry.getEditorSerializer(editor);
 
 						return editorSerializer?.canSerialize(editor);
 					});
+					console.log('serializableEditorsOfGroup : ', serializableEditorsOfGroup);
 					mapGroupToSerializableEditorsOfGroup.set(group, serializableEditorsOfGroup);
 				}
 
