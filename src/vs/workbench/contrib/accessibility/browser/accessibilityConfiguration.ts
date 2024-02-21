@@ -740,10 +740,6 @@ export const SPEECH_LANGUAGES: { [locale: string]: { name: string } } = {
 	}
 };
 
-const SPEECH_LANGUAGES_SORTED = Object.keys(SPEECH_LANGUAGES).sort((a, b) => {
-	return SPEECH_LANGUAGES[a].name.localeCompare(SPEECH_LANGUAGES[b].name);
-});
-
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.dynamicSpeechAccessibilityConfiguration';
@@ -761,6 +757,10 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 			return; // these settings require a speech provider
 		}
 
+		const languages = Object.keys(SPEECH_LANGUAGES).sort((langA, langB) => {
+			return SPEECH_LANGUAGES[langA].name.localeCompare(SPEECH_LANGUAGES[langB].name);
+		});
+
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		registry.registerConfiguration({
 			...accessibilityConfigurationNodeBase,
@@ -775,16 +775,17 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
 					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize."),
 					'type': 'string',
-					'enum': SPEECH_LANGUAGES_SORTED,
+					'enum': languages,
 					'default': 'en-US',
 					'tags': ['accessibility'],
-					'enumDescriptions': SPEECH_LANGUAGES_SORTED.map(key => SPEECH_LANGUAGES[key].name),
-					'enumItemLabels': SPEECH_LANGUAGES_SORTED.map(key => SPEECH_LANGUAGES[key].name)
+					'enumDescriptions': languages.map(key => SPEECH_LANGUAGES[key].name),
+					'enumItemLabels': languages.map(key => SPEECH_LANGUAGES[key].name)
 				}
 			}
 		});
 	}
 }
+
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'audioCues.volume',
