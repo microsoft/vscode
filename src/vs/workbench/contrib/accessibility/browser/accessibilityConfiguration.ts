@@ -115,7 +115,7 @@ export const announcementFeatureBase: IConfigurationPropertySchema = {
 const defaultNoAnnouncement: IConfigurationPropertySchema = {
 	'type': 'object',
 	'tags': ['accessibility'],
-	additionalProperties: true,
+	additionalProperties: false,
 	'default': {
 		'sound': 'auto',
 	}
@@ -536,7 +536,6 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.chatResponseReceived': {
 			...defaultNoAnnouncement,
-			additionalProperties: false,
 			'description': localize('accessibility.signals.chatResponseReceived', "Indicates when the response has been received."),
 			'properties': {
 				'sound': {
@@ -562,7 +561,7 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.save': {
 			'type': 'object',
 			'tags': ['accessibility'],
-			additionalProperties: true,
+			additionalProperties: false,
 			'markdownDescription': localize('accessibility.signals.save', "Plays a signal when a file is saved."),
 			'properties': {
 				'sound': {
@@ -596,7 +595,7 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.format': {
 			'type': 'object',
 			'tags': ['accessibility'],
-			additionalProperties: true,
+			additionalProperties: false,
 			'markdownDescription': localize('accessibility.signals.format', "Plays a signal when a file or notebook is formatted."),
 			'properties': {
 				'sound': {
@@ -621,6 +620,10 @@ const configuration: IConfigurationNode = {
 						localize('accessibility.signals.format.announcement.never', "Never announces.")
 					],
 				},
+			},
+			default: {
+				'sound': 'never',
+				'announcement': 'never'
 			}
 		},
 	}
@@ -737,7 +740,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	})));
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.announcementMessage).map(item => ({
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.legacyAnnouncementSettingsKey).map(item => ({
 		key: item.legacyAnnouncementSettingsKey!,
 		migrateFn: (announcement, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
