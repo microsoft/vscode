@@ -1541,7 +1541,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	layout(): void {
 		if (!this.disposed) {
-			this._mainContainerDimension = getClientArea(this.parent);
+			this._mainContainerDimension = getClientArea(this.state.runtime.mainWindowFullscreen ? mainWindow.document.body : this.parent);
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
 			position(this.mainContainer, 0, 0, 0, 0, 'relative');
