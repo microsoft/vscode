@@ -776,7 +776,7 @@ registerThemingParticipant((theme, collector) => {
 	let activeRecordingDimmedColor: Color | undefined;
 	if (theme.type === ColorScheme.LIGHT || theme.type === ColorScheme.DARK) {
 		activeRecordingColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND) ?? theme.getColor(focusBorder);
-		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.2);
+		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
 	} else {
 		activeRecordingColor = theme.getColor(contrastBorder);
 		activeRecordingDimmedColor = theme.getColor(contrastBorder);
@@ -786,45 +786,23 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
 		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
-			color: ${activeRecordingColor};
-			outline: 1px solid ${activeRecordingColor};
-			outline-offset: -1px;
-			animation: pulseAnimation 1s infinite;
+			outline: 2px solid ${activeRecordingColor};
 			border-radius: 50%;
-		}
-
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-			position: absolute;
-			outline: 1px solid ${activeRecordingColor};
-			outline-offset: 2px;
-			border-radius: 50%;
-			width: 16px;
-			height: 16px;
-		}
-
-		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
-		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
-			content: '';
-			position: absolute;
-			outline: 1px solid ${activeRecordingDimmedColor};
-			outline-offset: 3px;
-			animation: pulseAnimation 1s infinite;
-			border-radius: 50%;
-			width: 16px;
-			height: 16px;
+			animation: pulseAnimation 1500ms ease-in-out infinite !important;
+			padding-left: 4px;
+			height: 17px;
 		}
 
 		@keyframes pulseAnimation {
 			0% {
-				outline-width: 1px;
+				outline-width: 2px;
 			}
 			50% {
-				outline-width: 3px;
+				outline-width: 5px;
 				outline-color: ${activeRecordingDimmedColor};
 			}
 			100% {
-				outline-width: 1px;
+				outline-width: 2px;
 			}
 		}
 	`);
