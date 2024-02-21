@@ -26,7 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
@@ -205,6 +205,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}
 		this._scrollableElement.setScrollPosition({ scrollTop });
+
+		const editor = viewItems[index].template.get()?.editor;
+		if (editor) {
+			editor.setSelection(range);
+			editor.focus();
+		}
 	}
 
 	public getViewState(): IMultiDiffEditorViewState {
@@ -307,7 +313,7 @@ export interface IMultiDiffEditorOptions extends ITextEditorOptions {
 export interface IMultiDiffEditorOptionsViewState {
 	revealData?: {
 		resource: IMultiDiffResource;
-		range: Range;
+		range?: IRange;
 	};
 }
 

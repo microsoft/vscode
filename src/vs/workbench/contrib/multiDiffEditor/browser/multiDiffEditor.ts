@@ -80,14 +80,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
-		this._reveal(options);
+		this._applyOptions(options);
 	}
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
-		this._reveal(options);
+		this._applyOptions(options);
 	}
 
-	private _reveal(options: IMultiDiffEditorOptions | undefined): void {
+	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
 		const viewState = options?.viewState;
 		if (!viewState || !viewState.revealData) {
 			return;
