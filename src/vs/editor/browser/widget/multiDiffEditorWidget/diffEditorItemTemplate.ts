@@ -230,7 +230,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.position = 'absolute';
 
 		// For sticky scroll
-		const delta = Math.max(0, Math.min(verticalRange.length - this._headerHeight, viewPort.start - verticalRange.start));
+		const maxDelta = verticalRange.length - this._headerHeight;
+		const delta = Math.max(0, Math.min(viewPort.start - verticalRange.start, maxDelta));
 		this._elements.header.style.transform = `translateY(${delta}px)`;
 
 		globalTransaction(tx => {
@@ -242,6 +243,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this.editor.getOriginalEditor().setScrollTop(editorScroll);
 
 		this._elements.header.classList.toggle('shadow', delta > 0 || editorScroll > 0);
+		this._elements.header.classList.toggle('collapsed', delta === maxDelta);
 	}
 
 	public hide(): void {
