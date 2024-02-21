@@ -52,10 +52,14 @@ export interface IKeywordRecognitionSession {
 	readonly onDidChange: Event<IKeywordRecognitionEvent>;
 }
 
+export interface ISpeechToTextSessionOptions {
+	readonly language?: string;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
-	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
+	createSpeechToTextSession(token: CancellationToken, options?: ISpeechToTextSessionOptions): ISpeechToTextSession;
 	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 

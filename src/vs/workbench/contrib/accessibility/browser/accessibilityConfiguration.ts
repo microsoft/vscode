@@ -660,9 +660,89 @@ export function registerAccessibilityConfiguration() {
 }
 
 export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout'
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+	SpeechLanguage = 'accessibility.voice.speechLanguage'
 }
 export const SpeechTimeoutDefault = 1200;
+
+export const SPEECH_LANGUAGES: { [locale: string]: { name: string } } = {
+	['de-DE']: {
+		name: localize('speechLanguage.de-DE', "German (Germany)")
+	},
+	['en-AU']: {
+		name: localize('speechLanguage.en-AU', "English (Australia)")
+	},
+	['en-CA']: {
+		name: localize('speechLanguage.en-CA', "English (Canada)")
+	},
+	['en-GB']: {
+		name: localize('speechLanguage.en-GB', "English (United Kingdom)")
+	},
+	['en-IE']: {
+		name: localize('speechLanguage.en-IE', "English (Ireland)")
+	},
+	['en-IN']: {
+		name: localize('speechLanguage.en-IN', "English (India)")
+	},
+	['en-NZ']: {
+		name: localize('speechLanguage.en-NZ', "English (New Zealand)")
+	},
+	['en-US']: {
+		name: localize('speechLanguage.en-US', "English (United States)")
+	},
+	['es-ES']: {
+		name: localize('speechLanguage.es-ES', "Spanish (Spain)")
+	},
+	['es-MX']: {
+		name: localize('speechLanguage.es-MX', "Spanish (Mexico)")
+	},
+	['fr-CA']: {
+		name: localize('speechLanguage.fr-CA', "French (Canada)")
+	},
+	['fr-FR']: {
+		name: localize('speechLanguage.fr-FR', "French (France)")
+	},
+	['hi-IN']: {
+		name: localize('speechLanguage.hi-IN', "Hindi (India)")
+	},
+	['it-IT']: {
+		name: localize('speechLanguage.it-IT', "Italian (Italy)")
+	},
+	['ja-JP']: {
+		name: localize('speechLanguage.ja-JP', "Japanese (Japan)")
+	},
+	['ko-KR']: {
+		name: localize('speechLanguage.ko-KR', "Korean (South Korea)")
+	},
+	['nl-NL']: {
+		name: localize('speechLanguage.nl-NL', "Dutch (Netherlands)")
+	},
+	['pt-BR']: {
+		name: localize('speechLanguage.pt-BR', "Portuguese (Brazil)")
+	},
+	['ru-RU']: {
+		name: localize('speechLanguage.ru-RU', "Russian (Russia)")
+	},
+	['sv-SE']: {
+		name: localize('speechLanguage.sv-SE', "Swedish (Sweden)")
+	},
+	['tr-TR']: {
+		name: localize('speechLanguage.tr-TR', "Turkish (Turkey)")
+	},
+	['zh-CN']: {
+		name: localize('speechLanguage.zh-CN', "Chinese (Simplified, China)")
+	},
+	['zh-HK']: {
+		name: localize('speechLanguage.zh-HK', "Chinese (Traditional, Hong Kong)")
+	},
+	['zh-TW']: {
+		name: localize('speechLanguage.zh-TW', "Chinese (Traditional, Taiwan)")
+	}
+};
+
+const SPEECH_LANGUAGES_SORTED = Object.keys(SPEECH_LANGUAGES).sort((a, b) => {
+	return SPEECH_LANGUAGES[a].name.localeCompare(SPEECH_LANGUAGES[b].name);
+});
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 
@@ -691,6 +771,15 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'default': SpeechTimeoutDefault,
 					'minimum': 0,
 					'tags': ['accessibility']
+				},
+				[AccessibilityVoiceSettingId.SpeechLanguage]: {
+					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize."),
+					'type': 'string',
+					'enum': SPEECH_LANGUAGES_SORTED,
+					'default': 'en-US',
+					'tags': ['accessibility'],
+					'enumDescriptions': SPEECH_LANGUAGES_SORTED.map(key => SPEECH_LANGUAGES[key].name),
+					'enumItemLabels': SPEECH_LANGUAGES_SORTED.map(key => SPEECH_LANGUAGES[key].name)
 				}
 			}
 		});
