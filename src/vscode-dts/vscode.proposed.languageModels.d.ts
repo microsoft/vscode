@@ -13,17 +13,19 @@ declare module 'vscode' {
 	export interface LanguageModelResponse {
 
 		/**
-		 * The overall result of the request which represents failure or success
-		 * but. The concrete value is not specified and depends on the selected language model.
-		 *
-		 * *Note* that the actual response represented by the {@link LanguageModelResponse.stream `stream`}-property
+		 * An async iterable of text chunks forming the overall response.
 		 */
-		result: Thenable<unknown>;
+		readonly stream: AsyncIterable<string>;
 
 		/**
-		 * An async iterable that is a stream of text chunks forming the overall response.
+		 * The overall result of the request which represents failure or success.
+		 *
+		 * This is resolved when the model has finished processing the request. The concrete value is not specified
+		 * and depends on the selected language model.
+		 *
+		 * *Note* that to get the actual text of the response, use the {@linkcode LanguageModelResponse.stream stream}-property
 		 */
-		stream: AsyncIterable<string>;
+		readonly result: Thenable<unknown>;
 	}
 
 	/**
@@ -96,8 +98,9 @@ declare module 'vscode' {
 	export type LanguageModelMessage = LanguageModelSystemMessage | LanguageModelUserMessage | LanguageModelAssistantMessage;
 
 	/**
-	 * Represents access to using a language model. Access can be revoked at any time and extension
-	 * must check if the access is {@link LanguageModelAccess.isRevoked still valid} before using it.
+	 * Represents access to using a language model.
+	 *
+	 * Access can be revoked at any time so extensions must confirm that access is {@link LanguageModelAccess.isRevoked still valid} before using it.
 	 */
 	export interface LanguageModelAccess {
 
@@ -118,7 +121,7 @@ declare module 'vscode' {
 		 * It is expected that the model name can be used to lookup properties like token limits or what
 		 * `options` are available.
 		 */
-		readonly model: string;
+		readonly modelId: string;
 
 		/**
 		 * Make a request to the language model.
@@ -128,7 +131,7 @@ declare module 'vscode' {
 		 * @param messages
 		 * @param options
 		 */
-		makeChatRequest(messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
+		makeChatRequest(messages: readonly LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
 	}
 
 	export interface LanguageModelAccessOptions {
@@ -167,7 +170,7 @@ declare module 'vscode' {
 		 * should check {@link LanguageModelAccess.isRevoked} before using it.
 		 *
 		 * @param id The id of the language model, see {@link languageModels} for valid values.
-		 * @returns A thenable that resolves to a language model access object, rejects if access wasn't granted
+		 * @returns A thenable that resolves to a language model access object or rejects if access wasn't granted
 		 */
 		export function requestLanguageModelAccess(id: string, options?: LanguageModelAccessOptions): Thenable<LanguageModelAccess>;
 

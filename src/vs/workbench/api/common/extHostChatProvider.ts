@@ -224,7 +224,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		const that = this;
 
 		return {
-			get model() {
+			get modelId() {
 				return metadata.model;
 			},
 			get isRevoked() {
