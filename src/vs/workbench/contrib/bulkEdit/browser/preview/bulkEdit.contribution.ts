@@ -126,7 +126,7 @@ class BulkEditPreviewContribution {
 		}
 		this._activeSession = session;
 		const resourceEdits = await openMultiDiffEditor.setInput(edits, session.cts.token);
-		await openMultiDiffEditor.openMultiDiffEditor();
+		await openMultiDiffEditor.openMultiDiffEditor(edits);
 		return resourceEdits ?? [];
 
 		/*

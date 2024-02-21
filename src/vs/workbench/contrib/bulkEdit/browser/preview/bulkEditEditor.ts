@@ -49,12 +49,14 @@ import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEdit
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { Schemas } from 'vs/base/common/network';
 import { getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 
 export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'bulkEditEditor';
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
+	private _edits: ResourceEdit[] = [];
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -95,10 +97,13 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
 		));
 		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
-		console.log('before getBulkEditPane');
-		const view = await getBulkEditPane2(this.instantiationService);
-		console.log('view of getBulkEditPane: ', view);
+		console.log('before getBulkEditPane2');
+		const view = await getBulkEditPane2(this.instantiationService, this._edits);
+		console.log('view of getBulkEditPane2: ', view);
 		if (view) {
+			refactorPreviewContainer.classList.add('bulk-edit-panel', 'show-file-icons');
+			console.log('this._edits : ', this._edits);
+			view.setInput(this._edits, CancellationToken.None);
 			view.renderBody(refactorPreviewContainer);
 		}
 
@@ -107,12 +112,14 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		}));
 	}
 
-	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: BulkEditEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		console.log('setInput');
+		console.log('input : ', input);
 		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 
 		// In here, we can remove the editors if there are editors to remove
+		this._edits = input.edits;
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
@@ -206,6 +213,7 @@ export interface ISerializedBulkEditEditorInput {
 		originalUri: string | undefined;
 		modifiedUri: string | undefined;
 	}[] | undefined;
+	edits: ResourceEdit[];
 }
 
 export class BulkEditEditorSerializer implements IEditorSerializer {
@@ -230,7 +238,7 @@ export class BulkEditEditorSerializer implements IEditorSerializer {
 
 export class BulkEditEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceRefactorPreviewInput, instantiationService: IInstantiationService): BulkEditEditorInput {
-		if (!input.refactorPreviewSource && !input.diffResources) {
+		if (!input.refactorPreviewSource && !input.diffResources && !input.editMetaData) {
 			throw new BugIndicatingError('BulkEditEditorInput requires either multiDiffSource or resources');
 		}
 		const refactorPreviewSource = input.refactorPreviewSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
@@ -244,6 +252,7 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 					resource.modified.resource,
 				);
 			}),
+			input.editMetaData.map(meta => new ResourceEdit(meta)),
 		);
 	}
 
@@ -255,7 +264,8 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 			data.diffResources?.map(resource => new MultiDiffEditorItem(
 				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
 				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
-			))
+			)),
+			data.edits,
 		);
 	}
 
@@ -276,6 +286,7 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 		public readonly refactorPreviewSource: URI,
 		public readonly label: string | undefined,
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
+		public readonly edits: ResourceEdit[],
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -304,6 +315,7 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 				originalUri: resource.original?.toString(),
 				modifiedUri: resource.modified?.toString(),
 			})),
+			edits: this.edits,
 		};
 	}
 
@@ -422,7 +434,8 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 		}
 
 		if (otherInput instanceof BulkEditEditorInput) {
-			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString();
+			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString()
+				&& this.edits.toString() === otherInput.edits.toString();
 		}
 
 		return false;
@@ -553,6 +566,7 @@ interface ISerializedMultiDiffEditorInput {
 		originalUri: string | undefined;
 		modifiedUri: string | undefined;
 	}[] | undefined;
+	edits: ResourceEdit[];
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {

@@ -17,7 +17,7 @@ export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEdi
 
 export class ResourceEdit {
 
-	protected constructor(readonly metadata?: WorkspaceEditMetadata) { }
+	constructor(readonly metadata?: WorkspaceEditMetadata) { }
 
 	static convert(edit: WorkspaceEdit): ResourceEdit[] {
 

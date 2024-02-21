@@ -42,6 +42,7 @@ import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEdito
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { BulkEditEditor } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
 import { Emitter, Event } from 'vs/base/common/event';
+import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 
 export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	console.log('inside of getBulkEditPane');
@@ -53,8 +54,8 @@ export async function getBulkEditPane(viewsService: IViewsService): Promise<Bulk
 	return undefined;
 }
 
-export async function getBulkEditPane2(instantiationService: IInstantiationService): Promise<BulkEditPane | undefined> {
-	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' });
+export async function getBulkEditPane2(instantiationService: IInstantiationService, edits: ResourceEdit[]): Promise<BulkEditPane | undefined> {
+	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' }, edits);
 }
 
 const enum State {
@@ -93,6 +94,7 @@ export class BulkEditPane extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
+		private readonly edits: ResourceEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -168,7 +170,7 @@ export class BulkEditPane extends ViewPane {
 				selectionNavigation: true
 			}
 		);
-		console.log('this._tree : ', this._tree);
+		console.log('this._tree inside of renderBody : ', this._tree);
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 		this._disposables.add(this._tree.onDidOpen(e => this._openElementInMultiDiffEditor(e)));
@@ -212,6 +214,7 @@ export class BulkEditPane extends ViewPane {
 
 	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
 		console.log('inside of setInput');
+		console.log('edits : ', edit);
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 		this._treeViewStates.clear();
@@ -374,7 +377,9 @@ export class BulkEditPane extends ViewPane {
 		};
 		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
+		const editMetaData = this.edits.map(edit => edit.metadata).filter(edit => edit !== undefined) as WorkspaceEditMetadata[];
 		this._editorService.openEditor({
+			editMetaData,
 			refactorPreviewSource,
 			diffResources,
 			label,
@@ -554,7 +559,7 @@ export class OpenMultiDiffEditor extends Disposable {
 		}
 	}
 
-	public async openMultiDiffEditor(): Promise<BulkEditEditor | undefined> {
+	public async openMultiDiffEditor(edits: ResourceEdit[]): Promise<BulkEditEditor | undefined> {
 		// console.log('this._tree : ', this._tree);
 		// console.log('this._tree.getNode() : ', this._tree.getNode());
 		// console.log('this._tree.getInput() : ', this._tree.getInput());
@@ -564,10 +569,10 @@ export class OpenMultiDiffEditor extends Disposable {
 		if (firstElementChild instanceof BulkFileOperations) {
 			return;
 		}
-		return this._openElementInMultiDiffEditor({ element: firstElementChild, sideBySide: false, editorOptions: {} });
+		return this._openElementInMultiDiffEditor(edits, { element: firstElementChild, sideBySide: false, editorOptions: {} });
 	}
 
-	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<BulkEditEditor | undefined> {
+	private async _openElementInMultiDiffEditor(edits: ResourceEdit[], e: IOpenEvent<BulkEditElement | undefined>): Promise<BulkEditEditor | undefined> {
 
 		console.log('inside of _openElementInMultiDiffEditor');
 
@@ -598,9 +603,11 @@ export class OpenMultiDiffEditor extends Disposable {
 		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
 		console.log('before opening the editor');
+		const editMetaData = edits.map(edit => edit.metadata).filter(edit => edit !== undefined) as WorkspaceEditMetadata[];
 		const buldEditEditor = await this._editorService.openEditor({
 			refactorPreviewSource,
 			diffResources,
+			editMetaData,
 			label,
 			options,
 			description: label
