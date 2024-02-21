@@ -10,7 +10,6 @@ import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { assertType } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -263,13 +262,19 @@ type interactiveEditorInputData = { resource: URI; inputResource: URI; name: str
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
 
-	canSerialize(editor: EditorInput): boolean {
-		const interactiveEditorInput = editor as InteractiveEditorInput;
-		return URI.isUri(interactiveEditorInput?.primary?.resource) && URI.isUri(interactiveEditorInput?.inputResource);
+	canSerialize(editor: EditorInput): editor is InteractiveEditorInput {
+		if (!(editor instanceof InteractiveEditorInput)) {
+			return false;
+		}
+
+		return URI.isUri(editor.primary.resource) && URI.isUri(editor.inputResource);
 	}
 
-	serialize(input: EditorInput): string {
-		assertType(input instanceof InteractiveEditorInput);
+	serialize(input: EditorInput): string | undefined {
+		if (!this.canSerialize(input)) {
+			return undefined;
+		}
+
 		return JSON.stringify({
 			resource: input.primary.resource,
 			inputResource: input.inputResource,
