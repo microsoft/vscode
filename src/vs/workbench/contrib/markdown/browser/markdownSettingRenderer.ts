@@ -14,9 +14,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
-const codeSettingRegex = /^<code (codesetting)="([^\s"\:]+)(?::([^\s"]+))?">/;
-const codeFeatureRegex = /^<span (codefeature)="([^\s"\:]+)(?::([^\s"]+))?">/;
+const codeSettingRegex = /^<code (codesetting)="([^\s"\:]+)(?::([^"]+))?">/;
+const codeFeatureRegex = /^<span (codefeature)="([^\s"\:]+)(?::([^"]+))?">/;
 
 export class SimpleSettingRenderer {
 	private _defaultSettings: DefaultSettings;
@@ -28,7 +29,8 @@ export class SimpleSettingRenderer {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
 	}
@@ -255,6 +257,17 @@ export class SimpleSettingRenderer {
 			label: viewInSettingsMessage,
 			run: () => {
 				return this._preferencesService.openApplicationSettings({ query: `@id:${settingId}` });
+			}
+		});
+
+		actions.push({
+			class: undefined,
+			enabled: true,
+			id: 'copySettingId',
+			tooltip: nls.localize('copySettingId', "Copy Setting ID"),
+			label: nls.localize('copySettingId', "Copy Setting ID"),
+			run: () => {
+				this._clipboardService.writeText(settingId);
 			}
 		});
 
