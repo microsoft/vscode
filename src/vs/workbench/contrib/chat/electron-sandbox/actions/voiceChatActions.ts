@@ -300,7 +300,7 @@ class VoiceChatSessions {
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const voiceChatSession = this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline' });
+		const voiceChatSession = this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline', model: context?.widget?.viewModel?.model });
 
 		let inputValue = controller.getInput();
 

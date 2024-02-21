@@ -183,8 +183,7 @@ declare module 'vscode' {
 		 * @returns A list of commands. The lack of a result can be signaled by returning `undefined`, `null`, or
 		 * an empty array.
 		 */
-		// TODO@API Q: should we provide the current history or last results for extra context?
-		provideCommands(token: CancellationToken): ProviderResult<ChatCommand[]>;
+		provideCommands(context: ChatContext, token: CancellationToken): ProviderResult<ChatCommand[]>;
 	}
 
 	/**
