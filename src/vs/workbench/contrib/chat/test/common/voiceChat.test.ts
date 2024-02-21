@@ -28,8 +28,8 @@ suite('VoiceChat', () => {
 
 		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
 
-		constructor(readonly id: string, readonly lastSlashCommands: IChatAgentCommand[]) { }
-		getLastSlashCommands(model: IChatModel): IChatAgentCommand[] | undefined { throw new Error('Method not implemented.'); }
+		constructor(readonly id: string, private readonly lastSlashCommands: IChatAgentCommand[]) { }
+		getLastSlashCommands(model: IChatModel): IChatAgentCommand[] | undefined { return this.lastSlashCommands; }
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		provideSlashCommands(model: IChatModel | undefined, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentCommand[]> { throw new Error('Method not implemented.'); }
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
@@ -110,11 +110,11 @@ suite('VoiceChat', () => {
 	});
 
 	test('Agent and slash command detection (useAgents: false)', async () => {
-		testAgentsAndSlashCommandsDetection({ usesAgents: false });
+		testAgentsAndSlashCommandsDetection({ usesAgents: false, model: {} as IChatModel });
 	});
 
 	test('Agent and slash command detection (useAgents: true)', async () => {
-		testAgentsAndSlashCommandsDetection({ usesAgents: true });
+		testAgentsAndSlashCommandsDetection({ usesAgents: true, model: {} as IChatModel });
 	});
 
 	function testAgentsAndSlashCommandsDetection(options: IVoiceChatSessionOptions) {
