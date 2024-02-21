@@ -397,6 +397,8 @@ export const enum TerminalCommandId {
 	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
+	OpenNextLink = 'workbench.action.terminal.openNextLink',
+	OpenPreviousLink = 'workbench.action.terminal.openPreviousLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
 	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',

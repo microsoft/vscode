@@ -44,6 +44,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _linkProvidersDisposables: IDisposable[] = [];
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
+	private _navState = { currentPos: 0, terminalPos: 0 };
 
 	externalProvideLinksCb?: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>;
 
@@ -169,18 +170,69 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	async openRecentLink(type: 'localFile' | 'url'): Promise<ILink | undefined> {
+		const start = this._xterm.buffer.active.length;
+		const direction = -1;
+		const link = await this._findNextLink(type, start, direction);
+		this._activateLink(link);
+		return link;
+	}
+
+	private _updateNavState(): void {
+		const bufferMax = this._xterm.buffer.active.length;
+		if (bufferMax !== this._navState.terminalPos || this._navState.currentPos === 0) {
+			this._navState.terminalPos = bufferMax;
+			this._navState.currentPos = bufferMax;
+		}
+	}
+
+	private async _navigateLinks(direction: 1 | -1): Promise<ILink | undefined> {
+		this._updateNavState();
+
+		const start = this._navState.currentPos + (direction === -1 ? -1 : 0);
+		const link = await this._findNextLink('localFile', start, direction);
+		const pastPos = this._navState.currentPos;
+		this._navState.currentPos = link ? link.range.start.y : this._navState.currentPos;
+		this._activateLink(link);
+		let padding = 0;
+		if (direction === -1) {
+			padding = pastPos - this._navState.currentPos - 1;
+			// Scroll terminal to exact location if jump is large
+			padding = padding > this._xterm.rows / 2 ? 0 : padding;
+		}
+		this._xterm.scrollToLine(this._navState.currentPos - this._xterm.rows + padding);
+
+		return link;
+	}
+
+	async openNextLink(): Promise<ILink | undefined> {
+		return this._navigateLinks(1);
+	}
+
+	async openPreviousLink(): Promise<ILink | undefined> {
+		return this._navigateLinks(-1);
+	}
+
+	private async _activateLink(link: ILink | undefined): Promise<ILink | undefined> {
+		if (link) {
+			link.activate(new TerminalLinkQuickPickEvent(EventType.CLICK), link.text);
+		}
+		return link;
+	}
+
+	private async _findNextLink(type: 'localFile' | 'url', start: number, direction: 1 | -1): Promise<ILink | undefined> {
 		let links;
-		let i = this._xterm.buffer.active.length;
-		while ((!links || links.length === 0) && i >= this._xterm.buffer.active.viewportY) {
-			links = await this._getLinksForType(i, type);
-			i--;
+		let pos = start + direction;
+		const topOfViewport = this._xterm.buffer.active.viewportY;
+		const bufferMax = this._xterm.buffer.active.length;
+		while ((!links || links.length === 0) && pos >= topOfViewport && pos < bufferMax) {
+			links = await this._getLinksForType(pos, type);
+			pos += direction;
 		}
 
 		if (!links || links.length < 1) {
 			return undefined;
 		}
-		const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
-		links[0].activate(event, links[0].text);
+
 		return links[0];
 	}
 

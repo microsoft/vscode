@@ -99,6 +99,21 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 		}
 		this._linkManager.openRecentLink(type);
 	}
+
+	async openNextLink(): Promise<void> {
+		if (!this._linkManager) {
+			throw new Error('terminal links are not ready, cannot open a link');
+		}
+		this._linkManager.openNextLink();
+	}
+
+	async openPreviousLink(): Promise<void> {
+		if (!this._linkManager) {
+			throw new Error('terminal links are not ready, cannot open a link');
+		}
+		this._linkManager.openPreviousLink();
+	}
+
 }
 
 registerTerminalContribution(TerminalLinkContribution.ID, TerminalLinkContribution, true);
@@ -138,4 +153,20 @@ registerActiveInstanceAction({
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.openRecentLink('localFile')
+});
+registerActiveInstanceAction({
+	id: TerminalCommandId.OpenNextLink,
+	title: localize2('workbench.action.terminal.openNextLink', 'Open Next Local File Link'),
+	f1: true,
+	category,
+	precondition: TerminalContextKeys.terminalHasBeenCreated,
+	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.openNextLink()
+});
+registerActiveInstanceAction({
+	id: TerminalCommandId.OpenPreviousLink,
+	title: localize2('workbench.action.terminal.openPreviousLink', 'Open Previous Local File Link'),
+	f1: true,
+	category,
+	precondition: TerminalContextKeys.terminalHasBeenCreated,
+	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.openPreviousLink()
 });
