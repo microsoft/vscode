@@ -664,6 +664,7 @@ export const enum AccessibilityVoiceSettingId {
 	SpeechLanguage = 'accessibility.voice.speechLanguage'
 }
 export const SpeechTimeoutDefault = 1200;
+const SpeechLanguageDefault = 'en-US';
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 
@@ -702,7 +703,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize."),
 					'type': 'string',
 					'enum': languagesSorted,
-					'default': 'en-US',
+					'default': SpeechLanguageDefault,
 					'tags': ['accessibility'],
 					'enumDescriptions': languagesSorted.map(key => languages[key].name),
 					'enumItemLabels': languagesSorted.map(key => languages[key].name)
@@ -734,7 +735,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 			['en-NZ']: {
 				name: localize('speechLanguage.en-NZ', "English (New Zealand)")
 			},
-			['en-US']: {
+			[SpeechLanguageDefault]: {
 				name: localize('speechLanguage.en-US', "English (United States)")
 			},
 			['es-ES']: {
