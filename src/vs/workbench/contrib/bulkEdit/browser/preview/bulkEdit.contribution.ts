@@ -12,7 +12,7 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { localize, localize2 } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -24,8 +24,6 @@ import { EditorExtensions, EditorResourceAccessor, IEditorFactoryRegistry, SideB
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, type ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -90,15 +88,11 @@ class BulkEditPreviewContribution {
 
 	static readonly ctxEnabled = new RawContextKey('refactorPreview.enabled', false);
 
-	private readonly _ctxEnabled: IContextKey<boolean>;
-
 	private _activeSession: PreviewSession | undefined;
 
 	constructor(
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IDialogService private readonly _dialogService: IDialogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -108,7 +102,6 @@ class BulkEditPreviewContribution {
 
 	) {
 		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
-		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
@@ -133,7 +126,7 @@ class BulkEditPreviewContribution {
 		}
 		this._activeSession = session;
 		const resourceEdits = await openMultiDiffEditor.setInput(edits, session.cts.token);
-		const editor = await openMultiDiffEditor.openMultiDiffEditor();
+		await openMultiDiffEditor.openMultiDiffEditor();
 		return resourceEdits ?? [];
 
 		/*

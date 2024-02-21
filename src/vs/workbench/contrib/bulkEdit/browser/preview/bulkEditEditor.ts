@@ -26,7 +26,6 @@ import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEdit
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { parse } from 'vs/base/common/marshalling';
 import { ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -49,7 +48,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { Schemas } from 'vs/base/common/network';
-import { getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 
 export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'bulkEditEditor';
@@ -69,7 +68,6 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super(
 			BulkEditEditor.ID,
@@ -98,7 +96,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		));
 		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 		console.log('before getBulkEditPane');
-		const view = await getBulkEditPane(this.viewService);
+		const view = await getBulkEditPane2(this.instantiationService);
 		console.log('view of getBulkEditPane: ', view);
 		if (view) {
 			view.renderBody(refactorPreviewContainer);

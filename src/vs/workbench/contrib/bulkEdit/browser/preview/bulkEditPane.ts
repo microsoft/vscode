@@ -53,6 +53,10 @@ export async function getBulkEditPane(viewsService: IViewsService): Promise<Bulk
 	return undefined;
 }
 
+export async function getBulkEditPane2(instantiationService: IInstantiationService): Promise<BulkEditPane | undefined> {
+	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' });
+}
+
 const enum State {
 	Data = 'data',
 	Message = 'message'
@@ -340,10 +344,6 @@ export class BulkEditPane extends ViewPane {
 			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.PROFILE, StorageTarget.USER);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
-	}
-
-	static openMultiDiffEditor() {
-
 	}
 
 	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
