@@ -13,6 +13,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 
@@ -38,12 +40,12 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 		if (this._actionLabel) {
 			this._actionLabel.classList.add('notebook-label');
 			this._actionLabel.innerText = this._action.label;
-			this._actionLabel.title = this._action.tooltip.length ? this._action.tooltip : this._action.label;
 		}
 	}
 }
 export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 	private _actionLabel?: HTMLAnchorElement;
+	private _hover?: ICustomHover;
 
 	constructor(
 		action: SubmenuItemAction,
@@ -63,6 +65,10 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 		container.classList.add('notebook-action-view-item');
 		this._actionLabel = document.createElement('a');
 		container.appendChild(this._actionLabel);
+
+		const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+		this._hover = this._register(setupCustomHover(hoverDelegate, this._actionLabel, ''));
+
 		this.updateLabel();
 	}
 
@@ -88,13 +94,13 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 				if (this.renderLabel) {
 					this._actionLabel.classList.add('notebook-label');
 					this._actionLabel.innerText = this._action.label;
-					this._actionLabel.title = primaryAction.tooltip.length ? primaryAction.tooltip : primaryAction.label;
+					this._hover?.update(primaryAction.tooltip.length ? primaryAction.tooltip : primaryAction.label);
 				}
 			} else {
 				if (this.renderLabel) {
 					this._actionLabel.classList.add('notebook-label');
 					this._actionLabel.innerText = this._action.label;
-					this._actionLabel.title = this._action.tooltip.length ? this._action.tooltip : this._action.label;
+					this._hover?.update(this._action.tooltip.length ? this._action.tooltip : this._action.label);
 				}
 			}
 		}

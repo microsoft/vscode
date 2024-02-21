@@ -9,11 +9,10 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -36,7 +35,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Color } from 'vs/base/common/color';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isNumber } from 'vs/base/common/types';
+import { assertIsDefined, isNumber } from 'vs/base/common/types';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -64,6 +63,7 @@ const CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS = new RawContextKey<boolean>('voice
 const CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInEditorInProgress', false, { type: 'boolean', description: localize('voiceChatInEditorInProgress', "True when voice recording from microphone is in progress in the chat editor.") });
 
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_PROVIDER_EXISTS, HasSpeechProvider);
+const FocusInChatInput = assertIsDefined(ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT));
 
 type VoiceChatSessionContext = 'inline' | 'quick' | 'view' | 'editor';
 
@@ -92,7 +92,6 @@ class VoiceChatSessionControllerFactory {
 	static create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined>;
 	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
 		const chatContributionService = accessor.get(IChatContributionService);
 		const quickChatService = accessor.get(IQuickChatService);
@@ -136,12 +135,9 @@ class VoiceChatSessionControllerFactory {
 
 		// View Chat
 		if (context === 'view' || context === 'focused' /* fallback in case 'focused' was not successful */) {
-			const provider = firstOrDefault(chatService.getProviderInfos());
-			if (provider) {
-				const chatView = await chatWidgetService.revealViewForProvider(provider.id);
-				if (chatView) {
-					return VoiceChatSessionControllerFactory.doCreateForChatView(chatView, viewsService, chatContributionService);
-				}
+			const chatView = await VoiceChatSessionControllerFactory.revealChatView(accessor);
+			if (chatView) {
+				return VoiceChatSessionControllerFactory.doCreateForChatView(chatView, viewsService, chatContributionService);
 			}
 		}
 
@@ -164,6 +160,18 @@ class VoiceChatSessionControllerFactory {
 			if (quickChat) {
 				return VoiceChatSessionControllerFactory.doCreateForQuickChat(quickChat, quickChatService);
 			}
+		}
+
+		return undefined;
+	}
+
+	static async revealChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+
+		const provider = firstOrDefault(chatService.getProviderInfos());
+		if (provider) {
+			return chatWidgetService.revealViewForProvider(provider.id);
 		}
 
 		return undefined;
@@ -414,7 +422,7 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 	let acceptVoice = false;
 	const handle = disposableTimeout(() => {
 		acceptVoice = true;
-		session.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for 250ms
+		session.setTimeoutDisabled(true); // disable accept on timeout when hold mode runs for VOICE_KEY_HOLD_THRESHOLD
 	}, VOICE_KEY_HOLD_THRESHOLD);
 
 	const controller = await VoiceChatSessionControllerFactory.create(accessor, target);
@@ -456,6 +464,57 @@ export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
 		}, 'view');
+	}
+}
+
+export class HoldToVoiceChatInChatViewAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.holdToVoiceChatInChatView';
+
+	constructor() {
+		super({
+			id: HoldToVoiceChatInChatViewAction.ID,
+			title: localize2('workbench.action.chat.holdToVoiceChatInChatView.label', "Hold to Voice Chat in View"),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(
+					CanVoiceChat,
+					FocusInChatInput.negate(),			// when already in chat input, disable this action and prefer to start voice chat directly
+					EditorContextKeys.focus.negate() 	// do not steal the inline-chat keybinding
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+
+		// The intent of this action is to provide 2 modes to align with what `Ctrlcmd+I` in inline chat:
+		// - if the user press and holds, we start voice chat in the chat view
+		// - if the user press and releases quickly enough, we just open the chat view without voice chat
+
+		const instantiationService = accessor.get(IInstantiationService);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		const holdMode = keybindingService.enableKeybindingHoldMode(HoldToVoiceChatInChatViewAction.ID);
+
+		let session: IVoiceChatSession | undefined;
+		const handle = disposableTimeout(async () => {
+			const controller = await VoiceChatSessionControllerFactory.create(accessor, 'view');
+			if (controller) {
+				session = VoiceChatSessions.getInstance(instantiationService).start(controller, context);
+				session.setTimeoutDisabled(true);
+			}
+		}, VOICE_KEY_HOLD_THRESHOLD);
+
+		(await VoiceChatSessionControllerFactory.revealChatView(accessor))?.focusInput();
+
+		await holdMode;
+		handle.dispose();
+
+		if (session) {
+			session.accept();
+		}
 	}
 }
 
@@ -502,11 +561,8 @@ export class StartVoiceChatAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
-					CanVoiceChat,
-					EditorContextKeys.focus.toNegated(), // do not steal the inline-chat keybinding
-					CONTEXT_VOICE_CHAT_GETTING_READY.negate(),
-					CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
-					CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.negate(),
+					FocusInChatInput,					// scope this action to chat input fields only
+					EditorContextKeys.focus.negate(), 	// do not steal the inline-chat keybinding
 					CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(),
 					CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(),
 					CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate(),
@@ -629,7 +685,6 @@ class BaseStopListeningAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: ContextKeyExpr.and(CanVoiceChat, context),
 				primary: KeyCode.Escape
 			},
 			precondition: ContextKeyExpr.and(CanVoiceChat, context),
@@ -704,11 +759,7 @@ export class StopListeningAndSubmitAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(
-					CanVoiceChat,
-					ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT),
-					CONTEXT_VOICE_CHAT_IN_PROGRESS
-				),
+				when: FocusInChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_IN_PROGRESS)

@@ -24,7 +24,7 @@ export class GitCommitInputBoxDiagnosticsManager {
 		this.migrateInputValidationSettings()
 			.then(() => {
 				mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
-				filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation'))(this.onDidChangeConfiguration, this, this.disposables);
+				filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation') || e.affectsConfiguration('git.inputValidationLength') || e.affectsConfiguration('git.inputValidationSubjectLength'))(this.onDidChangeConfiguration, this, this.disposables);
 			});
 	}
 
@@ -123,7 +123,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 					const workspaceEdit = new WorkspaceEdit();
 					workspaceEdit.delete(document.uri, diagnostic.range);
 
-					const codeAction = new CodeAction(l10n.t('Remove empty characters'), CodeActionKind.QuickFix);
+					const codeAction = new CodeAction(l10n.t('Clear whitespace characters'), CodeActionKind.QuickFix);
 					codeAction.diagnostics = [diagnostic];
 					codeAction.edit = workspaceEdit;
 					codeActions.push(codeAction);
