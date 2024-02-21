@@ -40,10 +40,10 @@ let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
 export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
 	if (!releaseNotesManager) {
-		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager, useCurrentFile);
+		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return releaseNotesManager.show(version);
+	return releaseNotesManager.show(version, useCurrentFile);
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
