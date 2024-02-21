@@ -170,7 +170,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 				'{Locked="](command:{0})"}',
 			]
 		},
-		"To customize Run and Debug, [open a folder](command:{0}) and [create a launch.json file](command:{1}).", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID, DEBUG_CONFIGURE_COMMAND_ID),
+		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
 	group: ViewContentGroups.Debug
 });
