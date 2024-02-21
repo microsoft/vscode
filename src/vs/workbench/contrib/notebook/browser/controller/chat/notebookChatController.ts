@@ -369,7 +369,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				const cellTop = this._notebookEditor.getAbsoluteTopOfElement(previousCell);
 				const cellHeight = this._notebookEditor.getHeightOfElement(previousCell);
 
-				this._notebookEditor.revealOffsetInCenterIfOutsideViewport(cellTop + cellHeight);
+				this._notebookEditor.revealOffsetInCenterIfOutsideViewport(cellTop + cellHeight + 48 /** center of the dialog */);
 			}
 		}
 	}
@@ -410,6 +410,12 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		if (!editor.hasModel() || !model) {
 			return;
+		}
+
+		if (this._widget.editingCell && this._widget.editingCell.textBuffer.getLength() > 0) {
+			// it already contains some text, clear it
+			const ref = await this._widget.editingCell.resolveTextModel();
+			ref.setValue('');
 		}
 
 		const editingCellIndex = this._widget.editingCell ? this._notebookEditor.getCellIndex(this._widget.editingCell) : undefined;
