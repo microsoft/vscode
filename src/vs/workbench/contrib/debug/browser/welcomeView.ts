@@ -165,8 +165,9 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 		{
 			key: 'customizeRunAndDebugOpenFolder',
 			comment: [
-				'Please do not translate the word "commmand", it is part of our internal syntax which must not change',
-				'{Locked="](command:{0})"}'
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'Please do not translate "launch.json", it is the specific configuration file name',
+				'{Locked="](command:{0})"}',
 			]
 		},
 		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),

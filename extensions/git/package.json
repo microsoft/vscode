@@ -1462,7 +1462,7 @@
         {
           "command": "git.reopenClosedRepositories",
           "group": "navigation@1",
-          "when": "scmProvider == git && git.closedRepositoryCount > 0"
+          "when": "git.closedRepositoryCount > 0"
         }
       ],
       "scm/sourceControl": [

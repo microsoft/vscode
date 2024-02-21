@@ -57,7 +57,7 @@ export class WebviewViewPane extends ViewPane {
 	private setTitle: string | undefined;
 
 	private badge: IViewBadge | undefined;
-	private activity: IDisposable | undefined;
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly memento: Memento;
 	private readonly viewState: MementoObject;
@@ -256,18 +256,13 @@ export class WebviewViewPane extends ViewPane {
 			return;
 		}
 
-		if (this.activity) {
-			this.activity.dispose();
-			this.activity = undefined;
-		}
-
 		this.badge = badge;
 		if (badge) {
 			const activity = {
 				badge: new NumberBadge(badge.value, () => badge.tooltip),
 				priority: 150
 			};
-			this.activityService.showViewActivity(this.id, activity);
+			this.activity.value = this.activityService.showViewActivity(this.id, activity);
 		}
 	}
 

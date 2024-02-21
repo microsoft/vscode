@@ -113,6 +113,10 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 	}
 
 	serialize(input: SearchEditorInput) {
+		if (!this.canSerialize(input)) {
+			return undefined;
+		}
+
 		if (input.isDisposed()) {
 			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
 		}

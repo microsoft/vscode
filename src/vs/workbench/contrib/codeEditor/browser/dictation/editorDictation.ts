@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./editorDictation';
-import { localize2 } from 'vs/nls';
-import { IDimension, h, reset } from 'vs/base/browser/dom';
+import { localize, localize2 } from 'vs/nls';
+import { IDimension } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -27,6 +26,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { assertIsDefined } from 'vs/base/common/types';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { toAction } from 'vs/base/common/actions';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
@@ -69,9 +71,11 @@ export class EditorDictationStartAction extends EditorAction2 {
 
 export class EditorDictationStopAction extends EditorAction2 {
 
+	static readonly ID = 'workbench.action.editorDictation.stop';
+
 	constructor() {
 		super({
-			id: 'workbench.action.editorDictation.stop',
+			id: EditorDictationStopAction.ID,
 			title: localize2('stopDictation', "Stop Dictation in Editor"),
 			category: VOICE_CATEGORY,
 			precondition: EDITOR_DICTATION_IN_PROGRESS,
@@ -94,15 +98,21 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = true;
 
 	private readonly domNode = document.createElement('div');
-	private readonly elements = h('.editor-dictation-widget@main', [h('span@mic')]);
 
-	constructor(private readonly editor: ICodeEditor) {
+	constructor(private readonly editor: ICodeEditor, keybindingService: IKeybindingService) {
 		super();
 
-		this.domNode.appendChild(this.elements.root);
-		this.domNode.style.zIndex = '1000';
+		const actionBar = this._register(new ActionBar(this.domNode));
+		const stopActionKeybinding = keybindingService.lookupKeybinding(EditorDictationStopAction.ID)?.getLabel();
+		actionBar.push(toAction({
+			id: EditorDictationStopAction.ID,
+			label: stopActionKeybinding ? localize('stopDictationShort1', "Stop Dictation ({0})", stopActionKeybinding) : localize('stopDictationShort2', "Stop Dictation"),
+			class: ThemeIcon.asClassName(Codicon.micFilled),
+			run: () => EditorDictation.get(editor)?.stop()
+		}), { icon: true, label: false, keybinding: stopActionKeybinding });
 
-		reset(this.elements.mic, renderIcon(Codicon.micFilled));
+		this.domNode.classList.add('editor-dictation-widget');
+		this.domNode.appendChild(actionBar.domNode);
 	}
 
 	getId(): string {
@@ -133,8 +143,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
-		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
-		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-width', `${width}px`);
+		this.domNode.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
+		this.domNode.style.setProperty('--vscode-editor-dictation-widget-width', `${width}px`);
 
 		return null;
 	}
@@ -148,11 +158,11 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	active(): void {
-		this.elements.main.classList.add('recording');
+		this.domNode.classList.add('recording');
 	}
 
 	hide() {
-		this.elements.main.classList.remove('recording');
+		this.domNode.classList.remove('recording');
 		this.editor.removeContentWidget(this);
 	}
 }
@@ -165,7 +175,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		return editor.getContribution<EditorDictation>(EditorDictation.ID);
 	}
 
-	private readonly widget = this._register(new DictationWidget(this.editor));
+	private readonly widget = this._register(new DictationWidget(this.editor, this.keybindingService));
 	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
 
 	private sessionDisposables = this._register(new MutableDisposable());
@@ -173,7 +183,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 	}
@@ -199,10 +210,11 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 				previewStart = assertIsDefined(this.editor.getPosition());
 			}
 
+			const endPosition = new Position(previewStart.lineNumber, previewStart.column + text.length);
 			this.editor.executeEdits(EditorDictation.ID, [
 				EditOperation.replace(Range.fromPositions(previewStart, previewStart.with(undefined, previewStart.column + lastReplaceTextLength)), text)
 			], [
-				Selection.fromPositions(new Position(previewStart.lineNumber, previewStart.column + text.length))
+				Selection.fromPositions(endPosition)
 			]);
 
 			if (isPreview) {
@@ -225,6 +237,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 				lastReplaceTextLength = 0;
 			}
 
+			this.editor.revealPositionInCenterIfOutsideViewport(endPosition);
 			this.widget.layout();
 		};
 

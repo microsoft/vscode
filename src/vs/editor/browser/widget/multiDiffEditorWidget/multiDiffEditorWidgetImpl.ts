@@ -10,24 +10,24 @@ import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ITransaction, disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./style';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ObservableElementSizeObserver } from 'vs/editor/browser/widget/diffEditor/utils';
+import { RevealOptions } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { ObjectPool } from './objectPool';
-import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -107,7 +107,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -190,8 +189,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
-	// todo@aiday-mar need to reveal the range instead of just the start line number
-	public reveal(resource: IMultiDiffResource, range: Range): void {
+	public reveal(resource: IMultiDiffResource, options?: RevealOptions): void {
 		const viewItems = this._viewItems.get();
 		let searchCallback: (item: VirtualizedViewItem) => boolean;
 		if ('original' in resource) {
@@ -200,11 +198,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			searchCallback = (item) => item.viewModel.modifiedUri?.toString() === resource.modified.toString();
 		}
 		const index = viewItems.findIndex(searchCallback);
-		let scrollTop = (range.startLineNumber - 1) * this._configurationService.getValue<number>('editor.lineHeight');
+		let scrollTop = 0;
 		for (let i = 0; i < index; i++) {
 			scrollTop += viewItems[i].contentHeight.get() + this._spaceBetweenPx;
 		}
 		this._scrollableElement.setScrollPosition({ scrollTop });
+
+		const diffEditor = viewItems[index].template.get()?.editor;
+		const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
+		if (editor && options?.range) {
+			editor.revealRangeInCenter(options.range);
+			highlightRange(editor, options.range);
+		}
 	}
 
 	public getViewState(): IMultiDiffEditorViewState {
@@ -290,6 +295,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 }
 
+function highlightRange(targetEditor: ICodeEditor, range: IRange) {
+	const modelNow = targetEditor.getModel();
+	const decorations = targetEditor.createDecorationsCollection([{ range, options: { description: 'symbol-navigate-action-highlight', className: 'symbolHighlight' } }]);
+	setTimeout(() => {
+		if (targetEditor.getModel() === modelNow) {
+			decorations.clear();
+		}
+	}, 350);
+}
+
 export interface IMultiDiffEditorViewState {
 	scrollState: { top: number; left: number };
 	docStates?: Record<string, IMultiDiffDocState>;
@@ -307,7 +322,7 @@ export interface IMultiDiffEditorOptions extends ITextEditorOptions {
 export interface IMultiDiffEditorOptionsViewState {
 	revealData?: {
 		resource: IMultiDiffResource;
-		range: Range;
+		range?: IRange;
 	};
 }
 
