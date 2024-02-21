@@ -48,6 +48,7 @@ const enum State {
 export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
+	static readonly Schema = 'vscode-bulkeditpreview-multieditor';
 
 	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
@@ -344,13 +345,14 @@ export class BulkEditPane extends ViewPane {
 				}
 			}
 		};
-		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
+		const multiDiffSource = URI.from({ scheme: BulkEditPane.Schema });
 		const label = 'Refactor Preview';
 		this._editorService.openEditor({
 			multiDiffSource,
 			resources,
 			label,
 			options,
+			isTransient: true,
 			description: label
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
