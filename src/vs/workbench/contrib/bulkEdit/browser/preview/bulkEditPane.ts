@@ -351,6 +351,7 @@ export class BulkEditPane extends ViewPane {
 			resources,
 			label,
 			options,
+			isTransient: true,
 			description: label
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
