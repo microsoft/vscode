@@ -241,12 +241,6 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The full name of this participant.
-		 * TODO@API This is only used for the default participant, but it seems useful, so should we keep it so we can use it in the future?
-		 */
-		fullName: string;
-
-		/**
 		 * A human-readable description explaining what this participant does.
 		 */
 		description: string;
