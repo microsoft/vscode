@@ -784,6 +784,27 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 
 	dismiss() {
+		// move focus back to the cell above
+		if (this._widget) {
+			const widgetIndex = this._widget.afterModelPosition;
+			const currentFocus = this._notebookEditor.getFocus();
+
+			if (currentFocus.start === widgetIndex && currentFocus.end === widgetIndex) {
+				// focus is on the widget
+				if (widgetIndex === 0) {
+					// on top of all cells
+					if (this._notebookEditor.getLength() > 0) {
+						this._notebookEditor.focusNotebookCell(this._notebookEditor.cellAt(0)!, 'container');
+					}
+				} else {
+					const cell = this._notebookEditor.cellAt(widgetIndex - 1);
+					if (cell) {
+						this._notebookEditor.focusNotebookCell(cell, 'container');
+					}
+				}
+			}
+		}
+
 		this._ctxCellWidgetFocused.set(false);
 		this._ctxUserDidEdit.set(false);
 		this._sessionCtor?.cancel();
