@@ -34,7 +34,7 @@ import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebook
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export type contextMenuArg = { source?: string; type?: string; value?: string; language?: string; extensionId?: string };
+export type contextMenuArg = { source?: string; type?: string; value?: string; expression?: string; language?: string; extensionId?: string };
 
 export class NotebookVariablesView extends ViewPane {
 
@@ -111,6 +111,7 @@ export class NotebookVariablesView extends ViewPane {
 			source: element.notebook.uri.toString(),
 			value: element.value,
 			type: element.type,
+			expression: element.expression,
 			language: element.language,
 			extensionId: element.extensionId
 		};

@@ -7,7 +7,7 @@ import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { ITooltipMarkdownString, setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
@@ -187,9 +187,13 @@ export class IconLabel extends Disposable {
 			return;
 		}
 
-		const hoverDisposable = setupCustomHover(this.hoverDelegate, htmlElement, tooltip);
-		if (hoverDisposable) {
-			this.customHovers.set(htmlElement, hoverDisposable);
+		if (this.hoverDelegate.showNativeHover) {
+			setupNativeHover(htmlElement, tooltip);
+		} else {
+			const hoverDisposable = setupCustomHover(this.hoverDelegate, htmlElement, tooltip);
+			if (hoverDisposable) {
+				this.customHovers.set(htmlElement, hoverDisposable);
+			}
 		}
 	}
 

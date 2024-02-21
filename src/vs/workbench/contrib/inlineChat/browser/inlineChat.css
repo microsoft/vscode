@@ -307,6 +307,7 @@
 	padding-top: 6px;
 }
 
+.inline-chat .diff-review.hidden,
 .inline-chat .previewDiff.hidden,
 .inline-chat .previewCreate.hidden,
 .inline-chat .previewCreateTitle.hidden {

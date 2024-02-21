@@ -183,16 +183,12 @@ interface ISerializedChatEditorInput {
 }
 
 export class ChatEditorInputSerializer implements IEditorSerializer {
-	canSerialize(input: EditorInput): boolean {
-		return input instanceof ChatEditorInput;
+	canSerialize(input: EditorInput): input is ChatEditorInput & { readonly sessionId: string } {
+		return input instanceof ChatEditorInput && typeof input.sessionId === 'string';
 	}
 
 	serialize(input: EditorInput): string | undefined {
-		if (!(input instanceof ChatEditorInput)) {
-			return undefined;
-		}
-
-		if (typeof input.sessionId !== 'string') {
+		if (!this.canSerialize(input)) {
 			return undefined;
 		}
 

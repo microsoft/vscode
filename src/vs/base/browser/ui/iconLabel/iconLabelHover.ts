@@ -180,6 +180,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		}
 		if (hadHover) {
 			hoverDelegate.onDidHideHover?.();
+			hoverWidget = undefined;
 		}
 	};
 

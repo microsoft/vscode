@@ -97,7 +97,6 @@ export class GlobalCompositeBar extends Disposable {
 			},
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('manage', "Manage"),
-			animated: false,
 			preventLoopNavigation: true
 		}));
 

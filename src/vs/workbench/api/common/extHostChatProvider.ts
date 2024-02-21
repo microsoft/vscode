@@ -17,6 +17,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { localize } from 'vs/nls';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 type LanguageModelData = {
 	readonly extension: ExtensionIdentifier;
@@ -54,16 +55,30 @@ class LanguageModelRequest {
 			// responses: AsyncIterable<string>[] // FUTURE responses per N
 		};
 
-		promise.finally(() => {
-			this._isDone = true;
-			if (this._responseStreams.size > 0) {
-				for (const [, value] of this._responseStreams) {
-					value.stream.resolve();
-				}
-			} else {
-				this._defaultStream.resolve();
+		promise.then(() => {
+			for (const stream of this._streams()) {
+				stream.resolve();
 			}
+		}).catch(err => {
+			if (!(err instanceof Error)) {
+				err = new Error(toErrorMessage(err), { cause: err });
+			}
+			for (const stream of this._streams()) {
+				stream.reject(err);
+			}
+		}).finally(() => {
+			this._isDone = true;
 		});
+	}
+
+	private * _streams() {
+		if (this._responseStreams.size > 0) {
+			for (const [, value] of this._responseStreams) {
+				yield value.stream;
+			}
+		} else {
+			yield this._defaultStream;
+		}
 	}
 
 	handleFragment(fragment: IChatResponseFragment): void {
