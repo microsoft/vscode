@@ -53,10 +53,10 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 
 	shouldRender(manifest: IExtensionManifest): boolean {
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		if (this.extensionService.extensions.some(e => ExtensionIdentifier.equals(e.identifier, extensionId))) {
-			return !!manifest.main || !!manifest.browser;
+		if (!this.extensionService.extensions.some(e => ExtensionIdentifier.equals(e.identifier, extensionId))) {
+			return false;
 		}
-		return !!manifest.activationEvents;
+		return !!manifest.main || !!manifest.browser;
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
