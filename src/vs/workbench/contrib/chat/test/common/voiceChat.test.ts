@@ -297,7 +297,7 @@ suite('VoiceChat', () => {
 	test('waiting for input', async () => {
 
 		// Agent
-		createSession({ usesAgents: true });
+		createSession({ usesAgents: true, model: {} as IChatModel });
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
@@ -310,7 +310,7 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event.waitingForInput, true);
 
 		// Slash Command
-		createSession({ usesAgents: true });
+		createSession({ usesAgents: true, model: {} as IChatModel });
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace slash explain' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
