@@ -10,7 +10,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -40,6 +40,8 @@ import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { Range } from 'vs/editor/common/core/range';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { BulkEditEditor } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	console.log('inside of getBulkEditPane');
@@ -56,6 +58,8 @@ const enum State {
 	Message = 'message'
 }
 
+// Instead of opening the pane at the beginning when refacto preview done, open the multi diff editor
+// and then have the pane inside
 export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
@@ -338,6 +342,10 @@ export class BulkEditPane extends ViewPane {
 		}
 	}
 
+	static openMultiDiffEditor() {
+
+	}
+
 	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 
 		const fileOperations = this._currentInput?.fileOperations;
@@ -417,5 +425,221 @@ export class BulkEditPane extends ViewPane {
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => e.anchor
 		});
+	}
+}
+
+export class OpenMultiDiffEditor extends Disposable {
+
+	static readonly ID = 'refactorPreview';
+
+	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
+	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
+	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
+
+	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
+	private _treeDataSource!: BulkEditDataSource;
+	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
+
+	private readonly _disposables = new DisposableStore();
+	private readonly _sessionDisposables = new DisposableStore();
+	private _currentResolve?: (edit?: ResourceEdit[]) => void;
+	private _currentInput?: BulkFileOperations;
+	private _currentProvider?: BulkEditPreviewProvider;
+	private _fileOperations?: BulkFileOperation[];
+	private _resources?: IResourceDiffEditorInput[];
+
+	constructor(
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IStorageService _storageService: IStorageService,
+	) {
+
+		super();
+
+		const resourceLabels = this._instaService.createInstance(
+			ResourceLabels,
+			<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
+		);
+		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
+		this._treeDataSource.groupByFile = _storageService.getBoolean(`${BulkEditPane.ID}.groupByFile`, StorageScope.PROFILE, true);
+		const treeContainer = document.createElement('div');
+		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
+			WorkbenchAsyncDataTree, 'some-id', treeContainer,
+			new BulkEditDelegate(),
+			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
+			this._treeDataSource,
+			{
+				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
+				identityProvider: new BulkEditIdentityProvider(),
+				expandOnlyOnTwistieClick: true,
+				multipleSelectionSupport: false,
+				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
+				sorter: new BulkEditSorter(),
+				selectionNavigation: true
+			}
+		);
+		console.log('inside of constructor of bulk edit pane');
+	}
+
+	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
+
+	override dispose(): void {
+		super.dispose();
+		this._tree.dispose();
+		this._disposables.dispose();
+	}
+
+	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
+		console.log('inside of setInput');
+		this._sessionDisposables.clear();
+		this._treeViewStates.clear();
+
+		if (this._currentResolve) {
+			this._currentResolve(undefined);
+			this._currentResolve = undefined;
+		}
+
+		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
+		this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
+		this._sessionDisposables.add(this._currentProvider);
+		this._sessionDisposables.add(input);
+
+		//
+		const hasCategories = input.categories.length > 1;
+		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
+
+		this._currentInput = input;
+
+		return new Promise<ResourceEdit[] | undefined>(resolve => {
+
+			token.onCancellationRequested(() => resolve(undefined));
+
+			this._currentResolve = resolve;
+			this._setTreeInput(input);
+
+			// refresh when check state changes
+			this._sessionDisposables.add(input.checked.onDidChange(() => {
+				this._tree.updateChildren();
+			}));
+		});
+	}
+
+	hasInput(): boolean {
+		return Boolean(this._currentInput);
+	}
+
+	private async _setTreeInput(input: BulkFileOperations) {
+		console.log('inside of _setTreeInput');
+		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
+		await this._tree.setInput(input, viewState);
+		this._tree.domFocus();
+
+		if (viewState) {
+			return;
+		}
+
+		// async expandAll (max=10) is the default when no view state is given
+		const expand = [...this._tree.getNode(input).children].slice(0, 10);
+		while (expand.length > 0) {
+			const { element } = expand.shift()!;
+			if (element instanceof FileElement) {
+				await this._tree.expand(element, true);
+			}
+			if (element instanceof CategoryElement) {
+				await this._tree.expand(element, true);
+				expand.push(...this._tree.getNode(element).children);
+			}
+		}
+	}
+
+	public async openMultiDiffEditor(): Promise<BulkEditEditor | undefined> {
+		// console.log('this._tree : ', this._tree);
+		// console.log('this._tree.getNode() : ', this._tree.getNode());
+		// console.log('this._tree.getInput() : ', this._tree.getInput());
+		// console.log('this._tree.getAnchor() : ', this._tree.getAnchor());
+		// console.log('this._tree.getFirstElementChild() : ', this._tree.getFirstElementChild());
+		const firstElementChild = this._tree.getFirstElementChild();
+		if (firstElementChild instanceof BulkFileOperations) {
+			return;
+		}
+		return this._openElementInMultiDiffEditor({ element: firstElementChild, sideBySide: false, editorOptions: {} });
+	}
+
+	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<BulkEditEditor | undefined> {
+
+		console.log('inside of _openElementInMultiDiffEditor');
+
+		const fileOperations = this._currentInput?.fileOperations;
+		if (!fileOperations) {
+			return;
+		}
+		let fileElement: FileElement;
+		if (e.element instanceof TextEditElement) {
+			fileElement = e.element.parent;
+		} else if (e.element instanceof FileElement) {
+			fileElement = e.element;
+		} else {
+			// invalid event
+			return;
+		}
+
+		const diffResources = await this._resolveResources(fileOperations);
+		const options: Mutable<IMultiDiffEditorOptions> = {
+			...e.editorOptions,
+			viewState: {
+				revealData: {
+					resource: { original: fileElement.edit.uri },
+					range: new Range(1, 1, 1, 1)
+				}
+			}
+		};
+		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
+		const label = 'Refactor Preview';
+		console.log('before opening the editor');
+		const buldEditEditor = await this._editorService.openEditor({
+			refactorPreviewSource,
+			diffResources,
+			label,
+			options,
+			description: label
+		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		return buldEditEditor as BulkEditEditor;
+	}
+
+	private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
+		if (this._fileOperations === fileOperations && this._resources) {
+			return this._resources;
+		}
+		const resources: IResourceDiffEditorInput[] = [];
+		for (const operation of fileOperations) {
+			const operationUri = operation.uri;
+			const previewUri = this._currentProvider!.asPreviewUri(operationUri);
+			// delete -> show single editor
+			if (operation.type & BulkFileOperationType.Delete) {
+				resources.push({
+					original: { resource: undefined },
+					modified: { resource: URI.revive(previewUri) }
+				});
+
+			} else {
+				// rename, create, edits -> show diff editr
+				let leftResource: URI | undefined;
+				try {
+					(await this._textModelService.createModelReference(operationUri)).dispose();
+					leftResource = operationUri;
+				} catch {
+					leftResource = BulkEditPreviewProvider.emptyPreview;
+				}
+				resources.push({
+					original: { resource: URI.revive(leftResource) },
+					modified: { resource: URI.revive(previewUri) }
+				});
+			}
+		}
+		this._fileOperations = fileOperations;
+		this._resources = resources;
+		return resources;
 	}
 }

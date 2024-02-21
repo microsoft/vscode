@@ -181,6 +181,7 @@ export class BulkEditService implements IBulkEditService {
 	}
 
 	async apply(editsIn: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+		console.log('inside of apply of bulk edit service');
 		let edits = liftEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
@@ -188,6 +189,7 @@ export class BulkEditService implements IBulkEditService {
 		}
 
 		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
+			console.log('has preview handler');
 			edits = await this._previewHandler(edits, options);
 		}
 

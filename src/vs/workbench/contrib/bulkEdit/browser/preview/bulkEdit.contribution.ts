@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { BulkEditPane, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { BulkEditPane, OpenMultiDiffEditor, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
@@ -22,7 +22,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { EditorExtensions, EditorResourceAccessor, IEditorFactoryRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, type ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -31,6 +31,9 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolver, BulkEditEditorSerializer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 class UXState {
 
@@ -96,14 +99,44 @@ class BulkEditPreviewContribution {
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+
 	) {
 		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
 		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
+		// this is what controls how the edits are previewed. We do not want to show the bulk edit pane, we want to directly open the
+		// multi diff editor
+
+		const openMultiDiffEditor = new OpenMultiDiffEditor(
+			this._instantiationService,
+			this._editorService,
+			this._textModelService,
+			this._storageService
+		);
+		// session
+		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
+		let session: PreviewSession;
+		if (this._activeSession) {
+			await this._activeSession.uxState.restore(false, true);
+			this._activeSession.cts.dispose(true);
+			session = new PreviewSession(uxState);
+		} else {
+			session = new PreviewSession(uxState);
+		}
+		this._activeSession = session;
+		const resourceEdits = await openMultiDiffEditor.setInput(edits, session.cts.token);
+		const editor = await openMultiDiffEditor.openMultiDiffEditor();
+		return resourceEdits ?? [];
+
+		/*
 		this._ctxEnabled.set(true);
 
 		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
@@ -152,6 +185,7 @@ class BulkEditPreviewContribution {
 				this._activeSession = undefined;
 			}
 		}
+		*/
 	}
 }
 
