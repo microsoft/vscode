@@ -253,8 +253,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 
 		const convertedHistory = await this.prepareHistoryTurns(agent.id, context);
-
-		return agent.provideSlashCommands({ history: convertedHistory }, token);
+		try {
+			return await agent.provideSlashCommands({ history: convertedHistory }, token);
+		} catch (err) {
+			const msg = toErrorMessage(err);
+			this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] Error while providing slash commands: ${msg}`);
+			return [];
+		}
 	}
 
 	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
