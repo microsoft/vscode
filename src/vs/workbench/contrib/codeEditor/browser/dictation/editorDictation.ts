@@ -5,14 +5,13 @@
 
 import 'vs/css!./editorDictation';
 import { localize, localize2 } from 'vs/nls';
-import { IDimension, addDisposableListener, h, reset } from 'vs/base/browser/dom';
+import { IDimension } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -27,6 +26,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { assertIsDefined } from 'vs/base/common/types';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { toAction } from 'vs/base/common/actions';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
@@ -96,19 +98,21 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = true;
 
 	private readonly domNode = document.createElement('div');
-	private readonly elements = h('.editor-dictation-widget@main', [h('span@mic')]);
 
 	constructor(private readonly editor: ICodeEditor, keybindingService: IKeybindingService) {
 		super();
 
-		this.domNode.appendChild(this.elements.root);
-		this.domNode.style.zIndex = '1000';
+		const actionBar = this._register(new ActionBar(this.domNode));
+		const stopActionKeybinding = keybindingService.lookupKeybinding(EditorDictationStopAction.ID)?.getLabel();
+		actionBar.push(toAction({
+			id: EditorDictationStopAction.ID,
+			label: stopActionKeybinding ? localize('stopDictationShort1', "Stop Dictation ({0})", stopActionKeybinding) : localize('stopDictationShort2', "Stop Dictation"),
+			class: ThemeIcon.asClassName(Codicon.micFilled),
+			run: () => EditorDictation.get(editor)?.stop()
+		}), { icon: true, label: false, keybinding: stopActionKeybinding });
 
-		this._register(addDisposableListener(this.elements.main, 'click', () => EditorDictation.get(editor)?.stop()));
-		const stopKeybinding = keybindingService.lookupKeybinding(EditorDictationStopAction.ID)?.getLabel();
-		this.elements.main.title = stopKeybinding ? localize('stopDictationTitleWithKeybinding', "Stop Dictation ({0})", stopKeybinding) : localize('stopDictationTitleWithoutKeybinding', "Stop Dictation");
-
-		reset(this.elements.mic, renderIcon(Codicon.micFilled));
+		this.domNode.classList.add('editor-dictation-widget');
+		this.domNode.appendChild(actionBar.domNode);
 	}
 
 	getId(): string {
@@ -139,8 +143,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
-		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
-		this.elements.main.style.setProperty('--vscode-editor-dictation-widget-width', `${width}px`);
+		this.domNode.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
+		this.domNode.style.setProperty('--vscode-editor-dictation-widget-width', `${width}px`);
 
 		return null;
 	}
@@ -154,11 +158,11 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	active(): void {
-		this.elements.main.classList.add('recording');
+		this.domNode.classList.add('recording');
 	}
 
 	hide() {
-		this.elements.main.classList.remove('recording');
+		this.domNode.classList.remove('recording');
 		this.editor.removeContentWidget(this);
 	}
 }
