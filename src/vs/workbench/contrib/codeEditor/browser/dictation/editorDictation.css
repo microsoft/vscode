@@ -14,6 +14,7 @@
 	min-height: var(--vscode-editor-dictation-widget-height);
 	line-height: var(--vscode-editor-dictation-widget-height);
 	max-width: var(--vscode-editor-dictation-widget-width);
+	cursor: pointer;
 }
 
 .monaco-editor .editor-dictation-widget .codicon.codicon-mic-filled {

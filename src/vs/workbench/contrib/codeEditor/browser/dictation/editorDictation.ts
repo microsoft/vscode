@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./editorDictation';
-import { localize2 } from 'vs/nls';
-import { IDimension, h, reset } from 'vs/base/browser/dom';
+import { localize, localize2 } from 'vs/nls';
+import { IDimension, addDisposableListener, h, reset } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -69,9 +69,11 @@ export class EditorDictationStartAction extends EditorAction2 {
 
 export class EditorDictationStopAction extends EditorAction2 {
 
+	static readonly ID = 'workbench.action.editorDictation.stop';
+
 	constructor() {
 		super({
-			id: 'workbench.action.editorDictation.stop',
+			id: EditorDictationStopAction.ID,
 			title: localize2('stopDictation', "Stop Dictation in Editor"),
 			category: VOICE_CATEGORY,
 			precondition: EDITOR_DICTATION_IN_PROGRESS,
@@ -96,11 +98,15 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	private readonly domNode = document.createElement('div');
 	private readonly elements = h('.editor-dictation-widget@main', [h('span@mic')]);
 
-	constructor(private readonly editor: ICodeEditor) {
+	constructor(private readonly editor: ICodeEditor, keybindingService: IKeybindingService) {
 		super();
 
 		this.domNode.appendChild(this.elements.root);
 		this.domNode.style.zIndex = '1000';
+
+		this._register(addDisposableListener(this.elements.main, 'click', () => EditorDictation.get(editor)?.stop()));
+		const stopKeybinding = keybindingService.lookupKeybinding(EditorDictationStopAction.ID)?.getLabel();
+		this.elements.main.title = stopKeybinding ? localize('stopDictationTitleWithKeybinding', "Stop Dictation ({0})", stopKeybinding) : localize('stopDictationTitleWithoutKeybinding', "Stop Dictation");
 
 		reset(this.elements.mic, renderIcon(Codicon.micFilled));
 	}
@@ -165,7 +171,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		return editor.getContribution<EditorDictation>(EditorDictation.ID);
 	}
 
-	private readonly widget = this._register(new DictationWidget(this.editor));
+	private readonly widget = this._register(new DictationWidget(this.editor, this.keybindingService));
 	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
 
 	private sessionDisposables = this._register(new MutableDisposable());
@@ -173,7 +179,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 	}
