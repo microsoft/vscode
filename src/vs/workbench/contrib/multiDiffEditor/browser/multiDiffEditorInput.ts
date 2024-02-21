@@ -364,14 +364,16 @@ interface ISerializedMultiDiffEditorInput {
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {
 
-	// TODO@bpasero, @aiday-mar: following canSerialize should be removed (debt item)
-	canSerialize(editor: EditorInput): boolean {
+	canSerialize(editor: EditorInput): editor is MultiDiffEditorInput {
 		return editor instanceof MultiDiffEditorInput && !editor.isTransient;
 	}
 
 	serialize(editor: MultiDiffEditorInput): string | undefined {
-		const shouldSerialize = editor instanceof MultiDiffEditorInput && !editor.isTransient;
-		return shouldSerialize ? JSON.stringify(editor.serialize()) : undefined;
+		if (!this.canSerialize(editor)) {
+			return undefined;
+		}
+
+		return JSON.stringify(editor.serialize());
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
