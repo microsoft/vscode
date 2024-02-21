@@ -931,6 +931,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.show(widgetPosition);
 		} else {
+			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.updatePositionAndHeight(widgetPosition);
 		}
 	}
