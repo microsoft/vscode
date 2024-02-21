@@ -59,7 +59,10 @@ const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
 	metadata: {},
-	async provideSlashCommands(token) {
+	getLastSlashCommands() {
+		return undefined;
+	},
+	async provideSlashCommands() {
 		return [];
 	},
 	async invoke(request, progress, history, token) {
@@ -114,6 +117,9 @@ suite('Chat', () => {
 			metadata: { isDefault: true },
 			async invoke(request, progress, history, token) {
 				return {};
+			},
+			getLastSlashCommands() {
+				return undefined;
 			},
 			async provideSlashCommands(token) {
 				return [];
