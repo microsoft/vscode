@@ -61,7 +61,7 @@ suite('Markdown Setting Renderer Test', () => {
 		preferencesService = <IPreferencesService>{};
 		contextMenuService = <IContextMenuService>{};
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(configuration);
-		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService, { publicLog2: () => { } } as any);
+		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService, { publicLog2: () => { } } as any, { writeText: async () => { } } as any);
 	});
 
 	suiteTeardown(() => {
@@ -82,7 +82,7 @@ suite('Markdown Setting Renderer Test', () => {
 	test('actions with no value', () => {
 		const uri = URI.parse(settingRenderer.settingToUriString('example.booleanSetting'));
 		const actions = settingRenderer.getActions(uri);
-		assert.strictEqual(actions?.length, 1);
+		assert.strictEqual(actions?.length, 2);
 		assert.strictEqual(actions[0].label, 'View "Example: Boolean Setting" in Settings');
 	});
 
@@ -91,7 +91,7 @@ suite('Markdown Setting Renderer Test', () => {
 		const uri = URI.parse(settingRenderer.settingToUriString('example.stringSetting', 'three'));
 
 		const verifyOriginalState = (actions: IAction[] | undefined): actions is IAction[] => {
-			assert.strictEqual(actions?.length, 2);
+			assert.strictEqual(actions?.length, 3);
 			assert.strictEqual(actions[0].label, 'Set "Example: String Setting" to "three"');
 			assert.strictEqual(actions[1].label, 'View in Settings');
 			assert.strictEqual(configurationService.getValue('example.stringSetting'), 'two');
@@ -104,9 +104,10 @@ suite('Markdown Setting Renderer Test', () => {
 			await actions[0].run();
 			assert.strictEqual(configurationService.getValue('example.stringSetting'), 'three');
 			const actionsUpdated = settingRenderer.getActions(uri);
-			assert.strictEqual(actionsUpdated?.length, 2);
+			assert.strictEqual(actionsUpdated?.length, 3);
 			assert.strictEqual(actionsUpdated[0].label, 'Restore value of "Example: String Setting"');
 			assert.strictEqual(actions[1].label, 'View in Settings');
+			assert.strictEqual(actions[2].label, 'Copy Setting ID');
 			assert.strictEqual(configurationService.getValue('example.stringSetting'), 'three');
 
 			// Restore the value
