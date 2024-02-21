@@ -23,7 +23,7 @@ declare module 'vscode' {
 		/**
 		 * The name of the chat participant and contributing extension to which this request was directed.
 		 */
-		readonly participant: { readonly extensionId: string; readonly participant: string };
+		readonly participant: { readonly extensionId: string; readonly name: string };
 
 		/**
 		 * The name of the {@link ChatCommand command} that was selected for this request.
@@ -35,7 +35,7 @@ declare module 'vscode' {
 		 */
 		readonly variables: ChatResolvedVariable[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; participant: string });
+		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; name: string });
 	}
 
 	/**
@@ -56,14 +56,14 @@ declare module 'vscode' {
 		/**
 		 * The name of the chat participant and contributing extension that this response came from.
 		 */
-		readonly participant: { readonly extensionId: string; readonly participant: string };
+		readonly participant: { readonly extensionId: string; readonly name: string };
 
 		/**
 		 * The name of the command that this response came from.
 		 */
 		readonly command?: string;
 
-		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: { extensionId: string; participant: string });
+		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: { extensionId: string; name: string });
 	}
 
 	export interface ChatContext {
