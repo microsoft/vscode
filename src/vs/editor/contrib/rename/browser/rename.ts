@@ -346,9 +346,9 @@ class RenameController implements IEditorContribution {
 			owner: 'ulugbekna';
 			comment: 'A rename operation was invoked.';
 			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename operation was cancelled or accepted.' };
-			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.' };
+			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
 			source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new name came from the input field or rename suggestions.' };
-			hadRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user had rename suggestions.' };
+			hadRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user had rename suggestions.'; isMeasurement: true };
 		};
 
 		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>(
