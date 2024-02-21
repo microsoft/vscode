@@ -82,13 +82,16 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			editorService,
 			editorGroupService
 		);
+		console.log('inside of constructor of bulk edit editor');
 	}
 
 	protected async createEditor(parent: HTMLElement): Promise<void> {
+		console.log('createEditor');
 		const refactorPreviewContainer = new HTMLDivElement();
 		const multiDiffEditorHTMLNode = new HTMLDivElement();
 		parent.appendChild(refactorPreviewContainer);
 		parent.appendChild(multiDiffEditorHTMLNode);
+		console.log('before getBulkEditPane');
 		const view = await getBulkEditPane(this.viewService);
 		console.log('view : ', view);
 		if (view) {
@@ -106,6 +109,9 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+
+		console.log('setInput');
+		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 
 		// In here, we can remove the editors if there are editors to remove
 		await super.setInput(input, options, context, token);

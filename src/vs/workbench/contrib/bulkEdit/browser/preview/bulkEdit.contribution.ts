@@ -30,7 +30,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolverContribution, BulkEditEditorSerializer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
+import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolver, BulkEditEditorSerializer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
 
 class UXState {
 
@@ -341,7 +341,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 }], container);
 
 // Refactor preview contribution
-registerWorkbenchContribution2(BulkEditEditorResolverContribution.ID, BulkEditEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
+registerWorkbenchContribution2(BulkEditEditorResolver.ID, BulkEditEditorResolver, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	.registerEditorPane(

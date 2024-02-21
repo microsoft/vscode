@@ -128,6 +128,8 @@ export class EditorPanes extends Disposable {
 	}
 
 	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+		console.log('inside of openEditor of EditorPanes');
+
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
@@ -260,8 +262,13 @@ export class EditorPanes extends Disposable {
 
 	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
+		console.log('inside of doOpenEditor of EditorPanes');
+		console.log('descriptor is ', descriptor);
+		console.log('editor is ', editor);
+
 		// Editor pane
 		const pane = this.doShowEditorPane(descriptor);
+		console.log('pane : ', pane);
 
 		// Remember current active element for deciding to restore focus later
 		const activeElement = getActiveElement();
@@ -333,6 +340,8 @@ export class EditorPanes extends Disposable {
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
+		console.log('inside of doShowEditorPane');
+
 		// Return early if the currently active editor pane can handle the input
 		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
 			return this._activeEditorPane;
@@ -343,6 +352,7 @@ export class EditorPanes extends Disposable {
 
 		// Create editor pane
 		const editorPane = this.doCreateEditorPane(descriptor);
+		console.log('editorPane : ', editorPane);
 
 		// Set editor as active
 		this.doSetActiveEditorPane(editorPane);
@@ -357,6 +367,7 @@ export class EditorPanes extends Disposable {
 
 		// Layout
 		if (this.pagePosition) {
+			console.log('before layout');
 			editorPane.layout(new Dimension(this.pagePosition.width, this.pagePosition.height), { top: this.pagePosition.top, left: this.pagePosition.left });
 		}
 
@@ -369,12 +380,14 @@ export class EditorPanes extends Disposable {
 	}
 
 	private doCreateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
+		console.log('doCreateEditorPane');
 
 		// Instantiate editor
 		const editorPane = this.doInstantiateEditorPane(descriptor);
 
 		// Create editor container as needed
 		if (!editorPane.getContainer()) {
+			console.log('create contained');
 			const editorPaneContainer = document.createElement('div');
 			editorPaneContainer.classList.add('editor-instance');
 
@@ -385,6 +398,8 @@ export class EditorPanes extends Disposable {
 	}
 
 	private doInstantiateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
+		console.log('doInstantiateEditorPane');
+		console.log('descriptor : ', descriptor);
 
 		// Return early if already instantiated
 		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));
@@ -394,6 +409,8 @@ export class EditorPanes extends Disposable {
 
 		// Otherwise instantiate new
 		const editorPane = this._register(descriptor.instantiate(this.instantiationService));
+		console.log('editorPane : ', editorPane);
+
 		this.editorPanes.push(editorPane);
 
 		return editorPane;
@@ -416,6 +433,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<{ changed: boolean; cancelled: boolean }> {
+		console.log('inside of doSetInput');
 
 		// If the input did not change, return early and only
 		// apply the options unless the options instruct us to
