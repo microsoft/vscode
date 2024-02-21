@@ -61,7 +61,7 @@ suite('Markdown Setting Renderer Test', () => {
 		preferencesService = <IPreferencesService>{};
 		contextMenuService = <IContextMenuService>{};
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(configuration);
-		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService);
+		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService, { publicLog2: () => { } } as any);
 	});
 
 	suiteTeardown(() => {
