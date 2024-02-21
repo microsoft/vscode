@@ -86,22 +86,23 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	}
 
 	protected async createEditor(parent: HTMLElement): Promise<void> {
-		console.log('createEditor');
-		const refactorPreviewContainer = new HTMLDivElement();
-		const multiDiffEditorHTMLNode = new HTMLDivElement();
+		console.log('createEditor of BulkEditEditor');
+		const refactorPreviewContainer: HTMLElement = document.createElement('div');
+		const multiDiffEditorHTMLNode: HTMLElement = document.createElement('div');
 		parent.appendChild(refactorPreviewContainer);
 		parent.appendChild(multiDiffEditorHTMLNode);
-		console.log('before getBulkEditPane');
-		const view = await getBulkEditPane(this.viewService);
-		console.log('view : ', view);
-		if (view) {
-			view.renderBody(refactorPreviewContainer);
-		}
 		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
 			MultiDiffEditorWidget,
 			multiDiffEditorHTMLNode,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
 		));
+		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
+		console.log('before getBulkEditPane');
+		const view = await getBulkEditPane(this.viewService);
+		console.log('view of getBulkEditPane: ', view);
+		if (view) {
+			view.renderBody(refactorPreviewContainer);
+		}
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();

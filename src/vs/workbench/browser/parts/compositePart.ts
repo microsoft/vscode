@@ -167,6 +167,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected createComposite(id: string, isActive?: boolean): Composite {
+		console.log('inside of create composite');
 
 		// Check if composite is already created
 		const compositeItem = this.instantiatedCompositeItems.get(id);
@@ -205,6 +206,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected showComposite(composite: Composite): void {
+		console.log('inside of showComposite');
 
 		// Remember Composite
 		this.activeComposite = composite;

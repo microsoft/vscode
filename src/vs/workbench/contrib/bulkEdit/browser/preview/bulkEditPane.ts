@@ -42,7 +42,9 @@ import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEdito
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
+	console.log('inside of getBulkEditPane');
 	const view = await viewsService.openView(BulkEditPane.ID, true);
+	console.log('view inside of getBulkEditPane', view);
 	if (view instanceof BulkEditPane) {
 		return view;
 	}
@@ -108,6 +110,7 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
+		console.log('inside of constructor of bulk edit pane');
 	}
 
 	override dispose(): void {
@@ -117,6 +120,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	public override renderBody(parent: HTMLElement): void {
+		console.log('inside of renderBody of bulk edit pane');
 		super.renderBody(parent);
 
 		const resourceLabels = this._instaService.createInstance(
@@ -131,7 +135,11 @@ export class BulkEditPane extends ViewPane {
 
 		// tree
 		const treeContainer = document.createElement('div');
+		treeContainer.className = 'tree-refactor-preview-class';
 		contentContainer.appendChild(treeContainer);
+
+		console.log('treeContainer : ', treeContainer);
+		console.log('contentContainer : ', contentContainer);
 
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
 		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
@@ -152,6 +160,7 @@ export class BulkEditPane extends ViewPane {
 				selectionNavigation: true
 			}
 		);
+		console.log('this._tree : ', this._tree);
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 		this._disposables.add(this._tree.onDidOpen(e => this._openElementInMultiDiffEditor(e)));
@@ -182,6 +191,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	protected override layoutBody(height: number, width: number): void {
+		console.log('inside of layoutBody');
 		super.layoutBody(height, width);
 		const treeHeight = height - 50;
 		this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
@@ -193,6 +203,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
+		console.log('inside of setInput');
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 		this._treeViewStates.clear();
@@ -235,7 +246,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private async _setTreeInput(input: BulkFileOperations) {
-
+		console.log('inside of _setTreeInput');
 		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
 		await this._tree.setInput(input, viewState);
 		this._tree.domFocus();
