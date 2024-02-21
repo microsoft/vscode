@@ -385,6 +385,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	constructor(
+		readonly id: string,
 		@IMenuService menuService: IMenuService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -437,7 +438,8 @@ export class CustomMenubarControl extends MenubarControl {
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `workbench.actions.menubar.focus`,
+						// avoid multiple instances and register command with the same ID twice.
+						id: `workbench.actions.${that.id}.menubar.focus`,
 						title: localize2('focusMenu', 'Focus Application Menu'),
 						keybinding: {
 							primary: KeyMod.Alt | KeyCode.F10,
