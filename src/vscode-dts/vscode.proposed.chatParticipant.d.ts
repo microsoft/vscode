@@ -408,7 +408,7 @@ declare module 'vscode' {
 		 * Push a progress part to this stream. Short-hand for
 		 * `push(new ChatResponseProgressPart(value))`.
 		 *
-		 * @param value
+		 * @param value A progress message
 		 * @returns This stream.
 		 */
 		progress(value: string): ChatResponseStream;
