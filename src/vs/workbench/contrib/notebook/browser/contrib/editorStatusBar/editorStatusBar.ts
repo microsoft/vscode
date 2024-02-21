@@ -303,9 +303,11 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 			this._accessor.clear();
 			return;
 		}
-		const indentSize = cellOptions?.indentSize;
-		const tabSize = cellOptions?.tabSize;
-		const insertSpaces = cellOptions?.insertSpaces;
+
+		const cellEditorOverridesRaw = editor.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const indentSize = cellEditorOverridesRaw['editor.indentSize'] ?? cellOptions?.indentSize;
+		const insertSpaces = cellEditorOverridesRaw['editor.insertSpaces'] ?? cellOptions?.tabSize;
+		const tabSize = cellEditorOverridesRaw['editor.tabSize'] ?? cellOptions?.insertSpaces;
 
 		const width = typeof indentSize === 'number' ? indentSize : tabSize;
 
