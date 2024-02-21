@@ -281,7 +281,7 @@ declare module 'vscode' {
 		followupProvider?: ChatFollowupProvider;
 
 		/**
-		 * When the user clicks this participant in `/help`, this text will be submitted to this command
+		 * When the user clicks this participant in `/help`, this text will be submitted to this participant.
 		 */
 		sampleRequest?: string;
 
