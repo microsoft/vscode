@@ -199,10 +199,11 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 				previewStart = assertIsDefined(this.editor.getPosition());
 			}
 
+			const endPosition = new Position(previewStart.lineNumber, previewStart.column + text.length);
 			this.editor.executeEdits(EditorDictation.ID, [
 				EditOperation.replace(Range.fromPositions(previewStart, previewStart.with(undefined, previewStart.column + lastReplaceTextLength)), text)
 			], [
-				Selection.fromPositions(new Position(previewStart.lineNumber, previewStart.column + text.length))
+				Selection.fromPositions(endPosition)
 			]);
 
 			if (isPreview) {
@@ -225,6 +226,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 				lastReplaceTextLength = 0;
 			}
 
+			this.editor.revealPositionInCenterIfOutsideViewport(endPosition);
 			this.widget.layout();
 		};
 
