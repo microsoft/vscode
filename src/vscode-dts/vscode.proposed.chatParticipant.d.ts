@@ -83,7 +83,7 @@ declare module 'vscode' {
 		message: string;
 
 		/**
-		 * If partial markdown content was sent over the `progress` callback before the response terminated, then this flag
+		 * If partial markdown content was sent over the {@link ChatRequestHandler handler}'s response stream before the response terminated, then this flag
 		 * can be set to true and it will be rendered with incomplete markdown features patched up.
 		 *
 		 * For example, if the response terminated after sending part of a triple-backtick code block, then the editor will
@@ -281,7 +281,7 @@ declare module 'vscode' {
 		followupProvider?: ChatFollowupProvider;
 
 		/**
-		 * When the user clicks this participant in `/help`, this text will be submitted to this command
+		 * When the user clicks this participant in `/help`, this text will be submitted to this participant.
 		 */
 		sampleRequest?: string;
 
@@ -408,7 +408,7 @@ declare module 'vscode' {
 		 * Push a progress part to this stream. Short-hand for
 		 * `push(new ChatResponseProgressPart(value))`.
 		 *
-		 * @param value
+		 * @param value A progress message
 		 * @returns This stream.
 		 */
 		progress(value: string): ChatResponseStream;
