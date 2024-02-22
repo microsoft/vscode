@@ -266,11 +266,12 @@ export class EditorPanes extends Disposable {
 
 		// Editor pane
 		const pane = this.doShowEditorPane(descriptor);
-		console.log('pane : ', pane);
+		console.log('pane after doShowEditor: ', pane);
 
 		// Remember current active element for deciding to restore focus later
 		const activeElement = getActiveElement();
 
+		console.log('before doSetInput');
 		// Apply input to pane
 		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
 
@@ -435,6 +436,8 @@ export class EditorPanes extends Disposable {
 		// apply the options unless the options instruct us to
 		// force open it even if it is the same
 		const inputMatches = editorPane.input?.matches(editor);
+		console.log('inputMatches : ', inputMatches);
+
 		if (inputMatches && !options?.forceReload) {
 			editorPane.setOptions(options);
 
@@ -456,6 +459,7 @@ export class EditorPanes extends Disposable {
 			editorPane.clearInput();
 
 			// Set the input to the editor pane
+			console.log('before set input of doSetInput');
 			await editorPane.setInput(editor, options, context, operation.token);
 
 			if (!operation.isCurrent()) {

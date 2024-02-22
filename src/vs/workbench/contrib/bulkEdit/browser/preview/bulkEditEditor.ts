@@ -48,7 +48,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { Schemas } from 'vs/base/common/network';
-import { getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { BulkEditPane, getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 
 export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
@@ -56,6 +56,8 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
+	private _refactorViewPane: BulkEditPane | undefined;
+	private _refactorViewContainer: HTMLElement | undefined;
 	private _edits: ResourceEdit[] = [];
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
@@ -87,9 +89,10 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	protected async createEditor(parent: HTMLElement): Promise<void> {
 		console.log('createEditor of BulkEditEditor');
-		const refactorPreviewContainer: HTMLElement = document.createElement('div');
+		this._refactorViewContainer = document.createElement('div');
+		this._refactorViewContainer.classList.add('bulk-edit-panel', 'show-file-icons');
 		const multiDiffEditorHTMLNode: HTMLElement = document.createElement('div');
-		parent.appendChild(refactorPreviewContainer);
+		parent.appendChild(this._refactorViewContainer);
 		parent.appendChild(multiDiffEditorHTMLNode);
 		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
 			MultiDiffEditorWidget,
@@ -98,18 +101,21 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		));
 		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 		console.log('before getBulkEditPane2');
-		const view = await getBulkEditPane2(this.instantiationService, this._edits);
-		console.log('view of getBulkEditPane2: ', view);
-		if (view) {
-			refactorPreviewContainer.classList.add('bulk-edit-panel', 'show-file-icons');
-			console.log('this._edits : ', this._edits);
-			view.setInput(this._edits, CancellationToken.None);
-			view.renderBody(refactorPreviewContainer);
-		}
-
+		this._refactorViewPane = await getBulkEditPane2(this.instantiationService, this._edits);
+		console.log('view of getBulkEditPane2: ', this._refactorViewPane);
+		this._renderRefactorPreviewPane();
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();
 		}));
+	}
+
+	private _renderRefactorPreviewPane() {
+		if (this._refactorViewPane && this._refactorViewContainer) {
+			console.log('this._edits : ', this._edits);
+			DOM.clearNode(this._refactorViewContainer);
+			this._refactorViewPane.setInput(this._edits, CancellationToken.None);
+			this._refactorViewPane.renderBody(this._refactorViewContainer);
+		}
 	}
 
 	override async setInput(input: BulkEditEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -128,6 +134,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
+		this._renderRefactorPreviewPane();
 		this._reveal(options);
 	}
 
@@ -429,11 +436,13 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 	});
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		console.log('inside of matches of bulk edit editor input');
 		if (super.matches(otherInput)) {
 			return true;
 		}
 
 		if (otherInput instanceof BulkEditEditorInput) {
+			console.log('this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString() : ', this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString());
 			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString()
 				&& this.edits.toString() === otherInput.edits.toString();
 		}
