@@ -26,6 +26,7 @@ import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEdit
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -80,19 +81,22 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
-		this._reveal(options);
+		this._applyOptions(options);
 	}
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
-		this._reveal(options);
+		this._applyOptions(options);
 	}
 
-	private _reveal(options: IMultiDiffEditorOptions | undefined): void {
+	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
 		const viewState = options?.viewState;
 		if (!viewState || !viewState.revealData) {
 			return;
 		}
-		this._multiDiffEditorWidget?.reveal(viewState.revealData.resource, viewState.revealData.range);
+		this._multiDiffEditorWidget?.reveal(viewState.revealData.resource, {
+			range: viewState.revealData.range ? Range.lift(viewState.revealData.range) : undefined,
+			highlight: true
+		});
 	}
 
 	override async clearInput(): Promise<void> {

@@ -13,6 +13,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { DeferredPromise } from 'vs/base/common/async';
 import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, IKeywordRecognitionSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class SpeechService extends Disposable implements ISpeechService {
 
@@ -34,7 +35,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -78,7 +80,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
 		}
 
-		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token);
+		const language = this.configurationService.getValue<string>('accessibility.voice.speechLanguage');
+		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token, typeof language === 'string' ? { language } : undefined);
 
 		const sessionStart = Date.now();
 		let sessionRecognized = false;
