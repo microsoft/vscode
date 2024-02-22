@@ -717,6 +717,9 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 
 	private getLanguages(): { [locale: string]: { name: string } } {
 		return {
+			['da-DK']: {
+				name: localize('speechLanguage.da-DK', "Danish (Denmark)")
+			},
 			['de-DE']: {
 				name: localize('speechLanguage.de-DE', "German (Germany)")
 			},
@@ -767,6 +770,9 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 			},
 			['nl-NL']: {
 				name: localize('speechLanguage.nl-NL', "Dutch (Netherlands)")
+			},
+			['pt-PT']: {
+				name: localize('speechLanguage.pt-PT', "Portuguese (Portugal)")
 			},
 			['pt-BR']: {
 				name: localize('speechLanguage.pt-BR', "Portuguese (Brazil)")
