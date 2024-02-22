@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { localize, localize2 } from 'vs/nls';
@@ -136,13 +136,14 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	constructor(
 		actualAction: IAction,
 		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined; scopedContextKeyService?: IContextKeyService } | INotebookEditor,
+		options: IActionViewItemOptions,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
 	) {
 		super(
 			undefined,
 			new Action('fakeAction', undefined, ThemeIcon.asClassName(selectKernelIcon), true, (event) => actualAction.run(event)),
-			{ label: false, icon: true }
+			{ ...options, label: false, icon: true }
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidAddKernel(this._update, this));

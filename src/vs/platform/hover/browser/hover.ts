@@ -288,8 +288,11 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 		}, focus);
 	}
 
-	setOptions(options: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>)): void {
-		this.overrideOptions = options;
+	setInstantHoverTimeLimit(timeLimit: number): void {
+		if (!this.instantHover) {
+			throw new Error('Instant hover is not enabled');
+		}
+		this.timeLimit = timeLimit;
 	}
 
 	onDidHideHover(): void {
