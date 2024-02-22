@@ -9,7 +9,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -983,9 +983,13 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	public async run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
-		const activeControl = editorService.activeTextEditorControl;
+		let activeControl = editorService.activeTextEditorControl;
 		if (!activeEditorPane || !activeControl) {
 			return;
+		}
+
+		if (isDiffEditor(activeControl)) {
+			activeControl = activeControl.getModifiedEditor();
 		}
 
 		const position = activeControl?.getPosition();
@@ -1186,7 +1190,10 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 	 * @override
 	 */
 	public run(accessor: ServicesAccessor) {
-		const control = accessor.get(IEditorService).activeTextEditorControl;
+		let control = accessor.get(IEditorService).activeTextEditorControl;
+		if (isDiffEditor(control)) {
+			control = control.getModifiedEditor();
+		}
 		const position = control?.getPosition();
 		const model = control?.getModel();
 		if (!position || !model || !('uri' in model)) {
