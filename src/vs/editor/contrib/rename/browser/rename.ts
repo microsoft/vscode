@@ -36,7 +36,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CONTEXT_RENAME_INPUT_FOCUSED, CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField } from './renameInputField';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CONTEXT_RENAME_INPUT_FOCUSED, CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField, RenameInputFieldResult } from './renameInputField';
 
 class RenameSkeleton {
 
@@ -149,6 +150,7 @@ class RenameController implements IEditorContribution {
 		@ILogService private readonly _logService: ILogService,
 		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
@@ -240,6 +242,8 @@ class RenameController implements IEditorContribution {
 		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
 		trace('received response from rename input field');
 
+		this._reportTelemetry(inputFieldResult);
+
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
 			trace(`returning early - rename input field response - ${inputFieldResult}`);
@@ -324,6 +328,38 @@ class RenameController implements IEditorContribution {
 
 	focusPreviousRenameSuggestion(): void {
 		this._renameInputField.focusPreviousRenameSuggestion();
+	}
+
+	private _reportTelemetry(inputFieldResult: boolean | RenameInputFieldResult) {
+		type RenameInvokedEvent =
+			{
+				kind: 'accepted' | 'cancelled';
+				/** provided only if kind = 'accepted' */
+				wantsPreview?: boolean;
+				/** provided only if kind = 'accepted' */
+				source?: RenameInputFieldResult['source'];
+				/** provided only if kind = 'accepted' */
+				hadRenameSuggestions?: boolean;
+			};
+
+		type RenameInvokedClassification = {
+			owner: 'ulugbekna';
+			comment: 'A rename operation was invoked.';
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename operation was cancelled or accepted.' };
+			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
+			source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new name came from the input field or rename suggestions.' };
+			hadRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user had rename suggestions.'; isMeasurement: true };
+		};
+
+		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>(
+			'renameInvokedEvent',
+			typeof inputFieldResult === 'boolean' ? { kind: 'cancelled' } : {
+				kind: 'accepted',
+				wantsPreview: inputFieldResult.wantsPreview,
+				source: inputFieldResult.source,
+				hadRenameSuggestions: inputFieldResult.hadRenameSuggestions,
+			}
+		);
 	}
 }
 
