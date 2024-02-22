@@ -494,15 +494,9 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry {
 	font-size: 90%;
-	display: flex;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry :first-child {
-	width: 40%;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry :last-child {
-	width: 60%;
+	display: grid;
+	grid-template-columns: 40% 60%;
+	gap: 4px;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry code {
