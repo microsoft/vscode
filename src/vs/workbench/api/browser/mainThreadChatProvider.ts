@@ -104,6 +104,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 
 		task.catch(err => {
 			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
+			throw err;
 		}).finally(() => {
 			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
 		});

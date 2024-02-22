@@ -49,6 +49,8 @@ export const CONTEXT_RENAME_INPUT_FOCUSED = new RawContextKey<boolean>('renameIn
 export interface RenameInputFieldResult {
 	newName: string;
 	wantsPreview?: boolean;
+	source: 'inputField' | 'renameSuggestion';
+	hadRenameSuggestions: boolean;
 }
 
 export class RenameInputField implements IContentWidget {
@@ -298,7 +300,19 @@ export class RenameInputField implements IContentWidget {
 				assertType(this._input !== undefined);
 				assertType(this._candidatesView !== undefined);
 
-				const newName = this._candidatesView.focusedCandidate ?? this._input.value;
+				const hadRenameSuggestions = this._candidatesView.hasCandidates();
+
+				let newName: string;
+				let source: 'inputField' | 'renameSuggestion';
+				if (this._candidatesView.focusedCandidate !== undefined) {
+					this._trace('using new name from renameSuggestion');
+					newName = this._candidatesView.focusedCandidate;
+					source = 'renameSuggestion';
+				} else {
+					this._trace('using new name from inputField');
+					newName = this._input.value;
+					source = 'inputField';
+				}
 
 				if (newName === value || newName.trim().length === 0 /* is just whitespace */) {
 					this.cancelInput(true, '_currentAcceptInput (because newName === value || newName.trim().length === 0)');
@@ -311,7 +325,9 @@ export class RenameInputField implements IContentWidget {
 
 				resolve({
 					newName,
-					wantsPreview: supportPreview && wantsPreview
+					wantsPreview: supportPreview && wantsPreview,
+					source,
+					hadRenameSuggestions,
 				});
 			};
 
@@ -511,6 +527,10 @@ class CandidatesView {
 	public clearCandidates(): void {
 		this._listContainer.style.height = '0px';
 		this._listWidget.splice(0, this._listWidget.length, []);
+	}
+
+	public hasCandidates() {
+		return this._listWidget.length > 0;
 	}
 
 	public get focusedCandidate(): string | undefined {

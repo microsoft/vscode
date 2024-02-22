@@ -115,7 +115,7 @@ export const announcementFeatureBase: IConfigurationPropertySchema = {
 const defaultNoAnnouncement: IConfigurationPropertySchema = {
 	'type': 'object',
 	'tags': ['accessibility'],
-	additionalProperties: true,
+	additionalProperties: false,
 	'default': {
 		'sound': 'auto',
 	}
@@ -536,7 +536,6 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.chatResponseReceived': {
 			...defaultNoAnnouncement,
-			additionalProperties: false,
 			'description': localize('accessibility.signals.chatResponseReceived', "Indicates when the response has been received."),
 			'properties': {
 				'sound': {
@@ -562,7 +561,7 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.save': {
 			'type': 'object',
 			'tags': ['accessibility'],
-			additionalProperties: true,
+			additionalProperties: false,
 			'markdownDescription': localize('accessibility.signals.save', "Plays a signal when a file is saved."),
 			'properties': {
 				'sound': {
@@ -596,7 +595,7 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.format': {
 			'type': 'object',
 			'tags': ['accessibility'],
-			additionalProperties: true,
+			additionalProperties: false,
 			'markdownDescription': localize('accessibility.signals.format', "Plays a signal when a file or notebook is formatted."),
 			'properties': {
 				'sound': {
@@ -621,6 +620,10 @@ const configuration: IConfigurationNode = {
 						localize('accessibility.signals.format.announcement.never', "Never announces.")
 					],
 				},
+			},
+			default: {
+				'sound': 'never',
+				'announcement': 'never'
 			}
 		},
 	}
@@ -660,9 +663,11 @@ export function registerAccessibilityConfiguration() {
 }
 
 export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout'
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+	SpeechLanguage = 'accessibility.voice.speechLanguage'
 }
 export const SpeechTimeoutDefault = 1200;
+const SpeechLanguageDefault = 'en-US';
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 
@@ -681,6 +686,11 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 			return; // these settings require a speech provider
 		}
 
+		const languages = this.getLanguages();
+		const languagesSorted = Object.keys(languages).sort((langA, langB) => {
+			return languages[langA].name.localeCompare(languages[langB].name);
+		});
+
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		registry.registerConfiguration({
 			...accessibilityConfigurationNodeBase,
@@ -691,11 +701,104 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'default': SpeechTimeoutDefault,
 					'minimum': 0,
 					'tags': ['accessibility']
+				},
+				[AccessibilityVoiceSettingId.SpeechLanguage]: {
+					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize."),
+					'type': 'string',
+					'enum': languagesSorted,
+					'default': SpeechLanguageDefault,
+					'tags': ['accessibility'],
+					'enumDescriptions': languagesSorted.map(key => languages[key].name),
+					'enumItemLabels': languagesSorted.map(key => languages[key].name)
 				}
 			}
 		});
 	}
+
+	private getLanguages(): { [locale: string]: { name: string } } {
+		return {
+			['da-DK']: {
+				name: localize('speechLanguage.da-DK', "Danish (Denmark)")
+			},
+			['de-DE']: {
+				name: localize('speechLanguage.de-DE', "German (Germany)")
+			},
+			['en-AU']: {
+				name: localize('speechLanguage.en-AU', "English (Australia)")
+			},
+			['en-CA']: {
+				name: localize('speechLanguage.en-CA', "English (Canada)")
+			},
+			['en-GB']: {
+				name: localize('speechLanguage.en-GB', "English (United Kingdom)")
+			},
+			['en-IE']: {
+				name: localize('speechLanguage.en-IE', "English (Ireland)")
+			},
+			['en-IN']: {
+				name: localize('speechLanguage.en-IN', "English (India)")
+			},
+			['en-NZ']: {
+				name: localize('speechLanguage.en-NZ', "English (New Zealand)")
+			},
+			[SpeechLanguageDefault]: {
+				name: localize('speechLanguage.en-US', "English (United States)")
+			},
+			['es-ES']: {
+				name: localize('speechLanguage.es-ES', "Spanish (Spain)")
+			},
+			['es-MX']: {
+				name: localize('speechLanguage.es-MX', "Spanish (Mexico)")
+			},
+			['fr-CA']: {
+				name: localize('speechLanguage.fr-CA', "French (Canada)")
+			},
+			['fr-FR']: {
+				name: localize('speechLanguage.fr-FR', "French (France)")
+			},
+			['hi-IN']: {
+				name: localize('speechLanguage.hi-IN', "Hindi (India)")
+			},
+			['it-IT']: {
+				name: localize('speechLanguage.it-IT', "Italian (Italy)")
+			},
+			['ja-JP']: {
+				name: localize('speechLanguage.ja-JP', "Japanese (Japan)")
+			},
+			['ko-KR']: {
+				name: localize('speechLanguage.ko-KR', "Korean (South Korea)")
+			},
+			['nl-NL']: {
+				name: localize('speechLanguage.nl-NL', "Dutch (Netherlands)")
+			},
+			['pt-PT']: {
+				name: localize('speechLanguage.pt-PT', "Portuguese (Portugal)")
+			},
+			['pt-BR']: {
+				name: localize('speechLanguage.pt-BR', "Portuguese (Brazil)")
+			},
+			['ru-RU']: {
+				name: localize('speechLanguage.ru-RU', "Russian (Russia)")
+			},
+			['sv-SE']: {
+				name: localize('speechLanguage.sv-SE', "Swedish (Sweden)")
+			},
+			['tr-TR']: {
+				name: localize('speechLanguage.tr-TR', "Turkish (Turkey)")
+			},
+			['zh-CN']: {
+				name: localize('speechLanguage.zh-CN', "Chinese (Simplified, China)")
+			},
+			['zh-HK']: {
+				name: localize('speechLanguage.zh-HK', "Chinese (Traditional, Hong Kong)")
+			},
+			['zh-TW']: {
+				name: localize('speechLanguage.zh-TW', "Chinese (Traditional, Taiwan)")
+			}
+		};
+	}
 }
+
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'audioCues.volume',
@@ -737,7 +840,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	})));
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.announcementMessage).map(item => ({
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.legacyAnnouncementSettingsKey).map(item => ({
 		key: item.legacyAnnouncementSettingsKey!,
 		migrateFn: (announcement, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];

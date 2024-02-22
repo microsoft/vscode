@@ -12,6 +12,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class ShowSignalSoundHelp extends Action2 {
 	static readonly ID = 'signals.sounds.help';
@@ -32,6 +33,7 @@ export class ShowSignalSoundHelp extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const accessibilityService = accessor.get(IAccessibilityService);
+		const preferencesService = accessor.get(IPreferencesService);
 		const userGestureSignals = [AccessibilitySignal.save, AccessibilitySignal.format];
 		const items: (IQuickPickItem & { signal: AccessibilitySignal })[] = AccessibilitySignal.allAccessibilitySignals.map((signal, idx) => ({
 			label: userGestureSignals.includes(signal) ? `${signal.name} (${configurationService.getValue(signal.settingsKey + '.sound')})` : signal.name,
@@ -68,6 +70,9 @@ export class ShowSignalSoundHelp extends Action2 {
 			}
 			qp.hide();
 		});
+		qp.onDidTriggerItemButton(e => {
+			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: e.item.signal.settingsKey, edit: true } });
+		});
 		qp.onDidChangeActive(() => {
 			accessibilitySignalService.playSound(qp.activeItems[0].signal.sound.getSound(true), true);
 		});
@@ -96,14 +101,15 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const accessibilityService = accessor.get(IAccessibilityService);
+		const preferencesService = accessor.get(IPreferencesService);
 		const userGestureSignals = [AccessibilitySignal.save, AccessibilitySignal.format];
-		const items: (IQuickPickItem & { signal: AccessibilitySignal })[] = AccessibilitySignal.allAccessibilitySignals.filter(c => !!c.announcementMessage).map((signal, idx) => ({
+		const items: (IQuickPickItem & { signal: AccessibilitySignal })[] = AccessibilitySignal.allAccessibilitySignals.filter(c => !!c.legacyAnnouncementSettingsKey).map((signal, idx) => ({
 			label: userGestureSignals.includes(signal) ? `${signal.name} (${configurationService.getValue(signal.settingsKey + '.announcement')})` : signal.name,
 			signal,
 			buttons: userGestureSignals.includes(signal) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 				tooltip: localize('announcement.help.settings', 'Enable/Disable Announcement'),
-				alwaysVisible: true
+				alwaysVisible: true,
 			}] : []
 		}));
 		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
@@ -111,7 +117,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.announcement') !== 'never');
 		qp.onDidAccept(() => {
 			const enabledAnnouncements = qp.selectedItems.map(i => i.signal);
-			const disabledAnnouncements = AccessibilitySignal.allAccessibilitySignals.filter(cue => !enabledAnnouncements.includes(cue));
+			const disabledAnnouncements = AccessibilitySignal.allAccessibilitySignals.filter(cue => !!cue.legacyAnnouncementSettingsKey && !enabledAnnouncements.includes(cue));
 			for (const signal of enabledAnnouncements) {
 				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);
 				announcement = userGestureSignals.includes(signal) ? 'userGesture' : signal.announcementMessage && accessibilityService.isScreenReaderOptimized() ? 'auto' : undefined;
@@ -123,6 +129,9 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 				configurationService.updateValue(signal.settingsKey, announcement ? { sound, announcement } : { sound });
 			}
 			qp.hide();
+		});
+		qp.onDidTriggerItemButton(e => {
+			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: e.item.signal.settingsKey, edit: true } });
 		});
 		qp.placeholder = localize('announcement.help.placeholder', 'Select an announcement to configure');
 		qp.canSelectMany = true;

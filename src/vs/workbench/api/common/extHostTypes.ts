@@ -4257,7 +4257,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 		readonly prompt: string,
 		readonly command: string | undefined,
 		readonly variables: vscode.ChatResolvedVariable[],
-		readonly participant: { extensionId: string; participant: string },
+		readonly participant: { extensionId: string; name: string },
 	) { }
 }
 
@@ -4266,7 +4266,7 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
 		readonly result: vscode.ChatResult,
-		readonly participant: { extensionId: string; participant: string },
+		readonly participant: { extensionId: string; name: string },
 		readonly command?: string
 	) { }
 }
