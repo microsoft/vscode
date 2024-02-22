@@ -20,10 +20,11 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { AccessibleDiffViewer, AccessibleDiffViewerModelFromEditors } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
 import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditor/components/diffEditorDecorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditor/components/diffEditorSash';
-import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
 import { DiffEditorViewZones } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones';
+import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
 import { MovedBlocksLinesFeature } from 'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature';
 import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
+import { RevertButtonsFeature } from 'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature';
 import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, bindContextKey, readHotReloadableExport, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
@@ -31,7 +32,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
@@ -40,11 +41,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorEditors } from './components/diffEditorEditors';
+import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
-import { RevertButtonsFeature } from 'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -477,12 +477,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		};
 	}
 
-	revert(diff: DetailedLineRangeMapping): void {
-		if (diff.innerChanges) {
-			this.revertRangeMappings(diff.innerChanges);
-			return;
-		}
-
+	revert(diff: LineRangeMapping): void {
 		const model = this._diffModel.get();
 		if (!model || !model.isDiffUpToDate.get()) { return; }
 
