@@ -123,7 +123,7 @@ export class InlineEditController extends Disposable {
 			}
 			this._currentRequestCts?.dispose();
 			this._currentRequestCts = undefined;
-			this.clear();
+			this.clear(false);
 		}));
 
 		//Invoke provider on focus
@@ -288,9 +288,9 @@ export class InlineEditController extends Disposable {
 		this.editor.revealPositionInCenterIfOutsideViewport(position);
 	}
 
-	public clear() {
+	public clear(sendRejection: boolean = true) {
 		const edit = this._currentEdit.get()?.edit;
-		if (edit && edit?.rejected && !this._isAccepting) {
+		if (edit && edit?.rejected && !this._isAccepting && sendRejection) {
 			this._commandService.executeCommand(edit.rejected.id, ...edit.rejected.arguments || []);
 		}
 		if (edit) {
