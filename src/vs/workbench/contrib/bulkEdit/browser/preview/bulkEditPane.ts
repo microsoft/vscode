@@ -42,6 +42,7 @@ import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEdito
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { BulkEditEditor } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	console.log('inside of getBulkEditPane');
@@ -455,6 +456,7 @@ export class OpenMultiDiffEditor extends Disposable {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IEditorGroupsService private readonly _groupService: IEditorGroupsService,
 		@IStorageService _storageService: IStorageService,
 	) {
 
@@ -618,7 +620,11 @@ export class OpenMultiDiffEditor extends Disposable {
 		// This method should instead return the refactor preview from within the bulk edit editor and await the set input method from there
 		const inputEditsAfterResolving = await bulkEditEditor.inputEdits;
 
-		console.log('inputEditsAfterResolving : ', inputEditsAfterResolving);
+		// need to close the editor that was opened for the bulk edit pane
+		if (bulkEditEditor.input) {
+			await this._editorService.closeEditor({ editor: bulkEditEditor.input, groupId: this._groupService.activeGroup.id });
+		}
+
 		return inputEditsAfterResolving;
 
 	}

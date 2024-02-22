@@ -110,6 +110,7 @@ class BulkEditPreviewContribution {
 			this._instantiationService,
 			this._editorService,
 			this._textModelService,
+			this._editorGroupsService,
 			this._storageService
 		);
 

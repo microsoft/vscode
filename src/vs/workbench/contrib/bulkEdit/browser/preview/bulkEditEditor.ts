@@ -110,10 +110,6 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		}));
 	}
 
-	public get refactorViewPane(): BulkEditPane | undefined {
-		return this._refactorViewPane;
-	}
-
 	public get inputEdits(): Promise<ResourceEdit[] | undefined> | undefined {
 		return this._inputEdits;
 	}
