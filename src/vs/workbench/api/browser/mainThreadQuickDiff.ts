@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostContext, ExtHostQuickDiffShape, IDocumentFilterDto, MainContext, MainThreadQuickDiffShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -30,7 +30,7 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 			selector,
 			isSCM: false,
 			getOriginalResource: async (uri: URI) => {
-				return URI.revive(await this.proxy.$provideOriginalResource(handle, uri, new CancellationTokenSource().token));
+				return URI.revive(await this.proxy.$provideOriginalResource(handle, uri, CancellationToken.None));
 			}
 		};
 		const disposable = this.quickDiffService.addQuickDiffProvider(provider);
