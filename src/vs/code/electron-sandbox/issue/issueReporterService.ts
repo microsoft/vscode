@@ -926,6 +926,7 @@ export class IssueReporter extends Disposable {
 
 		const response = await fetch(url, init);
 		if (!response.ok) {
+			console.error('Invalid GitHub URL provided.');
 			return false;
 		}
 		const result = await response.json();
@@ -984,6 +985,7 @@ export class IssueReporter extends Disposable {
 
 		let issueUrl = hasUri ? this.getExtensionBugsUrl() : this.getIssueUrl();
 		if (!issueUrl) {
+			console.error('No issue url found');
 			return false;
 		}
 
@@ -1004,6 +1006,7 @@ export class IssueReporter extends Disposable {
 			try {
 				url = await this.writeToClipboard(baseUrl, issueBody);
 			} catch (_) {
+				console.error('Writing to clipboard failed');
 				return false;
 			}
 		}
@@ -1040,6 +1043,8 @@ export class IssueReporter extends Disposable {
 				owner: match[1],
 				repositoryName: match[2]
 			};
+		} else {
+			console.error('No GitHub match');
 		}
 
 		return undefined;
