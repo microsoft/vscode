@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -530,6 +531,8 @@ class CandidatesView {
 		// adjust list container layout
 		this._listContainer.style.height = `${height}px`;
 		this._listContainer.style.width = `${width}px`;
+
+		aria.status(localize('renameSuggestionsReceivedAria', "Received {0} rename suggestions", candidates.length));
 	}
 
 	public clearCandidates(): void {
