@@ -33,11 +33,15 @@ declare module 'vscode' {
 		description?: string;
 	}
 
+	// TODO@API align with ChatRequest
 	export interface ChatVariableContext {
 		/**
 		 * The message entered by the user, which includes this variable.
 		 */
+		// TODO@API AS-IS, variables as types, agent/commands stripped
 		prompt: string;
+
+		// readonly variables: readonly ChatResolvedVariable[];
 	}
 
 	export interface ChatVariableResolver {

@@ -67,7 +67,7 @@ suite('chat', () => {
 				interactive.sendInteractiveRequestToProvider('provider', { message: '@participant /hello friend' });
 			} else {
 				assert.strictEqual(request.context.history.length, 1);
-				assert.strictEqual(request.context.history[0].participant.participant, 'participant');
+				assert.strictEqual(request.context.history[0].participant.name, 'participant');
 				assert.strictEqual(request.context.history[0].command, 'hello');
 			}
 		});

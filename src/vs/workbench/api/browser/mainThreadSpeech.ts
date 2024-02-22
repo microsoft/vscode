@@ -41,7 +41,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 
 		const registration = this.speechService.registerSpeechProvider(identifier, {
 			metadata,
-			createSpeechToTextSession: token => {
+			createSpeechToTextSession: (token, options) => {
 				if (token.isCancellationRequested) {
 					return {
 						onDidChange: Event.None
@@ -51,7 +51,7 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 				const disposables = new DisposableStore();
 				const session = Math.random();
 
-				this.proxy.$createSpeechToTextSession(handle, session);
+				this.proxy.$createSpeechToTextSession(handle, session, options?.language);
 
 				const onDidChange = disposables.add(new Emitter<ISpeechToTextEvent>());
 				this.speechToTextSessions.set(session, { onDidChange });

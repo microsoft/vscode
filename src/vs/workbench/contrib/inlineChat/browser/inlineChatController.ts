@@ -524,7 +524,7 @@ export class InlineChatController implements IEditorContribution {
 				const cts = new CancellationTokenSource();
 				this._sessionStore.add(cts);
 				for (const agent of this._chatAgentService.getAgents()) {
-					const commands = await agent.provideSlashCommands(cts.token);
+					const commands = await agent.provideSlashCommands(undefined, [], cts.token);
 					if (commands.find((command) => withoutSubCommandLeader.startsWith(command.name))) {
 						massagedInput = `${chatAgentLeader}${agent.id} ${input}`;
 						break;
@@ -931,6 +931,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.show(widgetPosition);
 		} else {
+			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.updatePositionAndHeight(widgetPosition);
 		}
 	}

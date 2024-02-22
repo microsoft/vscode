@@ -41,6 +41,7 @@ export interface IChatSessionInitEvent {
 }
 
 export interface IChatViewModel {
+	readonly model: IChatModel;
 	readonly initState: ChatModelInitState;
 	readonly providerId: string;
 	readonly sessionId: string;
@@ -144,6 +145,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
 		return this._inputPlaceholder ?? this._model.inputPlaceholder;
+	}
+
+	get model(): IChatModel {
+		return this._model;
 	}
 
 	setInputPlaceholder(text: string): void {

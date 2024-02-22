@@ -74,8 +74,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 
 		const actionBarColumn = DOM.append(container, $('.actions'));
 		const actionBar = new ActionBar(actionBarColumn, {
-			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined,
-			animated: false
+			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
 		});
 
 		return { actionBar, icon };

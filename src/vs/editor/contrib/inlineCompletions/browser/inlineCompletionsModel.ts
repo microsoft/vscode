@@ -472,15 +472,17 @@ export class InlineCompletionsModel extends Disposable {
 export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
 	const primaryPosition = positions[0];
 	const secondaryPositions = positions.slice(1);
+	const primaryEditStartPosition = primaryEdit.range.getStartPosition();
 	const primaryEditEndPosition = primaryEdit.range.getEndPosition();
 	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(
 		Range.fromPositions(primaryPosition, primaryEditEndPosition)
 	);
-	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEdit.range.getStartPosition());
+	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEditStartPosition);
 	const secondaryEditText = substringPos(primaryEdit.text, positionWithinTextEdit);
 	return secondaryPositions.map(pos => {
+		const posEnd = addPositions(subtractPositions(pos, primaryEditStartPosition), primaryEditEndPosition);
 		const textAfterSecondaryCursor = textModel.getValueInRange(
-			Range.fromPositions(pos, primaryEditEndPosition)
+			Range.fromPositions(pos, posEnd)
 		);
 		const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
 		const range = Range.fromPositions(pos, pos.delta(0, l));

@@ -7,6 +7,10 @@
 	background: var(--vscode-multiDiffEditor-background);
 	overflow-y: hidden;
 
+	.focused {
+		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
+	}
+
 	.multiDiffEntry {
 		display: flex;
 		flex-direction: column;
@@ -27,6 +31,10 @@
 			z-index: 1000;
 			background: var(--vscode-editor-background);
 
+			&:not(.collapsed) .header-content {
+				border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+			}
+
 			.header-content {
 				margin: 8px 8px 0px 8px;
 				padding: 8px 5px;
@@ -42,8 +50,6 @@
 
 				color: var(--vscode-foreground);
 				background: var(--vscode-multiDiffEditor-headerBackground);
-
-				border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
 
 				&.shadow {
 					box-shadow: var(--vscode-scrollbar-shadow) 0px 6px 6px -6px;

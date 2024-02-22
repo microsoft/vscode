@@ -47,7 +47,6 @@ export interface IActionBarOptions {
 	readonly actionRunner?: IActionRunner;
 	readonly ariaLabel?: string;
 	readonly ariaRole?: string;
-	readonly animated?: boolean;
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
@@ -136,10 +135,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
-
-		if (options.animated !== false) {
-			this.domNode.classList.add('animated');
-		}
 
 		let previousKeys: KeyCode[];
 		let nextKeys: KeyCode[];
