@@ -51,7 +51,7 @@ export interface RenameInputFieldResult {
 	newName: string;
 	wantsPreview?: boolean;
 	source: 'inputField' | 'renameSuggestion';
-	hadRenameSuggestions: boolean;
+	nRenameSuggestions: number;
 }
 
 export class RenameInputField implements IContentWidget {
@@ -304,13 +304,14 @@ export class RenameInputField implements IContentWidget {
 				assertType(this._input !== undefined);
 				assertType(this._candidatesView !== undefined);
 
-				const hadRenameSuggestions = this._candidatesView.hasCandidates();
+				const nRenameSuggestions = this._candidatesView.nCandidates;
 
 				let newName: string;
 				let source: 'inputField' | 'renameSuggestion';
-				if (this._candidatesView.focusedCandidate !== undefined) {
+				const focusedCandidate = this._candidatesView.focusedCandidate;
+				if (focusedCandidate !== undefined) {
 					this._trace('using new name from renameSuggestion');
-					newName = this._candidatesView.focusedCandidate;
+					newName = focusedCandidate;
 					source = 'renameSuggestion';
 				} else {
 					this._trace('using new name from inputField');
@@ -331,7 +332,7 @@ export class RenameInputField implements IContentWidget {
 					newName,
 					wantsPreview: supportPreview && wantsPreview,
 					source,
-					hadRenameSuggestions,
+					nRenameSuggestions,
 				});
 			};
 
@@ -541,8 +542,8 @@ class CandidatesView {
 		this._listWidget.splice(0, this._listWidget.length, []);
 	}
 
-	public hasCandidates() {
-		return this._listWidget.length > 0;
+	public get nCandidates() {
+		return this._listWidget.length;
 	}
 
 	public get focusedCandidate(): string | undefined {
