@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight } from 'vs/base/browser/dom';
+import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -238,7 +238,10 @@ export class RenameInputField implements IContentWidget {
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._candidatesView!.layout({ height: totalHeightAvailable - labelHeight - inputBoxHeight });
+		this._candidatesView!.layout({
+			height: totalHeightAvailable - labelHeight - inputBoxHeight,
+			width: getTotalWidth(this._input!),
+		});
 	}
 
 
@@ -429,6 +432,7 @@ class CandidatesView {
 
 	private _lineHeight: number;
 	private _availableHeight: number;
+	private _minimumWidth: number;
 
 	private _disposables: DisposableStore;
 
@@ -437,6 +441,7 @@ class CandidatesView {
 		this._disposables = new DisposableStore();
 
 		this._availableHeight = 0;
+		this._minimumWidth = 0;
 
 		this._lineHeight = opts.fontInfo.lineHeight;
 
@@ -505,27 +510,31 @@ class CandidatesView {
 	}
 
 	// height - max height allowed by parent element
-	public layout({ height }: { height: number }): void {
+	public layout({ height, width }: { height: number; width: number }): void {
 		this._availableHeight = height;
-		if (this._listWidget.length > 0) { // candidates have been set
-			this._listWidget.layout(this._pickListHeight(this._listWidget.length));
-		}
+		this._minimumWidth = width;
+		this._listContainer.style.width = `${this._minimumWidth}px`;
 	}
 
 	public setCandidates(candidates: NewSymbolName[]): void {
-		const height = this._pickListHeight(candidates.length);
 
+		// insert candidates into list widget
 		this._listWidget.splice(0, 0, candidates);
 
-		const width = Math.max(200, 4 /* padding */ + 16 /* sparkle icon */ + 5 /* margin-left */ + this._pickListWidth(candidates)); // TODO@ulugbekna: approximate calc - clean this up
+		// adjust list widget layout
+		const height = this._pickListHeight(candidates.length);
+		const width = this._pickListWidth(candidates);
+
 		this._listWidget.layout(height, width);
 
+		// adjust list container layout
 		this._listContainer.style.height = `${height}px`;
 		this._listContainer.style.width = `${width}px`;
 	}
 
 	public clearCandidates(): void {
 		this._listContainer.style.height = '0px';
+		this._listContainer.style.width = '0px';
 		this._listWidget.splice(0, this._listWidget.length, []);
 	}
 
@@ -599,7 +608,13 @@ class CandidatesView {
 	}
 
 	private _pickListWidth(candidates: NewSymbolName[]): number {
-		return Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * 7.2) /* approximate # of pixes taken by a single character */;
+		const APPROXIMATE_CHAR_WIDTH = 7.2; // approximate # of pixes taken by a single character
+		const longestCandidateWidth = Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * APPROXIMATE_CHAR_WIDTH); // TODO@ulugbekna: use editor#typicalCharacterWidth or something
+		const width = Math.max(
+			this._minimumWidth,
+			4 /* padding */ + 16 /* sparkle icon */ + 5 /* margin-left */ + longestCandidateWidth + 10 /* (possibly visible) scrollbar width */ // TODO@ulugbekna: approximate calc - clean this up
+		);
+		return width;
 	}
 
 }
