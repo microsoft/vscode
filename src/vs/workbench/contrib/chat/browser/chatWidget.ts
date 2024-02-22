@@ -114,7 +114,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private _visible = false;
-
 	public get visible() {
 		return this._visible;
 	}
@@ -155,6 +154,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
@@ -165,7 +165,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -386,6 +385,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options,
 			rendererDelegate,
 			this._codeBlockModelCollection,
+			overflowWidgetsContainer,
 		));
 		this._register(this.renderer.onDidClickFollowup(item => {
 			// is this used anymore?

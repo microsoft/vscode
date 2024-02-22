@@ -287,6 +287,7 @@ export class InlineChatWidget {
 
 		this._editorOptions = this._store.add(_instantiationService.createInstance(ChatEditorOptions, undefined, editorForeground, inputBackground, editorBackground));
 
+
 		// --- context keys
 
 		this._ctxMessageCropState = CTX_INLINE_CHAT_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
@@ -612,7 +613,7 @@ export class InlineChatWidget {
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
 			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
-			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate, this._codeBlockModelCollection));
+			const renderer = this._chatMessageDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate, this._codeBlockModelCollection, undefined));
 			renderer.layout(this._elements.chatMessageContent.clientWidth - 4); // 2 for the padding used for the tab index border
 			this._chatMessageDisposables.add(this._onDidChangeLayout.event(() => {
 				renderer.layout(this._elements.chatMessageContent.clientWidth - 4);

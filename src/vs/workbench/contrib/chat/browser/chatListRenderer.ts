@@ -104,7 +104,6 @@ export interface IChatListItemRendererOptions {
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
-
 	static readonly ID = 'item';
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
@@ -137,6 +136,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		private readonly rendererOptions: IChatListItemRendererOptions,
 		private readonly delegate: IChatRendererDelegate,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
+		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -147,10 +147,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
-		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, undefined));
 
 		this.renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
 
