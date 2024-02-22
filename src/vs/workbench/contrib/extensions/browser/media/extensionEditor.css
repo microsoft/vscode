@@ -496,7 +496,12 @@
 	font-size: 90%;
 	display: grid;
 	grid-template-columns: 40% 60%;
-	gap: 4px;
+	gap: 6px;
+	padding: 2px 4px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry:nth-child(odd) {
+	background-color: rgba(130, 130, 130, 0.04);
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry code {
