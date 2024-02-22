@@ -672,7 +672,6 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		key: TerminalSettingId.EnableBell,
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
 			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
 			if (announcement !== undefined && typeof announcement !== 'string') {
 				announcement = announcement ? 'auto' : 'off';
