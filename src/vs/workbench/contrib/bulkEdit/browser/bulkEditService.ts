@@ -170,6 +170,7 @@ export class BulkEditService implements IBulkEditService {
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
 		this._previewHandler = handler;
 		return toDisposable(() => {
+			console.log('inside of toDisposable of bulk edit service');
 			if (this._previewHandler === handler) {
 				this._previewHandler = undefined;
 			}
@@ -181,7 +182,7 @@ export class BulkEditService implements IBulkEditService {
 	}
 
 	async apply(editsIn: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
-		console.log('inside of apply of bulk edit service');
+		console.log('- inside of apply of bulk edit service');
 		let edits = liftEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
@@ -191,7 +192,10 @@ export class BulkEditService implements IBulkEditService {
 		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
 			console.log('has preview handler');
 			edits = await this._previewHandler(edits, options);
+			console.log('edits inside of apply : ', edits);
 		}
+
+		console.log('edits after preview handler : ', edits);
 
 		let codeEditor = options?.editor;
 		// try to find code editor

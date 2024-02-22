@@ -59,6 +59,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	private _refactorViewPane: BulkEditPane | undefined;
 	private _refactorViewContainer: HTMLElement | undefined;
 	private _edits: ResourceEdit[] = [];
+	private _inputEdits: Promise<ResourceEdit[] | undefined> | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -109,11 +110,19 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		}));
 	}
 
+	public get refactorViewPane(): BulkEditPane | undefined {
+		return this._refactorViewPane;
+	}
+
+	public get inputEdits(): Promise<ResourceEdit[] | undefined> | undefined {
+		return this._inputEdits;
+	}
+
 	private _renderRefactorPreviewPane() {
 		if (this._refactorViewPane && this._refactorViewContainer) {
 			console.log('this._edits : ', this._edits);
 			DOM.clearNode(this._refactorViewContainer);
-			this._refactorViewPane.setInput(this._edits, CancellationToken.None);
+			this._inputEdits = this._refactorViewPane.setInput(this._edits, CancellationToken.None);
 			this._refactorViewPane.renderBody(this._refactorViewContainer);
 		}
 	}

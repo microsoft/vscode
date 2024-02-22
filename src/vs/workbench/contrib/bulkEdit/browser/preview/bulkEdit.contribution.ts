@@ -32,6 +32,7 @@ import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolver, BulkEditEd
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import Severity from 'vs/base/common/severity';
 
 class UXState {
 
@@ -104,12 +105,15 @@ class BulkEditPreviewContribution {
 	}
 
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
+		console.log('inside of _previewEdit of BulkEditPreviewContribution');
+
 		const openMultiDiffEditor = new OpenMultiDiffEditor(
 			this._instantiationService,
 			this._editorService,
 			this._textModelService,
 			this._storageService
 		);
+
 		// session
 		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
 		let session: PreviewSession;
@@ -121,60 +125,26 @@ class BulkEditPreviewContribution {
 			session = new PreviewSession(uxState);
 		}
 		this._activeSession = session;
-		const resourceEdits = await openMultiDiffEditor.setInput(edits, session.cts.token);
-		await openMultiDiffEditor.openMultiDiffEditor(edits);
-		return resourceEdits ?? [];
 
-		/*
-		this._ctxEnabled.set(true);
-
-		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
-		const view = await getBulkEditPane(this._viewsService);
-		if (!view) {
-			this._ctxEnabled.set(false);
-			return edits;
-		}
-
-		// check for active preview session and let the user decide
-		if (view.hasInput()) {
-			const { confirmed } = await this._dialogService.confirm({
-				type: Severity.Info,
-				message: localize('overlap', "Another refactoring is being previewed."),
-				detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
-				primaryButton: localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
-			});
-
-			if (!confirmed) {
-				return [];
-			}
-		}
-
-		// session
-		let session: PreviewSession;
-		if (this._activeSession) {
-			await this._activeSession.uxState.restore(false, true);
-			this._activeSession.cts.dispose(true);
-			session = new PreviewSession(uxState);
-		} else {
-			session = new PreviewSession(uxState);
-		}
-		this._activeSession = session;
-
-		// the actual work...
 		try {
 
-			return await view.setInput(edits, session.cts.token) ?? [];
+			await openMultiDiffEditor.setInput(edits, session.cts.token);
+			return await openMultiDiffEditor.openMultiDiffEditorReturnInput(edits) ?? [];
 
 		} finally {
 			// restore UX state
 			if (this._activeSession === session) {
 				await this._activeSession.uxState.restore(true, true);
 				this._activeSession.cts.dispose();
-				this._ctxEnabled.set(false);
 				this._activeSession = undefined;
 			}
 		}
-		*/
+
+		// The reason the apply discard buttons do not work is because this _previewEdit method returns early
+		// It should return after one of the buttons has been clicked, which is what the code below has been doing
+		// Meaning we need to change the code here in order to make it work correctly
+		// By looking at the code on the left, it looks like we need to await the setInput method of the preview editor
+		// currently we are just awaiting the opening of the editor, which is not what we should be awaiting on as the end condition.
 	}
 }
 

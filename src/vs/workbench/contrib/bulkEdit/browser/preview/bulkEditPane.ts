@@ -301,6 +301,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
+		console.log('Inside of _done');
 		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 		this._currentInput = undefined;
 		this._setState(State.Message);
@@ -556,7 +557,7 @@ export class OpenMultiDiffEditor extends Disposable {
 		}
 	}
 
-	public async openMultiDiffEditor(edits: ResourceEdit[]): Promise<BulkEditEditor | undefined> {
+	public async openMultiDiffEditorReturnInput(edits: ResourceEdit[]): Promise<ResourceEdit[] | undefined> {
 		console.log('inside of openMultiDiffEditor, edits : ', edits);
 		// console.log('this._tree : ', this._tree);
 		// console.log('this._tree.getNode() : ', this._tree.getNode());
@@ -567,15 +568,16 @@ export class OpenMultiDiffEditor extends Disposable {
 		if (firstElementChild instanceof BulkFileOperations) {
 			return;
 		}
-		return this._openElementInMultiDiffEditor(edits, { element: firstElementChild, sideBySide: false, editorOptions: {} });
+		return this._openElementInMultiDiffEditorReturnInput(edits, { element: firstElementChild, sideBySide: false, editorOptions: {} });
 	}
 
-	private async _openElementInMultiDiffEditor(edits: ResourceEdit[], e: IOpenEvent<BulkEditElement | undefined>): Promise<BulkEditEditor | undefined> {
+	private async _openElementInMultiDiffEditorReturnInput(edits: ResourceEdit[], e: IOpenEvent<BulkEditElement | undefined>): Promise<ResourceEdit[] | undefined> {
 
 		console.log('inside of _openElementInMultiDiffEditor');
 
 		const fileOperations = this._currentInput?.fileOperations;
 		if (!fileOperations) {
+			console.log('early return');
 			return;
 		}
 		let fileElement: FileElement;
@@ -585,6 +587,7 @@ export class OpenMultiDiffEditor extends Disposable {
 			fileElement = e.element;
 		} else {
 			// invalid event
+			console.log('second early return');
 			return;
 		}
 
@@ -601,15 +604,23 @@ export class OpenMultiDiffEditor extends Disposable {
 		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
 		console.log('before opening the editor');
-		const buldEditEditor = await this._editorService.openEditor({
+
+		const bulkEditEditor = await this._editorService.openEditor({
 			refactorPreviewSource,
 			diffResources,
 			edits,
 			label,
 			options,
 			description: label
-		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-		return buldEditEditor as BulkEditEditor;
+		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP) as BulkEditEditor;
+
+		console.log('bulkEditEditor : ', bulkEditEditor);
+		// This method should instead return the refactor preview from within the bulk edit editor and await the set input method from there
+		const inputEditsAfterResolving = await bulkEditEditor.inputEdits;
+
+		console.log('inputEditsAfterResolving : ', inputEditsAfterResolving);
+		return inputEditsAfterResolving;
+
 	}
 
 	private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
