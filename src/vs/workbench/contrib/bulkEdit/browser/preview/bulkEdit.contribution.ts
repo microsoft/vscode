@@ -32,7 +32,6 @@ import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolver, BulkEditEd
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import Severity from 'vs/base/common/severity';
 
 class UXState {
 
