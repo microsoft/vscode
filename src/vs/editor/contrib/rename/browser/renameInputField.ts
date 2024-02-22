@@ -603,7 +603,8 @@ class CandidatesView {
 
 	private _pickListHeight(nCandidates: number) {
 		const heightToFitAllCandidates = this._candidateViewHeight * nCandidates;
-		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this._candidateViewHeight * 7 /* max # of candidates we want to show at once */);
+		const MAX_N_CANDIDATES = 7;  // @ulugbekna: max # of candidates we want to show at once
+		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this._candidateViewHeight * MAX_N_CANDIDATES);
 		return height;
 	}
 
