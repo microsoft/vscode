@@ -66,6 +66,7 @@ import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownR
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 
 const $ = dom.$;
 
@@ -871,9 +872,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return $('div');
 					}
 				} else {
-					// TODO: Creating the text models should be done in the model layer, not in the renderer
-					// The current approach means that only code blocks that have been rendered can be referenced
-					textModel = this.codeBlockModelCollection.getOrCreate(element, index);
+					const blockModel = this.codeBlockModelCollection.get(element.id, index);
+					if (!blockModel) {
+						console.error('Trying to render code block without model', element.id, index);
+						return $('div');
+					}
+
+					textModel = blockModel;
 					const extractedVulns = extractVulnerabilitiesFromText(text);
 					vulns = extractedVulns.vulnerabilities;
 					textModel.then(ref => ref.object.textEditorModel.setValue(extractedVulns.newText));
@@ -1095,43 +1100,6 @@ export class EditorPool extends Disposable {
 				this._pool.release(codeBlock);
 			}
 		};
-	}
-}
-
-export class CodeBlockModelCollection extends Disposable {
-
-	private readonly _models = new ResourceMap<Promise<IReference<IResolvedTextEditorModel>>>();
-
-	constructor(
-		@ITextModelService private readonly textModelService: ITextModelService,
-	) {
-		super();
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		this.clear();
-	}
-
-	getOrCreate(element: ChatTreeItem, codeBlockIndex: number): Promise<IReference<IResolvedTextEditorModel>> {
-		const uri = this.getUri(element, codeBlockIndex);
-		const existing = this._models.get(uri);
-		if (existing) {
-			return existing;
-		}
-
-		const ref = this.textModelService.createModelReference(uri);
-		this._models.set(uri, ref);
-		return ref;
-	}
-
-	clear(): void {
-		this._models.forEach(async model => (await model).dispose());
-		this._models.clear();
-	}
-
-	private getUri(element: ChatTreeItem, index: number): URI {
-		return URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: `/${element.id}/${index}` });
 	}
 }
 

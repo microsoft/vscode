@@ -18,8 +18,6 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -148,7 +146,6 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 		@IModelService protected readonly modelService: IModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
@@ -168,6 +165,13 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			mouseWheelZoom: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
+			},
+			definitionLinkOpensInPeek: false,
+			gotoLocation: {
+				multiple: 'goto',
+				multipleDeclarations: 'goto',
+				multipleDefinitions: 'goto',
+				multipleImplementations: 'goto',
 			},
 			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
 			overflowWidgetsDomNode,
@@ -371,11 +375,6 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
 		const textModel = (await data.textModel).object.textEditorModel;
 		this.editor.setModel(textModel);
-		const code = textModel.getValue();
-		const text = this.fixCodeText(code, data.languageId);
-		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(data.languageId) ?? 'plaintext';
-		this.setTextAndLanguage(textModel, vscodeLanguageId, text);
-
 		if (data.range) {
 			this.editor.setSelection(data.range);
 			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
@@ -399,35 +398,6 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			localize('vulnerabilitiesSingular', "{0} vulnerability", 1);
 		const icon = (element: IChatResponseViewModel) => element.vulnerabilitiesListExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 		return `${referencesLabel} $(${icon(this.currentCodeBlockData.element as IChatResponseViewModel).id})`;
-	}
-
-	private fixCodeText(text: string, languageId: string): string {
-		if (languageId === 'php') {
-			if (!text.trim().startsWith('<')) {
-				return `<?php\n${text}\n?>`;
-			}
-		}
-
-		return text;
-	}
-
-	private async setTextAndLanguage(model: ITextModel, vscodeLanguageId: string | undefined, newText: string): Promise<void> {
-		model.setLanguage(vscodeLanguageId ?? vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
-
-		const currentText = model.getValue(EndOfLinePreference.LF);
-		if (newText === currentText) {
-			return;
-		}
-
-		if (newText.startsWith(currentText)) {
-			const text = newText.slice(currentText.length);
-			const lastLine = model.getLineCount();
-			const lastCol = model.getLineMaxColumn(lastLine);
-			model.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
-		} else {
-			// console.log(`Failed to optimize setText`);
-			model.setValue(newText);
-		}
 	}
 }
 

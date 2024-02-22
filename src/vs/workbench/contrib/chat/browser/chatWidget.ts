@@ -27,7 +27,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, CodeBlockModelCollection, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -38,6 +38,7 @@ import { IParsedChatRequest, chatAgentLeader, chatSubcommandLeader } from 'vs/wo
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 const $ = dom.$;
@@ -127,7 +128,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		this._codeBlockModelCollection.clear();
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
@@ -535,8 +535,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			throw new Error('Call render() before setModel()');
 		}
 
+		this._codeBlockModelCollection.clear();
+
 		this.container.setAttribute('data-session-id', model.sessionId);
-		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model);
+		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(e => {
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();
@@ -559,10 +561,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				c.setInputState(viewState.inputState?.[c.id]);
 			}
 		});
-
-		// for (const message of this.viewModel.getItems()) {
-		// 	this._codeBlockModelCollection.createForMessage(message);
-		// }
 
 		if (this.tree) {
 			this.onDidChangeItems();
@@ -806,6 +804,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.saveState();
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
 	}
+
+
 }
 
 export class ChatWidgetService implements IChatWidgetService {
