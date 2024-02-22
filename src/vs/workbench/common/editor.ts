@@ -28,7 +28,6 @@ import { IAction, toAction } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 
 // Static values for editor contributions
 export const EditorExtensions = {
