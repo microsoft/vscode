@@ -129,7 +129,6 @@ export class EditorPanes extends Disposable {
 
 	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 		console.log('inside of openEditor of EditorPanes');
-
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
@@ -261,7 +260,6 @@ export class EditorPanes extends Disposable {
 	}
 
 	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
-
 		console.log('inside of doOpenEditor of EditorPanes');
 		console.log('descriptor is ', descriptor);
 		console.log('editor is ', editor);
@@ -339,7 +337,6 @@ export class EditorPanes extends Disposable {
 	}
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
-
 		console.log('inside of doShowEditorPane');
 
 		// Return early if the currently active editor pane can handle the input
@@ -387,7 +384,7 @@ export class EditorPanes extends Disposable {
 
 		// Create editor container as needed
 		if (!editorPane.getContainer()) {
-			console.log('create contained');
+			console.log('create container');
 			const editorPaneContainer = document.createElement('div');
 			editorPaneContainer.classList.add('editor-instance');
 
@@ -410,7 +407,6 @@ export class EditorPanes extends Disposable {
 		// Otherwise instantiate new
 		const editorPane = this._register(descriptor.instantiate(this.instantiationService));
 		console.log('editorPane : ', editorPane);
-
 		this.editorPanes.push(editorPane);
 
 		return editorPane;

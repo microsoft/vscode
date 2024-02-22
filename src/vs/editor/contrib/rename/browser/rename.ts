@@ -160,8 +160,6 @@ class RenameController implements IEditorContribution {
 
 	async run(): Promise<void> {
 
-		console.log('inside of run');
-
 		const trace = this._logService.trace.bind(this._logService, '[rename]');
 
 		// set up cancellation token to prevent reentrant rename, this
@@ -239,9 +237,7 @@ class RenameController implements IEditorContribution {
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		console.log('supportPreview : ', supportPreview);
 		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
-		console.log('inputFieldResult : ', inputFieldResult);
 		trace('received response from rename input field');
 
 		// no result, only hint to focus the editor or not
@@ -279,7 +275,6 @@ class RenameController implements IEditorContribution {
 
 			trace('applying edits');
 
-			console.log('before apply');
 			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
@@ -375,7 +370,6 @@ export class RenameAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		console.log('rename action run');
 		const logService = accessor.get(ILogService);
 
 		const controller = RenameController.get(editor);

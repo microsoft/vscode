@@ -1022,7 +1022,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private async doOpenEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
-
 		console.log('inside of doOpenEditor');
 
 		// Guard against invalid editors. Disposed editors
@@ -1121,7 +1120,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private doShowEditor(editor: EditorInput, context: { active: boolean; isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
-
 		console.log('inside of doShowEditor');
 
 		// Show in editor control if the active editor changed

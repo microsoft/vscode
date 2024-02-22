@@ -530,7 +530,6 @@ export interface IResourceEdit {
 	readonly metadata?: IWorkspaceEditMetadata;
 }
 
-
 export interface IWorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;

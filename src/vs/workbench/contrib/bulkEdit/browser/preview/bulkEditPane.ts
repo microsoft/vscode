@@ -62,8 +62,6 @@ const enum State {
 	Message = 'message'
 }
 
-// Instead of opening the pane at the beginning when refacto preview done, open the multi diff editor
-// and then have the pane inside
 export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
@@ -77,7 +75,6 @@ export class BulkEditPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _treeDataSource!: BulkEditDataSource;
 	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
-	// private _message!: HTMLSpanElement;
 
 	private readonly _ctxHasCategories: IContextKey<boolean>;
 	private readonly _ctxGroupByFile: IContextKey<boolean>;
@@ -150,7 +147,6 @@ export class BulkEditPane extends ViewPane {
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
 		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
 		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
-		console.log('this._treeDataSource : ', this._treeDataSource);
 
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
@@ -168,6 +164,7 @@ export class BulkEditPane extends ViewPane {
 			}
 		);
 		this._tree.layout(500, 500);
+		console.log('this._treeDataSource : ', this._treeDataSource);
 		console.log('this._tree inside of renderBody : ', this._tree);
 		console.log('treeContainer : ', treeContainer);
 		console.log('contentContainer : ', contentContainer);

@@ -294,7 +294,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult {
 		console.log('inside of openEditor of EditorGroupModel');
-
 		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
@@ -305,7 +304,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		// New editor
 		if (!existingEditorAndIndex) {
 			console.log('need to create a new edior');
-
 			const newEditor = candidate;
 			const indexOfActive = this.indexOf(this.active);
 

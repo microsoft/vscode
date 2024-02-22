@@ -99,15 +99,11 @@ class BulkEditPreviewContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-
 	) {
 		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
 	}
 
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
-		// this is what controls how the edits are previewed. We do not want to show the bulk edit pane, we want to directly open the
-		// multi diff editor
-
 		const openMultiDiffEditor = new OpenMultiDiffEditor(
 			this._instantiationService,
 			this._editorService,
