@@ -834,6 +834,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 					announcement = announcement ? 'auto' : 'off';
 				}
 			}
+			configurationKeyValuePairs.push([`${item.legacySoundSettingsKey}`, { value: undefined }]);
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
 			return configurationKeyValuePairs;
 		}
@@ -844,11 +845,13 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		key: item.legacyAnnouncementSettingsKey!,
 		migrateFn: (announcement, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			const sound = accessor(item.legacySoundSettingsKey);
+			const sound = accessor(item.settingsKey)?.sound || accessor(item.legacySoundSettingsKey);
 			if (announcement !== undefined && typeof announcement !== 'string') {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
+			configurationKeyValuePairs.push([`${item.legacyAnnouncementSettingsKey}`, { value: undefined }]);
+			configurationKeyValuePairs.push([`${item.legacySoundSettingsKey}`, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	})));
