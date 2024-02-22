@@ -48,6 +48,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					resource.modified.resource,
 				);
 			}),
+			input.isTransient ?? false
 		);
 	}
 
@@ -59,7 +60,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			data.resources?.map(resource => new MultiDiffEditorItem(
 				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
 				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
-			))
+			)),
+			false
 		);
 	}
 
@@ -80,6 +82,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		public readonly multiDiffSource: URI,
 		public readonly label: string | undefined,
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
+		public readonly isTransient: boolean = false,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -360,11 +363,16 @@ interface ISerializedMultiDiffEditorInput {
 }
 
 export class MultiDiffEditorSerializer implements IEditorSerializer {
-	canSerialize(editor: EditorInput): boolean {
-		return editor instanceof MultiDiffEditorInput;
+
+	canSerialize(editor: EditorInput): editor is MultiDiffEditorInput {
+		return editor instanceof MultiDiffEditorInput && !editor.isTransient;
 	}
 
 	serialize(editor: MultiDiffEditorInput): string | undefined {
+		if (!this.canSerialize(editor)) {
+			return undefined;
+		}
+
 		return JSON.stringify(editor.serialize());
 	}
 

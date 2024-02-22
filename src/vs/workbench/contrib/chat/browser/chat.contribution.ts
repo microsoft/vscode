@@ -266,7 +266,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.metadata.description}`;
-					const commands = await a.provideSlashCommands(CancellationToken.None);
+					const commands = await a.provideSlashCommands(undefined, [], CancellationToken.None);
 					const commandText = commands.map(c => {
 						const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${chatSubcommandLeader}${c.name} ${c.sampleRequest ?? ''}` };
 						const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));

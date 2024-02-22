@@ -185,6 +185,13 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			githubAccessToken
 		}, dataOverrides);
 
+		if (issueReporterData.extensionId) {
+			const extensionExists = extensionData.some(extension => extension.id === issueReporterData.extensionId);
+			if (!extensionExists) {
+				console.error(`Extension with ID ${issueReporterData.extensionId} does not exist.`);
+			}
+		}
+
 		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
 			ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));

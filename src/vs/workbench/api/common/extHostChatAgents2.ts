@@ -190,7 +190,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._logService, this.commands.converter, sessionDisposables);
 		try {
-			const convertedHistory = await this.prepareHistoryTurns(request, context);
+			const convertedHistory = await this.prepareHistoryTurns(request.agentId, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request),
 				{ history: convertedHistory },
@@ -220,22 +220,22 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 	}
 
-	private async prepareHistoryTurns(request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
+	private async prepareHistoryTurns(agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
 
 		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 
 		for (const h of context.history) {
 			const ehResult = typeConvert.ChatAgentResult.to(h.result);
-			const result: vscode.ChatResult = request.agentId === h.request.agentId ?
+			const result: vscode.ChatResult = agentId === h.request.agentId ?
 				ehResult :
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', participant: h.request.agentId }));
+			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentResolvedVariable.to), { extensionId: '', name: h.request.agentId }));
 
 			// RESPONSE turn
 			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.fromContent(r, this.commands.converter)));
-			res.push(new extHostTypes.ChatResponseTurn(parts, result, { extensionId: '', participant: h.request.agentId }, h.request.command));
+			res.push(new extHostTypes.ChatResponseTurn(parts, result, { extensionId: '', name: h.request.agentId }, h.request.command));
 		}
 
 		return res;
@@ -245,13 +245,21 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
 
-	async $provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]> {
+	async $provideSlashCommands(handle: number, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentCommand[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			// this is OK, the agent might have disposed while the request was in flight
 			return [];
 		}
-		return agent.provideSlashCommands(token);
+
+		const convertedHistory = await this.prepareHistoryTurns(agent.id, context);
+		try {
+			return await agent.provideSlashCommands({ history: convertedHistory }, token);
+		} catch (err) {
+			const msg = toErrorMessage(err);
+			this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] Error while providing slash commands: ${msg}`);
+			return [];
+		}
 	}
 
 	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
@@ -386,11 +394,11 @@ class ExtHostChatAgent {
 		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
 	}
 
-	async provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]> {
+	async provideSlashCommands(context: vscode.ChatContext, token: CancellationToken): Promise<IChatAgentCommand[]> {
 		if (!this._commandProvider) {
 			return [];
 		}
-		const result = await this._commandProvider.provideCommands(token);
+		const result = await this._commandProvider.provideCommands(context, token);
 		if (!result) {
 			return [];
 		}
@@ -505,9 +513,11 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get fullName() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._fullName ?? that.extension.displayName ?? that.extension.name;
 			},
 			set fullName(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._fullName = v;
 				updateMetadataSoon();
 			},

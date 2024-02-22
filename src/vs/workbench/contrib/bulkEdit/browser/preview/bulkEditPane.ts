@@ -37,8 +37,8 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
 import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
-import { Range } from 'vs/editor/common/core/range';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { IRange } from 'vs/editor/common/core/range';
 
 const enum State {
 	Data = 'data',
@@ -48,6 +48,7 @@ const enum State {
 export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
+	static readonly Schema = 'vscode-bulkeditpreview-multieditor';
 
 	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
@@ -324,11 +325,15 @@ export class BulkEditPane extends ViewPane {
 		if (!fileOperations) {
 			return;
 		}
+
+		let selection: IRange | undefined = undefined;
 		let fileElement: FileElement;
 		if (e.element instanceof TextEditElement) {
 			fileElement = e.element.parent;
+			selection = e.element.edit.textEdit.textEdit.range;
 		} else if (e.element instanceof FileElement) {
 			fileElement = e.element;
+			selection = e.element.edit.textEdits[0]?.textEdit.textEdit.range;
 		} else {
 			// invalid event
 			return;
@@ -340,17 +345,18 @@ export class BulkEditPane extends ViewPane {
 			viewState: {
 				revealData: {
 					resource: { original: fileElement.edit.uri },
-					range: new Range(1, 1, 1, 1)
+					range: selection,
 				}
 			}
 		};
-		const multiDiffSource = URI.from({ scheme: 'refactor-preview' });
+		const multiDiffSource = URI.from({ scheme: BulkEditPane.Schema });
 		const label = 'Refactor Preview';
 		this._editorService.openEditor({
 			multiDiffSource,
 			resources,
 			label,
 			options,
+			isTransient: true,
 			description: label
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}

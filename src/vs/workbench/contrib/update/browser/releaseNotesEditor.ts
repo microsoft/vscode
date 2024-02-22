@@ -45,7 +45,6 @@ export class ReleaseNotesManager {
 	private readonly disposables = new DisposableStore();
 
 	public constructor(
-		private readonly _useCurrentFile: boolean,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -81,8 +80,8 @@ export class ReleaseNotesManager {
 		}
 	}
 
-	public async show(version: string): Promise<boolean> {
-		const releaseNoteText = await this.loadReleaseNotes(version);
+	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
+		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
 		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
@@ -137,7 +136,7 @@ export class ReleaseNotesManager {
 		return true;
 	}
 
-	private async loadReleaseNotes(version: string): Promise<string> {
+	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			throw new Error('not found');
@@ -199,7 +198,12 @@ export class ReleaseNotesManager {
 		const fetchReleaseNotes = async () => {
 			let text;
 			try {
-				text = this._useCurrentFile ? this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue() : await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+				if (useCurrentFile) {
+					const file = this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue();
+					text = file ? file.substring(file.indexOf('#')) : undefined;
+				} else {
+					text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+				}
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}
@@ -211,6 +215,10 @@ export class ReleaseNotesManager {
 			return patchKeybindings(text);
 		};
 
+		// Don't cache the current file
+		if (useCurrentFile) {
+			return fetchReleaseNotes();
+		}
 		if (!this._releaseNotesCache.has(version)) {
 			this._releaseNotesCache.set(version, (async () => {
 				try {
