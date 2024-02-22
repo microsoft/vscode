@@ -357,7 +357,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			return; // If the menubar is already installed, skip
 		}
 
-		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl, 'titlebar'));
+		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
 		this.menubar = append(this.leftContent, $('div.menubar'));
 		this.menubar.setAttribute('role', 'menubar');

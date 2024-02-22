@@ -281,7 +281,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl, 'activity'));
+		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 		this.menuBar.create(this.menuBarContainer);
 
 	}

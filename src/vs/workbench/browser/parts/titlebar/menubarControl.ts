@@ -384,8 +384,9 @@ export class CustomMenubarControl extends MenubarControl {
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
+	protected static singleInstance: CustomMenubarControl | undefined = undefined;
+
 	constructor(
-		readonly id: string,
 		@IMenuService menuService: IMenuService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -402,6 +403,10 @@ export class CustomMenubarControl extends MenubarControl {
 		@IHostService hostService: IHostService,
 		@ICommandService commandService: ICommandService
 	) {
+		if (CustomMenubarControl.singleInstance) {
+			CustomMenubarControl.singleInstance.dispose();
+		}
+
 		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
@@ -419,6 +424,8 @@ export class CustomMenubarControl extends MenubarControl {
 		this.registerListeners();
 
 		this.registerActions();
+
+		CustomMenubarControl.singleInstance = this;
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
@@ -438,8 +445,7 @@ export class CustomMenubarControl extends MenubarControl {
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						// avoid multiple instances and register command with the same ID twice.
-						id: `workbench.actions.${that.id}.menubar.focus`,
+						id: `workbench.actions.menubar.focus`,
 						title: localize2('focusMenu', 'Focus Application Menu'),
 						keybinding: {
 							primary: KeyMod.Alt | KeyCode.F10,
