@@ -546,7 +546,7 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.clear': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
+			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel)."),
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.clear.sound', "Plays a sound when a feature is cleared."),
