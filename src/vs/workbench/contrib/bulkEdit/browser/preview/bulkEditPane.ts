@@ -150,6 +150,7 @@ export class BulkEditPane extends ViewPane {
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
 		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
 		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
+		console.log('this._treeDataSource : ', this._treeDataSource);
 
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
@@ -166,6 +167,7 @@ export class BulkEditPane extends ViewPane {
 				selectionNavigation: true
 			}
 		);
+		this._tree.layout(500, 500);
 		console.log('this._tree inside of renderBody : ', this._tree);
 		console.log('treeContainer : ', treeContainer);
 		console.log('contentContainer : ', contentContainer);

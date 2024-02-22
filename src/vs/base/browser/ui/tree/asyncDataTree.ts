@@ -427,6 +427,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IAsyncDataTreeOptions<T, TFilterData>
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
+		console.log('inside of create tree');
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
 		const objectTreeRenderers = renderers.map(r => new AsyncDataTreeRenderer(r, this.nodeMapper, this._onDidChangeNodeSlowState.event));
 		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
