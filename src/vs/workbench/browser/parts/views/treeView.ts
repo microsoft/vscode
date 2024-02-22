@@ -1111,7 +1111,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse', false, { persistence: { hideOnHover: false } });
+		this._hoverDelegate = instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse', false, { persistence: undefined /* use default persistence behaviour */ });
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.rerender()));
 		this._register(this.themeService.onDidColorThemeChange(() => this.rerender()));
 		this._register(checkboxStateHandler.onDidChangeCheckboxState(items => {
