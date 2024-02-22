@@ -524,7 +524,18 @@ export interface IResourceRefactorPreviewInput extends IBaseUntypedEditorInput {
 	/**
 	 * Edits
 	 */
-	readonly editMetaData: WorkspaceEditMetadata[];
+	readonly edits: IResourceEdit[];
+}
+
+export interface IResourceEdit {
+	readonly metadata?: IWorkspaceEditMetadata;
+}
+
+
+export interface IWorkspaceEditMetadata {
+	needsConfirmation: boolean;
+	label: string;
+	description?: string;
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };

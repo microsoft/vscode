@@ -25,6 +25,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { generateUuid } from 'vs/base/common/uuid';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
+import { IResourceEdit } from 'vs/workbench/common/editor';
 
 export class CheckedStates<T extends object> {
 
@@ -138,7 +139,7 @@ export class BulkCategory {
 
 export class BulkFileOperations {
 
-	static async create(accessor: ServicesAccessor, bulkEdit: ResourceEdit[]): Promise<BulkFileOperations> {
+	static async create(accessor: ServicesAccessor, bulkEdit: IResourceEdit[]): Promise<BulkFileOperations> {
 		const result = accessor.get(IInstantiationService).createInstance(BulkFileOperations, bulkEdit);
 		return await result._init();
 	}
@@ -150,7 +151,7 @@ export class BulkFileOperations {
 	readonly conflicts: ConflictDetector;
 
 	constructor(
-		private readonly _bulkEdit: ResourceEdit[],
+		private readonly _bulkEdit: IResourceEdit[],
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {

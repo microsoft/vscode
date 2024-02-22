@@ -36,7 +36,7 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
-import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IResourceDiffEditorInput, IResourceEdit } from 'vs/workbench/common/editor';
 import { Range } from 'vs/editor/common/core/range';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -56,597 +56,599 @@ export async function getBulkEditPane(viewsService: IViewsService): Promise<Bulk
 
 export async function getBulkEditPane2(instantiationService: IInstantiationService, edits: ResourceEdit[]): Promise<BulkEditPane | undefined> {
 	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' }, edits);
-}
-
-const enum State {
-	Data = 'data',
-	Message = 'message'
-}
-
-// Instead of opening the pane at the beginning when refacto preview done, open the multi diff editor
-// and then have the pane inside
-export class BulkEditPane extends ViewPane {
-
-	static readonly ID = 'refactorPreview';
-
-	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
-	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
-	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
-
-	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
-
-	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
-	private _treeDataSource!: BulkEditDataSource;
-	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
-	private _message!: HTMLSpanElement;
-
-	private readonly _ctxHasCategories: IContextKey<boolean>;
-	private readonly _ctxGroupByFile: IContextKey<boolean>;
-	private readonly _ctxHasCheckedChanges: IContextKey<boolean>;
-
-	private readonly _disposables = new DisposableStore();
-	private readonly _sessionDisposables = new DisposableStore();
-	private _currentResolve?: (edit?: ResourceEdit[]) => void;
-	private _currentInput?: BulkFileOperations;
-	private _currentProvider?: BulkEditPreviewProvider;
-	private _fileOperations?: BulkFileOperation[];
-	private _resources?: IResourceDiffEditorInput[];
-
-	constructor(
-		options: IViewletViewOptions,
-		private readonly edits: ResourceEdit[],
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-	) {
-		super(
-			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
-		);
-
-		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
-		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
-		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
-		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
-		console.log('inside of constructor of bulk edit pane');
+	export async function getBulkEditPane2(instantiationService: IInstantiationService, edits: ResourceEdit[]): Promise<BulkEditPane | undefined> {
+		return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' }, edits);
 	}
 
-	override dispose(): void {
-		this._tree.dispose();
-		this._disposables.dispose();
-		super.dispose();
+	const enum State {
+		Data = 'data',
+		Message = 'message'
 	}
 
-	public override renderBody(parent: HTMLElement): void {
-		console.log('inside of renderBody of bulk edit pane');
-		super.renderBody(parent);
+	// Instead of opening the pane at the beginning when refacto preview done, open the multi diff editor
+	// and then have the pane inside
+	export class BulkEditPane extends ViewPane {
 
-		const resourceLabels = this._instaService.createInstance(
-			ResourceLabels,
-			<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
-		);
-		this._disposables.add(resourceLabels);
+		static readonly ID = 'refactorPreview';
 
-		const contentContainer = document.createElement('div');
-		contentContainer.className = 'content';
-		parent.appendChild(contentContainer);
+		static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
+		static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
+		static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
 
-		// tree
-		const treeContainer = document.createElement('div');
-		treeContainer.className = 'tree-refactor-preview-class';
-		contentContainer.appendChild(treeContainer);
+		private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
 
-		console.log('treeContainer : ', treeContainer);
-		console.log('contentContainer : ', contentContainer);
+		private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
+		private _treeDataSource!: BulkEditDataSource;
+		private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
+		// private _message!: HTMLSpanElement;
 
-		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
-		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
-		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
+		private readonly _ctxHasCategories: IContextKey<boolean>;
+		private readonly _ctxGroupByFile: IContextKey<boolean>;
+		private readonly _ctxHasCheckedChanges: IContextKey<boolean>;
 
-		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
-			WorkbenchAsyncDataTree, this.id, treeContainer,
-			new BulkEditDelegate(),
-			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
-			this._treeDataSource,
-			{
-				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
-				identityProvider: new BulkEditIdentityProvider(),
-				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
-				sorter: new BulkEditSorter(),
-				selectionNavigation: true
-			}
-		);
-		console.log('this._tree inside of renderBody : ', this._tree);
+		private readonly _disposables = new DisposableStore();
+		private readonly _sessionDisposables = new DisposableStore();
+		private _currentResolve?: (edit?: ResourceEdit[]) => void;
+		private _currentInput?: BulkFileOperations;
+		private _currentProvider?: BulkEditPreviewProvider;
+		private _fileOperations?: BulkFileOperation[];
+		private _resources?: IResourceDiffEditorInput[];
 
-		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
-		this._disposables.add(this._tree.onDidOpen(e => this._openElementInMultiDiffEditor(e)));
+		constructor(
+			options: IViewletViewOptions,
+			private readonly edits: ResourceEdit[],
+			@IInstantiationService private readonly _instaService: IInstantiationService,
+			@IEditorService private readonly _editorService: IEditorService,
+			@ILabelService private readonly _labelService: ILabelService,
+			@ITextModelService private readonly _textModelService: ITextModelService,
+			@IDialogService private readonly _dialogService: IDialogService,
+			@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+			@IStorageService private readonly _storageService: IStorageService,
+			@IContextKeyService contextKeyService: IContextKeyService,
+			@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+			@IKeybindingService keybindingService: IKeybindingService,
+			@IContextMenuService contextMenuService: IContextMenuService,
+			@IConfigurationService configurationService: IConfigurationService,
+			@IOpenerService openerService: IOpenerService,
+			@IThemeService themeService: IThemeService,
+			@ITelemetryService telemetryService: ITelemetryService,
+		) {
+			super(
+				{ ...options, titleMenuId: MenuId.BulkEditTitle },
+				keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
+			);
 
-		// buttons
-		const buttonsContainer = document.createElement('div');
-		buttonsContainer.className = 'buttons';
-		contentContainer.appendChild(buttonsContainer);
-		const buttonBar = new ButtonBar(buttonsContainer);
-		this._disposables.add(buttonBar);
-
-		const btnConfirm = buttonBar.addButton({ supportIcons: true, ...defaultButtonStyles });
-		btnConfirm.label = localize('ok', 'Apply');
-		btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
-
-		const btnCancel = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
-		btnCancel.label = localize('cancel', 'Discard');
-		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
-
-		// message
-		this._message = document.createElement('span');
-		this._message.className = 'message';
-		this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
-		parent.appendChild(this._message);
-
-		//
-		this._setState(State.Message);
-	}
-
-	protected override layoutBody(height: number, width: number): void {
-		console.log('inside of layoutBody');
-		super.layoutBody(height, width);
-		const treeHeight = height - 50;
-		this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
-		this._tree.layout(treeHeight, width);
-	}
-
-	private _setState(state: State): void {
-		this.element.dataset['state'] = state;
-	}
-
-	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
-		console.log('inside of setInput');
-		console.log('edits : ', edit);
-		this._setState(State.Data);
-		this._sessionDisposables.clear();
-		this._treeViewStates.clear();
-
-		if (this._currentResolve) {
-			this._currentResolve(undefined);
-			this._currentResolve = undefined;
+			this.element.classList.add('bulk-edit-panel', 'show-file-icons');
+			this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
+			this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
+			this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
+			console.log('inside of constructor of bulk edit pane');
 		}
 
-		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
-		this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
-		this._sessionDisposables.add(this._currentProvider);
-		this._sessionDisposables.add(input);
-
-		//
-		const hasCategories = input.categories.length > 1;
-		this._ctxHasCategories.set(hasCategories);
-		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
-		this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
-
-		this._currentInput = input;
-
-		return new Promise<ResourceEdit[] | undefined>(resolve => {
-
-			token.onCancellationRequested(() => resolve(undefined));
-
-			this._currentResolve = resolve;
-			this._setTreeInput(input);
-
-			// refresh when check state changes
-			this._sessionDisposables.add(input.checked.onDidChange(() => {
-				this._tree.updateChildren();
-				this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
-			}));
-		});
-	}
-
-	hasInput(): boolean {
-		return Boolean(this._currentInput);
-	}
-
-	private async _setTreeInput(input: BulkFileOperations) {
-		console.log('inside of _setTreeInput');
-		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
-		await this._tree.setInput(input, viewState);
-		this._tree.domFocus();
-
-		if (viewState) {
-			return;
+		override dispose(): void {
+			this._tree.dispose();
+			this._disposables.dispose();
+			super.dispose();
 		}
 
-		// async expandAll (max=10) is the default when no view state is given
-		const expand = [...this._tree.getNode(input).children].slice(0, 10);
-		while (expand.length > 0) {
-			const { element } = expand.shift()!;
-			if (element instanceof FileElement) {
-				await this._tree.expand(element, true);
-			}
-			if (element instanceof CategoryElement) {
-				await this._tree.expand(element, true);
-				expand.push(...this._tree.getNode(element).children);
-			}
-		}
-	}
+		public override renderBody(parent: HTMLElement): void {
+			console.log('inside of renderBody of bulk edit pane');
+			super.renderBody(parent);
 
-	accept(): void {
+			const resourceLabels = this._instaService.createInstance(
+				ResourceLabels,
+				<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
+			);
+			this._disposables.add(resourceLabels);
 
-		const conflicts = this._currentInput?.conflicts.list();
+			const contentContainer = document.createElement('div');
+			contentContainer.className = 'content';
+			parent.appendChild(contentContainer);
 
-		if (!conflicts || conflicts.length === 0) {
-			this._done(true);
-			return;
-		}
+			// tree
+			const treeContainer = document.createElement('div');
+			treeContainer.className = 'tree-refactor-preview-class';
+			contentContainer.appendChild(treeContainer);
 
-		let message: string;
-		if (conflicts.length === 1) {
-			message = localize('conflict.1', "Cannot apply refactoring because '{0}' has changed in the meantime.", this._labelService.getUriLabel(conflicts[0], { relative: true }));
-		} else {
-			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
-		}
-
-		this._dialogService.warn(message).finally(() => this._done(false));
-	}
-
-	discard() {
-		this._done(false);
-	}
-
-	private _done(accept: boolean): void {
-		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
-		this._currentInput = undefined;
-		this._setState(State.Message);
-		this._sessionDisposables.clear();
-	}
-
-	toggleChecked() {
-		const [first] = this._tree.getFocus();
-		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
-			first.setChecked(!first.isChecked());
-		} else if (first instanceof CategoryElement) {
-			first.setChecked(!first.isChecked());
-		}
-	}
-
-	groupByFile(): void {
-		if (!this._treeDataSource.groupByFile) {
-			this.toggleGrouping();
-		}
-	}
-
-	groupByType(): void {
-		if (this._treeDataSource.groupByFile) {
-			this.toggleGrouping();
-		}
-	}
-
-	toggleGrouping() {
-		const input = this._tree.getInput();
-		if (input) {
-
-			// (1) capture view state
-			const oldViewState = this._tree.getViewState();
-			this._treeViewStates.set(this._treeDataSource.groupByFile, oldViewState);
-
-			// (2) toggle and update
-			this._treeDataSource.groupByFile = !this._treeDataSource.groupByFile;
-			this._setTreeInput(input);
-
-			// (3) remember preference
-			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.PROFILE, StorageTarget.USER);
+			this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
+			this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
-		}
-	}
 
-	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
+			this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
+				WorkbenchAsyncDataTree, this.id, treeContainer,
+				new BulkEditDelegate(),
+				[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
+				this._treeDataSource,
+				{
+					accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
+					identityProvider: new BulkEditIdentityProvider(),
+					expandOnlyOnTwistieClick: true,
+					multipleSelectionSupport: false,
+					keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
+					sorter: new BulkEditSorter(),
+					selectionNavigation: true
+				}
+			);
+			console.log('this._tree inside of renderBody : ', this._tree);
+			console.log('treeContainer : ', treeContainer);
+			console.log('contentContainer : ', contentContainer);
 
-		const fileOperations = this._currentInput?.fileOperations;
-		if (!fileOperations) {
-			return;
-		}
-		let fileElement: FileElement;
-		if (e.element instanceof TextEditElement) {
-			fileElement = e.element.parent;
-		} else if (e.element instanceof FileElement) {
-			fileElement = e.element;
-		} else {
-			// invalid event
-			return;
+			this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
+			this._disposables.add(this._tree.onDidOpen(e => this._openElementInMultiDiffEditor(e)));
+
+			// buttons
+			const buttonsContainer = document.createElement('div');
+			buttonsContainer.className = 'buttons';
+			contentContainer.appendChild(buttonsContainer);
+			const buttonBar = new ButtonBar(buttonsContainer);
+			this._disposables.add(buttonBar);
+
+			const btnConfirm = buttonBar.addButton({ supportIcons: true, ...defaultButtonStyles });
+			btnConfirm.label = localize('ok', 'Apply');
+			btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
+
+			const btnCancel = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
+			btnCancel.label = localize('cancel', 'Discard');
+			btnCancel.onDidClick(() => this.discard(), this, this._disposables);
+
+			// message
+			// this._message = document.createElement('span');
+			// this._message.className = 'message';
+			// this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
+			// parent.appendChild(this._message);
+
+			//
+			this._setState(State.Message);
 		}
 
-		const diffResources = await this._resolveResources(fileOperations);
-		const options: Mutable<IMultiDiffEditorOptions> = {
-			...e.editorOptions,
-			viewState: {
-				revealData: {
-					resource: { original: fileElement.edit.uri },
-					range: new Range(1, 1, 1, 1)
+		protected override layoutBody(height: number, width: number): void {
+			console.log('inside of layoutBody');
+			super.layoutBody(height, width);
+			const treeHeight = height - 50;
+			this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
+			this._tree.layout(treeHeight, width);
+		}
+
+		private _setState(state: State): void {
+			this.element.dataset['state'] = state;
+		}
+
+		async setInput(edit: IResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
+			console.log('inside of setInput');
+			console.log('edits : ', edit);
+			this._setState(State.Data);
+			this._sessionDisposables.clear();
+			this._treeViewStates.clear();
+
+			if (this._currentResolve) {
+				this._currentResolve(undefined);
+				this._currentResolve = undefined;
+			}
+
+			const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
+			this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
+			this._sessionDisposables.add(this._currentProvider);
+			this._sessionDisposables.add(input);
+
+			//
+			const hasCategories = input.categories.length > 1;
+			this._ctxHasCategories.set(hasCategories);
+			this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
+			this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
+
+			this._currentInput = input;
+
+			return new Promise<ResourceEdit[] | undefined>(resolve => {
+
+				token.onCancellationRequested(() => resolve(undefined));
+
+				this._currentResolve = resolve;
+				this._setTreeInput(input);
+
+				// refresh when check state changes
+				this._sessionDisposables.add(input.checked.onDidChange(() => {
+					this._tree.updateChildren();
+					this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
+				}));
+			});
+		}
+
+		hasInput(): boolean {
+			return Boolean(this._currentInput);
+		}
+
+		private async _setTreeInput(input: BulkFileOperations) {
+			console.log('inside of _setTreeInput');
+			const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
+			await this._tree.setInput(input, viewState);
+			this._tree.domFocus();
+
+			if (viewState) {
+				return;
+			}
+
+			// async expandAll (max=10) is the default when no view state is given
+			const expand = [...this._tree.getNode(input).children].slice(0, 10);
+			while (expand.length > 0) {
+				const { element } = expand.shift()!;
+				if (element instanceof FileElement) {
+					await this._tree.expand(element, true);
+				}
+				if (element instanceof CategoryElement) {
+					await this._tree.expand(element, true);
+					expand.push(...this._tree.getNode(element).children);
 				}
 			}
-		};
-		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
-		const label = 'Refactor Preview';
-		const editMetaData = this.edits.map(edit => edit.metadata).filter(edit => edit !== undefined) as WorkspaceEditMetadata[];
-		this._editorService.openEditor({
-			editMetaData,
-			refactorPreviewSource,
-			diffResources,
-			label,
-			options,
-			description: label
-		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-	}
-
-	private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
-		if (this._fileOperations === fileOperations && this._resources) {
-			return this._resources;
 		}
-		const resources: IResourceDiffEditorInput[] = [];
-		for (const operation of fileOperations) {
-			const operationUri = operation.uri;
-			const previewUri = this._currentProvider!.asPreviewUri(operationUri);
-			// delete -> show single editor
-			if (operation.type & BulkFileOperationType.Delete) {
-				resources.push({
-					original: { resource: undefined },
-					modified: { resource: URI.revive(previewUri) }
-				});
 
+		accept(): void {
+
+			const conflicts = this._currentInput?.conflicts.list();
+
+			if (!conflicts || conflicts.length === 0) {
+				this._done(true);
+				return;
+			}
+
+			let message: string;
+			if (conflicts.length === 1) {
+				message = localize('conflict.1', "Cannot apply refactoring because '{0}' has changed in the meantime.", this._labelService.getUriLabel(conflicts[0], { relative: true }));
 			} else {
-				// rename, create, edits -> show diff editr
-				let leftResource: URI | undefined;
-				try {
-					(await this._textModelService.createModelReference(operationUri)).dispose();
-					leftResource = operationUri;
-				} catch {
-					leftResource = BulkEditPreviewProvider.emptyPreview;
-				}
-				resources.push({
-					original: { resource: URI.revive(leftResource) },
-					modified: { resource: URI.revive(previewUri) }
-				});
+				message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
+			}
+
+			this._dialogService.warn(message).finally(() => this._done(false));
+		}
+
+		discard() {
+			this._done(false);
+		}
+
+		private _done(accept: boolean): void {
+			this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
+			this._currentInput = undefined;
+			this._setState(State.Message);
+			this._sessionDisposables.clear();
+		}
+
+		toggleChecked() {
+			const [first] = this._tree.getFocus();
+			if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
+				first.setChecked(!first.isChecked());
+			} else if (first instanceof CategoryElement) {
+				first.setChecked(!first.isChecked());
 			}
 		}
-		this._fileOperations = fileOperations;
-		this._resources = resources;
-		return resources;
-	}
 
-	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
-
-		this._contextMenuService.showContextMenu({
-			menuId: MenuId.BulkEditContext,
-			contextKeyService: this.contextKeyService,
-			getAnchor: () => e.anchor
-		});
-	}
-}
-
-export class OpenMultiDiffEditor extends Disposable {
-
-	static readonly ID = 'refactorPreview';
-
-	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
-	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
-	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
-
-	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
-	private _treeDataSource!: BulkEditDataSource;
-	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
-
-	private readonly _disposables = new DisposableStore();
-	private readonly _sessionDisposables = new DisposableStore();
-	private _currentResolve?: (edit?: ResourceEdit[]) => void;
-	private _currentInput?: BulkFileOperations;
-	private _currentProvider?: BulkEditPreviewProvider;
-	private _fileOperations?: BulkFileOperation[];
-	private _resources?: IResourceDiffEditorInput[];
-
-	constructor(
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IStorageService _storageService: IStorageService,
-	) {
-
-		super();
-
-		const resourceLabels = this._instaService.createInstance(
-			ResourceLabels,
-			<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
-		);
-		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
-		this._treeDataSource.groupByFile = _storageService.getBoolean(`${BulkEditPane.ID}.groupByFile`, StorageScope.PROFILE, true);
-		const treeContainer = document.createElement('div');
-		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
-			WorkbenchAsyncDataTree, 'some-id', treeContainer,
-			new BulkEditDelegate(),
-			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
-			this._treeDataSource,
-			{
-				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
-				identityProvider: new BulkEditIdentityProvider(),
-				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
-				sorter: new BulkEditSorter(),
-				selectionNavigation: true
-			}
-		);
-		console.log('inside of constructor of bulk edit pane');
-	}
-
-	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
-
-	override dispose(): void {
-		super.dispose();
-		this._tree.dispose();
-		this._disposables.dispose();
-	}
-
-	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
-		console.log('inside of setInput');
-		this._sessionDisposables.clear();
-		this._treeViewStates.clear();
-
-		if (this._currentResolve) {
-			this._currentResolve(undefined);
-			this._currentResolve = undefined;
-		}
-
-		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
-		this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
-		this._sessionDisposables.add(this._currentProvider);
-		this._sessionDisposables.add(input);
-
-		//
-		const hasCategories = input.categories.length > 1;
-		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
-
-		this._currentInput = input;
-
-		return new Promise<ResourceEdit[] | undefined>(resolve => {
-
-			token.onCancellationRequested(() => resolve(undefined));
-
-			this._currentResolve = resolve;
-			this._setTreeInput(input);
-
-			// refresh when check state changes
-			this._sessionDisposables.add(input.checked.onDidChange(() => {
-				this._tree.updateChildren();
-			}));
-		});
-	}
-
-	hasInput(): boolean {
-		return Boolean(this._currentInput);
-	}
-
-	private async _setTreeInput(input: BulkFileOperations) {
-		console.log('inside of _setTreeInput');
-		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
-		await this._tree.setInput(input, viewState);
-		this._tree.domFocus();
-
-		if (viewState) {
-			return;
-		}
-
-		// async expandAll (max=10) is the default when no view state is given
-		const expand = [...this._tree.getNode(input).children].slice(0, 10);
-		while (expand.length > 0) {
-			const { element } = expand.shift()!;
-			if (element instanceof FileElement) {
-				await this._tree.expand(element, true);
-			}
-			if (element instanceof CategoryElement) {
-				await this._tree.expand(element, true);
-				expand.push(...this._tree.getNode(element).children);
+		groupByFile(): void {
+			if (!this._treeDataSource.groupByFile) {
+				this.toggleGrouping();
 			}
 		}
-	}
 
-	public async openMultiDiffEditor(edits: ResourceEdit[]): Promise<BulkEditEditor | undefined> {
-		// console.log('this._tree : ', this._tree);
-		// console.log('this._tree.getNode() : ', this._tree.getNode());
-		// console.log('this._tree.getInput() : ', this._tree.getInput());
-		// console.log('this._tree.getAnchor() : ', this._tree.getAnchor());
-		// console.log('this._tree.getFirstElementChild() : ', this._tree.getFirstElementChild());
-		const firstElementChild = this._tree.getFirstElementChild();
-		if (firstElementChild instanceof BulkFileOperations) {
-			return;
-		}
-		return this._openElementInMultiDiffEditor(edits, { element: firstElementChild, sideBySide: false, editorOptions: {} });
-	}
-
-	private async _openElementInMultiDiffEditor(edits: ResourceEdit[], e: IOpenEvent<BulkEditElement | undefined>): Promise<BulkEditEditor | undefined> {
-
-		console.log('inside of _openElementInMultiDiffEditor');
-
-		const fileOperations = this._currentInput?.fileOperations;
-		if (!fileOperations) {
-			return;
-		}
-		let fileElement: FileElement;
-		if (e.element instanceof TextEditElement) {
-			fileElement = e.element.parent;
-		} else if (e.element instanceof FileElement) {
-			fileElement = e.element;
-		} else {
-			// invalid event
-			return;
-		}
-
-		const diffResources = await this._resolveResources(fileOperations);
-		const options: Mutable<IMultiDiffEditorOptions> = {
-			...e.editorOptions,
-			viewState: {
-				revealData: {
-					resource: { original: fileElement.edit.uri },
-					range: new Range(1, 1, 1, 1)
-				}
+		groupByType(): void {
+			if (this._treeDataSource.groupByFile) {
+				this.toggleGrouping();
 			}
-		};
-		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
-		const label = 'Refactor Preview';
-		console.log('before opening the editor');
-		const editMetaData = edits.map(edit => edit.metadata).filter(edit => edit !== undefined) as WorkspaceEditMetadata[];
-		const buldEditEditor = await this._editorService.openEditor({
-			refactorPreviewSource,
-			diffResources,
-			editMetaData,
-			label,
-			options,
-			description: label
-		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-		return buldEditEditor as BulkEditEditor;
-	}
-
-	private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
-		if (this._fileOperations === fileOperations && this._resources) {
-			return this._resources;
 		}
-		const resources: IResourceDiffEditorInput[] = [];
-		for (const operation of fileOperations) {
-			const operationUri = operation.uri;
-			const previewUri = this._currentProvider!.asPreviewUri(operationUri);
-			// delete -> show single editor
-			if (operation.type & BulkFileOperationType.Delete) {
-				resources.push({
-					original: { resource: undefined },
-					modified: { resource: URI.revive(previewUri) }
-				});
 
+		toggleGrouping() {
+			const input = this._tree.getInput();
+			if (input) {
+
+				// (1) capture view state
+				const oldViewState = this._tree.getViewState();
+				this._treeViewStates.set(this._treeDataSource.groupByFile, oldViewState);
+
+				// (2) toggle and update
+				this._treeDataSource.groupByFile = !this._treeDataSource.groupByFile;
+				this._setTreeInput(input);
+
+				// (3) remember preference
+				this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.PROFILE, StorageTarget.USER);
+				this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
+			}
+		}
+
+		private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
+
+			const fileOperations = this._currentInput?.fileOperations;
+			if (!fileOperations) {
+				return;
+			}
+			let fileElement: FileElement;
+			if (e.element instanceof TextEditElement) {
+				fileElement = e.element.parent;
+			} else if (e.element instanceof FileElement) {
+				fileElement = e.element;
 			} else {
-				// rename, create, edits -> show diff editr
-				let leftResource: URI | undefined;
-				try {
-					(await this._textModelService.createModelReference(operationUri)).dispose();
-					leftResource = operationUri;
-				} catch {
-					leftResource = BulkEditPreviewProvider.emptyPreview;
+				// invalid event
+				return;
+			}
+
+			const diffResources = await this._resolveResources(fileOperations);
+			const options: Mutable<IMultiDiffEditorOptions> = {
+				...e.editorOptions,
+				viewState: {
+					revealData: {
+						resource: { original: fileElement.edit.uri },
+						range: new Range(1, 1, 1, 1)
+					}
 				}
-				resources.push({
-					original: { resource: URI.revive(leftResource) },
-					modified: { resource: URI.revive(previewUri) }
-				});
+			};
+			const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
+			const label = 'Refactor Preview';
+			const edits = this.edits;
+			this._editorService.openEditor({
+				edits,
+				refactorPreviewSource,
+				diffResources,
+				label,
+				options,
+				description: label
+			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		}
+
+		private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
+			if (this._fileOperations === fileOperations && this._resources) {
+				return this._resources;
+			}
+			const resources: IResourceDiffEditorInput[] = [];
+			for (const operation of fileOperations) {
+				const operationUri = operation.uri;
+				const previewUri = this._currentProvider!.asPreviewUri(operationUri);
+				// delete -> show single editor
+				if (operation.type & BulkFileOperationType.Delete) {
+					resources.push({
+						original: { resource: undefined },
+						modified: { resource: URI.revive(previewUri) }
+					});
+
+				} else {
+					// rename, create, edits -> show diff editr
+					let leftResource: URI | undefined;
+					try {
+						(await this._textModelService.createModelReference(operationUri)).dispose();
+						leftResource = operationUri;
+					} catch {
+						leftResource = BulkEditPreviewProvider.emptyPreview;
+					}
+					resources.push({
+						original: { resource: URI.revive(leftResource) },
+						modified: { resource: URI.revive(previewUri) }
+					});
+				}
+			}
+			this._fileOperations = fileOperations;
+			this._resources = resources;
+			return resources;
+		}
+
+		private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
+
+			this._contextMenuService.showContextMenu({
+				menuId: MenuId.BulkEditContext,
+				contextKeyService: this.contextKeyService,
+				getAnchor: () => e.anchor
+			});
+		}
+	}
+
+	export class OpenMultiDiffEditor extends Disposable {
+
+		static readonly ID = 'refactorPreview';
+
+		static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
+		static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
+		static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
+
+		private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
+		private _treeDataSource!: BulkEditDataSource;
+		private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
+
+		private readonly _disposables = new DisposableStore();
+		private readonly _sessionDisposables = new DisposableStore();
+		private _currentResolve?: (edit?: ResourceEdit[]) => void;
+		private _currentInput?: BulkFileOperations;
+		private _currentProvider?: BulkEditPreviewProvider;
+		private _fileOperations?: BulkFileOperation[];
+		private _resources?: IResourceDiffEditorInput[];
+
+		constructor(
+			@IInstantiationService private readonly _instaService: IInstantiationService,
+			@IEditorService private readonly _editorService: IEditorService,
+			@ITextModelService private readonly _textModelService: ITextModelService,
+			@IStorageService _storageService: IStorageService,
+		) {
+
+			super();
+
+			const resourceLabels = this._instaService.createInstance(
+				ResourceLabels,
+				<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
+			);
+			this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
+			this._treeDataSource.groupByFile = _storageService.getBoolean(`${BulkEditPane.ID}.groupByFile`, StorageScope.PROFILE, true);
+			const treeContainer = document.createElement('div');
+			this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
+				WorkbenchAsyncDataTree, 'some-id', treeContainer,
+				new BulkEditDelegate(),
+				[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
+				this._treeDataSource,
+				{
+					accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
+					identityProvider: new BulkEditIdentityProvider(),
+					expandOnlyOnTwistieClick: true,
+					multipleSelectionSupport: false,
+					keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
+					sorter: new BulkEditSorter(),
+					selectionNavigation: true
+				}
+			);
+			console.log('inside of constructor of bulk edit pane');
+		}
+
+		private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
+		readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
+
+		override dispose(): void {
+			super.dispose();
+			this._tree.dispose();
+			this._disposables.dispose();
+		}
+
+		async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
+			console.log('inside of setInput');
+			this._sessionDisposables.clear();
+			this._treeViewStates.clear();
+
+			if (this._currentResolve) {
+				this._currentResolve(undefined);
+				this._currentResolve = undefined;
+			}
+
+			const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
+			this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
+			this._sessionDisposables.add(this._currentProvider);
+			this._sessionDisposables.add(input);
+
+			//
+			const hasCategories = input.categories.length > 1;
+			this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
+
+			this._currentInput = input;
+
+			return new Promise<ResourceEdit[] | undefined>(resolve => {
+
+				token.onCancellationRequested(() => resolve(undefined));
+
+				this._currentResolve = resolve;
+				this._setTreeInput(input);
+
+				// refresh when check state changes
+				this._sessionDisposables.add(input.checked.onDidChange(() => {
+					this._tree.updateChildren();
+				}));
+			});
+		}
+
+		hasInput(): boolean {
+			return Boolean(this._currentInput);
+		}
+
+		private async _setTreeInput(input: BulkFileOperations) {
+			console.log('inside of _setTreeInput');
+			const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
+			await this._tree.setInput(input, viewState);
+			this._tree.domFocus();
+
+			if (viewState) {
+				return;
+			}
+
+			// async expandAll (max=10) is the default when no view state is given
+			const expand = [...this._tree.getNode(input).children].slice(0, 10);
+			while (expand.length > 0) {
+				const { element } = expand.shift()!;
+				if (element instanceof FileElement) {
+					await this._tree.expand(element, true);
+				}
+				if (element instanceof CategoryElement) {
+					await this._tree.expand(element, true);
+					expand.push(...this._tree.getNode(element).children);
+				}
 			}
 		}
-		this._fileOperations = fileOperations;
-		this._resources = resources;
-		return resources;
+
+		public async openMultiDiffEditor(edits: ResourceEdit[]): Promise<BulkEditEditor | undefined> {
+			console.log('inside of openMultiDiffEditor, edits : ', edits);
+			// console.log('this._tree : ', this._tree);
+			// console.log('this._tree.getNode() : ', this._tree.getNode());
+			// console.log('this._tree.getInput() : ', this._tree.getInput());
+			// console.log('this._tree.getAnchor() : ', this._tree.getAnchor());
+			// console.log('this._tree.getFirstElementChild() : ', this._tree.getFirstElementChild());
+			const firstElementChild = this._tree.getFirstElementChild();
+			if (firstElementChild instanceof BulkFileOperations) {
+				return;
+			}
+			return this._openElementInMultiDiffEditor(edits, { element: firstElementChild, sideBySide: false, editorOptions: {} });
+		}
+
+		private async _openElementInMultiDiffEditor(edits: ResourceEdit[], e: IOpenEvent<BulkEditElement | undefined>): Promise<BulkEditEditor | undefined> {
+
+			console.log('inside of _openElementInMultiDiffEditor');
+
+			const fileOperations = this._currentInput?.fileOperations;
+			if (!fileOperations) {
+				return;
+			}
+			let fileElement: FileElement;
+			if (e.element instanceof TextEditElement) {
+				fileElement = e.element.parent;
+			} else if (e.element instanceof FileElement) {
+				fileElement = e.element;
+			} else {
+				// invalid event
+				return;
+			}
+
+			const diffResources = await this._resolveResources(fileOperations);
+			const options: Mutable<IMultiDiffEditorOptions> = {
+				...e.editorOptions,
+				viewState: {
+					revealData: {
+						resource: { original: fileElement.edit.uri },
+						range: new Range(1, 1, 1, 1)
+					}
+				}
+			};
+			const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
+			const label = 'Refactor Preview';
+			console.log('before opening the editor');
+			const editMetaData = edits.map(edit => edit.metadata).filter(edit => edit !== undefined) as WorkspaceEditMetadata[];
+			const buldEditEditor = await this._editorService.openEditor({
+				refactorPreviewSource,
+				diffResources,
+				edits,
+				label,
+				options,
+				description: label
+			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			return buldEditEditor as BulkEditEditor;
+		}
+
+		private async _resolveResources(fileOperations: BulkFileOperation[]): Promise<IResourceDiffEditorInput[]> {
+			if (this._fileOperations === fileOperations && this._resources) {
+				return this._resources;
+			}
+			const resources: IResourceDiffEditorInput[] = [];
+			for (const operation of fileOperations) {
+				const operationUri = operation.uri;
+				const previewUri = this._currentProvider!.asPreviewUri(operationUri);
+				// delete -> show single editor
+				if (operation.type & BulkFileOperationType.Delete) {
+					resources.push({
+						original: { resource: undefined },
+						modified: { resource: URI.revive(previewUri) }
+					});
+
+				} else {
+					// rename, create, edits -> show diff editr
+					let leftResource: URI | undefined;
+					try {
+						(await this._textModelService.createModelReference(operationUri)).dispose();
+						leftResource = operationUri;
+					} catch {
+						leftResource = BulkEditPreviewProvider.emptyPreview;
+					}
+					resources.push({
+						original: { resource: URI.revive(leftResource) },
+						modified: { resource: URI.revive(previewUri) }
+					});
+				}
+			}
+			this._fileOperations = fileOperations;
+			this._resources = resources;
+			return resources;
+		}
 	}
-}

@@ -238,7 +238,7 @@ export class BulkEditEditorSerializer implements IEditorSerializer {
 
 export class BulkEditEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceRefactorPreviewInput, instantiationService: IInstantiationService): BulkEditEditorInput {
-		if (!input.refactorPreviewSource && !input.diffResources && !input.editMetaData) {
+		if (!input.refactorPreviewSource && !input.diffResources && !input.edits) {
 			throw new BugIndicatingError('BulkEditEditorInput requires either multiDiffSource or resources');
 		}
 		const refactorPreviewSource = input.refactorPreviewSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
@@ -252,7 +252,7 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 					resource.modified.resource,
 				);
 			}),
-			input.editMetaData.map(meta => new ResourceEdit(meta)),
+			input.edits,
 		);
 	}
 

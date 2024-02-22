@@ -10,9 +10,10 @@ import { ResourceMap } from 'vs/base/common/map';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
-import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IResourceEdit } from 'vs/workbench/common/editor';
 
 export class ConflictDetector {
 
@@ -23,7 +24,7 @@ export class ConflictDetector {
 	readonly onDidConflict: Event<this> = this._onDidConflict.event;
 
 	constructor(
-		edits: ResourceEdit[],
+		edits: IResourceEdit[],
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@ILogService logService: ILogService,
