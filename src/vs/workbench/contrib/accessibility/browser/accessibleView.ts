@@ -254,9 +254,6 @@ export class AccessibleView extends Disposable {
 		}
 	}
 
-	activateLink(): void {
-		this._commandService.executeCommand('editor.action.openLink');
-	}
 
 	showLastProvider(id: AccessibleViewProviderId): void {
 		if (!this._lastProvider || this._lastProvider.options.id !== id) {
@@ -516,7 +513,7 @@ export class AccessibleView extends Disposable {
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Enter) {
-				this.activateLink();
+				this._commandService.executeCommand('editor.action.openLink');
 			} else if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
 				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
