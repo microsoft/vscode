@@ -229,12 +229,6 @@ export interface IEditorOptions {
 	pinned?: boolean;
 
 	/**
-	 * Forces the editor to open not as pinned, even if user settings have disabled editor pinning.
-	 * As such, the editor will always get replaced by another editor that is not pinned.
-	 */
-	forceUnpinned?: boolean;
-
-	/**
 	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
 	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
 	 */
@@ -294,6 +288,15 @@ export interface IEditorOptions {
 	 * applied when opening the editor.
 	 */
 	viewState?: object;
+
+	/**
+	 * A temporary editor will always appear un-pinned and certain components
+	 * will decide to ignore the editor when it becomes active. This option is
+	 * meant to be used only when the editor is used for a short period of time,
+	 * for example when opening a preview of the editor from a picker control
+	 * in the background.
+	 */
+	temporary?: boolean;
 }
 
 export interface ITextEditorSelection {

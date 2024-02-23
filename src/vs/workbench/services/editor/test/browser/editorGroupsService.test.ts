@@ -1817,7 +1817,7 @@ suite('EditorGroupsService', () => {
 		maxiizeGroupEventDisposable.dispose();
 	});
 
-	test('forceUnpinned and enablePreview setting', async function () {
+	test('temporary and enablePreview setting', async function () {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('workbench', { 'editor': { 'enablePreview': false } });
@@ -1834,7 +1834,7 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(input, { pinned: false });
 		assert.strictEqual(group.isPinned(input), true);
 
-		await group.openEditor(input2, { forceUnpinned: true });
+		await group.openEditor(input2, { temporary: true });
 		assert.strictEqual(group.isPinned(input2), false);
 	});
 

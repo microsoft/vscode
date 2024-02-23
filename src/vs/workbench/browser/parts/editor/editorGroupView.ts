@@ -1033,7 +1033,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Determine options
 		const pinned = options?.sticky
-			|| (!this.groupsView.partOptions.enablePreview && !options?.forceUnpinned)
+			|| (!this.groupsView.partOptions.enablePreview && !options?.temporary)
 			|| editor.isDirty()
 			|| (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */)
 			|| (typeof options?.index === 'number' && this.model.isSticky(options.index))
