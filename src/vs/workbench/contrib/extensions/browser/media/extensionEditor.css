@@ -494,15 +494,14 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry {
 	font-size: 90%;
-	display: flex;
+	display: grid;
+	grid-template-columns: 40% 60%;
+	gap: 6px;
+	padding: 2px 4px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry :first-child {
-	width: 40%;
-}
-
-.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry :last-child {
-	width: 60%;
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry:nth-child(odd) {
+	background-color: rgba(130, 130, 130, 0.04);
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry code {

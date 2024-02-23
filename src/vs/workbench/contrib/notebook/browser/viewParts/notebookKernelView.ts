@@ -166,7 +166,6 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		if (this._kernelLabel) {
 			this._kernelLabel.classList.add('kernel-label');
 			this._kernelLabel.innerText = this._action.label;
-			this._kernelLabel.title = this._action.tooltip;
 		}
 	}
 

@@ -41,7 +41,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
+import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -206,8 +206,7 @@ export class BreadcrumbsControl {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('breadcrumbs-control');
@@ -230,17 +229,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
-		this._hoverDelegate = {
-			delay: 500,
-			showHover: (options: IHoverOptions) => {
-				return this.hoverService.showHover({
-					...options,
-					persistence: {
-						hideOnHover: true
-					}
-				});
-			}
-		};
+		this._hoverDelegate = nativeHoverDelegate;
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 		this.hide();

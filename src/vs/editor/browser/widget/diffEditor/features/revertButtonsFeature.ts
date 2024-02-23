@@ -19,6 +19,8 @@ import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { GlyphMarginLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 
+const emptyArr: never[] = [];
+
 export class RevertButtonsFeature extends Disposable {
 	constructor(
 		private readonly _editors: DiffEditorEditors,
@@ -28,58 +30,41 @@ export class RevertButtonsFeature extends Disposable {
 	) {
 		super();
 
-		const emptyArr: never[] = [];
-		const selectedDiffs = derived(this, (reader) => {
-			/** @description selectedDiffs */
-			const model = this._diffModel.read(reader);
-			const diff = model?.diff.read(reader);
-			if (!diff) { return emptyArr; }
-
-			const selections = this._editors.modifiedSelections.read(reader);
-
-			if (selections.every(s => s.isEmpty())) {
-				return emptyArr;
-			}
-
-			const lineRanges = new LineRangeSet(selections.map(s => LineRange.fromRangeInclusive(s)));
-
-			const mappings = diff.mappings.filter(m => m.lineRangeMapping.innerChanges && lineRanges.intersects(m.lineRangeMapping.modified));
-
-			const result = mappings.map(mapping => ({
-				mapping,
-				rangeMappings: mapping.lineRangeMapping.innerChanges!.filter(c => selections.some(s => Range.areIntersecting(c.modifiedRange, s)))
-			}));
-			if (result.length === 0 || result.every(r => r.rangeMappings.length === 0)) { return emptyArr; }
-			return result;
-		});
-
 		this._register(autorunWithStore((reader, store) => {
+			if (!this._options.shouldRenderRevertArrows.read(reader)) { return; }
 			const model = this._diffModel.read(reader);
 			const diff = model?.diff.read(reader);
 			if (!model || !diff) { return; }
-			const movedTextToCompare = this._diffModel.read(reader)!.movedTextToCompare.read(reader);
-			if (movedTextToCompare) { return; }
-			if (!this._options.shouldRenderRevertArrows.read(reader)) { return; }
+			if (model.movedTextToCompare.read(reader)) { return; }
 
 			const glyphWidgetsModified: IGlyphMarginWidget[] = [];
 
-			const selectedDiffs_ = selectedDiffs.read(reader);
-			const diffsSet = new Set(selectedDiffs_.map(d => d.mapping));
+			const selectedDiffs = this._selectedDiffs.read(reader);
+			const selectedDiffsSet = new Set(selectedDiffs.map(d => d.mapping));
 
-			if (selectedDiffs_.length > 0) {
+			if (selectedDiffs.length > 0) {
+				// The button to revert the selection
 				const selections = this._editors.modifiedSelections.read(reader);
 
-				const btn = store.add(new RevertButton(selections[selections.length - 1].positionLineNumber, this._widget, selectedDiffs_.flatMap(d => d.rangeMappings), true));
+				const btn = store.add(new RevertButton(
+					selections[selections.length - 1].positionLineNumber,
+					this._widget,
+					selectedDiffs.flatMap(d => d.rangeMappings),
+					true
+				));
 				this._editors.modified.addGlyphMarginWidget(btn);
 				glyphWidgetsModified.push(btn);
 			}
 
 			for (const m of diff.mappings) {
-				if (diffsSet.has(m)) {
-					continue;
-				}
+				if (selectedDiffsSet.has(m)) { continue; }
 				if (!m.lineRangeMapping.modified.isEmpty && m.lineRangeMapping.innerChanges) {
-					const btn = store.add(new RevertButton(m.lineRangeMapping.modified.startLineNumber, this._widget, m.lineRangeMapping.innerChanges, false));
+					const btn = store.add(new RevertButton(
+						m.lineRangeMapping.modified.startLineNumber,
+						this._widget,
+						m.lineRangeMapping.innerChanges,
+						false
+					));
 					this._editors.modified.addGlyphMarginWidget(btn);
 					glyphWidgetsModified.push(btn);
 				}
@@ -92,6 +77,31 @@ export class RevertButtonsFeature extends Disposable {
 			}));
 		}));
 	}
+
+	private readonly _selectedDiffs = derived(this, (reader) => {
+		/** @description selectedDiffs */
+		const model = this._diffModel.read(reader);
+		const diff = model?.diff.read(reader);
+		// Return `emptyArr` because it is a constant. [] is always a new array and would trigger a change.
+		if (!diff) { return emptyArr; }
+
+		const selections = this._editors.modifiedSelections.read(reader);
+		if (selections.every(s => s.isEmpty())) { return emptyArr; }
+
+		const selectedLineNumbers = new LineRangeSet(selections.map(s => LineRange.fromRangeInclusive(s)));
+
+		const selectedMappings = diff.mappings.filter(m =>
+			m.lineRangeMapping.innerChanges && selectedLineNumbers.intersects(m.lineRangeMapping.modified)
+		);
+		const result = selectedMappings.map(mapping => ({
+			mapping,
+			rangeMappings: mapping.lineRangeMapping.innerChanges!.filter(
+				c => selections.some(s => Range.areIntersecting(c.modifiedRange, s))
+			)
+		}));
+		if (result.length === 0 || result.every(r => r.rangeMappings.length === 0)) { return emptyArr; }
+		return result;
+	});
 }
 
 export class RevertButton extends Disposable implements IGlyphMarginWidget {
@@ -102,7 +112,7 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 	getId(): string { return this._id; }
 
 	private readonly _domNode = h('div.revertButton', {
-		title: this._selection
+		title: this._revertSelection
 			? localize('revertSelectedChanges', 'Revert Selected Changes')
 			: localize('revertChange', 'Revert Change')
 	},
@@ -113,7 +123,7 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 		private readonly _lineNumber: number,
 		private readonly _widget: DiffEditorWidget,
 		private readonly _diffs: RangeMapping[],
-		private readonly _selection: boolean,
+		private readonly _revertSelection: boolean,
 	) {
 		super();
 

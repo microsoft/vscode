@@ -181,7 +181,7 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
 // Speech
-import 'vs/workbench/contrib/speech/common/speech.contribution';
+import 'vs/workbench/contrib/speech/browser/speech.contribution';
 
 // Chat
 import 'vs/workbench/contrib/chat/browser/chat.contribution';

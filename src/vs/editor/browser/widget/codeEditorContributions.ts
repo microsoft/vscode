@@ -5,7 +5,7 @@
 
 import { getWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -111,10 +111,10 @@ export class CodeEditorContributions extends Disposable {
 		this._instantiateSome(EditorContributionInstantiation.BeforeFirstInteraction);
 	}
 
-	public onAfterModelAttached(): void {
-		this._register(runWhenWindowIdle(getWindow(this._editor?.getDomNode()), () => {
+	public onAfterModelAttached(): IDisposable {
+		return runWhenWindowIdle(getWindow(this._editor?.getDomNode()), () => {
 			this._instantiateSome(EditorContributionInstantiation.AfterFirstRender);
-		}, 50));
+		}, 50);
 	}
 
 	private _instantiateSome(instantiation: EditorContributionInstantiation): void {

@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IChatAgent, IChatAgentCommand, IChatAgentHistoryEntry, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatProgress, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
@@ -27,9 +28,10 @@ suite('VoiceChat', () => {
 
 		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
 
-		constructor(readonly id: string, readonly lastSlashCommands: IChatAgentCommand[]) { }
+		constructor(readonly id: string, private readonly lastSlashCommands: IChatAgentCommand[]) { }
+		getLastSlashCommands(model: IChatModel): IChatAgentCommand[] | undefined { return this.lastSlashCommands; }
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
-		provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]> { throw new Error('Method not implemented.'); }
+		provideSlashCommands(model: IChatModel | undefined, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentCommand[]> { throw new Error('Method not implemented.'); }
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
 		metadata = {};
 	}
@@ -74,8 +76,7 @@ suite('VoiceChat', () => {
 
 		createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 			return {
-				onDidChange: emitter.event,
-				dispose: () => { }
+				onDidChange: emitter.event
 			};
 		}
 
@@ -89,12 +90,11 @@ suite('VoiceChat', () => {
 
 	let service: VoiceChatService;
 	let event: IVoiceChatTextEvent | undefined;
-	let session: ISpeechToTextSession | undefined;
 
 	function createSession(options: IVoiceChatSessionOptions) {
-		session?.dispose();
-
-		session = disposables.add(service.createVoiceChatSession(CancellationToken.None, options));
+		const cts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cts.dispose(true)));
+		const session = service.createVoiceChatSession(cts.token, options);
 		disposables.add(session.onDidChange(e => {
 			event = e;
 		}));
@@ -110,11 +110,11 @@ suite('VoiceChat', () => {
 	});
 
 	test('Agent and slash command detection (useAgents: false)', async () => {
-		testAgentsAndSlashCommandsDetection({ usesAgents: false });
+		testAgentsAndSlashCommandsDetection({ usesAgents: false, model: {} as IChatModel });
 	});
 
 	test('Agent and slash command detection (useAgents: true)', async () => {
-		testAgentsAndSlashCommandsDetection({ usesAgents: true });
+		testAgentsAndSlashCommandsDetection({ usesAgents: true, model: {} as IChatModel });
 	});
 
 	function testAgentsAndSlashCommandsDetection(options: IVoiceChatSessionOptions) {
@@ -297,7 +297,7 @@ suite('VoiceChat', () => {
 	test('waiting for input', async () => {
 
 		// Agent
-		createSession({ usesAgents: true });
+		createSession({ usesAgents: true, model: {} as IChatModel });
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);
@@ -310,7 +310,7 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event.waitingForInput, true);
 
 		// Slash Command
-		createSession({ usesAgents: true });
+		createSession({ usesAgents: true, model: {} as IChatModel });
 
 		emitter.fire({ status: SpeechToTextStatus.Recognizing, text: 'At workspace slash explain' });
 		assert.strictEqual(event?.status, SpeechToTextStatus.Recognizing);

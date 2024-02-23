@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { addStandardDisposableListener } from 'vs/base/browser/dom';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -229,3 +232,79 @@ export interface IHoverTarget extends IDisposable {
 	 */
 	y?: number;
 }
+
+export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
+
+	private lastHoverHideTime = Number.MAX_VALUE;
+	private timeLimit = 200;
+
+	private _delay: number;
+	get delay(): number {
+		if (this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit) {
+			return 0; // show instantly when a hover was recently shown
+		}
+		return this._delay;
+	}
+
+	private hoverDisposables = this._register(new DisposableStore());
+
+	constructor(
+		public readonly placement: 'mouse' | 'element',
+		private readonly instantHover: boolean,
+		private overrideOptions: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>) = {},
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+
+		this._delay = this.configurationService.getValue<number>('workbench.hover.delay');
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.hover.delay')) {
+				this._delay = this.configurationService.getValue<number>('workbench.hover.delay');
+			}
+		}));
+	}
+
+	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+		const overrideOptions = typeof this.overrideOptions === 'function' ? this.overrideOptions(options, focus) : this.overrideOptions;
+
+		// close hover on escape
+		this.hoverDisposables.clear();
+		const targets = options.target instanceof HTMLElement ? [options.target] : options.target.targetElements;
+		for (const target of targets) {
+			this.hoverDisposables.add(addStandardDisposableListener(target, 'keydown', (e) => {
+				if (e.equals(KeyCode.Escape)) {
+					this.hoverService.hideHover();
+				}
+			}));
+		}
+
+		return this.hoverService.showHover({
+			...options,
+			persistence: {
+				hideOnHover: true
+			},
+			...overrideOptions
+		}, focus);
+	}
+
+	setOptions(options: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>)): void {
+		this.overrideOptions = options;
+	}
+
+	onDidHideHover(): void {
+		this.hoverDisposables.clear();
+		if (this.instantHover) {
+			this.lastHoverHideTime = Date.now();
+		}
+	}
+}
+
+// TODO@benibenj remove this, only temp fix for contextviews
+export const nativeHoverDelegate: IHoverDelegate = {
+	showHover: function (): IHoverWidget | undefined {
+		throw new Error('Native hover function not implemented.');
+	},
+	delay: 0,
+	showNativeHover: true
+};

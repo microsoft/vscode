@@ -51,6 +51,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { EditorDictation } from 'vs/workbench/contrib/codeEditor/browser/dictation/editorDictation';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
@@ -2444,7 +2445,8 @@ class SCMInputWidget {
 				SuggestController.ID,
 				InlineCompletionsController.ID,
 				CodeActionController.ID,
-				FormatOnType.ID
+				FormatOnType.ID,
+				EditorDictation.ID
 			])
 		};
 
@@ -2492,12 +2494,12 @@ class SCMInputWidget {
 
 		// Toolbar
 		this.toolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction && this.toolbar.dropdownActions.length > 1) {
-					return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, this.toolbar.dropdownAction, this.toolbar.dropdownActions, '', this.contextMenuService, { actionRunner: this.toolbar.actionRunner });
+					return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, this.toolbar.dropdownAction, this.toolbar.dropdownActions, '', this.contextMenuService, { actionRunner: this.toolbar.actionRunner, hoverDelegate: options.hoverDelegate });
 				}
 
-				return createActionViewItem(instantiationService, action);
+				return createActionViewItem(instantiationService, action, options);
 			},
 			menuOptions: {
 				shouldForwardArgs: true
@@ -3221,6 +3223,13 @@ export class SCMViewPane extends ViewPane {
 			if (menu) {
 				actionRunner = new HistoryItemGroupActionRunner();
 				createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
+			}
+		} else if (isSCMHistoryItemTreeElement(element)) {
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.historyItemGroup.repository.provider);
+			const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
+			if (menu) {
+				actionRunner = new HistoryItemActionRunner();
+				actions = collectContextMenuActions(menu);
 			}
 		}
 

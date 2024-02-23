@@ -227,6 +227,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
+	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -257,6 +258,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
 			default: true,
 			type: 'boolean'
+		},
+		[InlineChatConfigKeys.AccessibleDiffView]: {
+			description: localize('accessibleDiffView', "Whether the inline chat also renders an accessible diff viewer for its changes."),
+			default: 'auto',
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			markdownEnumDescriptions: [
+				localize('accessibleDiffView.auto', "The accessible diff viewer is based screen reader mode being enabled."),
+				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
+				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
+			],
 		}
 	}
 });
