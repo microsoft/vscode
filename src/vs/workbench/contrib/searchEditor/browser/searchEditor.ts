@@ -62,6 +62,8 @@ import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTer
 import { defaultToggleStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -161,7 +163,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.includesExcludesContainer = DOM.append(container, DOM.$('.includes-excludes'));
 
 		// Toggle query details button
-		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
+		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, localize('moreSearch', "Toggle Search Details")));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
 			this.toggleIncludesExcludes();
