@@ -32,6 +32,8 @@ import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -219,7 +221,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
-			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
+			templateData.disposables.push(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {

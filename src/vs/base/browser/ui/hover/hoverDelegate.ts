@@ -21,7 +21,7 @@ export function setHoverDelegateFactory(hoverDelegateProvider: ((placement: 'mou
 }
 
 export function getDefaultHoverDelegate(placement: 'mouse' | 'element'): IHoverDelegate;
-export function getDefaultHoverDelegate(placement: 'mouse' | 'element', enableInstantHover: true): IScopedHoverDelegate;
+export function getDefaultHoverDelegate(placement: 'element', enableInstantHover: true): IScopedHoverDelegate;
 export function getDefaultHoverDelegate(placement: 'mouse' | 'element', enableInstantHover?: boolean): IHoverDelegate | IScopedHoverDelegate {
 	if (enableInstantHover) {
 		// If instant hover is enabled, the consumer is responsible for disposing the hover delegate

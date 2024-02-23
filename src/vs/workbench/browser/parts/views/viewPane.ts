@@ -47,6 +47,8 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -342,6 +344,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private titleContainer?: HTMLElement;
 	private titleDescriptionContainer?: HTMLElement;
 	private iconContainer?: HTMLElement;
+	private iconContainerHover?: ICustomHover;
 	protected twistiesContainer?: HTMLElement;
 	private viewWelcomeController!: ViewWelcomeController;
 
@@ -519,13 +522,14 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		const calculatedTitle = this.calculateTitle(title);
-		this.titleContainer = append(container, $('h3.title', { title: calculatedTitle }, calculatedTitle));
+		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
+		setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle);
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
 		}
 
-		this.iconContainer.title = calculatedTitle;
+		this.iconContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
 
@@ -537,7 +541,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		if (this.iconContainer) {
-			this.iconContainer.title = calculatedTitle;
+			this.iconContainerHover?.update(calculatedTitle);
 			this.iconContainer.setAttribute('aria-label', calculatedTitle);
 		}
 
