@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorunHandleChanges, derivedOpts, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
 import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';

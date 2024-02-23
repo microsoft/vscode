@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/editor/browser/coreCommands';
-import 'vs/editor/browser/widget/codeEditorWidget';
+import 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 import 'vs/editor/contrib/anchorSelect/browser/anchorSelect';
 import 'vs/editor/contrib/bracketMatching/browser/bracketMatching';

@@ -6,7 +6,8 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { CancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
@@ -192,9 +193,15 @@ class RenameController implements IEditorContribution {
 			this._progressService.showWhile(resolveLocationOperation, 250);
 			loc = await resolveLocationOperation;
 			trace('resolved rename location');
-		} catch (e) {
-			trace('resolve rename location failed', JSON.stringify(e, null, '\t'));
-			MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
+		} catch (e: unknown) {
+			if (e instanceof CancellationError) {
+				trace('resolve rename location cancelled', JSON.stringify(e, null, '\t'));
+			} else {
+				trace('resolve rename location failed', e instanceof Error ? e : JSON.stringify(e, null, '\t'));
+				if (typeof e === 'string' || isMarkdownString(e)) {
+					MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
+				}
+			}
 			return undefined;
 
 		} finally {

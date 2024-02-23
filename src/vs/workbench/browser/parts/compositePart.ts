@@ -35,6 +35,7 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 
 export interface ICompositeTitleLabel {
 
@@ -62,7 +63,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected toolBar: WorkbenchToolBar | undefined;
 	protected titleLabelElement: HTMLElement | undefined;
-	protected readonly hoverDelegate: IHoverDelegate;
+	protected readonly toolbarHoverDelegate: IHoverDelegate;
 
 	private readonly mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private readonly mapActionsBindingToComposite = new Map<string, () => void>();
@@ -96,7 +97,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super(id, options, themeService, storageService, layoutService);
 
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
-		this.hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
+		this.toolbarHoverDelegate = this._register(getDefaultHoverDelegate('element', true));
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
@@ -407,7 +408,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions..."),
 			telemetrySource: this.nameForTelemetry,
-			hoverDelegate: this.hoverDelegate
+			hoverDelegate: this.toolbarHoverDelegate
 		}));
 
 		this.collectCompositeActions()();
@@ -419,6 +420,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const titleContainer = append(parent, $('.title-label'));
 		const titleLabel = append(titleContainer, $('h2'));
 		this.titleLabelElement = titleLabel;
+		const hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), titleLabel, ''));
 
 		const $this = this;
 		return {
@@ -426,7 +428,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				// The title label is shared for all composites in the base CompositePart
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
 					titleLabel.innerText = title;
-					titleLabel.title = keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+					hover.update(keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
 				}
 			},
 
