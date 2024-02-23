@@ -129,6 +129,7 @@ class BulkEditPreviewContribution {
 		try {
 
 			await openMultiDiffEditor.setInput(edits, session.cts.token);
+			console.log('after setInput of _previewEdit of BulkEditPreviewContribution');
 			return await openMultiDiffEditor.openMultiDiffEditorReturnInput(edits) ?? [];
 
 		} finally {

@@ -442,16 +442,19 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		console.log('inside of matches of bulk edit editor input');
+		console.log('otherInput : ', otherInput);
 		if (super.matches(otherInput)) {
+			console.log('return true');
 			return true;
 		}
 
 		if (otherInput instanceof BulkEditEditorInput) {
-			console.log('this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString() : ', this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString());
+			console.log('return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString() : ', this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString());
 			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString()
 				&& this.edits.toString() === otherInput.edits.toString();
 		}
 
+		console.log('return false');
 		return false;
 	}
 
