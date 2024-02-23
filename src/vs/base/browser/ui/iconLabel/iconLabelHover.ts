@@ -174,6 +174,12 @@ function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement):
 export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContentOrFactory, options?: IUpdatableHoverOptions): ICustomHover {
 	htmlElement.setAttribute('custom-hover', 'true');
 
+	if (htmlElement.title !== '') {
+		console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
+		console.trace('Stack trace:', htmlElement.title);
+		htmlElement.title = '';
+	}
+
 	let hoverPreparation: IDisposable | undefined;
 	let hoverWidget: UpdatableHoverWidget | undefined;
 

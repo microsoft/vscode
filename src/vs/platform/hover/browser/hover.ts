@@ -282,7 +282,8 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 		return this.hoverService.showHover({
 			...options,
 			persistence: {
-				hideOnHover: true
+				hideOnHover: true,
+				hideOnKeyDown: true,
 			},
 			...overrideOptions
 		}, focus);
