@@ -6,7 +6,8 @@
 import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI, joinPath } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/path';
 
 export namespace Schemas {
 
@@ -163,7 +164,7 @@ class RemoteAuthoritiesImpl {
 	}
 
 	private get _remoteResourcesPath(): string {
-		return joinPath(this._serverRootPath, Schemas.vscodeRemoteResource);
+		return paths.posix.join(this._serverRootPath, Schemas.vscodeRemoteResource);
 	}
 
 	set(authority: string, host: string, port: number): void {
@@ -211,7 +212,7 @@ class RemoteAuthoritiesImpl {
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
 export function getServerRootPath(product: { quality?: string; commit?: string }, basePath: string | undefined): string {
-	return joinPath(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
+	return paths.posix.join(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
 }
 
 /**
