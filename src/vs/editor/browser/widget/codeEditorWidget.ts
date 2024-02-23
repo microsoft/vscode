@@ -242,6 +242,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _overflowWidgetsDomNode: HTMLElement | undefined;
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
+	private _contributionsDisposable: IDisposable | undefined;
 
 	protected readonly _actions = new Map<string, editorCommon.IEditorAction>();
 
@@ -523,7 +524,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._onDidChangeModel.fire(e);
 		this._postDetachModelCleanup(detachedModel);
 
-		this._contributions.onAfterModelAttached();
+		this._contributionsDisposable = this._contributions.onAfterModelAttached();
 	}
 
 	private _removeDecorationTypes(): void {
@@ -1871,6 +1872,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _detachModel(): ITextModel | null {
+		this._contributionsDisposable?.dispose();
+		this._contributionsDisposable = undefined;
 		if (!this._modelData) {
 			return null;
 		}
@@ -1887,7 +1890,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._bannerDomNode && this._domElement.contains(this._bannerDomNode)) {
 			this._domElement.removeChild(this._bannerDomNode);
 		}
-
 		return model;
 	}
 

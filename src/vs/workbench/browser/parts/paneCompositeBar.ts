@@ -207,12 +207,6 @@ export class PaneCompositeBar extends Disposable {
 
 		if (to === this.location) {
 			this.onDidRegisterViewContainers([container]);
-
-			// Open view container if part is visible and there is no other view container opened
-			const visibleComposites = this.compositeBar.getVisibleComposites();
-			if (!this.paneCompositePart.getActivePaneComposite() && this.layoutService.isVisible(this.paneCompositePart.partId) && visibleComposites.length) {
-				this.paneCompositePart.openPaneComposite(visibleComposites[0].id);
-			}
 		}
 	}
 

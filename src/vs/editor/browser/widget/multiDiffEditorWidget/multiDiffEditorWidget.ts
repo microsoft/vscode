@@ -46,8 +46,8 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
-	public reveal(resource: IMultiDiffResource, range: Range): void {
-		this._widgetImpl.get().reveal(resource, range);
+	public reveal(resource: IMultiDiffResource, options?: RevealOptions): void {
+		this._widgetImpl.get().reveal(resource, options);
 	}
 
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {
@@ -81,4 +81,9 @@ export class MultiDiffEditorWidget extends Disposable {
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this._widgetImpl.get().tryGetCodeEditor(resource);
 	}
+}
+
+export interface RevealOptions {
+	range?: Range;
+	highlight: boolean;
 }
