@@ -15,7 +15,7 @@ class ChatHistoryVariables extends Disposable {
 	) {
 		super();
 
-		this._register(chatVariablesService.registerVariable({ name: 'response', description: '', canTakeArgument: true, hidden: true }, async (message, arg, model, progress, token) => {
+		this._register(chatVariablesService.registerVariable({ id: 'private:response', name: 'response', description: '', canTakeArgument: true, hidden: true }, async (message, arg, model, progress, token) => {
 			if (!arg) {
 				return undefined;
 			}

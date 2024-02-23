@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostChatVariablesShape, IChatVariableResolverProgressDto, IMainContext, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
@@ -52,8 +52,9 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 
 	registerVariableResolver(extension: IExtensionDescription, name: string, description: string, resolver: vscode.ChatVariableResolver): IDisposable {
 		const handle = ExtHostChatVariables._idPool++;
-		this._resolver.set(handle, { extension, data: { name, description }, resolver: resolver });
-		this._proxy.$registerVariable(handle, { name, description });
+		const data: IChatVariableData = { id: `${ExtensionIdentifier.toKey(extension.identifier)}:${name}`, name, description };
+		this._resolver.set(handle, { extension, data, resolver: resolver });
+		this._proxy.$registerVariable(handle, data);
 
 		return toDisposable(() => {
 			this._resolver.delete(handle);
