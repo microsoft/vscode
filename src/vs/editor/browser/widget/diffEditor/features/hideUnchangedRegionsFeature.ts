@@ -59,27 +59,25 @@ export class HideUnchangedRegionsFeature extends Disposable {
 		super();
 
 		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			if (e.reason === CursorChangeReason.Explicit) {
-				const m = this._diffModel.get();
-				transaction(tx => {
-					for (const s of this._editors.original.getSelections() || []) {
-						m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
-						m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
-					}
-				});
-			}
+			if (e.reason === CursorChangeReason.ContentFlush) { return; }
+			const m = this._diffModel.get();
+			transaction(tx => {
+				for (const s of this._editors.original.getSelections() || []) {
+					m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+					m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+				}
+			});
 		}));
 
 		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			if (e.reason === CursorChangeReason.Explicit) {
-				const m = this._diffModel.get();
-				transaction(tx => {
-					for (const s of this._editors.modified.getSelections() || []) {
-						m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
-						m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
-					}
-				});
-			}
+			if (e.reason === CursorChangeReason.ContentFlush) { return; }
+			const m = this._diffModel.get();
+			transaction(tx => {
+				for (const s of this._editors.modified.getSelections() || []) {
+					m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+					m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+				}
+			});
 		}));
 
 		const unchangedRegions = this._diffModel.map((m, reader) => {
