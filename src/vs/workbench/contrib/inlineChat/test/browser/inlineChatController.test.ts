@@ -512,18 +512,15 @@ suite('InteractiveChatController', function () {
 		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
 		await makeRequest();
 
-		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.LivePreview });
-		await makeRequest();
 
 		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Preview });
 		await makeRequest();
 
-		assert.strictEqual(requests.length, 3);
+		assert.strictEqual(requests.length, 2);
 
 		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
-		assert.strictEqual(requests[1].previewDocument.toString(), model.uri.toString()); // live preview
-		assert.strictEqual(requests[2].previewDocument.scheme, Schemas.vscode); // preview
-		assert.strictEqual(requests[2].previewDocument.authority, 'inline-chat');
+		assert.strictEqual(requests[1].previewDocument.scheme, Schemas.vscode); // preview
+		assert.strictEqual(requests[1].previewDocument.authority, 'inline-chat');
 	});
 
 	test('start with existing exchange', async function () {
