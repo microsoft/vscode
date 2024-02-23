@@ -612,6 +612,12 @@ export interface IShellLaunchConfig {
 	isTransient?: boolean;
 
 	/**
+	 * Attempt to force shell integration to be enabled by bypassing the {@link isFeatureTerminal}
+	 * equals false requirement.
+	 */
+	forceShellIntegration?: boolean;
+
+	/**
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;

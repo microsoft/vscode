@@ -500,6 +500,7 @@ export interface TerminalLaunchConfig {
 	strictEnv?: boolean;
 	hideFromUser?: boolean;
 	isExtensionCustomPtyTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
