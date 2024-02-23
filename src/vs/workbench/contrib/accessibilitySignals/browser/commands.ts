@@ -40,7 +40,7 @@ export class ShowSignalSoundHelp extends Action2 {
 			signal,
 			buttons: userGestureSignals.includes(signal) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-				tooltip: localize('sounds.help.settings', 'Enable/Disable Sound'),
+				tooltip: localize('sounds.help.settings', 'Configure Sound'),
 				alwaysVisible: true
 			}] : []
 		}));
@@ -108,7 +108,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 			signal,
 			buttons: userGestureSignals.includes(signal) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-				tooltip: localize('announcement.help.settings', 'Enable/Disable Announcement'),
+				tooltip: localize('announcement.help.settings', 'Configure Announcement'),
 				alwaysVisible: true,
 			}] : []
 		}));

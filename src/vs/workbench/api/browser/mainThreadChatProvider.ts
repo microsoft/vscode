@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -82,15 +81,20 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	}
 
 	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
+
+		const activate = this._extensionService.activateByEvent(`onLanguageModelAccess:${providerId}`);
 		const metadata = this._chatProviderService.lookupChatResponseProvider(providerId);
-		// TODO: This should use a real activation event. Perhaps following what authentication does.
-		for (let i = 0; i < 3; i++) {
-			if (metadata) {
-				return metadata;
-			}
-			await timeout(2000);
+
+		if (metadata) {
+			return metadata;
 		}
-		return undefined;
+
+		await Promise.race([
+			activate,
+			Event.toPromise(Event.filter(this._chatProviderService.onDidChangeProviders, e => Boolean(e.added?.includes(providerId))))
+		]);
+
+		return this._chatProviderService.lookupChatResponseProvider(providerId);
 	}
 
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {

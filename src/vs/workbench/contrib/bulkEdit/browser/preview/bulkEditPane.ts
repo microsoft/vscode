@@ -5,7 +5,7 @@
 
 import 'vs/css!./bulkEdit';
 import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
+import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter, compareBulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -365,8 +365,9 @@ export class BulkEditPane extends ViewPane {
 		if (this._fileOperations === fileOperations && this._resources) {
 			return this._resources;
 		}
+		const sortedFileOperations = fileOperations.sort(compareBulkFileOperations);
 		const resources: IResourceDiffEditorInput[] = [];
-		for (const operation of fileOperations) {
+		for (const operation of sortedFileOperations) {
 			const operationUri = operation.uri;
 			const previewUri = this._currentProvider!.asPreviewUri(operationUri);
 			// delete -> show single editor
