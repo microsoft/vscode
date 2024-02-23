@@ -116,10 +116,11 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	private _renderRefactorPreviewPane() {
 		if (this._refactorViewPane && this._refactorViewContainer) {
-			console.log('this._edits : ', this._edits);
 			DOM.clearNode(this._refactorViewContainer);
 			this._inputEdits = this._refactorViewPane.setInput(this._edits, CancellationToken.None);
 			this._refactorViewPane.renderBody(this._refactorViewContainer);
+			this._refactorViewPane.focus();
+			this._refactorViewPane.maximumBodySize = 100;
 		}
 	}
 

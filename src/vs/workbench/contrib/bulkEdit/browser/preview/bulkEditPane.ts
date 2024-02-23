@@ -609,9 +609,9 @@ export class OpenMultiDiffEditor extends Disposable {
 	}
 
 	private async _resolveResources(edits: ResourceTextEdit[]): Promise<IResourceDiffEditorInput[]> {
+		const _resources = [...new Set(edits.map(edit => edit.resource))];
 		const resources: IResourceDiffEditorInput[] = [];
-		for (const edit of edits) {
-			const operationUri = edit.resource;
+		for (const operationUri of _resources) {
 			const previewUri = this._currentProvider!.asPreviewUri(operationUri);
 			// delete -> show single editor
 			// rename, create, edits -> show diff editr

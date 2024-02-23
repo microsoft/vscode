@@ -140,12 +140,6 @@ class BulkEditPreviewContribution {
 				this._activeSession = undefined;
 			}
 		}
-
-		// The reason the apply discard buttons do not work is because this _previewEdit method returns early
-		// It should return after one of the buttons has been clicked, which is what the code below has been doing
-		// Meaning we need to change the code here in order to make it work correctly
-		// By looking at the code on the left, it looks like we need to await the setInput method of the preview editor
-		// currently we are just awaiting the opening of the editor, which is not what we should be awaiting on as the end condition.
 	}
 }
 
