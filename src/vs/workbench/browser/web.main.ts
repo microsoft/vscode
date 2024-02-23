@@ -49,7 +49,7 @@ import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/co
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -480,7 +480,7 @@ export class BrowserMain extends Disposable {
 			constructor() {
 				super({
 					id: 'workbench.action.resetUserData',
-					title: { original: 'Reset User Data', value: localize('reset', "Reset User Data") },
+					title: localize2('reset', "Reset User Data"),
 					category: Categories.Developer,
 					menu: {
 						id: MenuId.CommandPalette

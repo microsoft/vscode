@@ -65,8 +65,9 @@ export class DebugStorage extends Disposable {
 	private loadBreakpoints(): Breakpoint[] {
 		let result: Breakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(URI.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id, breakpoint.triggeredBy);
+			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: ReturnType<Breakpoint['toJSON']>) => {
+				breakpoint.uri = URI.revive(breakpoint.uri);
+				return new Breakpoint(breakpoint, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id);
 			});
 		} catch (e) { }
 
@@ -76,8 +77,8 @@ export class DebugStorage extends Disposable {
 	private loadFunctionBreakpoints(): FunctionBreakpoint[] {
 		let result: FunctionBreakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
-				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition, fb.condition, fb.logMessage, fb.id);
+			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: ReturnType<FunctionBreakpoint['toJSON']>) => {
+				return new FunctionBreakpoint(fb, fb.id);
 			});
 		} catch (e) { }
 
@@ -87,8 +88,8 @@ export class DebugStorage extends Disposable {
 	private loadExceptionBreakpoints(): ExceptionBreakpoint[] {
 		let result: ExceptionBreakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled, exBreakpoint.supportsCondition, exBreakpoint.condition, exBreakpoint.description, exBreakpoint.conditionDescription, !!exBreakpoint.fallback);
+			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: ReturnType<ExceptionBreakpoint['toJSON']>) => {
+				return new ExceptionBreakpoint(exBreakpoint, exBreakpoint.id);
 			});
 		} catch (e) { }
 
@@ -98,8 +99,8 @@ export class DebugStorage extends Disposable {
 	private loadDataBreakpoints(): DataBreakpoint[] {
 		let result: DataBreakpoint[] | undefined;
 		try {
-			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
-				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes, dbp.accessType, dbp.id);
+			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: ReturnType<DataBreakpoint['toJSON']>) => {
+				return new DataBreakpoint(dbp, dbp.id);
 			});
 		} catch (e) { }
 

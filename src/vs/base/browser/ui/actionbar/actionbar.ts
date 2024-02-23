@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
@@ -46,7 +47,6 @@ export interface IActionBarOptions {
 	readonly actionRunner?: IActionRunner;
 	readonly ariaLabel?: string;
 	readonly ariaRole?: string;
-	readonly animated?: boolean;
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
@@ -67,6 +67,7 @@ export interface IActionOptions extends IActionViewItemOptions {
 export class ActionBar extends Disposable implements IActionRunner {
 
 	private readonly options: IActionBarOptions;
+	private readonly _hoverDelegate: IHoverDelegate;
 
 	private _actionRunner: IActionRunner;
 	private readonly _actionRunnerDisposables = this._register(new DisposableStore());
@@ -117,6 +118,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
 		};
 
+		this._hoverDelegate = options.hoverDelegate ?? this._register(getDefaultHoverDelegate('element', true));
+
 		if (this.options.actionRunner) {
 			this._actionRunner = this.options.actionRunner;
 		} else {
@@ -132,10 +135,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-action-bar';
-
-		if (options.animated !== false) {
-			this.domNode.classList.add('animated');
-		}
 
 		let previousKeys: KeyCode[];
 		let nextKeys: KeyCode[];
@@ -358,7 +357,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			let item: IActionViewItem | undefined;
 
-			const viewItemOptions = { hoverDelegate: this.options.hoverDelegate, ...options };
+			const viewItemOptions = { hoverDelegate: this._hoverDelegate, ...options };
 			if (this.options.actionViewItemProvider) {
 				item = this.options.actionViewItemProvider(action, viewItemOptions);
 			}

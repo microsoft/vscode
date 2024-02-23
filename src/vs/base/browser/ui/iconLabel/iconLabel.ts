@@ -12,6 +12,7 @@ import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -22,7 +23,7 @@ export interface IIconLabelCreationOptions {
 
 export interface IIconLabelValueOptions {
 	title?: string | ITooltipMarkdownString;
-	descriptionTitle?: string;
+	descriptionTitle?: string | ITooltipMarkdownString;
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
@@ -94,7 +95,7 @@ export class IconLabel extends Disposable {
 
 	private readonly labelContainer: HTMLElement;
 
-	private readonly hoverDelegate: IHoverDelegate | undefined;
+	private readonly hoverDelegate: IHoverDelegate;
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
@@ -113,7 +114,7 @@ export class IconLabel extends Disposable {
 			this.nameNode = new Label(this.nameContainer);
 		}
 
-		this.hoverDelegate = options?.hoverDelegate;
+		this.hoverDelegate = options?.hoverDelegate ?? getDefaultHoverDelegate('mouse');
 	}
 
 	get element(): HTMLElement {
@@ -186,7 +187,7 @@ export class IconLabel extends Disposable {
 			return;
 		}
 
-		if (!this.hoverDelegate) {
+		if (this.hoverDelegate.showNativeHover) {
 			setupNativeHover(htmlElement, tooltip);
 		} else {
 			const hoverDisposable = setupCustomHover(this.hoverDelegate, htmlElement, tooltip);

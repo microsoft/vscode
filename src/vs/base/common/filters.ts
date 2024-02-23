@@ -280,8 +280,9 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 		return null;
 	}
 
+	// TODO: Consider removing this check
 	if (camelCaseWord.length > 60) {
-		return null;
+		camelCaseWord = camelCaseWord.substring(0, 60);
 	}
 
 	const analysis = analyzeCamelCaseWord(camelCaseWord);

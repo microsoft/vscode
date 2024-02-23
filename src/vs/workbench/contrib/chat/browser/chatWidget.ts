@@ -30,9 +30,12 @@ import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IParsedChatRequest, chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const $ = dom.$;
 
@@ -70,11 +73,17 @@ export interface IChatWidgetContrib extends IDisposable {
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
+	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
+	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
+
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
 	private _onDidChangeViewModel = this._register(new Emitter<void>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
+
+	private _onDidScroll = this._register(new Emitter<void>());
+	readonly onDidScroll = this._onDidScroll.event;
 
 	private _onDidClear = this._register(new Emitter<void>());
 	readonly onDidClear = this._onDidClear.event;
@@ -127,6 +136,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._viewModel;
 	}
 
+	private parsedChatRequest: IParsedChatRequest | undefined;
+	get parsedInput() {
+		if (this.parsedChatRequest === undefined) {
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput());
+		}
+
+		return this.parsedChatRequest;
+	}
+
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly viewOptions: IChatWidgetViewOptions,
@@ -134,6 +152,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
@@ -157,7 +176,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get inputEditor(): ICodeEditor {
-		return this.inputPart.inputEditor!;
+		return this.inputPart.inputEditor;
 	}
 
 	get inputUri(): URI {
@@ -279,7 +298,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private async renderFollowups(items: IChatReplyFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
+	private async renderFollowups(items: IChatFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
 		this.inputPart.renderFollowups(items, response);
 
 		if (this.bodyDimension) {
@@ -308,12 +327,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate);
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
+			onDidScroll: this.onDidScroll,
 		};
+
+		// Create a dom element to hold UI from editor widgets embedded in chat messages
+		const overflowWidgetsContainer = document.createElement('div');
+		overflowWidgetsContainer.classList.add('chat-overflow-widget-container', 'monaco-editor');
+		listContainer.append(overflowWidgetsContainer);
+
 		this.renderer = this._register(scopedInstantiationService.createInstance(
 			ChatListItemRenderer,
 			this.editorOptions,
 			options,
-			rendererDelegate
+			rendererDelegate,
+			overflowWidgetsContainer,
 		));
 		this._register(this.renderer.onDidClickFollowup(item => {
 			// is this used anymore?
@@ -360,6 +387,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();
+		}));
+		this._register(this.tree.onDidScroll(() => {
+			this._onDidScroll.fire();
 		}));
 	}
 
@@ -416,7 +446,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
-			this.acceptInput(e.followup.message);
+			let msg = '';
+			if (e.followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
+				msg = `${chatAgentLeader}${e.followup.agentId} `;
+				if (e.followup.subCommand) {
+					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
+				}
+			}
+			msg += e.followup.message;
+			this.acceptInput(msg);
 
 			if (!e.response) {
 				// Followups can be shown by the welcome message, then there is no response associated.
@@ -428,7 +466,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				providerId: this.viewModel.providerId,
 				sessionId: this.viewModel.sessionId,
 				requestId: e.response.requestId,
-				agentId: e.response?.agent?.id,
+				agentId: e.response.agent?.id,
+				result: e.response.result,
 				action: {
 					kind: 'followUp',
 					followup: e.followup
@@ -436,6 +475,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
+		this._register(this.inputEditor.onDidChangeModelContent(() => this.parsedChatRequest = undefined));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.parsedChatRequest = undefined));
 	}
 
 	private onDidStyleChange(): void {
@@ -548,13 +589,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				const inputState = this.collectInputState();
 				this.inputPart.acceptInput(isUserQuery ? input : undefined, isUserQuery ? inputState : undefined);
+				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this._chatAccessibilityService.acceptResponse(lastResponse, requestId);
 				});
-			} else {
-				this._chatAccessibilityService.acceptResponse(undefined, requestId);
 			}
 		}
 	}
@@ -683,22 +723,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, width);
+		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData.maxHeight, width);
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
-		const messages = totalMessages.slice(-this._dynamicMessageLayoutData!.numOfMessages);
+		const messages = totalMessages.slice(-this._dynamicMessageLayoutData.numOfMessages);
 
 		const needsRerender = messages.some(m => m.currentRenderedHeight === undefined);
 		const listHeight = needsRerender
-			? this._dynamicMessageLayoutData!.maxHeight
+			? this._dynamicMessageLayoutData.maxHeight
 			: messages.reduce((acc, message) => acc + message.currentRenderedHeight!, 0);
 
 		this.layout(
 			Math.min(
 				// we add an additional 18px in order to show that there is scrollable content
 				inputHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
-				this._dynamicMessageLayoutData!.maxHeight
+				this._dynamicMessageLayoutData.maxHeight
 			),
 			width
 		);

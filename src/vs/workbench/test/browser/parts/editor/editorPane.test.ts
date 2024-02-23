@@ -231,12 +231,12 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, URI.file('/A'), { line: 3 });
 		res = memento.loadEditorState(testGroup0, URI.file('/A'));
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		memento.saveEditorState(testGroup1, URI.file('/A'), { line: 5 });
 		res = memento.loadEditorState(testGroup1, URI.file('/A'));
 		assert.ok(res);
-		assert.strictEqual(res!.line, 5);
+		assert.strictEqual(res.line, 5);
 
 		// Ensure capped at 3 elements
 		memento.saveEditorState(testGroup0, URI.file('/B'), { line: 1 });
@@ -337,7 +337,7 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputA, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		// State removed when input gets disposed
 		testInputA.dispose();
@@ -375,7 +375,7 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputA.resource, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		// State not yet removed when input gets disposed
 		// because we used resource
@@ -391,7 +391,7 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputB.resource, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputB);
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		memento.clearEditorStateOnDispose(testInputB.resource, testInputB);
 

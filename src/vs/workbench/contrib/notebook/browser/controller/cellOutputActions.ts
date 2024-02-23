@@ -23,7 +23,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: COPY_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.copyOutput', "Copy Output"),
+			title: localize('notebookActions.copyOutput', "Copy Cell Output"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
 				when: NOTEBOOK_CELL_HAS_OUTPUTS
@@ -42,7 +42,14 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		}
 
 		let outputViewModel: ICellOutputViewModel | undefined;
-		if (!outputContext) {
+		if (outputContext && 'outputId' in outputContext && typeof outputContext.outputId === 'string') {
+			outputViewModel = getOutputViewModelFromId(outputContext.outputId, notebookEditor);
+		} else if (outputContext && 'outputViewModel' in outputContext) {
+			outputViewModel = outputContext.outputViewModel;
+		}
+
+		if (!outputViewModel) {
+			// not able to find the output from the provided context, use the active cell
 			const activeCell = notebookEditor.getActiveCell();
 			if (!activeCell) {
 				return;
@@ -55,10 +62,6 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			} else {
 				outputViewModel = activeCell.outputsViewModels.find(output => output.pickedMimeType?.isTrusted);
 			}
-		} else if ('outputId' in outputContext && typeof outputContext.outputId === 'string') {
-			outputViewModel = getOutputViewModelFromId(outputContext.outputId, notebookEditor);
-		} else {
-			outputViewModel = outputContext.outputViewModel;
 		}
 
 		if (!outputViewModel) {

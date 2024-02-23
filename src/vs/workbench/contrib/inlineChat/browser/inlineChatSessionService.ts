@@ -31,13 +31,17 @@ export interface IInlineChatSessionEvent {
 	readonly session: Session;
 }
 
+export interface IInlineChatSessionEndEvent extends IInlineChatSessionEvent {
+	readonly endedByExternalCause: boolean;
+}
+
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
 	onWillStartSession: Event<IActiveCodeEditor>;
 	onDidMoveSession: Event<IInlineChatSessionEvent>;
 	onDidStashSession: Event<IInlineChatSessionEvent>;
-	onDidEndSession: Event<IInlineChatSessionEvent>;
+	onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 

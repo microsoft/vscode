@@ -299,7 +299,10 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					const diagnostics = action.action.diagnostics;
 					currentDecorations.clear();
 					if (ranges && ranges.length > 0) {
-						const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+						// Handles case for `fix all` where there are multiple diagnostics.
+						const decorations: IModelDeltaDecoration[] = (diagnostics && diagnostics?.length > 1)
+							? diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }))
+							: ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
 						currentDecorations.set(decorations);
 					} else if (diagnostics && diagnostics.length > 0) {
 						const decorations: IModelDeltaDecoration[] = diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));

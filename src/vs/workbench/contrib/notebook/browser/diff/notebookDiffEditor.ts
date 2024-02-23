@@ -47,6 +47,8 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookDiffOverviewRuler } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffOverviewRuler';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
+import { mainWindow } from 'vs/base/browser/window';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const $ = DOM.$;
 
@@ -149,9 +151,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService, false);
+		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group?.windowId, true).window ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, false);
 		this._register(this._notebookOptions);
 		this._revealFirst = true;
 	}
@@ -282,7 +285,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				typeNavigationEnabled: true,
 				paddingBottom: 0,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
-				styleController: (_suffix: string) => { return this._list!; },
+				styleController: (_suffix: string) => { return this._list; },
 				overrideStyles: {
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
@@ -355,7 +358,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private _registerOverviewRuler() {
-		this._overviewRuler = this._register(this.instantiationService.createInstance(NotebookDiffOverviewRuler, this, NotebookTextDiffEditor.ENTIRE_DIFF_OVERVIEW_WIDTH, this._overviewRulerContainer!));
+		this._overviewRuler = this._register(this.instantiationService.createInstance(NotebookDiffOverviewRuler, this, NotebookTextDiffEditor.ENTIRE_DIFF_OVERVIEW_WIDTH, this._overviewRulerContainer));
 	}
 
 	private _updateOutputsOffsetsInWebview(scrollTop: number, scrollHeight: number, activeWebview: BackLayerWebView<IDiffCellInfo>, getActiveNestedCell: (diffElement: DiffElementViewModelBase) => DiffNestedCellViewModel | undefined, diffSide: DiffSide) {
@@ -670,7 +673,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
 						instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'modified',
-						eventDispatcher!,
+						eventDispatcher,
 						initData
 					));
 				}

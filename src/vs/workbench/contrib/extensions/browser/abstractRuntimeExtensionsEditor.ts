@@ -11,6 +11,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { fromNow } from 'vs/base/common/date';
 import { memoize } from 'vs/base/common/decorators';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -25,16 +26,19 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } fr
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { errorIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { DefaultIconPath, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { IExtensionHostProfile, IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
@@ -83,6 +87,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 	) {
 		super(AbstractRuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -91,6 +96,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
+		this._register(this._extensionFeaturesManagementService.onDidChangeAccessData(() => this._updateSoon.schedule()));
 		this._updateExtensions();
 	}
 
@@ -235,9 +241,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 				const msgContainer = append(desc, $('div.msg'));
 
-				const actionbar = new ActionBar(desc, { animated: false });
+				const actionbar = new ActionBar(desc);
 				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
-
 
 				const timeContainer = append(element, $('.time'));
 				const activationTime = append(timeContainer, $('div.activation-time'));
@@ -400,6 +405,23 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					data.msgContainer.appendChild(el);
 				}
 
+				const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
+				for (const feature of features) {
+					const accessData = this._extensionFeaturesManagementService.getAccessData(element.description.identifier, feature.id);
+					if (accessData) {
+						const status = accessData?.current?.status;
+						if (status) {
+							data.msgContainer.appendChild($('span', undefined, `${feature.label}: `));
+							data.msgContainer.appendChild($('span', undefined, ...renderLabelWithIcons(`$(${status.severity === Severity.Error ? errorIcon.id : warningIcon.id}) ${status.message}`)));
+						}
+						if (accessData?.current) {
+							const element = $('span', undefined, nls.localize('requests count', "{0} Requests: {1} (Session)", feature.label, accessData.current.count));
+							element.title = nls.localize('requests count title', "Last request was {0}. Overall Requests: {1}", fromNow(accessData.current.lastAccessed, true, true), accessData.totalCount);
+							data.msgContainer.appendChild(element);
+						}
+					}
+				}
+
 				if (element.profileInfo) {
 					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
 				} else {
@@ -443,7 +465,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			actions.push(new Action(
 				'runtimeExtensionsEditor.action.copyId',
-				nls.localize('copy id', "Copy id ({0})", e.element!.description.identifier.value),
+				nls.localize('copy id', "Copy id ({0})", e.element.description.identifier.value),
 				undefined,
 				true,
 				() => {
@@ -457,7 +479,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			}
 			actions.push(new Separator());
 
-			if (e.element!.marketplaceInfo) {
+			if (e.element.marketplaceInfo) {
 				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
 				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
 			}
@@ -501,7 +523,7 @@ export class ShowRuntimeExtensionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.showRuntimeExtensions',
-			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
+			title: nls.localize2('showRuntimeExtensions', "Show Running Extensions"),
 			category: Categories.Developer,
 			f1: true,
 			menu: {

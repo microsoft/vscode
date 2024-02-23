@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -33,9 +33,8 @@ export class ToggleNotebookStickyScroll extends Action2 {
 		super({
 			id: 'notebook.action.toggleNotebookStickyScroll',
 			title: {
-				value: localize('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
+				...localize2('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
-				original: 'Toggle Notebook Sticky Scroll',
 			},
 			category: Categories.View,
 			toggled: {

@@ -67,6 +67,7 @@ export interface ICommentController {
 	toggleReaction(uri: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
 	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo>;
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
+	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void>;
 }
 
 export interface IContinueOnCommentProvider {
@@ -79,7 +80,7 @@ export interface ICommentService {
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidUpdateNotebookCommentThreads: Event<INotebookCommentThreadChangedEvent>;
-	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
+	readonly onDidChangeActiveEditingCommentThread: Event<CommentThread | null>;
 	readonly onDidChangeCurrentCommentThread: Event<CommentThread | undefined>;
 	readonly onDidUpdateCommentingRanges: Event<{ owner: string }>;
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }>;
@@ -105,8 +106,9 @@ export interface ICommentService {
 	updateCommentingRanges(ownerId: string): void;
 	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread<IRange | ICellRange>, comment: Comment, reaction: CommentReaction): Promise<void>;
-	setActiveCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
+	setActiveEditingCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
+	setActiveCommentAndThread(owner: string, commentInfo: { thread: CommentThread<IRange | ICellRange>; comment?: Comment } | undefined): Promise<void>;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
 	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
@@ -138,8 +140,8 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentingRanges: Emitter<{ owner: string }> = this._register(new Emitter<{ owner: string }>());
 	readonly onDidUpdateCommentingRanges: Event<{ owner: string }> = this._onDidUpdateCommentingRanges.event;
 
-	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
-	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
+	private readonly _onDidChangeActiveEditingCommentThread = this._register(new Emitter<CommentThread | null>());
+	readonly onDidChangeActiveEditingCommentThread = this._onDidChangeActiveEditingCommentThread.event;
 
 	private readonly _onDidChangeCurrentCommentThread = this._register(new Emitter<CommentThread | undefined>());
 	readonly onDidChangeCurrentCommentThread = this._onDidChangeCurrentCommentThread.event;
@@ -266,14 +268,26 @@ export class CommentService extends Disposable implements ICommentService {
 	 * The active comment thread is the the thread that is currently being edited.
 	 * @param commentThread
 	 */
-	setActiveCommentThread(commentThread: CommentThread | null) {
-		this._onDidChangeActiveCommentThread.fire(commentThread);
+	setActiveEditingCommentThread(commentThread: CommentThread | null) {
+		this._onDidChangeActiveEditingCommentThread.fire(commentThread);
+	}
+
+	private _lastActiveCommentController: ICommentController | undefined;
+	async setActiveCommentAndThread(owner: string, commentInfo: { thread: CommentThread<IRange>; comment?: Comment } | undefined) {
+		const commentController = this._commentControls.get(owner);
+
+		if (!commentController) {
+			return;
+		}
+
+		if (commentController !== this._lastActiveCommentController) {
+			await this._lastActiveCommentController?.setActiveCommentAndThread(undefined);
+		}
+		this._lastActiveCommentController = commentController;
+		return commentController.setActiveCommentAndThread(commentInfo);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
-		if (commentInfos.length) {
-			this._workspaceHasCommenting.set(true);
-		}
 		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 

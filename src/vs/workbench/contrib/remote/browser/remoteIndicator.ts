@@ -66,6 +66,8 @@ interface RemoteExtensionMetadata {
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.remoteStatusIndicator';
+
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
@@ -156,7 +158,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private registerActions(): void {
-		const category = { value: nls.localize('remote.category', "Remote"), original: 'Remote' };
+		const category = nls.localize2('remote.category', "Remote");
 
 		// Show Remote Menu
 		const that = this;
@@ -165,7 +167,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				super({
 					id: RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID,
 					category,
-					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
+					title: nls.localize2('remote.showMenu', "Show Remote Menu"),
 					f1: true,
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -183,7 +185,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					super({
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
 						category,
-						title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+						title: nls.localize2('remote.close', "Close Remote Connection"),
 						f1: true,
 						precondition: ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext)
 					});
@@ -208,7 +210,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					super({
 						id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
 						category,
-						title: { value: nls.localize('remote.install', "Install Remote Development Extensions"), original: 'Install Remote Development Extensions' },
+						title: nls.localize2('remote.install', "Install Remote Development Extensions"),
 						f1: true
 					});
 				}

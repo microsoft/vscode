@@ -11,7 +11,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
@@ -20,7 +20,6 @@ import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 
 const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
@@ -61,6 +60,8 @@ const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 });
 
 export class ChatExtensionPointHandler implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
 
 	private _viewContainer: ViewContainer;
 	private _registrationDisposables = new Map<string, IDisposable>();
@@ -153,9 +154,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ChatExtensionPointHandler, LifecyclePhase.Starting);
-
+registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 
 export class ChatContributionService implements IChatContributionService {
 	declare _serviceBrand: undefined;

@@ -5,6 +5,11 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+/**
+ * Use this if you don't want the onDidChangeSessions event to fire in the extension host
+ */
+export const INTERNAL_AUTH_PROVIDER_PREFIX = '__';
+
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
@@ -34,6 +39,20 @@ export interface IAuthenticationCreateSessionOptions {
 	activateImmediate?: boolean;
 }
 
+export interface AllowedExtension {
+	id: string;
+	name: string;
+	/**
+	 * If true or undefined, the extension is allowed to use the account
+	 * If false, the extension is not allowed to use the account
+	 * TODO: undefined shouldn't be a valid value, but it is for now
+	 */
+	allowed?: boolean;
+	lastUsed?: number;
+	// If true, this comes from the product.json
+	trusted?: boolean;
+}
+
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {
@@ -58,6 +77,7 @@ export interface IAuthenticationService {
 	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
 
 	readonly onDidChangeSessions: Event<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>;
+	readonly onDidChangeExtensionSessionAccess: Event<{ providerId: string; accountName: string }>;
 
 	// TODO completely remove this property
 	declaredProviders: AuthenticationProviderInformation[];
@@ -70,6 +90,7 @@ export interface IAuthenticationService {
 	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
+	readAllowedExtensions(providerId: string, accountName: string): AllowedExtension[];
 	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
 }
 

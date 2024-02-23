@@ -9,7 +9,7 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -33,6 +33,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 class LanguageStatusViewModel {
 
@@ -327,7 +328,7 @@ class LanguageStatus {
 		}
 
 		// -- pin
-		const actionBar = new ActionBar(right, {});
+		const actionBar = new ActionBar(right, { hoverDelegate: nativeHoverDelegate });
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
@@ -422,10 +423,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.inlayHints.Reset',
-			title: {
-				value: localize('reset', 'Reset Language Status Interaction Counter'),
-				original: 'Reset Language Status Interaction Counter'
-			},
+			title: localize2('reset', "Reset Language Status Interaction Counter"),
 			category: Categories.View,
 			f1: true
 		});

@@ -31,7 +31,7 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 			return undefined;
 		}
 
-		let query: any;
+		let query: UriFields;
 		try {
 			query = JSON.parse(uri.query) as UriFields;
 		} catch (e) {
@@ -126,6 +126,9 @@ function promiseFromEventState<T>(event: Event<any>, checkState: () => T | false
 }
 
 export class ScmMultiDiffSourceResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.scmMultiDiffSourceResolver';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,

@@ -122,10 +122,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpen',
-			title: {
-				value: localize('quickOpen', "Go to File..."),
-				original: 'Go to File...'
-			},
+			title: localize2('quickOpen', "Go to File..."),
 			metadata: {
 				description: `Quick access`,
 				args: [{

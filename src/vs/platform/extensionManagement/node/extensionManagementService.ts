@@ -169,7 +169,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	async installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#installFromLocation', location.toString());
 		const local = await this.extensionsScanner.scanUserExtensionAtLocation(location);
-		if (!local) {
+		if (!local || !local.manifest.name || !local.manifest.version) {
 			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
 		}
 		await this.addExtensionsToProfile([[local, undefined]], profileLocation);

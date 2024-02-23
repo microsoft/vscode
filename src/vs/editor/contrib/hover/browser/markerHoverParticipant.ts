@@ -170,15 +170,18 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 	private renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover, disposables: DisposableStore): void {
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			context.statusBar.addAction({
-				label: nls.localize('view problem', "View Problem"),
-				commandId: NextMarkerAction.ID,
-				run: () => {
-					context.hide();
-					MarkerController.get(this._editor)?.showAtMarker(markerHover.marker);
-					this._editor.focus();
-				}
-			});
+			const markerController = MarkerController.get(this._editor);
+			if (markerController) {
+				context.statusBar.addAction({
+					label: nls.localize('view problem', "View Problem"),
+					commandId: NextMarkerAction.ID,
+					run: () => {
+						context.hide();
+						markerController.showAtMarker(markerHover.marker);
+						this._editor.focus();
+					}
+				});
+			}
 		}
 
 		if (!this._editor.getOption(EditorOption.readOnly)) {
