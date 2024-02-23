@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from 'vs/base/common/arraysFind';
-import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { commonPrefixLength, splitLinesIncludeSeparators } from 'vs/base/common/strings';
@@ -421,9 +421,6 @@ export class InlineCompletionsModel extends Disposable {
 		const partialGhostTextVal = ghostTextVal.substring(0, acceptUntilIndexExclusive);
 
 		const positions = this._positions.get();
-		if (positions.length === 0) {
-			return;
-		}
 		const cursorPosition = positions[0];
 
 		// Executing the edit might free the completion, so we have to hold a reference on it.
@@ -486,6 +483,10 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 	);
 	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEditStartPosition);
 	if (positionWithinTextEdit.lineNumber < 1) {
+		onUnexpectedError(new BugIndicatingError(
+			`positionWithinTextEdit line number should be bigger than 0.
+			Invalid subtraction between ${primaryPosition.toString()} and ${primaryEditStartPosition.toString()}`
+		));
 		return [];
 	}
 	const secondaryEditText = substringPos(primaryEdit.text, positionWithinTextEdit);
