@@ -16,8 +16,8 @@ import { constObservable, mapObservableArrayCached } from 'vs/base/common/observ
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
-import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
+import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditor/model';
+import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight } from 'vs/base/browser/dom';
+import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -49,6 +50,8 @@ export const CONTEXT_RENAME_INPUT_FOCUSED = new RawContextKey<boolean>('renameIn
 export interface RenameInputFieldResult {
 	newName: string;
 	wantsPreview?: boolean;
+	source: 'inputField' | 'renameSuggestion';
+	nRenameSuggestions: number;
 }
 
 export class RenameInputField implements IContentWidget {
@@ -236,7 +239,10 @@ export class RenameInputField implements IContentWidget {
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._candidatesView!.layout({ height: totalHeightAvailable - labelHeight - inputBoxHeight });
+		this._candidatesView!.layout({
+			height: totalHeightAvailable - labelHeight - inputBoxHeight,
+			width: getTotalWidth(this._input!),
+		});
 	}
 
 
@@ -298,7 +304,20 @@ export class RenameInputField implements IContentWidget {
 				assertType(this._input !== undefined);
 				assertType(this._candidatesView !== undefined);
 
-				const newName = this._candidatesView.focusedCandidate ?? this._input.value;
+				const nRenameSuggestions = this._candidatesView.nCandidates;
+
+				let newName: string;
+				let source: 'inputField' | 'renameSuggestion';
+				const focusedCandidate = this._candidatesView.focusedCandidate;
+				if (focusedCandidate !== undefined) {
+					this._trace('using new name from renameSuggestion');
+					newName = focusedCandidate;
+					source = 'renameSuggestion';
+				} else {
+					this._trace('using new name from inputField');
+					newName = this._input.value;
+					source = 'inputField';
+				}
 
 				if (newName === value || newName.trim().length === 0 /* is just whitespace */) {
 					this.cancelInput(true, '_currentAcceptInput (because newName === value || newName.trim().length === 0)');
@@ -311,7 +330,9 @@ export class RenameInputField implements IContentWidget {
 
 				resolve({
 					newName,
-					wantsPreview: supportPreview && wantsPreview
+					wantsPreview: supportPreview && wantsPreview,
+					source,
+					nRenameSuggestions,
 				});
 			};
 
@@ -413,6 +434,7 @@ class CandidatesView {
 
 	private _lineHeight: number;
 	private _availableHeight: number;
+	private _minimumWidth: number;
 
 	private _disposables: DisposableStore;
 
@@ -421,6 +443,7 @@ class CandidatesView {
 		this._disposables = new DisposableStore();
 
 		this._availableHeight = 0;
+		this._minimumWidth = 0;
 
 		this._lineHeight = opts.fontInfo.lineHeight;
 
@@ -489,28 +512,38 @@ class CandidatesView {
 	}
 
 	// height - max height allowed by parent element
-	public layout({ height }: { height: number }): void {
+	public layout({ height, width }: { height: number; width: number }): void {
 		this._availableHeight = height;
-		if (this._listWidget.length > 0) { // candidates have been set
-			this._listWidget.layout(this._pickListHeight(this._listWidget.length));
-		}
+		this._minimumWidth = width;
+		this._listContainer.style.width = `${this._minimumWidth}px`;
 	}
 
 	public setCandidates(candidates: NewSymbolName[]): void {
-		const height = this._pickListHeight(candidates.length);
 
+		// insert candidates into list widget
 		this._listWidget.splice(0, 0, candidates);
 
-		const width = Math.max(200, 4 /* padding */ + 16 /* sparkle icon */ + 5 /* margin-left */ + this._pickListWidth(candidates)); // TODO@ulugbekna: approximate calc - clean this up
+		// adjust list widget layout
+		const height = this._pickListHeight(candidates.length);
+		const width = this._pickListWidth(candidates);
+
 		this._listWidget.layout(height, width);
 
+		// adjust list container layout
 		this._listContainer.style.height = `${height}px`;
 		this._listContainer.style.width = `${width}px`;
+
+		aria.status(localize('renameSuggestionsReceivedAria', "Received {0} rename suggestions", candidates.length));
 	}
 
 	public clearCandidates(): void {
 		this._listContainer.style.height = '0px';
+		this._listContainer.style.width = '0px';
 		this._listWidget.splice(0, this._listWidget.length, []);
+	}
+
+	public get nCandidates() {
+		return this._listWidget.length;
 	}
 
 	public get focusedCandidate(): string | undefined {
@@ -574,12 +607,19 @@ class CandidatesView {
 
 	private _pickListHeight(nCandidates: number) {
 		const heightToFitAllCandidates = this._candidateViewHeight * nCandidates;
-		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this._candidateViewHeight * 7 /* max # of candidates we want to show at once */);
+		const MAX_N_CANDIDATES = 7;  // @ulugbekna: max # of candidates we want to show at once
+		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this._candidateViewHeight * MAX_N_CANDIDATES);
 		return height;
 	}
 
 	private _pickListWidth(candidates: NewSymbolName[]): number {
-		return Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * 7.2) /* approximate # of pixes taken by a single character */;
+		const APPROXIMATE_CHAR_WIDTH = 7.2; // approximate # of pixes taken by a single character
+		const longestCandidateWidth = Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * APPROXIMATE_CHAR_WIDTH); // TODO@ulugbekna: use editor#typicalCharacterWidth or something
+		const width = Math.max(
+			this._minimumWidth,
+			4 /* padding */ + 16 /* sparkle icon */ + 5 /* margin-left */ + longestCandidateWidth + 10 /* (possibly visible) scrollbar width */ // TODO@ulugbekna: approximate calc - clean this up
+		);
+		return width;
 	}
 
 }

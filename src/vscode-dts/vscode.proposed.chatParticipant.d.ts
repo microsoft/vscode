@@ -23,7 +23,7 @@ declare module 'vscode' {
 		/**
 		 * The name of the chat participant and contributing extension to which this request was directed.
 		 */
-		readonly participant: { readonly extensionId: string; readonly participant: string };
+		readonly participant: { readonly extensionId: string; readonly name: string };
 
 		/**
 		 * The name of the {@link ChatCommand command} that was selected for this request.
@@ -35,7 +35,7 @@ declare module 'vscode' {
 		 */
 		readonly variables: ChatResolvedVariable[];
 
-		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; participant: string });
+		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; name: string });
 	}
 
 	/**
@@ -56,14 +56,14 @@ declare module 'vscode' {
 		/**
 		 * The name of the chat participant and contributing extension that this response came from.
 		 */
-		readonly participant: { readonly extensionId: string; readonly participant: string };
+		readonly participant: { readonly extensionId: string; readonly name: string };
 
 		/**
 		 * The name of the command that this response came from.
 		 */
 		readonly command?: string;
 
-		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: { extensionId: string; participant: string });
+		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: { extensionId: string; name: string });
 	}
 
 	export interface ChatContext {
@@ -183,8 +183,7 @@ declare module 'vscode' {
 		 * @returns A list of commands. The lack of a result can be signaled by returning `undefined`, `null`, or
 		 * an empty array.
 		 */
-		// TODO@API Q: should we provide the current history or last results for extra context?
-		provideCommands(token: CancellationToken): ProviderResult<ChatCommand[]>;
+		provideCommands(context: ChatContext, token: CancellationToken): ProviderResult<ChatCommand[]>;
 	}
 
 	/**
@@ -241,15 +240,9 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * The full name of this participant.
-		 * TODO@API This is only used for the default participant, but it seems useful, so should we keep it so we can use it in the future?
-		 */
-		fullName: string;
-
-		/**
 		 * A human-readable description explaining what this participant does.
 		 */
-		description: string;
+		description?: string;
 
 		/**
 		 * Icon for the participant shown in UI.

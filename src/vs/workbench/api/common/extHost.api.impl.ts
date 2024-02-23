@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
@@ -29,7 +29,7 @@ import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentica
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 import { ExtHostChat } from 'vs/workbench/api/common/extHostChat';
 import { ExtHostChatAgents2 } from 'vs/workbench/api/common/extHostChatAgents2';
-import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
+import { ExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
@@ -207,7 +207,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
-	const extHostChatProvider = rpcProtocol.set(ExtHostContext.ExtHostChatProvider, new ExtHostChatProvider(rpcProtocol, extHostLogService, extHostAuthentication));
+	const extHostChatProvider = rpcProtocol.set(ExtHostContext.ExtHostChatProvider, new ExtHostLanguageModels(rpcProtocol, extHostLogService, extHostAuthentication));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol));
@@ -1436,6 +1436,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
+			},
+			makeChatRequest(languageModel: string, messages: vscode.LanguageModelMessage[], optionsOrToken: { [name: string]: any } | vscode.CancellationToken, token?: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'languageModels');
+				let options: Record<string, any>;
+				if (CancellationToken.isCancellationToken(optionsOrToken)) {
+					options = {};
+					token = optionsOrToken;
+				} else if (CancellationToken.isCancellationToken(token)) {
+					options = optionsOrToken;
+					token = token;
+				} else {
+					throw new Error('Invalid arguments');
+				}
+				return extHostChatProvider.makeChatRequest(extension, languageModel, messages, options, token);
 			}
 		};
 

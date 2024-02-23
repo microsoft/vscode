@@ -19,6 +19,11 @@ declare module 'vscode' {
 		isDefault?: boolean;
 
 		/**
+		 * The full name of this participant.
+		 */
+		fullName?: string;
+
+		/**
 		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter
 		 * TODO@API name
 		 */

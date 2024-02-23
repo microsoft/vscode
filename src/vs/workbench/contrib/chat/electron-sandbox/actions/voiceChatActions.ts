@@ -300,7 +300,7 @@ class VoiceChatSessions {
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const voiceChatSession = this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline' });
+		const voiceChatSession = this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline', model: context?.widget?.viewModel?.model });
 
 		let inputValue = controller.getInput();
 
@@ -786,18 +786,16 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
 		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
-			outline: 2px solid ${activeRecordingColor};
 			border-radius: 50%;
+			outline: 2px solid ${activeRecordingColor};
 			animation: pulseAnimation 1500ms ease-in-out infinite !important;
-			padding-left: 4px;
-			height: 17px;
 		}
 
 		@keyframes pulseAnimation {
 			0% {
 				outline-width: 2px;
 			}
-			50% {
+			62% {
 				outline-width: 5px;
 				outline-color: ${activeRecordingDimmedColor};
 			}

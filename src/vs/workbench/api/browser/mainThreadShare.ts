@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, ExtHostShareShape, IDocumentFilterDto, MainContext, MainThreadShareShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -31,7 +31,7 @@ export class MainThreadShare implements MainThreadShareShape {
 			selector,
 			priority,
 			provideShare: async (item: IShareableItem) => {
-				const result = await this.proxy.$provideShare(handle, item, new CancellationTokenSource().token);
+				const result = await this.proxy.$provideShare(handle, item, CancellationToken.None);
 				return typeof result === 'string' ? result : URI.revive(result);
 			}
 		};
