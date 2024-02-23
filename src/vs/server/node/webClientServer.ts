@@ -103,7 +103,7 @@ export class WebClientServer {
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
-		private readonly _basePath: string = '/',
+		private readonly _basePath: string,
 		readonly serverRootPath: string,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
@@ -263,7 +263,7 @@ export class WebClientServer {
 					newQuery[key] = parsedUrl.query[key];
 				}
 			}
-			const newLocation = url.format({ pathname: '/', query: newQuery });
+			const newLocation = url.format({ pathname: parsedUrl.pathname, query: newQuery });
 			responseHeaders['Location'] = newLocation;
 
 			res.writeHead(302, responseHeaders);

@@ -143,10 +143,11 @@ export interface IWorkbenchConstructionOptions {
 	readonly remoteAuthority?: string;
 
 	/**
-	 * The remote base URL is the root path where the workbench is served from.
-	 * Corresponds to option `route-base-url-path` on the server side.
+	 * The server base path is the path where the workbench is served from.
+	 * The path must be absolute (start with a slash).
+	 * Corresponds to option `server-base-path` on the server side.
 	 */
-	readonly remoteBaseUrl?: string;
+	readonly serverBasePath?: string;
 
 	/**
 	 * The connection token to send to the server.

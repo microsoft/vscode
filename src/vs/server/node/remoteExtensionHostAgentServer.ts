@@ -88,7 +88,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath, this._serverRootPath)
+				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverRootPath)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
@@ -775,14 +775,17 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		return null;
 	});
 
-	const serverBasePath = args['route-base-url-path'];
+	let serverBasePath = args['server-base-path'];
+	if (serverBasePath && !serverBasePath.startsWith('/')) {
+		serverBasePath = `/${serverBasePath}`;
+	}
 
 	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html').fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
 		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `?${connectionTokenQueryName}=${connectionToken.value}` : '');
-		console.log(`Web UI available at http://localhost:${address.port}/${queryPart}`);
+		console.log(`Web UI available at http://localhost:${address.port}${serverBasePath ?? ''}${queryPart}`);
 	}
 
 	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient, serverBasePath);
