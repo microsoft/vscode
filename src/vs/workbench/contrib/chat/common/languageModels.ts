@@ -26,7 +26,7 @@ export interface IChatResponseFragment {
 	part: string;
 }
 
-export interface IChatResponseProviderMetadata {
+export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 	readonly model: string;
 	readonly description?: string;
@@ -36,50 +36,50 @@ export interface IChatResponseProviderMetadata {
 	};
 }
 
-export interface IChatResponseProvider {
-	metadata: IChatResponseProviderMetadata;
+export interface ILanguageModelChat {
+	metadata: ILanguageModelChatMetadata;
 	provideChatResponse(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
-export const IChatProviderService = createDecorator<IChatProviderService>('chatProviderService');
+export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
 
-export interface IChatProviderService {
+export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
 
-	onDidChangeProviders: Event<{ added?: string[]; removed?: string[] }>;
+	onDidChangeLanguageModels: Event<{ added?: string[]; removed?: string[] }>;
 
-	getProviders(): string[];
+	getLanguageModelIds(): string[];
 
-	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined;
+	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined;
 
-	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable;
+	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
 
-	fetchChatResponse(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	makeLanguageModelChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
 }
 
-export class ChatProviderService implements IChatProviderService {
+export class LanguageModelsService implements ILanguageModelsService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _providers: Map<string, IChatResponseProvider> = new Map();
+	private readonly _providers: Map<string, ILanguageModelChat> = new Map();
 
 	private readonly _onDidChangeProviders = new Emitter<{ added?: string[]; removed?: string[] }>();
-	readonly onDidChangeProviders: Event<{ added?: string[]; removed?: string[] }> = this._onDidChangeProviders.event;
+	readonly onDidChangeLanguageModels: Event<{ added?: string[]; removed?: string[] }> = this._onDidChangeProviders.event;
 
 	dispose() {
 		this._onDidChangeProviders.dispose();
 		this._providers.clear();
 	}
 
-	getProviders(): string[] {
+	getLanguageModelIds(): string[] {
 		return Array.from(this._providers.keys());
 	}
 
-	lookupChatResponseProvider(identifier: string): IChatResponseProviderMetadata | undefined {
+	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined {
 		return this._providers.get(identifier)?.metadata;
 	}
 
-	registerChatResponseProvider(identifier: string, provider: IChatResponseProvider): IDisposable {
+	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable {
 		if (this._providers.has(identifier)) {
 			throw new Error(`Chat response provider with identifier ${identifier} is already registered.`);
 		}
@@ -92,7 +92,7 @@ export class ChatProviderService implements IChatProviderService {
 		});
 	}
 
-	fetchChatResponse(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
+	makeLanguageModelChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
 		const provider = this._providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
