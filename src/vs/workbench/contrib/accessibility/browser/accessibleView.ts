@@ -13,7 +13,7 @@ import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -458,7 +458,7 @@ export class AccessibleView extends Disposable {
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
 		this._updateContextKeys(provider, true);
-
+		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
 			if (!model) {
 				return;
@@ -482,6 +482,11 @@ export class AccessibleView extends Disposable {
 				ariaLabel = localize('accessible-view-hint', "Accessible View, {0}", actionsHint);
 			} else if (actionsHint) {
 				ariaLabel = localize('accessibility-help-hint', "Accessibility Help, {0}", actionsHint);
+			}
+			if (isWindows && widgetIsFocused) {
+				// prevent the screen reader on windows from reading
+				// the aria label again when it's refocused
+				ariaLabel = '';
 			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
