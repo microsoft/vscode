@@ -98,6 +98,31 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	}
 });
 
+registerAction2(class ExpandSelectedTreeForSearchResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.ExpandSelectedTreeActionId,
+			title: nls.localize2('expandSelected', "Expand Selected"),
+			category,
+			menu: [
+				{
+					id: MenuId.SearchContext,
+					group: 'search',
+					order: 5,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.or(Constants.SearchContext.FileFocusKey, Constants.SearchContext.FolderFocusKey),
+						Constants.SearchContext.HasSearchResults
+					),
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, args: any): Promise<any> {
+		await expandSelectSubtree(accessor);
+	}
+});
+
 registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 
 	constructor(
@@ -333,6 +358,16 @@ function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree
 	return getElementsToOperateOn(viewer, currElement, sortConfig)
 		.map((renderableMatch) => ((renderableMatch instanceof Match) ? null : renderableMatch.resource))
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
+}
+
+function expandSelectSubtree(accessor: ServicesAccessor) {
+	const viewService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewService);
+	if (searchView) {
+		const viewer = searchView.getControl();
+		const selected = viewer.getFocus()[0];
+		viewer.expand(selected);
+	}
 }
 
 export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFindInFilesArgs = {}) {
