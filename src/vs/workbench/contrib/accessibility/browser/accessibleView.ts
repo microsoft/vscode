@@ -29,6 +29,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -157,7 +158,8 @@ export class AccessibleView extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IMenuService private readonly _menuService: IMenuService
+		@IMenuService private readonly _menuService: IMenuService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -250,6 +252,10 @@ export class AccessibleView extends Disposable {
 		if (reveal) {
 			this._editorWidget.revealPosition(position);
 		}
+	}
+
+	activateLink(): void {
+		this._commandService.executeCommand('editor.action.openLink');
 	}
 
 	showLastProvider(id: AccessibleViewProviderId): void {
@@ -509,7 +515,9 @@ export class AccessibleView extends Disposable {
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
+			if (e.keyCode === KeyCode.Enter) {
+				this.activateLink();
+			} else if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
 				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 				const url: string = provider.options.readMoreUrl;
