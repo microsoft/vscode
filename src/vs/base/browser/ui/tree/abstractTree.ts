@@ -33,6 +33,8 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./media/tree';
 import { localize } from 'vs/nls';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -679,6 +681,7 @@ export interface ITreeFindToggleOpts {
 	readonly inputActiveOptionBorder: string | undefined;
 	readonly inputActiveOptionForeground: string | undefined;
 	readonly inputActiveOptionBackground: string | undefined;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export class ModeToggle extends Toggle {
@@ -687,6 +690,7 @@ export class ModeToggle extends Toggle {
 			icon: Codicon.listFilter,
 			title: localize('filter', "Filter"),
 			isChecked: opts.isChecked ?? false,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -700,6 +704,7 @@ export class FuzzyToggle extends Toggle {
 			icon: Codicon.searchFuzzy,
 			title: localize('fuzzySearch', "Fuzzy Match"),
 			isChecked: opts.isChecked ?? false,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -802,8 +807,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 			this.elements.root.style.boxShadow = `0 0 8px 2px ${styles.listFilterWidgetShadow}`;
 		}
 
-		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter }));
-		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy }));
+		const toggleHoverDelegate = this._register(getDefaultHoverDelegate('element', true));
+		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter, hoverDelegate: toggleHoverDelegate }));
+		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy, hoverDelegate: toggleHoverDelegate }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
 		this.onDidChangeMatchType = Event.map(this.matchTypeToggle.onChange, () => this.matchTypeToggle.checked ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous, this._store);
 

@@ -8,7 +8,7 @@ import { observableFromEvent, observableValue, transaction } from 'vs/base/commo
 import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditor/model';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';

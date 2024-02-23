@@ -163,9 +163,24 @@ class UpdatableHoverWidget implements IDisposable {
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContentOrFactory, options?: IUpdatableHoverOptions): ICustomHover {
-	let hoverPreparation: IDisposable | undefined;
+function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement): HTMLElement {
+	stopElement = stopElement ?? dom.getWindow(element).document.body;
+	while (!element.hasAttribute('custom-hover') && element !== stopElement) {
+		element = element.parentElement!;
+	}
+	return element;
+}
 
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContentOrFactory, options?: IUpdatableHoverOptions): ICustomHover {
+	htmlElement.setAttribute('custom-hover', 'true');
+
+	if (htmlElement.title !== '') {
+		console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
+		console.trace('Stack trace:', htmlElement.title);
+		htmlElement.title = '';
+	}
+
+	let hoverPreparation: IDisposable | undefined;
 	let hoverWidget: UpdatableHoverWidget | undefined;
 
 	const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
@@ -206,7 +221,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		hideHover(false, (<any>e).fromElement === htmlElement);
 	}, true);
 
-	const onMouseOver = () => {
+	const onMouseOver = (e: MouseEvent) => {
 		if (hoverPreparation) {
 			return;
 		}
@@ -221,15 +236,20 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			// track the mouse position
 			const onMouseMove = (e: MouseEvent) => {
 				target.x = e.x + 10;
-				if ((e.target instanceof HTMLElement) && e.target.classList.contains('action-label')) {
+				if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target, htmlElement) !== htmlElement) {
 					hideHover(true, true);
 				}
 			};
 			toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_MOVE, onMouseMove, true));
 		}
-		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
 
 		hoverPreparation = toDispose;
+
+		if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target as HTMLElement, htmlElement) !== htmlElement) {
+			return; // Do not show hover when the mouse is over another hover target
+		}
+
+		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
 	};
 	const mouseOverDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_OVER, onMouseOver, true);
 

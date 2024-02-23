@@ -15,7 +15,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';

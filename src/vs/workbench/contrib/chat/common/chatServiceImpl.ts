@@ -24,7 +24,7 @@ import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workb
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatCopyKind, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
