@@ -5,7 +5,7 @@
 
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
-import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { View } from 'vs/editor/browser/view';
@@ -30,7 +30,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { TestEditorWorkerService } from 'vs/editor/test/common/services/testEditorWorkerService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
@@ -68,7 +68,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected override _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>): EditorConfiguration {
+	protected override _createConfiguration(isSimpleWidget: boolean, options: Readonly<TestCodeEditorCreationOptions>): EditorConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected override _createView(viewModel: ViewModel): [View, boolean] {
@@ -116,6 +116,10 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	 * Defaults to true.
 	 */
 	hasTextFocus?: boolean;
+	/**
+	 * Env configuration
+	 */
+	envConfig?: ITestEnvConfiguration;
 }
 
 export interface TestCodeEditorInstantiationOptions extends TestCodeEditorCreationOptions {
@@ -123,6 +127,15 @@ export interface TestCodeEditorInstantiationOptions extends TestCodeEditorCreati
 	 * Services to use.
 	 */
 	serviceCollection?: ServiceCollection;
+}
+
+export interface ITestEnvConfiguration {
+	extraEditorClassName?: string;
+	outerWidth?: number;
+	outerHeight?: number;
+	emptySelectionClipboard?: boolean;
+	pixelRatio?: number;
+	accessibilitySupport?: AccessibilitySupport;
 }
 
 export function withTestCodeEditor(text: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => void): void {

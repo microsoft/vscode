@@ -546,7 +546,7 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.clear': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
+			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel)."),
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.clear.sound', "Plays a sound when a feature is cleared."),
@@ -717,6 +717,9 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 
 	private getLanguages(): { [locale: string]: { name: string } } {
 		return {
+			['da-DK']: {
+				name: localize('speechLanguage.da-DK', "Danish (Denmark)")
+			},
 			['de-DE']: {
 				name: localize('speechLanguage.de-DE', "German (Germany)")
 			},
@@ -767,6 +770,9 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 			},
 			['nl-NL']: {
 				name: localize('speechLanguage.nl-NL', "Dutch (Netherlands)")
+			},
+			['pt-PT']: {
+				name: localize('speechLanguage.pt-PT', "Portuguese (Portugal)")
 			},
 			['pt-BR']: {
 				name: localize('speechLanguage.pt-BR', "Portuguese (Brazil)")
@@ -828,6 +834,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 					announcement = announcement ? 'auto' : 'off';
 				}
 			}
+			configurationKeyValuePairs.push([`${item.legacySoundSettingsKey}`, { value: undefined }]);
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
 			return configurationKeyValuePairs;
 		}
@@ -838,11 +845,13 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		key: item.legacyAnnouncementSettingsKey!,
 		migrateFn: (announcement, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			const sound = accessor(item.legacySoundSettingsKey);
+			const sound = accessor(item.settingsKey)?.sound || accessor(item.legacySoundSettingsKey);
 			if (announcement !== undefined && typeof announcement !== 'string') {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
+			configurationKeyValuePairs.push([`${item.legacyAnnouncementSettingsKey}`, { value: undefined }]);
+			configurationKeyValuePairs.push([`${item.legacySoundSettingsKey}`, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	})));

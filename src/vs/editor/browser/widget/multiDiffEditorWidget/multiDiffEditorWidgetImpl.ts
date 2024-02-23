@@ -76,7 +76,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			}
 			const items = vm.items.read(reader);
 			return items.map(d => {
-				const item = store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft));
+				const item = store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft, delta => {
+					this._scrollableElement.setScrollPosition({ scrollTop: this._scrollableElement.getScrollPosition().scrollTop + delta });
+				}));
 				const data = this._lastDocStates?.[item.getKey()];
 				if (data) {
 					transaction(tx => {
@@ -344,6 +346,7 @@ class VirtualizedViewItem extends Disposable {
 		public readonly viewModel: DocumentDiffItemViewModel,
 		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
 		private readonly _scrollLeft: IObservable<number>,
+		private readonly _deltaScrollVertical: (delta: number) => void,
 	) {
 		super();
 
@@ -434,7 +437,7 @@ class VirtualizedViewItem extends Disposable {
 
 		let ref = this._templateRef.get();
 		if (!ref) {
-			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel));
+			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel, this._deltaScrollVertical));
 			this._templateRef.set(ref, undefined);
 
 			const selections = this.viewModel.lastTemplateData.get().selections;
