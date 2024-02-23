@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';

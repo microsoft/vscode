@@ -23,7 +23,7 @@ import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditor } from 'vs/editor/common/editorCommon';
