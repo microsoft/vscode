@@ -421,6 +421,9 @@ export class InlineCompletionsModel extends Disposable {
 		const partialGhostTextVal = ghostTextVal.substring(0, acceptUntilIndexExclusive);
 
 		const positions = this._positions.get();
+		if (positions.length === 0) {
+			return;
+		}
 		const cursorPosition = positions[0];
 
 		// Executing the edit might free the completion, so we have to hold a reference on it.
@@ -470,6 +473,10 @@ export class InlineCompletionsModel extends Disposable {
 }
 
 export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
+	if (positions.length === 1) {
+		// No secondary cursor positions
+		return [];
+	}
 	const primaryPosition = positions[0];
 	const secondaryPositions = positions.slice(1);
 	const primaryEditStartPosition = primaryEdit.range.getStartPosition();
@@ -478,6 +485,9 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 		Range.fromPositions(primaryPosition, primaryEditEndPosition)
 	);
 	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEditStartPosition);
+	if (positionWithinTextEdit.lineNumber < 1) {
+		return [];
+	}
 	const secondaryEditText = substringPos(primaryEdit.text, positionWithinTextEdit);
 	return secondaryPositions.map(pos => {
 		const posEnd = addPositions(subtractPositions(pos, primaryEditStartPosition), primaryEditEndPosition);
