@@ -38,6 +38,10 @@ class LanguageModelResponseStream {
 
 class LanguageModelRequest {
 
+	static fromError(err: Error): vscode.LanguageModelResponse {
+		return new LanguageModelRequest(Promise.reject(err), new CancellationTokenSource()).apiObject;
+	}
+
 	readonly apiObject: vscode.LanguageModelResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
@@ -221,6 +225,38 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				this._onDidChangeModelAccess.fire(newItem);
 			}
 		}
+	}
+
+	async makeChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelMessage[], options: Record<string, any>, token: CancellationToken) {
+
+		const from = extension.identifier;
+		// const justification = options?.justification; // TODO@jrieken
+		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, undefined);
+
+		if (!metadata || !this._languageModelIds.has(languageModelId)) {
+			return LanguageModelRequest.fromError(new Error(`Language model ${languageModelId} is unknown`));
+		}
+
+		if (this._isUsingAuth(from, metadata)) {
+			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, undefined);
+
+			if (!this._modelAccessList.get(from)?.has(metadata.extension)) {
+				return LanguageModelRequest.fromError(new Error('Access to chat has been revoked'));
+			}
+		}
+
+		const cts = new CancellationTokenSource(token);
+		const requestId = (Math.random() * 1e6) | 0;
+		const requestPromise = this._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options ?? {}, cts.token);
+		const res = new LanguageModelRequest(requestPromise, cts);
+		this._pendingRequest.set(requestId, { languageModelId, res });
+
+		requestPromise.finally(() => {
+			this._pendingRequest.delete(requestId);
+			cts.dispose();
+		});
+
+		return res.apiObject;
 	}
 
 	async requestLanguageModelAccess(extension: IExtensionDescription, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {

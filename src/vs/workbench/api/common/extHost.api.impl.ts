@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
@@ -1436,6 +1436,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeLanguageModels: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
+			},
+			makeChatRequest(languageModel: string, messages: vscode.LanguageModelMessage[], optionsOrToken: { [name: string]: any } | vscode.CancellationToken, token?: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'languageModels');
+				let options: Record<string, any>;
+				if (CancellationToken.isCancellationToken(optionsOrToken)) {
+					options = {};
+					token = optionsOrToken;
+				} else if (CancellationToken.isCancellationToken(token)) {
+					options = optionsOrToken;
+					token = token;
+				} else {
+					throw new Error('Invalid arguments');
+				}
+				return extHostChatProvider.makeChatRequest(extension, languageModel, messages, options, token);
 			}
 		};
 
