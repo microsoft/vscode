@@ -31,7 +31,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { Color } from 'vs/base/common/color';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -41,6 +41,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -124,6 +125,8 @@ export class InstallCountWidget extends ExtensionWidget {
 
 export class RatingsWidget extends ExtensionWidget {
 
+	private readonly containerHover: ICustomHover;
+
 	constructor(
 		private container: HTMLElement,
 		private small: boolean
@@ -135,12 +138,13 @@ export class RatingsWidget extends ExtensionWidget {
 			container.classList.add('small');
 		}
 
+		this.containerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), container, ''));
+
 		this.render();
 	}
 
 	render(): void {
 		this.container.innerText = '';
-		this.container.title = '';
 
 		if (!this.extension) {
 			return;
@@ -159,7 +163,7 @@ export class RatingsWidget extends ExtensionWidget {
 		}
 
 		const rating = Math.round(this.extension.rating * 2) / 2;
-		this.container.title = localize('ratedLabel', "Average rating: {0} out of 5", rating);
+		this.containerHover.update(localize('ratedLabel', "Average rating: {0} out of 5", rating));
 		if (this.small) {
 			append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
 
@@ -186,6 +190,7 @@ export class RatingsWidget extends ExtensionWidget {
 export class VerifiedPublisherWidget extends ExtensionWidget {
 
 	private disposables = this._register(new DisposableStore());
+	private readonly containerHover: ICustomHover;
 
 	constructor(
 		private container: HTMLElement,
@@ -193,6 +198,7 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
+		this.containerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), container, ''));
 		this.render();
 	}
 
@@ -209,7 +215,7 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 
 		if (!this.small) {
 			verifiedPublisher.tabIndex = 0;
-			verifiedPublisher.title = `Verified Domain: ${this.extension.publisherDomain.link}`;
+			this.containerHover.update(`Verified Domain: ${this.extension.publisherDomain.link}`);
 			verifiedPublisher.setAttribute('role', 'link');
 
 			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
@@ -239,7 +245,8 @@ export class SponsorWidget extends ExtensionWidget {
 			return;
 		}
 
-		const sponsor = append(this.container, $('span.sponsor.clickable', { tabIndex: 0, title: this.extension?.publisherSponsorLink }));
+		const sponsor = append(this.container, $('span.sponsor.clickable', { tabIndex: 0 }));
+		this.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), sponsor, this.extension?.publisherSponsorLink.toString() ?? ''));
 		sponsor.setAttribute('role', 'link'); // #132645
 		const sponsorIconElement = renderIcon(sponsorIcon);
 		const label = $('span', undefined, localize('sponsor', "Sponsor"));
@@ -367,6 +374,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 class RemoteBadge extends Disposable {
 
 	readonly element: HTMLElement;
+	readonly elementHover: ICustomHover;
 
 	constructor(
 		private readonly tooltip: boolean,
@@ -376,6 +384,7 @@ class RemoteBadge extends Disposable {
 	) {
 		super();
 		this.element = $('div.extension-badge.extension-remote-badge');
+		this.elementHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, ''));
 		this.render();
 	}
 
@@ -397,7 +406,7 @@ class RemoteBadge extends Disposable {
 		if (this.tooltip) {
 			const updateTitle = () => {
 				if (this.element && this.extensionManagementServerService.remoteExtensionManagementServer) {
-					this.element.title = localize('remote extension title', "Extension in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+					this.elementHover.update(localize('remote extension title', "Extension in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label));
 				}
 			};
 			this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
@@ -435,6 +444,8 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 export class SyncIgnoredWidget extends ExtensionWidget {
 
+	private readonly disposables = this._register(new DisposableStore());
+
 	constructor(
 		private readonly container: HTMLElement,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -448,11 +459,12 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 
 	render(): void {
+		this.disposables.clear();
 		this.container.innerText = '';
 
 		if (this.extension && this.extension.state === ExtensionState.Installed && this.userDataSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
 			const element = append(this.container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
-			element.title = localize('syncingore.label', "This extension is ignored during sync.");
+			this.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), element, localize('syncingore.label', "This extension is ignored during sync.")));
 			element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
 		}
 	}
