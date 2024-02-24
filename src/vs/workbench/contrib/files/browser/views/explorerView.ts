@@ -276,7 +276,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			const workspace = this.contextService.getWorkspace();
 			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
-			titleElement.title = title;
+			this.updateTitle(title);
 			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};

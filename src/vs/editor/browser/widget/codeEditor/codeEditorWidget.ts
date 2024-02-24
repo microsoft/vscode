@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/editor/browser/services/markerDecorations';
-
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -14,7 +13,7 @@ import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDelivery
 import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import 'vs/css!./media/editor';
+import 'vs/css!./editor';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
@@ -25,7 +24,7 @@ import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } 
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditorContributions';
+import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditor/codeEditorContributions';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
@@ -60,51 +59,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-
-let EDITOR_ID = 0;
-
-export interface ICodeEditorWidgetOptions {
-	/**
-	 * Is this a simple widget (not a real code editor)?
-	 * Defaults to false.
-	 */
-	isSimpleWidget?: boolean;
-
-	/**
-	 * Contributions to instantiate.
-	 * When provided, only the contributions included will be instantiated.
-	 * To include the defaults, those must be provided as well via [...EditorExtensionsRegistry.getEditorContributions()]
-	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
-	 */
-	contributions?: IEditorContributionDescription[];
-
-	/**
-	 * Telemetry data associated with this CodeEditorWidget.
-	 * Defaults to null.
-	 */
-	telemetryData?: object;
-}
-
-class ModelData {
-	constructor(
-		public readonly model: ITextModel,
-		public readonly viewModel: ViewModel,
-		public readonly view: View,
-		public readonly hasRealView: boolean,
-		public readonly listenersToRemove: IDisposable[],
-		public readonly attachedView: IAttachedView,
-	) {
-	}
-
-	public dispose(): void {
-		dispose(this.listenersToRemove);
-		this.model.onBeforeDetached(this.attachedView);
-		if (this.hasRealView) {
-			this.view.dispose();
-		}
-		this.viewModel.dispose();
-	}
-}
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -1929,6 +1883,51 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public setContextValue(key: string, value: ContextKeyValue): void {
 		this._contextKeyService.createKey(key, value);
+	}
+}
+
+let EDITOR_ID = 0;
+
+export interface ICodeEditorWidgetOptions {
+	/**
+	 * Is this a simple widget (not a real code editor)?
+	 * Defaults to false.
+	 */
+	isSimpleWidget?: boolean;
+
+	/**
+	 * Contributions to instantiate.
+	 * When provided, only the contributions included will be instantiated.
+	 * To include the defaults, those must be provided as well via [...EditorExtensionsRegistry.getEditorContributions()]
+	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
+	 */
+	contributions?: IEditorContributionDescription[];
+
+	/**
+	 * Telemetry data associated with this CodeEditorWidget.
+	 * Defaults to null.
+	 */
+	telemetryData?: object;
+}
+
+class ModelData {
+	constructor(
+		public readonly model: ITextModel,
+		public readonly viewModel: ViewModel,
+		public readonly view: View,
+		public readonly hasRealView: boolean,
+		public readonly listenersToRemove: IDisposable[],
+		public readonly attachedView: IAttachedView,
+	) {
+	}
+
+	public dispose(): void {
+		dispose(this.listenersToRemove);
+		this.model.onBeforeDetached(this.attachedView);
+		if (this.hasRealView) {
+			this.view.dispose();
+		}
+		this.viewModel.dispose();
 	}
 }
 

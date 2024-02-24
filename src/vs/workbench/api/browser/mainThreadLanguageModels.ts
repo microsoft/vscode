@@ -11,24 +11,24 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ExtHostChatProviderShape, ExtHostContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatResponseProviderMetadata, IChatResponseFragment, IChatProviderService, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-@extHostNamedCustomer(MainContext.MainThreadChatProvider)
-export class MainThreadChatProvider implements MainThreadChatProviderShape {
+@extHostNamedCustomer(MainContext.MainThreadLanguageModels)
+export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
-	private readonly _proxy: ExtHostChatProviderShape;
+	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
 	private readonly _pendingProgress = new Map<number, IProgress<IChatResponseFragment>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IChatProviderService private readonly _chatProviderService: IChatProviderService,
+		@ILanguageModelsService private readonly _chatProviderService: ILanguageModelsService,
 		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
@@ -36,8 +36,8 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 
-		this._proxy.$updateLanguageModels({ added: _chatProviderService.getProviders() });
-		this._store.add(_chatProviderService.onDidChangeProviders(this._proxy.$updateLanguageModels, this._proxy));
+		this._proxy.$updateLanguageModels({ added: _chatProviderService.getLanguageModelIds() });
+		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$updateLanguageModels, this._proxy));
 	}
 
 	dispose(): void {
@@ -45,9 +45,9 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._store.dispose();
 	}
 
-	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void {
+	$registerLanguageModelProvider(handle: number, identifier: string, metadata: ILanguageModelChatMetadata): void {
 		const dipsosables = new DisposableStore();
-		dipsosables.add(this._chatProviderService.registerChatResponseProvider(identifier, {
+		dipsosables.add(this._chatProviderService.registerLanguageModelChat(identifier, {
 			metadata,
 			provideChatResponse: async (messages, from, options, progress, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
@@ -80,10 +80,10 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<IChatResponseProviderMetadata | undefined> {
+	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined> {
 
 		const activate = this._extensionService.activateByEvent(`onLanguageModelAccess:${providerId}`);
-		const metadata = this._chatProviderService.lookupChatResponseProvider(providerId);
+		const metadata = this._chatProviderService.lookupLanguageModel(providerId);
 
 		if (metadata) {
 			return metadata;
@@ -91,10 +91,10 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 
 		await Promise.race([
 			activate,
-			Event.toPromise(Event.filter(this._chatProviderService.onDidChangeProviders, e => Boolean(e.added?.includes(providerId))))
+			Event.toPromise(Event.filter(this._chatProviderService.onDidChangeLanguageModels, e => Boolean(e.added?.includes(providerId))))
 		]);
 
-		return this._chatProviderService.lookupChatResponseProvider(providerId);
+		return this._chatProviderService.lookupLanguageModel(providerId);
 	}
 
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
@@ -102,7 +102,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 
-		const task = this._chatProviderService.fetchChatResponse(providerId, extension, messages, options, new Progress(value => {
+		const task = this._chatProviderService.makeLanguageModelChatRequest(providerId, extension, messages, options, new Progress(value => {
 			this._proxy.$handleResponseFragment(requestId, value);
 		}), token);
 

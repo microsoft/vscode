@@ -6,24 +6,37 @@
 import { EventType } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { ILink } from '@xterm/xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
+import { Sequencer } from 'vs/base/common/async';
+import { EditorViewState } from 'vs/workbench/browser/quickaccess';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import type { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 
 export class TerminalLinkQuickpick extends DisposableStore {
+
+	private readonly _editorSequencer = new Sequencer();
+	private readonly _editorViewState: EditorViewState;
 
 	private readonly _onDidRequestMoreLinks = this.add(new Emitter<void>());
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
+		@IHistoryService private readonly _historyService: IHistoryService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
 	) {
 		super();
+		this._editorViewState = new EditorViewState(_editorService);
 	}
 
 	async show(links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {
@@ -57,6 +70,9 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		pick.placeholder = localize('terminal.integrated.openDetectedLink', "Select the link to open, type to filter all links");
 		pick.sortByLabel = false;
 		pick.show();
+		if (pick.activeItems.length > 0) {
+			this._previewItem(pick.activeItems[0]);
+		}
 
 		// Show all results only when filtering begins, this is done so the quick pick will show up
 		// ASAP with only the viewport entries.
@@ -93,8 +109,20 @@ export class TerminalLinkQuickpick extends DisposableStore {
 			pick.items = picks;
 		}));
 
+		disposables.add(pick.onDidChangeActive(async () => {
+			const [item] = pick.activeItems;
+			this._previewItem(item);
+		}));
+
 		return new Promise(r => {
-			disposables.add(pick.onDidHide(() => {
+			disposables.add(pick.onDidHide(({ reason }) => {
+				// Restore view state upon cancellation if we changed it
+				// but only when the picker was closed via explicit user
+				// gesture and not e.g. when focus was lost because that
+				// could mean the user clicked into the editor directly.
+				if (reason === QuickInputHideReason.Gesture) {
+					this._editorViewState.restore(true);
+				}
 				disposables.dispose();
 				if (pick.selectedItems.length === 0) {
 					this._accessibleViewService.showLastProvider(AccessibleViewProviderId.Terminal);
@@ -132,10 +160,45 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		}
 		return picks.length > 0 ? picks : undefined;
 	}
+
+	private _previewItem(item: ITerminalLinkQuickPickItem | IQuickPickItem) {
+		if (item && 'link' in item && item.link && 'uri' in item.link && item.link.uri) {
+			this._editorViewState.set();
+			const link = item.link;
+			const uri = link.uri;
+
+
+
+			const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
+			let selection: ITextEditorSelection | undefined;// = link.selection;
+			if (!selection) {
+				selection = linkSuffix?.row === undefined ? undefined : {
+					startLineNumber: linkSuffix.row ?? 1,
+					startColumn: linkSuffix.col ?? 1,
+					endLineNumber: linkSuffix.rowEnd,
+					endColumn: linkSuffix.colEnd
+				};
+			}
+
+
+			this._editorSequencer.queue(async () => {
+				// disable and re-enable history service so that we can ignore this history entry
+				const disposable = this._historyService.suspendTracking();
+				try {
+					await this._editorService.openEditor({
+						resource: uri,
+						options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection }
+					});
+				} finally {
+					disposable.dispose();
+				}
+			});
+		}
+	}
 }
 
 export interface ITerminalLinkQuickPickItem extends IQuickPickItem {
-	link: ILink;
+	link: ILink | TerminalLink;
 }
 
 type LinkQuickPickItem = ITerminalLinkQuickPickItem | QuickPickItem;
