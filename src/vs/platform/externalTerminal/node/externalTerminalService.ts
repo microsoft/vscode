@@ -107,7 +107,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				// prefer to use the window terminal to spawn if it's available instead
 				// of start, since that allows ctrl+c handling (#81322)
 				spawnExec = wt;
-				cmdArgs = ['-d', dir || '.', exec, '/c', command]; // default dir fixes #204039
+				cmdArgs = ['-d', '.', exec, '/c', command];
 			} else {
 				spawnExec = WindowsExternalTerminalService.CMD;
 				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
