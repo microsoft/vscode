@@ -9,7 +9,8 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -981,19 +982,20 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	 * @override
 	 */
 	public async run(accessor: ServicesAccessor) {
+		const codeEditorService = accessor.get(ICodeEditorService);
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
-		let activeControl = editorService.activeTextEditorControl;
-		if (!activeEditorPane || !activeControl) {
+		let editor = codeEditorService.getActiveCodeEditor();
+		if (!activeEditorPane || !editor) {
 			return;
 		}
 
-		if (isDiffEditor(activeControl)) {
-			activeControl = activeControl.getModifiedEditor();
+		if (editor instanceof EmbeddedCodeEditorWidget) {
+			editor = editor.getParentEditor();
 		}
 
-		const position = activeControl?.getPosition();
-		const model = activeControl?.getModel();
+		const position = editor.getPosition();
+		const model = editor.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -1057,8 +1059,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				group: this.group,
 				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
-		} else if (isCodeEditor(activeControl)) {
-			MessageController.get(activeControl)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
+		} else {
+			MessageController.get(editor)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
 		}
 	}
 }
@@ -1190,12 +1192,15 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 	 * @override
 	 */
 	public run(accessor: ServicesAccessor) {
-		let control = accessor.get(IEditorService).activeTextEditorControl;
-		if (isDiffEditor(control)) {
-			control = control.getModifiedEditor();
+		let editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+		if (!editor) {
+			return;
 		}
-		const position = control?.getPosition();
-		const model = control?.getModel();
+		if (editor instanceof EmbeddedCodeEditorWidget) {
+			editor = editor.getParentEditor();
+		}
+		const position = editor.getPosition();
+		const model = editor.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -1225,9 +1230,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 			});
 		}
 
-		if (isCodeEditor(control)) {
-			MessageController.get(control)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
-		}
+		MessageController.get(editor)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
 
 		return undefined;
 	}
