@@ -75,7 +75,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		this._aiTextSearchUsedSchemes.add(scheme);
 		const handle = this._handlePool++;
 		this._aiTextSearchProvider.set(handle, provider);
-		this._proxy.$registerTextSearchProvider(handle, this._transformScheme(scheme));
+		this._proxy.$registerAITextSearchProvider(handle, this._transformScheme(scheme));
 		return toDisposable(() => {
 			this._aiTextSearchUsedSchemes.delete(scheme);
 			this._aiTextSearchProvider.delete(handle);
@@ -134,12 +134,16 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	$provideAITextSearchResults(handle: number, session: number, rawQuery: IRawAITextQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const provider = this._aiTextSearchProvider.get(handle);
+		console.log('AAAAAAAAAAAAAAA');
 		if (!provider || !provider.provideAITextSearchResults) {
+			console.log('bbbbbbbbbbb');
 			throw new Error(`1 Unknown provider ${handle}`);
 		}
+		console.log('cccccccccccccc');
 
 		const query = reviveQuery(rawQuery);
 		const engine = this.createAITextSearchManager(query, provider);
+		console.log('ddddddddddddddddddd');
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 

@@ -302,9 +302,18 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 			};
 
-			searchPs.push(query.type === QueryType.File ?
-				provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
-				provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+			const doProviderSearch = () => {
+				switch (query.type) {
+					case QueryType.File:
+						return provider.fileSearch(<IFileQuery>oneSchemeQuery, token);
+					case QueryType.Text:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+					default:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+				}
+			};
+
+			searchPs.push(doProviderSearch());
 		}));
 
 		return Promise.all(searchPs).then(completes => {
