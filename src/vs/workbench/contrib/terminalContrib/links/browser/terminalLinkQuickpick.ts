@@ -19,7 +19,6 @@ import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import type { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import type { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
@@ -182,15 +181,12 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		}
 
 		const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
-		let selection: ITextEditorSelection | undefined;// = link.selection;
-		if (!selection) {
-			selection = linkSuffix?.row === undefined ? undefined : {
-				startLineNumber: linkSuffix.row ?? 1,
-				startColumn: linkSuffix.col ?? 1,
-				endLineNumber: linkSuffix.rowEnd,
-				endColumn: linkSuffix.colEnd
-			};
-		}
+		const selection = linkSuffix?.row === undefined ? undefined : {
+			startLineNumber: linkSuffix.row ?? 1,
+			startColumn: linkSuffix.col ?? 1,
+			endLineNumber: linkSuffix.rowEnd,
+			endColumn: linkSuffix.colEnd
+		};
 
 		this._editorViewState.set();
 		this._editorSequencer.queue(async () => {
