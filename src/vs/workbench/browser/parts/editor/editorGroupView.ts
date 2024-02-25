@@ -1008,6 +1008,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
+	setTransient(candidate: EditorInput | undefined, transient: boolean): void {
+		const editor = candidate ?? this.activeEditor;
+		if (editor) {
+			this.model.setTransient(editor, transient);
+		}
+	}
+
 	//#endregion
 
 	//#region openEditor()

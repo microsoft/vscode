@@ -1838,5 +1838,35 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isPinned(input2), false);
 	});
 
+	test('transient editors', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputInactive, { inactive: true });
+
+		assert.strictEqual(group.isTransient(input), false);
+		assert.strictEqual(group.isTransient(inputInactive), false);
+
+		group.setTransient(input, true);
+
+		assert.strictEqual(group.isTransient(input), true);
+		assert.strictEqual(group.isTransient(inputInactive), false);
+
+		group.setTransient(input, false);
+
+		assert.strictEqual(group.isTransient(input), false);
+		assert.strictEqual(group.isTransient(inputInactive), false);
+
+		const inputTransient = createTestFileEditorInput(URI.file('foo/bar/transient'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(inputTransient, { transient: true });
+
+		assert.strictEqual(group.isTransient(inputTransient), true);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
