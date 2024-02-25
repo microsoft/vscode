@@ -597,10 +597,13 @@ suite('EditorGroupsService', () => {
 		group.unstickEditor(input);
 		assert.strictEqual(editorStickyCounter, 2);
 
+		assert.strictEqual(group.isTransient(input), false);
 		assert.strictEqual(editorTransientCounter, 0);
 		group.setTransient(input, true);
+		assert.strictEqual(group.isTransient(input), true);
 		assert.strictEqual(editorTransientCounter, 1);
 		group.setTransient(input, false);
+		assert.strictEqual(group.isTransient(input), false);
 		assert.strictEqual(editorTransientCounter, 2);
 
 		editorCloseListener.dispose();
