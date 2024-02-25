@@ -152,14 +152,5 @@
 		"editor.wordWrap": "on"
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
-	"inlineChat.mode": "live",
-<<<<<<< HEAD
-	"testing.defaultGutterClickAction": "runWithCoverage"
-=======
-	"testing.defaultGutterClickAction": "contextMenu",
-<<<<<<< HEAD
->>>>>>> origin/main
-=======
-	"typescript.enablePromptUseWorkspaceTsdk": true,
->>>>>>> origin/main
+	"inlineChat.mode": "live"
 }
