@@ -11,7 +11,7 @@ import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 
 const INITIALIZE = '$initialize';
-const isEsm = true
+// const isEsm = true
 
 export interface IWorker extends IDisposable {
 	getId(): number;
