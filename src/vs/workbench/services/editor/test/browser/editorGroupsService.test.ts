@@ -477,6 +477,7 @@ suite('EditorGroupsService', () => {
 		const editorCloseEvents: IGroupModelChangeEvent[] = [];
 		let editorPinCounter = 0;
 		let editorStickyCounter = 0;
+		let editorTransientCounter = 0;
 		let editorCapabilitiesCounter = 0;
 		const editorGroupModelChangeListener = group.onDidModelChange(e => {
 			if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
@@ -489,6 +490,9 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupModelChangeKind.EDITOR_STICKY) {
 				assert.ok(e.editor);
 				editorStickyCounter++;
+			} else if (e.kind === GroupModelChangeKind.EDITOR_TRANSIENT) {
+				assert.ok(e.editor);
+				editorTransientCounter++;
 			} else if (e.kind === GroupModelChangeKind.EDITOR_CAPABILITIES) {
 				assert.ok(e.editor);
 				editorCapabilitiesCounter++;
@@ -592,6 +596,12 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(editorStickyCounter, 1);
 		group.unstickEditor(input);
 		assert.strictEqual(editorStickyCounter, 2);
+
+		assert.strictEqual(editorTransientCounter, 0);
+		group.setTransient(input, true);
+		assert.strictEqual(editorTransientCounter, 1);
+		group.setTransient(input, false);
+		assert.strictEqual(editorTransientCounter, 2);
 
 		editorCloseListener.dispose();
 		editorWillCloseListener.dispose();
