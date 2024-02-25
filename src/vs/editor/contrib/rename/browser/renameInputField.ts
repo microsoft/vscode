@@ -515,7 +515,6 @@ class CandidatesView {
 	public layout({ height, width }: { height: number; width: number }): void {
 		this._availableHeight = height;
 		this._minimumWidth = width;
-		this._listContainer.style.width = `${this._minimumWidth}px`;
 	}
 
 	public setCandidates(candidates: NewSymbolName[]): void {
