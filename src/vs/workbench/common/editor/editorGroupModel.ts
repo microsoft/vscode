@@ -876,6 +876,10 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	setTransient(candidate: EditorInput, transient: boolean): EditorInput | undefined {
+		if (!transient && this.transient.size === 0) {
+			return; // no transient editor
+		}
+
 		const res = this.findEditor(candidate);
 		if (!res) {
 			return; // not found
@@ -913,6 +917,10 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	isTransient(editorOrIndex: EditorInput | number): boolean {
+		if (this.transient.size === 0) {
+			return false; // no transient editor
+		}
+
 		let editor: EditorInput | undefined;
 		if (typeof editorOrIndex === 'number') {
 			editor = this.editors[editorOrIndex];
