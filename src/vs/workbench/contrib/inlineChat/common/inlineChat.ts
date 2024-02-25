@@ -209,9 +209,7 @@ export const overviewRulerInlineChatDiffRemoved = registerColor('editorOverviewR
 
 export const enum EditMode {
 	Live = 'live',
-	Preview = 'preview',
-	/** @deprecated */
-	LivePreview = 'livePreview',
+	Preview = 'preview'
 }
 
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(

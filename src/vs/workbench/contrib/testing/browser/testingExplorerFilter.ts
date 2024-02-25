@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -46,11 +46,12 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
+		options: IBaseActionViewItemOptions,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService,
 	) {
-		super(null, action);
+		super(null, action, options);
 		this.updateFilterActiveState();
 		this._register(testService.excluded.onTestExclusionsChanged(this.updateFilterActiveState, this));
 	}

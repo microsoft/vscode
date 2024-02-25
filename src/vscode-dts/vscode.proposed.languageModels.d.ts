@@ -171,6 +171,32 @@ declare module 'vscode' {
 		 */
 		export function requestLanguageModelAccess(id: string, options?: LanguageModelAccessOptions): Thenable<LanguageModelAccess>;
 
+
+
+		/**
+		 * Make a chat request using a language model.
+		 *
+		 * *Note* that language model use may be subject to access restrictions and user consent. This function always returns a response-object
+		 * but its {@link LanguageModelResponse.result `result`}-property may indicate failure, e.g. due to
+		 *
+		 * - user consent not given
+		 * - quote limits exceeded
+		 * - model does not exist
+		 *
+		 * @param languageModel A language model identifier. See {@link languageModels} for aviailable values.
+		 * @param messages
+		 * @param options
+		 * @param token
+		 */
+		// TODO@API refine doc
+		// TODO@API define specific error types?
+		export function makeChatRequest(languageModel: string, messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): Thenable<LanguageModelResponse>;
+
+		/**
+		 * @see {@link makeChatRequest}
+		 */
+		export function makeChatRequest(languageModel: string, messages: LanguageModelMessage[], token: CancellationToken): Thenable<LanguageModelResponse>;
+
 		/**
 		 * The identifiers of all language models that are currently available.
 		 */
