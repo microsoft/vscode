@@ -45,13 +45,24 @@ export {
 	observableFromPromise,
 	observableSignal,
 	observableSignalFromEvent,
-	waitForState,
 	wasEventTriggeredRecently,
 } from 'vs/base/common/observableInternal/utils';
+export {
+	ObservableLazy,
+	ObservableLazyPromise,
+	ObservablePromise,
+	PromiseResult,
+	waitForState,
+	derivedWithCancellationToken,
+} from 'vs/base/common/observableInternal/promise';
 
 import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableInternal/logging';
 
-const enableLogging = false;
+// Remove "//" in the next line to enable logging
+const enableLogging = false
+	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	;
+
 if (enableLogging) {
 	setLogger(new ConsoleObservableLogger());
 }

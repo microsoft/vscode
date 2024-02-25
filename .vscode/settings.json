@@ -157,5 +157,9 @@
 	"testing.defaultGutterClickAction": "runWithCoverage"
 =======
 	"testing.defaultGutterClickAction": "contextMenu",
+<<<<<<< HEAD
+>>>>>>> origin/main
+=======
+	"typescript.enablePromptUseWorkspaceTsdk": true,
 >>>>>>> origin/main
 }

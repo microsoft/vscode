@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 
 interface ProviderWithMetadata {
 	label: string;
@@ -106,7 +107,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	$onDidChangeAuthenticationSessions(id: string, label: string) {
-		this._onDidChangeSessions.fire({ provider: { id, label } });
+		// Don't fire events for the internal auth providers
+		if (!id.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
+			this._onDidChangeSessions.fire({ provider: { id, label } });
+		}
 		return Promise.resolve();
 	}
 }

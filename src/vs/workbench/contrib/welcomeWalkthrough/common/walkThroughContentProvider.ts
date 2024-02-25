@@ -45,15 +45,13 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 
 	private loads = new Map<string, Promise<ITextBufferFactory>>();
 
-	readonly scheme = Schemas.walkThroughSnippet;
-
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		this.textModelResolverService.registerTextModelContentProvider(this.scheme, this);
+		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
 
 	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {

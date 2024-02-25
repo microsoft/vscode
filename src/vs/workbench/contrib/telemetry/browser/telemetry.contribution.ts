@@ -281,12 +281,12 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 	/**
 	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
 	 */
-	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): any {
+	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): string | undefined {
 		const schema = this.configurationRegistry.getConfigurationProperties()[key];
 		const inpsectData = this.configurationService.inspect(key);
 		const value = target === ConfigurationTarget.USER_LOCAL ? inpsectData.user?.value : inpsectData.workspace?.value;
 		if (isNumber(value) || isBoolean(value)) {
-			return value;
+			return value.toString();
 		}
 		if (isString(value)) {
 			if (schema?.enum?.includes(value)) {
@@ -296,7 +296,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 		}
 		if (Array.isArray(value)) {
 			if (value.every(v => isNumber(v) || isBoolean(v) || (isString(v) && schema?.enum?.includes(v)))) {
-				return value;
+				return JSON.stringify(value);
 			}
 		}
 		return undefined;
@@ -304,7 +304,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 
 	private reportTelemetry(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): void {
 		type UpdatedSettingEvent = {
-			value: any;
+			settingValue: string | undefined;
 			source: string;
 		};
 		const source = ConfigurationTargetToString(target);
@@ -315,90 +315,90 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
 					comment: 'This is used to know where activity bar is shown in the workbench.';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('workbench.activityBar.location', { value: this.getValueToReport(key, target), source });
+				}>('workbench.activityBar.location', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case AutoUpdateConfigurationKey:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
 					comment: 'This is used to know if extensions are getting auto updated or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('extensions.autoUpdate', { value: this.getValueToReport(key, target), source });
+				}>('extensions.autoUpdate', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'files.autoSave':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'isidorn';
 					comment: 'This is used to know if auto save is enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('files.autoSave', { value: this.getValueToReport(key, target), source });
+				}>('files.autoSave', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'editor.stickyScroll.enabled':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'aiday-mar';
 					comment: 'This is used to know if editor sticky scroll is enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('editor.stickyScroll.enabled', { value: this.getValueToReport(key, target), source });
+				}>('editor.stickyScroll.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case KEYWORD_ACTIVIATION_SETTING_ID:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'bpasero';
 					comment: 'This is used to know if voice keyword activation is enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('accessibility.voice.keywordActivation', { value: this.getValueToReport(key, target), source });
+				}>('accessibility.voice.keywordActivation', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.zoomLevel':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'bpasero';
 					comment: 'This is used to know if window zoom level is configured or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomLevel', { value: this.getValueToReport(key, target), source });
+				}>('window.zoomLevel', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.zoomPerWindow':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'bpasero';
 					comment: 'This is used to know if window zoom per window is configured or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomPerWindow', { value: this.getValueToReport(key, target), source });
+				}>('window.zoomPerWindow', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.titleBarStyle':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
 					comment: 'This is used to know if window title bar style is set to custom or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.titleBarStyle', { value: this.getValueToReport(key, target), source });
+				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.customTitleBarVisibility':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
 					comment: 'This is used to know if window custom title bar visibility is configured or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.customTitleBarVisibility', { value: this.getValueToReport(key, target), source });
+				}>('window.customTitleBarVisibility', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.nativeTabs':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
 					comment: 'This is used to know if window native tabs are enabled or not';
-					value: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.nativeTabs', { value: this.getValueToReport(key, target), source });
+				}>('window.nativeTabs', { settingValue: this.getValueToReport(key, target), source });
 				return;
 		}
 	}

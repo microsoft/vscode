@@ -505,6 +505,11 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
 	 */
 	readonly resources?: IResourceDiffEditorInput[];
+
+	/**
+	 * Whether the editor should be serialized and stored for subsequent sessions.
+	 */
+	readonly isTransient?: boolean;
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
@@ -1101,6 +1106,14 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 }
 
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
+
+export interface IWillInstantiateEditorPaneEvent {
+
+	/**
+	 * @see {@link IEditorDescriptor.typeId}
+	 */
+	readonly typeId: string;
+}
 
 export type GroupIdentifier = number;
 

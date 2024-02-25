@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from 'vs/base/browser/dom';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { assertNever } from 'vs/base/common/assert';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -20,7 +22,6 @@ import { ITestingCoverageBarThresholds, TestingConfigKeys, TestingDisplayedCover
 import { AbstractFileCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { ICoveredCount } from 'vs/workbench/contrib/testing/common/testTypes';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export interface TestCoverageBarsOptions {
 	/**
@@ -35,7 +36,7 @@ export interface TestCoverageBarsOptions {
 }
 
 /** Type that can be used to render coverage bars */
-export type CoverageBarSource = Pick<AbstractFileCoverage, 'statement' | 'branch' | 'function'>;
+export type CoverageBarSource = Pick<AbstractFileCoverage, 'statement' | 'branch' | 'declaration'>;
 
 export class ManagedTestCoverageBars extends Disposable {
 	private _coverage?: CoverageBarSource;
@@ -62,6 +63,7 @@ export class ManagedTestCoverageBars extends Disposable {
 	});
 
 	private readonly visibleStore = this._register(new DisposableStore());
+	private readonly customHovers: ICustomHover[] = [];
 
 	/** Gets whether coverage is currently visible for the resource. */
 	public get visible() {
@@ -70,36 +72,13 @@ export class ManagedTestCoverageBars extends Disposable {
 
 	constructor(
 		protected readonly options: TestCoverageBarsOptions,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
 
-	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IMarkdownString | undefined) {
-		target.onmouseenter = () => {
-			if (!this._coverage) {
-				return;
-			}
-
-			const content = factory(this._coverage);
-			if (!content) {
-				return;
-			}
-
-			const hover = this.hoverService.showHover({
-				content,
-				target,
-				appearance: {
-					showPointer: true,
-					compact: true,
-					skipFadeInAnimation: true,
-				}
-			});
-			if (hover) {
-				this.visibleStore.add(hover);
-			}
-		};
+	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | ITooltipMarkdownString | undefined) {
+		this._register(setupCustomHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
 	}
 
 	public setCoverageInfo(coverage: CoverageBarSource | undefined) {
@@ -107,6 +86,7 @@ export class ManagedTestCoverageBars extends Disposable {
 		if (!coverage) {
 			if (this._coverage) {
 				this._coverage = undefined;
+				this.customHovers.forEach(c => c.hide());
 				ds.clear();
 			}
 			return;
@@ -142,7 +122,7 @@ export class ManagedTestCoverageBars extends Disposable {
 			renderBar(el.tpcBar, overallStat, false, thresholds);
 		} else {
 			renderBar(el.statement, percent(coverage.statement), coverage.statement.total === 0, thresholds);
-			renderBar(el.function, coverage.function && percent(coverage.function), coverage.function?.total === 0, thresholds);
+			renderBar(el.function, coverage.declaration && percent(coverage.declaration), coverage.declaration?.total === 0, thresholds);
 			renderBar(el.branch, coverage.branch && percent(coverage.branch), coverage.branch?.total === 0, thresholds);
 		}
 	}
@@ -196,11 +176,11 @@ const calculateDisplayedStat = (coverage: CoverageBarSource, method: TestingDisp
 		case TestingDisplayedCoveragePercent.Minimum: {
 			let value = percent(coverage.statement);
 			if (coverage.branch) { value = Math.min(value, percent(coverage.branch)); }
-			if (coverage.function) { value = Math.min(value, percent(coverage.function)); }
+			if (coverage.declaration) { value = Math.min(value, percent(coverage.declaration)); }
 			return value;
 		}
 		case TestingDisplayedCoveragePercent.TotalCoverage:
-			return getTotalCoveragePercent(coverage.statement, coverage.branch, coverage.function);
+			return getTotalCoveragePercent(coverage.statement, coverage.branch, coverage.declaration);
 		default:
 			assertNever(method);
 	}
@@ -218,15 +198,23 @@ const displayPercent = (value: number, precision = 2) => {
 	return `${display}%`;
 };
 
-const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', coverage.statement.covered, coverage.statement.total, displayPercent(percent(coverage.statement)));
-const fnCoverageText = (coverage: CoverageBarSource) => coverage.function && localize('functionCoverage', '{0}/{1} functions covered ({2})', coverage.function.covered, coverage.function.total, displayPercent(percent(coverage.function)));
-const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', coverage.branch.covered, coverage.branch.total, displayPercent(percent(coverage.branch)));
+const nf = new Intl.NumberFormat();
+const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', nf.format(coverage.statement.covered), nf.format(coverage.statement.total), displayPercent(percent(coverage.statement)));
+const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.format(coverage.declaration.covered), nf.format(coverage.declaration.total), displayPercent(percent(coverage.declaration)));
+const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.format(coverage.branch.covered), nf.format(coverage.branch.total), displayPercent(percent(coverage.branch)));
 
-const getOverallHoverText = (coverage: CoverageBarSource) => new MarkdownString([
-	stmtCoverageText(coverage),
-	fnCoverageText(coverage),
-	branchCoverageText(coverage),
-].filter(isDefined).join('\n\n'));
+const getOverallHoverText = (coverage: CoverageBarSource): ITooltipMarkdownString => {
+	const str = [
+		stmtCoverageText(coverage),
+		fnCoverageText(coverage),
+		branchCoverageText(coverage),
+	].filter(isDefined).join('\n\n');
+
+	return {
+		markdown: new MarkdownString().appendText(str),
+		markdownNotSupportedFallback: str
+	};
+};
 
 /**
  * Renders test coverage bars for a resource in the given container. It will
@@ -237,11 +225,10 @@ export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements
 
 	constructor(
 		options: TestCoverageBarsOptions,
-		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITestCoverageService testCoverageService: ITestCoverageService,
 	) {
-		super(options, hoverService, configurationService);
+		super(options, configurationService);
 
 		const isEnabled = observeTestingConfiguration(configurationService, TestingConfigKeys.ShowCoverageInExplorer);
 

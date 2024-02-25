@@ -366,7 +366,7 @@
 		},
 		{
 			"name": "CSS ID",
-			"scope": "meta.selector.css entity.other.attribute-name.id",
+			"scope": "meta.selector entity.other.attribute-name.id",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9872A2"
@@ -374,7 +374,7 @@
 		},
 		{
 			"name": "CSS Property Name",
-			"scope": "support.type.property-name.css",
+			"scope": "support.type.property-name",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#676867"
@@ -382,7 +382,7 @@
 		},
 		{
 			"name": "CSS Property Value",
-			"scope": "meta.property-group support.constant.property-value.css, meta.property-value support.constant.property-value.css",
+			"scope": "meta.property-group support.constant.property-value, meta.property-value support.constant.property-value",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#C7444A"

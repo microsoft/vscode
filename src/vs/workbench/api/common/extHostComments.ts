@@ -168,6 +168,16 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			commentController.$createCommentThreadTemplate(uriComponents, range);
 		}
 
+		async $setActiveComment(controllerHandle: number, commentInfo: { commentThreadHandle: number; uniqueIdInThread?: number }): Promise<void> {
+			const commentController = this._commentControllers.get(controllerHandle);
+
+			if (!commentController) {
+				return;
+			}
+
+			commentController.$setActiveComment(commentInfo ?? undefined);
+		}
+
 		async $updateCommentThreadTemplate(commentControllerHandle: number, threadHandle: number, range: IRange) {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
@@ -582,6 +592,19 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			proxy.$updateCommentControllerFeatures(this.handle, { options: this._options });
 		}
 
+		private _activeComment: vscode.Comment | undefined;
+
+		get activeComment(): vscode.Comment | undefined {
+			checkProposedApiEnabled(this._extension, 'activeComment');
+			return this._activeComment;
+		}
+
+		private _activeThread: vscode.CommentThread2 | undefined;
+
+		get activeCommentThread(): vscode.CommentThread2 | undefined {
+			checkProposedApiEnabled(this._extension, 'activeComment');
+			return this._activeThread;
+		}
 
 		private _localDisposables: types.Disposable[];
 		readonly value: vscode.CommentController;
@@ -604,6 +627,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				set commentingRangeProvider(commentingRangeProvider: vscode.CommentingRangeProvider | undefined) { that.commentingRangeProvider = commentingRangeProvider; },
 				get reactionHandler(): ReactionHandler | undefined { return that.reactionHandler; },
 				set reactionHandler(handler: ReactionHandler | undefined) { that.reactionHandler = handler; },
+				// get activeComment(): vscode.Comment | undefined { return that.activeComment; },
+				get activeCommentThread(): vscode.CommentThread2 | undefined { return that.activeCommentThread; },
 				createCommentThread(uri: vscode.Uri, range: vscode.Range | undefined, comments: vscode.Comment[]): vscode.CommentThread | vscode.CommentThread2 {
 					return that.createCommentThread(uri, range, comments).value;
 				},
@@ -625,6 +650,19 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, resource, range, comments, this._extension, false);
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;
+		}
+
+		$setActiveComment(commentInfo: { commentThreadHandle: number; uniqueIdInThread?: number } | undefined) {
+			if (!commentInfo) {
+				this._activeComment = undefined;
+				this._activeThread = undefined;
+				return;
+			}
+			const thread = this._threads.get(commentInfo.commentThreadHandle);
+			if (thread) {
+				this._activeComment = commentInfo.uniqueIdInThread ? thread.getCommentByUniqueId(commentInfo.uniqueIdInThread) : undefined;
+				this._activeThread = thread;
+			}
 		}
 
 		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange | undefined): ExtHostCommentThread {

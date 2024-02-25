@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity, isResourceMergeEditorInput, isResourceDiffListEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, IUntypedEditorOptions } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
@@ -271,7 +271,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.isReadonly();
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceSideBySideEditorInput | undefined {
+	override toUntyped(options?: IUntypedEditorOptions): IResourceSideBySideEditorInput | undefined {
 		const primaryResourceEditorInput = this.primary.toUntyped(options);
 		const secondaryResourceEditorInput = this.secondary.toUntyped(options);
 
@@ -362,8 +362,8 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 					const serializedEditorInput: ISerializedSideBySideEditorInput = {
 						name: input.getPreferredName(),
 						description: input.getPreferredDescription(),
-						primarySerialized: primarySerialized,
-						secondarySerialized: secondarySerialized,
+						primarySerialized,
+						secondarySerialized,
 						primaryTypeId: input.primary.typeId,
 						secondaryTypeId: input.secondary.typeId
 					};
