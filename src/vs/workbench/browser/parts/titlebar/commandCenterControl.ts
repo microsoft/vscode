@@ -5,6 +5,7 @@
 
 import { isActiveDocument, reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -46,11 +47,11 @@ export class CommandCenterControl {
 				primaryGroup: () => true,
 			},
 			telemetrySource: 'commandCenter',
-			actionViewItemProvider: (action) => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.CommandCenterCenter) {
-					return instantiationService.createInstance(CommandCenterCenterViewItem, action, windowTitle, hoverDelegate, {});
+					return instantiationService.createInstance(CommandCenterCenterViewItem, action, windowTitle, { ...options, hoverDelegate });
 				} else {
-					return createActionViewItem(instantiationService, action, { hoverDelegate });
+					return createActionViewItem(instantiationService, action, { ...options, hoverDelegate });
 				}
 			}
 		});
@@ -75,16 +76,18 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 	private static readonly _quickOpenCommandId = 'workbench.action.quickOpenWithModes';
 
+	private readonly _hoverDelegate: IHoverDelegate;
+
 	constructor(
 		private readonly _submenu: SubmenuItemAction,
 		private readonly _windowTitle: WindowTitle,
-		private readonly _hoverDelegate: IHoverDelegate,
 		options: IBaseActionViewItemOptions,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
+		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
 	}
 
 	override render(container: HTMLElement): void {
