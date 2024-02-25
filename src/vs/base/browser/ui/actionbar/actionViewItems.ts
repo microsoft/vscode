@@ -226,12 +226,17 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		const title = this.getTooltip() ?? '';
 		this.updateAriaLabel();
 
-		if (!this.customHover) {
-			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-			this.customHover = setupCustomHover(hoverDelegate, this.element, title);
-			this._store.add(this.customHover);
+		if (this.options.hoverDelegate?.showNativeHover) {
+			/* While custom hover is not supported with context view */
+			this.element.title = title;
 		} else {
-			this.customHover.update(title);
+			if (!this.customHover) {
+				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+				this.customHover = setupCustomHover(hoverDelegate, this.element, title);
+				this._store.add(this.customHover);
+			} else {
+				this.customHover.update(title);
+			}
 		}
 	}
 

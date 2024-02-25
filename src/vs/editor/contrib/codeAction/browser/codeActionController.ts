@@ -112,12 +112,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					command.arguments[0] = { ...command.arguments[0], autoSend: false };
 				}
 			}
-			try {
-				this._lightBulbWidget.value?.hide();
-				await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
-			} finally {
-				actions.dispose();
-			}
+			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
 			return;
 		}
 		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
@@ -284,11 +279,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				try {
-					await this._applyCodeAction(action, /* retrigger */ true, !!preview, ApplyCodeActionReason.FromCodeActions);
-				} finally {
-					actions.dispose();
-				}
+				this._applyCodeAction(action, /* retrigger */ true, !!preview, ApplyCodeActionReason.FromCodeActions);
 				this._actionWidgetService.hide();
 				currentDecorations.clear();
 			},

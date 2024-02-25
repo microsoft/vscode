@@ -224,8 +224,9 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 	private activeRepositoryNameContextKey: IContextKey<string>;
 	private activeRepositoryBranchNameContextKey: IContextKey<string>;
 
+	private focusedRepository: ISCMRepository | undefined = undefined;
+	private focusDisposable: IDisposable = Disposable.None;
 	private readonly disposables = new DisposableStore();
-	private readonly focusedRepositoryDisposables = new DisposableStore();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -254,28 +255,25 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 			return;
 		}
 
-		const activeResourceRepository = Iterable.find(
-			this.scmViewService.visibleRepositories,
+		const repository = Iterable.find(
+			this.scmViewService.repositories,
 			r => Boolean(r.provider.rootUri && this.uriIdentityService.extUri.isEqualOrParent(activeResource, r.provider.rootUri))
 		);
 
-		this.onDidFocusRepository(activeResourceRepository);
+		this.onDidFocusRepository(repository);
 	}
 
 	private onDidFocusRepository(repository: ISCMRepository | undefined): void {
-		this.focusedRepositoryDisposables.clear();
-
-		if (!repository) {
+		if (!repository || this.focusedRepository === repository) {
 			return;
 		}
 
-		this.focusedRepositoryDisposables.add(repository.provider.onDidChangeHistoryProvider(() => {
-			if (repository.provider.historyProvider) {
-				this.focusedRepositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.updateContextKeys(repository)));
-			}
+		this.focusDisposable.dispose();
+		this.focusedRepository = repository;
 
-			this.updateContextKeys(repository);
-		}));
+		if (repository && repository.provider.onDidChangeStatusBarCommands) {
+			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.updateContextKeys(repository));
+		}
 
 		this.updateContextKeys(repository);
 	}
@@ -283,6 +281,11 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 	private updateContextKeys(repository: ISCMRepository | undefined): void {
 		this.activeRepositoryNameContextKey.set(repository?.provider.name ?? '');
 		this.activeRepositoryBranchNameContextKey.set(repository?.provider.historyProvider?.currentHistoryItemGroup?.label ?? '');
+	}
+
+	dispose(): void {
+		this.focusDisposable.dispose();
+		this.disposables.dispose();
 	}
 }
 

@@ -46,7 +46,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 	}
 
 	protected async getContents(input: EditorInput, options: IEditorOptions): Promise<IEditorPlaceholderContents> {
-		const model = await input.resolve(options);
+		const model = await input.resolve();
 
 		// Assert Model instance
 		if (!(model instanceof BinaryEditorModel)) {

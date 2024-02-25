@@ -6,17 +6,18 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostChatProviderShape, IMainContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostLanguageModelsShape, IMainContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { localize } from 'vs/nls';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 type LanguageModelData = {
 	readonly extension: ExtensionIdentifier;
@@ -37,6 +38,10 @@ class LanguageModelResponseStream {
 
 class LanguageModelRequest {
 
+	static fromError(err: Error): vscode.LanguageModelResponse {
+		return new LanguageModelRequest(Promise.reject(err), new CancellationTokenSource()).apiObject;
+	}
+
 	readonly apiObject: vscode.LanguageModelResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
@@ -54,16 +59,30 @@ class LanguageModelRequest {
 			// responses: AsyncIterable<string>[] // FUTURE responses per N
 		};
 
-		promise.finally(() => {
-			this._isDone = true;
-			if (this._responseStreams.size > 0) {
-				for (const [, value] of this._responseStreams) {
-					value.stream.resolve();
-				}
-			} else {
-				this._defaultStream.resolve();
+		promise.then(() => {
+			for (const stream of this._streams()) {
+				stream.resolve();
 			}
+		}).catch(err => {
+			if (!(err instanceof Error)) {
+				err = new Error(toErrorMessage(err), { cause: err });
+			}
+			for (const stream of this._streams()) {
+				stream.reject(err);
+			}
+		}).finally(() => {
+			this._isDone = true;
 		});
+	}
+
+	private * _streams() {
+		if (this._responseStreams.size > 0) {
+			for (const [, value] of this._responseStreams) {
+				yield value.stream;
+			}
+		} else {
+			yield this._defaultStream;
+		}
 	}
 
 	handleFragment(fragment: IChatResponseFragment): void {
@@ -85,11 +104,11 @@ class LanguageModelRequest {
 
 }
 
-export class ExtHostChatProvider implements ExtHostChatProviderShape {
+export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	private static _idPool = 1;
 
-	private readonly _proxy: MainThreadChatProviderShape;
+	private readonly _proxy: MainThreadLanguageModelsShape;
 	private readonly _onDidChangeModelAccess = new Emitter<{ from: ExtensionIdentifier; to: ExtensionIdentifier }>();
 	private readonly _onDidChangeProviders = new Emitter<vscode.LanguageModelChangeEvent>();
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
@@ -105,7 +124,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		private readonly _logService: ILogService,
 		private readonly _extHostAuthentication: ExtHostAuthentication,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadChatProvider);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModels);
 	}
 
 	dispose(): void {
@@ -115,7 +134,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 	registerLanguageModel(extension: IExtensionDescription, identifier: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata): IDisposable {
 
-		const handle = ExtHostChatProvider._idPool++;
+		const handle = ExtHostLanguageModels._idPool++;
 		this._languageModels.set(handle, { extension: extension.identifier, provider });
 		let auth;
 		if (metadata.auth) {
@@ -124,7 +143,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				accountLabel: typeof metadata.auth === 'object' ? metadata.auth.label : undefined
 			};
 		}
-		this._proxy.$registerProvider(handle, identifier, {
+		this._proxy.$registerLanguageModelProvider(handle, identifier, {
 			extension: extension.identifier,
 			model: metadata.name ?? '',
 			auth
@@ -208,6 +227,38 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		}
 	}
 
+	async makeChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelMessage[], options: Record<string, any>, token: CancellationToken) {
+
+		const from = extension.identifier;
+		// const justification = options?.justification; // TODO@jrieken
+		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, undefined);
+
+		if (!metadata || !this._languageModelIds.has(languageModelId)) {
+			return LanguageModelRequest.fromError(new Error(`Language model ${languageModelId} is unknown`));
+		}
+
+		if (this._isUsingAuth(from, metadata)) {
+			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, undefined);
+
+			if (!this._modelAccessList.get(from)?.has(metadata.extension)) {
+				return LanguageModelRequest.fromError(new Error('Access to chat has been revoked'));
+			}
+		}
+
+		const cts = new CancellationTokenSource(token);
+		const requestId = (Math.random() * 1e6) | 0;
+		const requestPromise = this._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options ?? {}, cts.token);
+		const res = new LanguageModelRequest(requestPromise, cts);
+		this._pendingRequest.set(requestId, { languageModelId, res });
+
+		requestPromise.finally(() => {
+			this._pendingRequest.delete(requestId);
+			cts.dispose();
+		});
+
+		return res.apiObject;
+	}
+
 	async requestLanguageModelAccess(extension: IExtensionDescription, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
 		const from = extension.identifier;
 		const justification = options?.justification;
@@ -284,7 +335,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
 	}
 
-	private _isUsingAuth(from: ExtensionIdentifier, toMetadata: IChatResponseProviderMetadata): toMetadata is IChatResponseProviderMetadata & { auth: NonNullable<IChatResponseProviderMetadata['auth']> } {
+	private _isUsingAuth(from: ExtensionIdentifier, toMetadata: ILanguageModelChatMetadata): toMetadata is ILanguageModelChatMetadata & { auth: NonNullable<ILanguageModelChatMetadata['auth']> } {
 		// If the 'to' extension uses an auth check
 		return !!toMetadata.auth
 			// And we're asking from a different extension

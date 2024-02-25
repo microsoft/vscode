@@ -46,7 +46,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
-import { ChatProviderService, IChatProviderService } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { LanguageModelsService, ILanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -56,7 +56,7 @@ import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/a
 import { QuickChatService } from 'vs/workbench/contrib/chat/browser/chatQuick';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
-import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 
@@ -228,6 +228,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
 		@ICommandService commandService: ICommandService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatVariablesService chatVariablesService: IChatVariablesService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -246,6 +247,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent();
 			const agents = chatAgentService.getAgents();
+
+			// Report prefix
 			if (defaultAgent?.metadata.helpTextPrefix) {
 				if (isMarkdownString(defaultAgent.metadata.helpTextPrefix)) {
 					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'markdownContent' });
@@ -255,6 +258,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				progress.report({ content: '\n\n', kind: 'content' });
 			}
 
+			// Report agent list
 			const agentText = (await Promise.all(agents
 				.filter(a => a.id !== defaultAgent?.id)
 				.map(async a => {
@@ -262,7 +266,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest}` };
 					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) - ${a.metadata.description}`;
-					const commands = await a.provideSlashCommands(CancellationToken.None);
+					const commands = await a.provideSlashCommands(undefined, [], CancellationToken.None);
 					const commandText = commands.map(c => {
 						const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${chatSubcommandLeader}${c.name} ${c.sampleRequest ?? ''}` };
 						const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
@@ -272,6 +276,23 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
 			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'markdownContent' });
+
+			// Report variables
+			if (defaultAgent?.metadata.helpTextVariablesPrefix) {
+				progress.report({ content: '\n\n', kind: 'content' });
+				if (isMarkdownString(defaultAgent.metadata.helpTextVariablesPrefix)) {
+					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'markdownContent' });
+				} else {
+					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'content' });
+				}
+
+				const variableText = Array.from(chatVariablesService.getVariables())
+					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
+					.join('\n');
+				progress.report({ content: '\n' + variableText, kind: 'content' });
+			}
+
+			// Report help text ending
 			if (defaultAgent?.metadata.helpTextPostfix) {
 				progress.report({ content: '\n\n', kind: 'content' });
 				if (isMarkdownString(defaultAgent.metadata.helpTextPostfix)) {
@@ -307,7 +328,7 @@ registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delay
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);
-registerSingleton(IChatProviderService, ChatProviderService, InstantiationType.Delayed);
+registerSingleton(ILanguageModelsService, LanguageModelsService, InstantiationType.Delayed);
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);

@@ -22,6 +22,8 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellOverlayPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerCellToolbarStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbarStickyScroll';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export class BetweenCellToolbar extends CellOverlayPart {
 	private _betweenCellToolbar: ToolBar | undefined;
@@ -165,15 +167,16 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		if (this._view) {
 			return this._view;
 		}
-
+		const hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
 		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
 			actionViewItemProvider: (action, options) => {
 				return createActionViewItem(this.instantiationService, action, options);
 			},
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			hoverDelegate
 		}));
 
-		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, 'cell-delete-toolbar')));
+		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, hoverDelegate, 'cell-delete-toolbar')));
 		if (model.deleteActions.primary.length !== 0 || model.deleteActions.secondary.length !== 0) {
 			deleteToolbar.setActions(model.deleteActions.primary, model.deleteActions.secondary);
 		}
@@ -269,7 +272,7 @@ function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IA
 	return result;
 }
 
-function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): ToolBar {
+function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, hoverDelegate: IHoverDelegate, elementClass?: string): ToolBar {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const instantiationService = accessor.get(IInstantiationService);
@@ -278,7 +281,8 @@ function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement,
 		actionViewItemProvider: (action, options) => {
 			return createActionViewItem(instantiationService, action, options);
 		},
-		renderDropdownAsChildElement: true
+		renderDropdownAsChildElement: true,
+		hoverDelegate
 	});
 
 	if (elementClass) {
