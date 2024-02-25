@@ -129,7 +129,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					try {
 						await this._editorService.openEditor({
 							resource: itemMatch.parent().resource,
-							options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+							options: { transient: true, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
 						});
 					} finally {
 						disposable.dispose();
