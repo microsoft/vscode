@@ -22,7 +22,7 @@ const EditorOpenPositioning = {
 
 export interface IEditorOpenOptions {
 	readonly pinned?: boolean;
-	sticky?: boolean;
+	readonly sticky?: boolean;
 	readonly transient?: boolean;
 	active?: boolean;
 	readonly index?: number;
