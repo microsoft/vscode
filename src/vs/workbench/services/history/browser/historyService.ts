@@ -178,15 +178,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 		}
 
-		// Listen to selection changes if the editor pane
-		// is having a selection concept.
+		// Listen to selection changes unless the editor is transient
 		if (isEditorPaneWithSelection(activeEditorPane)) {
 			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
-				if (activeEditorPane.group.isTransient(activeEditorPane.input)) {
-					return; // do not track selection changes for transient editors
+				if (!activeEditorPane.group.isTransient(activeEditorPane.input)) {
+					this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e);
 				}
-
-				this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e);
 			}));
 		}
 
