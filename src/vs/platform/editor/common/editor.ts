@@ -291,10 +291,11 @@ export interface IEditorOptions {
 
 	/**
 	 * A transient editor will attempt to appear as preview and certain components
-	 * will decide to ignore the editor when it becomes active. This option is
-	 * meant to be used only when the editor is used for a short period of time,
-	 * for example when opening a preview of the editor from a picker control
-	 * in the background while navigating through results of the picker.
+	 * (such as history tracking) may decide to ignore the editor when it becomes
+	 * active.
+	 * This option is meant to be used only when the editor is used for a short
+	 * period of time, for example when opening a preview of the editor from a
+	 * picker control in the background while navigating through results of the picker.
 	 */
 	transient?: boolean;
 }
