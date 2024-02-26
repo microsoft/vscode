@@ -1197,7 +1197,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 			return;
 		}
 		if (editor instanceof EmbeddedCodeEditorWidget) {
-			editor = (editor as EmbeddedCodeEditorWidget).getParentEditor();
+			editor = editor.getParentEditor();
 		}
 		const position = editor?.getPosition();
 		const model = editor?.getModel();
