@@ -285,6 +285,9 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 				hideOnHover: true,
 				hideOnKeyDown: true,
 			},
+			appearance: {
+				compact: true,
+			},
 			...overrideOptions
 		}, focus);
 	}
