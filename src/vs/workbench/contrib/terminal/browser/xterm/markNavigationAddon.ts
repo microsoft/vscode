@@ -7,7 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import type { Terminal, IMarker, ITerminalAddon, IDecoration } from '@xterm/xterm';
+import type { Terminal, IMarker, ITerminalAddon, IDecoration, IBufferRange } from '@xterm/xterm';
 import { timeout } from 'vs/base/common/async';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -22,6 +22,11 @@ enum Boundary {
 export const enum ScrollPosition {
 	Top,
 	Middle
+}
+
+interface IScrollToMarkerOptions {
+	hideDecoration?: boolean;
+	bufferRange?: IBufferRange;
 }
 
 export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITerminalAddon {
@@ -219,7 +224,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 	}
 
-	private _scrollToMarker(start: IMarker | number, position: ScrollPosition, end?: IMarker | number, hideDecoration?: boolean): void {
+	private _scrollToMarker(start: IMarker | number, position: ScrollPosition, end?: IMarker | number, options?: IScrollToMarkerOptions): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -227,8 +232,12 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			const line = this.getTargetScrollLine(toLineIndex(start), position);
 			this._terminal.scrollToLine(line);
 		}
-		if (!hideDecoration) {
-			this.registerTemporaryDecoration(start, end, true);
+		if (!options?.hideDecoration) {
+			if (options?.bufferRange) {
+				this._highlightBufferRange(options.bufferRange);
+			} else {
+				this.registerTemporaryDecoration(start, end, true);
+			}
 		}
 	}
 
@@ -257,6 +266,16 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			line - (promptRowCount - 1),
 			position,
 			line + (commandRowCount - 1)
+		);
+	}
+
+	revealRange(range: IBufferRange): void {
+		// TODO: Allow room for sticky scroll
+		this._scrollToMarker(
+			range.start.y - 1,
+			ScrollPosition.Middle,
+			range.end.y - 1,
+			{ bufferRange: range }
 		);
 	}
 
@@ -310,6 +329,72 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 						}
 					}));
 				}
+			}
+		}
+	}
+
+
+	private _scrollState: { viewportY: number } | undefined;
+
+	saveScrollState(): void {
+		this._scrollState = { viewportY: this._terminal?.buffer.active.viewportY ?? 0 };
+	}
+
+	restoreScrollState(): void {
+		if (this._scrollState && this._terminal) {
+			this._terminal.scrollToLine(this._scrollState.viewportY);
+			this._scrollState = undefined;
+		}
+	}
+
+	private _highlightBufferRange(range: IBufferRange): void {
+		if (!this._terminal) {
+			return;
+		}
+
+		// TODO: Save original scroll point
+
+		this._resetNavigationDecorations();
+		const startLine = range.start.y;
+		const decorationCount = range.end.y - range.start.y + 1;
+		for (let i = 0; i < decorationCount; i++) {
+			const decoration = this._terminal.registerDecoration({
+				marker: this._createMarkerForOffset(startLine - 1, i),
+				x: range.start.x - 1,
+				width: (range.end.x - 1) - (range.start.x - 1) + 1,
+				overviewRulerOptions: undefined
+			});
+			if (decoration) {
+				this._navigationDecorations?.push(decoration);
+				let renderedElement: HTMLElement | undefined;
+
+				decoration.onRender(element => {
+					if (!renderedElement) {
+						renderedElement = element;
+						// if (i === 0) {
+						// 	element.classList.add('top');
+						// }
+						// if (i === decorationCount - 1) {
+						// 	element.classList.add('bottom');
+						// }
+						element.classList.add('terminal-range-highlight');
+					}
+					if (this._terminal?.element) {
+						// element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
+					}
+				});
+				// TODO: Scroll may be under sticky scroll
+
+				// TODO: This is not efficient for a large decorationCount
+				decoration.onDispose(() => { this._navigationDecorations = this._navigationDecorations?.filter(d => d !== decoration); });
+				// Number picked to align with symbol highlight in the editor
+				// if (showOutline) {
+				// 	timeout(350).then(() => {
+				// 		if (renderedElement) {
+				// 			renderedElement.classList.remove('terminal-scroll-highlight-outline');
+				// 		}
+				// 	});
+				// }
 			}
 		}
 	}
@@ -373,7 +458,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	getTargetScrollLine(line: number, position: ScrollPosition): number {
-		// Middle is treated at 1/4 of the viewport's size because context below is almost always
+		// Middle is treated as 1/4 of the viewport's size because context below is almost always
 		// more important than context above in the terminal.
 		if (this._terminal && position === ScrollPosition.Middle) {
 			return Math.max(line - Math.floor(this._terminal.rows / 4), 0);
@@ -397,7 +482,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 		const endMarker = endMarkerId ? detectionCapability.getMark(endMarkerId) : startMarker;
-		this._scrollToMarker(startMarker, ScrollPosition.Top, endMarker, !highlight);
+		this._scrollToMarker(startMarker, ScrollPosition.Top, endMarker, { hideDecoration: !highlight });
 	}
 
 	selectToPreviousMark(): void {

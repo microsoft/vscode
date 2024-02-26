@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { QuickPickItem, IQuickInputService, IQuickPickItem, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalLinkQuickPickEvent, type IDetachedTerminalInstance, type ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { ILink } from '@xterm/xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
@@ -30,6 +30,8 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	private readonly _editorSequencer = new Sequencer();
 	private readonly _editorViewState: EditorViewState;
 
+	private _instance: ITerminalInstance | IDetachedTerminalInstance | undefined;
+
 	private readonly _onDidRequestMoreLinks = this.add(new Emitter<void>());
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
@@ -45,7 +47,9 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		this._editorViewState = new EditorViewState(_editorService);
 	}
 
-	async show(links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {
+	async show(instance: ITerminalInstance | IDetachedTerminalInstance, links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {
+		this._instance = instance;
+
 		// Get raw link picks
 		const wordPicks = links.viewport.wordLinks ? await this._generatePicks(links.viewport.wordLinks) : undefined;
 		const filePicks = links.viewport.fileLinks ? await this._generatePicks(links.viewport.fileLinks) : undefined;
@@ -122,6 +126,18 @@ export class TerminalLinkQuickpick extends DisposableStore {
 
 		return new Promise(r => {
 			disposables.add(pick.onDidHide(({ reason }) => {
+
+				// Restore terminal scroll state
+				if (this._terminalScrollStateSaved) {
+					const markTracker = this._instance?.xterm?.markTracker;
+					if (markTracker) {
+						markTracker.restoreScrollState();
+						// TODO: This name isn't great
+						markTracker.clearMarker();
+						this._terminalScrollStateSaved = false;
+					}
+				}
+
 				// Restore view state upon cancellation if we changed it
 				// but only when the picker was closed via explicit user
 				// gesture and not e.g. when focus was lost because that
@@ -208,11 +224,18 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	}
 
 	private _previewItem(item: ITerminalLinkQuickPickItem | IQuickPickItem) {
-		if (!item || !('link' in item) || !item.link || !('uri' in item.link) || !item.link.uri) {
+		if (!item || !('link' in item) || !item.link) {
 			return;
 		}
 
+		// Any link can be previewed in the termninal
 		const link = item.link;
+		this._previewItemInTerminal(link);
+
+		if (!('uri' in link) || !link.uri) {
+			return;
+		}
+
 		if (link.type !== TerminalBuiltinLinkType.LocalFile) {
 			return;
 		}
@@ -223,6 +246,10 @@ export class TerminalLinkQuickpick extends DisposableStore {
 			return;
 		}
 
+		this._previewItemInEditor(link);
+	}
+
+	private _previewItemInEditor(link: TerminalLink) {
 		const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
 		const selection = linkSuffix?.row === undefined ? undefined : {
 			startLineNumber: linkSuffix.row ?? 1,
@@ -244,6 +271,19 @@ export class TerminalLinkQuickpick extends DisposableStore {
 				disposable.dispose();
 			}
 		});
+	}
+
+	private _terminalScrollStateSaved: boolean = false;
+	private _previewItemInTerminal(link: ILink) {
+		const xterm = this._instance?.xterm;
+		if (!xterm) {
+			return;
+		}
+		if (!this._terminalScrollStateSaved) {
+			xterm.markTracker.saveScrollState();
+			this._terminalScrollStateSaved = true;
+		}
+		xterm.markTracker.revealRange(link.range);
 	}
 }
 
