@@ -64,7 +64,7 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		}
 		dipsosables.add(Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 			id: `lm-${identifier}`,
-			label: localize('languageModels', "Language Model ({0})", `${identifier}-${metadata.model}`),
+			label: localize('languageModels', "Language Model ({0})", `${identifier}`),
 			access: {
 				canToggle: false,
 			},
