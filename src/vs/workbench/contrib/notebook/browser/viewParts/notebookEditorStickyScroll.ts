@@ -444,7 +444,6 @@ export class NotebookStickyScroll extends Disposable {
 
 	override dispose() {
 		this._disposables.dispose();
-		// this._actionRunnerDisposables.dispose();
 		this.disposeCurrentStickyLines();
 		this.notebookOutline.dispose();
 		super.dispose();
