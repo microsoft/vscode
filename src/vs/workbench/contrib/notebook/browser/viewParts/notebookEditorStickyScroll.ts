@@ -26,8 +26,6 @@ import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/fol
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { IRunEvent } from 'vs/base/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -36,13 +34,13 @@ export class ToggleNotebookStickyScroll extends Action2 {
 			id: 'notebook.action.toggleNotebookStickyScroll',
 			title: {
 				...localize2('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
 			},
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
 				title: localize('notebookStickyScroll', "Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'miNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
@@ -62,6 +60,12 @@ export class ToggleNotebookStickyScroll extends Action2 {
 	}
 }
 
+type RunInSectionContext = {
+	target: HTMLElement;
+	currentStickyLines: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>;
+	notebookEditor: INotebookEditor;
+};
+
 export class RunInSectionStickyScroll extends Action2 {
 	constructor() {
 		super({
@@ -80,12 +84,12 @@ export class RunInSectionStickyScroll extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const selectedElement: HTMLElement = args[0].parentElement;
+	override async run(accessor: ServicesAccessor, context: RunInSectionContext, ...args: any[]): Promise<void> {
+		const selectedElement = context.target.parentElement;
 		const stickyLines: Map<OutlineEntry, {
 			line: NotebookStickyLine;
 			rendered: boolean;
-		}> = args[1];
+		}> = context.currentStickyLines;
 
 		const selectedOutlineEntry = Array.from(stickyLines.values()).find(entry => entry.line.element.contains(selectedElement))?.line.entry;
 		if (!selectedOutlineEntry) {
@@ -96,7 +100,7 @@ export class RunInSectionStickyScroll extends Action2 {
 		selectedOutlineEntry.asFlatList(flatList);
 
 		const cellViewModels = flatList.map(entry => entry.cell);
-		const notebookEditor: INotebookEditor = args[2];
+		const notebookEditor: INotebookEditor = context.notebookEditor;
 		notebookEditor.executeNotebookCells(cellViewModels);
 	}
 }
@@ -221,7 +225,6 @@ export class NotebookStickyScroll extends Disposable {
 		private readonly notebookOutline: NotebookCellOutlineProvider,
 		private readonly notebookCellList: INotebookCellList,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -242,21 +245,17 @@ export class NotebookStickyScroll extends Disposable {
 
 	private onContextMenu(e: MouseEvent) {
 		const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
+
+		const context: RunInSectionContext = {
+			target: event.target,
+			currentStickyLines: this.currentStickyLines,
+			notebookEditor: this.notebookEditor,
+		};
+
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
-			actionRunner: {
-				run: async (action) => {
-					if (action.id === 'notebook.action.runInSection') {
-						this.commandService.executeCommand(action.id, event.target, this.currentStickyLines, this.notebookEditor);
-					} else {
-						this.commandService.executeCommand(action.id);
-					}
-				},
-				onDidRun: new Emitter<IRunEvent>().event,
-				onWillRun: new Emitter<IRunEvent>().event,
-				dispose: () => { }
-			},
+			menuActionOptions: { shouldForwardArgs: true, arg: context },
 		});
 	}
 
@@ -445,6 +444,7 @@ export class NotebookStickyScroll extends Disposable {
 
 	override dispose() {
 		this._disposables.dispose();
+		// this._actionRunnerDisposables.dispose();
 		this.disposeCurrentStickyLines();
 		this.notebookOutline.dispose();
 		super.dispose();

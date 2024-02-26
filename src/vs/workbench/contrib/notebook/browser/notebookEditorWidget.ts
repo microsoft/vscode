@@ -248,10 +248,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._notebookViewModel?.notebookDocument;
 	}
 
-	get notebookStickyScroll(): NotebookStickyScroll {
-		return this._notebookStickyScroll;
-	}
-
 	get isReadOnly() {
 		return this._notebookViewModel?.options.isReadOnly ?? false;
 	}
