@@ -994,8 +994,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 			editor = editor.getParentEditor();
 		}
 
-		const position = editor.getPosition();
-		const model = editor.getModel();
+		const position = editor?.getPosition();
+		const model = editor?.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -1197,10 +1197,10 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 			return;
 		}
 		if (editor instanceof EmbeddedCodeEditorWidget) {
-			editor = editor.getParentEditor();
+			editor = (editor as EmbeddedCodeEditorWidget).getParentEditor();
 		}
-		const position = editor.getPosition();
-		const model = editor.getModel();
+		const position = editor?.getPosition();
+		const model = editor?.getModel();
 		if (!position || !model || !('uri' in model)) {
 			return;
 		}
@@ -1230,7 +1230,9 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 			});
 		}
 
-		MessageController.get(editor)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
+		if (editor) {
+			MessageController.get(editor)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
+		}
 
 		return undefined;
 	}
