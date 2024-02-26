@@ -13,6 +13,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { getWindow } from 'vs/base/browser/dom';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 enum Boundary {
 	Top,
@@ -26,6 +28,8 @@ export const enum ScrollPosition {
 
 interface IScrollToMarkerOptions {
 	hideDecoration?: boolean;
+	/** Scroll even if the line is within the viewport */
+	forceScroll?: boolean;
 	bufferRange?: IBufferRange;
 }
 
@@ -48,6 +52,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
@@ -228,7 +233,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (!this._terminal) {
 			return;
 		}
-		if (!this._isMarkerInViewport(this._terminal, start)) {
+		if (!this._isMarkerInViewport(this._terminal, start) || options?.forceScroll) {
 			const line = this.getTargetScrollLine(toLineIndex(start), position);
 			this._terminal.scrollToLine(line);
 		}
@@ -270,12 +275,15 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	revealRange(range: IBufferRange): void {
-		// TODO: Allow room for sticky scroll
 		this._scrollToMarker(
 			range.start.y - 1,
 			ScrollPosition.Middle,
 			range.end.y - 1,
-			{ bufferRange: range }
+			{
+				bufferRange: range,
+				// Ensure scroll shows the line when sticky scroll is enabled
+				forceScroll: !!this._configurationService.getValue(TerminalSettingId.StickyScrollEnabled)
+			}
 		);
 	}
 
@@ -352,8 +360,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 
-		// TODO: Save original scroll point
-
 		this._resetNavigationDecorations();
 		const startLine = range.start.y;
 		const decorationCount = range.end.y - range.start.y + 1;
@@ -371,30 +377,10 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 				decoration.onRender(element => {
 					if (!renderedElement) {
 						renderedElement = element;
-						// if (i === 0) {
-						// 	element.classList.add('top');
-						// }
-						// if (i === decorationCount - 1) {
-						// 	element.classList.add('bottom');
-						// }
 						element.classList.add('terminal-range-highlight');
 					}
-					if (this._terminal?.element) {
-						// element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
-					}
 				});
-				// TODO: Scroll may be under sticky scroll
-
-				// TODO: This is not efficient for a large decorationCount
 				decoration.onDispose(() => { this._navigationDecorations = this._navigationDecorations?.filter(d => d !== decoration); });
-				// Number picked to align with symbol highlight in the editor
-				// if (showOutline) {
-				// 	timeout(350).then(() => {
-				// 		if (renderedElement) {
-				// 			renderedElement.classList.remove('terminal-scroll-highlight-outline');
-				// 		}
-				// 	});
-				// }
 			}
 		}
 	}
