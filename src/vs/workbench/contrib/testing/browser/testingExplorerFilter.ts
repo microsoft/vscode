@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -121,9 +121,9 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		})));
 
 		const actionbar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === this.filtersAction.id) {
-					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.state, this.actionRunner);
+					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, options, this.state, this.actionRunner);
 				}
 				return undefined;
 			},
@@ -176,6 +176,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
 		action: IAction,
+		options: IActionViewItemOptions,
 		private readonly filters: ITestExplorerFilterState,
 		actionRunner: IActionRunner,
 		@IContextMenuService contextMenuService: IContextMenuService,

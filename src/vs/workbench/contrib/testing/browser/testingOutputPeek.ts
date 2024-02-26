@@ -2227,9 +2227,9 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		const label = dom.append(wrapper, dom.$('.name'));
 
 		const actionBar = new ActionBar(wrapper, {
-			actionViewItemProvider: action =>
+			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
 		});
 
