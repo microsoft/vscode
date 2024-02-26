@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { status } from 'vs/base/browser/ui/aria/aria';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 const $ = dom.$;
 type TargetRect = {
@@ -331,10 +331,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		};
 
 		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
-		const top = Math.min(...targetBounds.map(e => e.top));
-		const right = Math.max(...targetBounds.map(e => e.right));
-		const bottom = Math.max(...targetBounds.map(e => e.bottom));
-		const left = Math.min(...targetBounds.map(e => e.left));
+		const { top, right, bottom, left } = targetBounds[0];
 		const width = right - left;
 		const height = bottom - top;
 

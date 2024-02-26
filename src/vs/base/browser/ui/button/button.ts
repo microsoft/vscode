@@ -9,8 +9,9 @@ import { sanitize } from 'vs/base/browser/dompurify/dompurify';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -29,6 +30,7 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export interface IButtonStyles {
@@ -113,6 +115,10 @@ export class Button extends Disposable implements IButton {
 			this._element.appendChild(this._labelElement);
 
 			this._element.classList.add('monaco-text-button-with-short-label');
+		}
+
+		if (typeof options.title === 'string') {
+			this.setTitle(options.title);
 		}
 
 		if (typeof options.ariaLabel === 'string') {
@@ -249,16 +255,13 @@ export class Button extends Disposable implements IButton {
 		} else if (this.options.title) {
 			title = renderStringAsPlaintext(value);
 		}
-		if (!this._hover) {
-			this._hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._element, title));
-		} else {
-			this._hover.update(title);
-		}
+
+		this.setTitle(title);
 
 		if (typeof this.options.ariaLabel === 'string') {
 			this._element.setAttribute('aria-label', this.options.ariaLabel);
 		} else if (this.options.ariaLabel) {
-			this._element.setAttribute('aria-label', this._element.title);
+			this._element.setAttribute('aria-label', title);
 		}
 
 		this._label = value;
@@ -297,6 +300,14 @@ export class Button extends Disposable implements IButton {
 
 	get enabled() {
 		return !this._element.classList.contains('disabled');
+	}
+
+	private setTitle(title: string) {
+		if (!this._hover && title !== '') {
+			this._hover = this._register(setupCustomHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
+		} else if (this._hover) {
+			this._hover.update(title);
+		}
 	}
 
 	focus(): void {

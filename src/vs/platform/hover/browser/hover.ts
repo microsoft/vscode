@@ -7,10 +7,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -281,15 +282,25 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 
 		return this.hoverService.showHover({
 			...options,
+			...overrideOptions,
 			persistence: {
-				hideOnHover: true
+				hideOnHover: true,
+				hideOnKeyDown: true,
+				...overrideOptions.persistence
 			},
-			...overrideOptions
+			appearance: {
+				...options.appearance,
+				compact: true,
+				...overrideOptions.appearance
+			}
 		}, focus);
 	}
 
-	setOptions(options: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>)): void {
-		this.overrideOptions = options;
+	setInstantHoverTimeLimit(timeLimit: number): void {
+		if (!this.instantHover) {
+			throw new Error('Instant hover is not enabled');
+		}
+		this.timeLimit = timeLimit;
 	}
 
 	onDidHideHover(): void {

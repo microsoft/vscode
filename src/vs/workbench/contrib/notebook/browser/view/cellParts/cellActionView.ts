@@ -13,8 +13,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 
@@ -57,7 +57,7 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 		@IContextMenuService _contextMenuService: IContextMenuService,
 		@IThemeService _themeService: IThemeService
 	) {
-		super(action, options, _keybindingService, _contextMenuService, _themeService);
+		super(action, { ...options, hoverDelegate: options?.hoverDelegate ?? getDefaultHoverDelegate('element') }, _keybindingService, _contextMenuService, _themeService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -66,8 +66,7 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 		this._actionLabel = document.createElement('a');
 		container.appendChild(this._actionLabel);
 
-		const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-		this._hover = this._register(setupCustomHover(hoverDelegate, this._actionLabel, ''));
+		this._hover = this._register(setupCustomHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._actionLabel, ''));
 
 		this.updateLabel();
 	}

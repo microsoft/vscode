@@ -18,7 +18,7 @@ export class TestDiffProviderFactoryService implements IDiffProviderFactoryServi
 	}
 }
 
-export class SyncDocumentDiffProvider implements IDocumentDiffProvider {
+class SyncDocumentDiffProvider implements IDocumentDiffProvider {
 	computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff> {
 		const result = linesDiffComputers.getDefault().computeDiff(original.getLinesContent(), modified.getLinesContent(), options);
 		return Promise.resolve({
