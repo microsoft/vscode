@@ -41,7 +41,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -229,7 +229,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
-		this._hoverDelegate = nativeHoverDelegate;
+		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 		this.hide();

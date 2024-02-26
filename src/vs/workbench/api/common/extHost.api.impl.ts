@@ -1437,7 +1437,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			makeChatRequest(languageModel: string, messages: vscode.LanguageModelMessage[], optionsOrToken: { [name: string]: any } | vscode.CancellationToken, token?: vscode.CancellationToken) {
+			chatRequest(languageModel: string, messages: vscode.LanguageModelMessage[], optionsOrToken: { [name: string]: any } | vscode.CancellationToken, token?: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'languageModels');
 				let options: Record<string, any>;
 				if (CancellationToken.isCancellationToken(optionsOrToken)) {

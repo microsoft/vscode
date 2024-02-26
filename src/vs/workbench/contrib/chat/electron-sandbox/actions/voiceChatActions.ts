@@ -788,7 +788,18 @@ registerThemingParticipant((theme, collector) => {
 		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
 			border-radius: 50%;
 			outline: 2px solid ${activeRecordingColor};
-			animation: pulseAnimation 1500ms ease-in-out infinite !important;
+			outline-offset: -1px;
+			animation: pulseAnimation 1500ms cubic-bezier(0.75, 0, 0.25, 1) infinite;
+		}
+
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
+		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+			position: absolute;
+			outline: 1px solid ${activeRecordingColor};
+			outline-offset: 2px;
+			border-radius: 50%;
+			width: 16px;
+			height: 16px;
 		}
 
 		@keyframes pulseAnimation {

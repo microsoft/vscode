@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -29,6 +31,7 @@ export interface IWorkbenchButtonBarOptions {
 export class WorkbenchButtonBar extends ButtonBar {
 
 	protected readonly _store = new DisposableStore();
+	protected readonly _updateStore = new DisposableStore();
 
 	private readonly _actionRunner: IActionRunner;
 	private readonly _onDidChange = new Emitter<this>();
@@ -57,6 +60,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 	override dispose() {
 		this._onDidChange.dispose();
+		this._updateStore.dispose();
 		this._store.dispose();
 		super.dispose();
 	}
@@ -65,7 +69,11 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 		const conifgProvider: IButtonConfigProvider = this._options?.buttonConfigProvider ?? (() => ({ showLabel: true }));
 
+		this._updateStore.clear();
 		this.clear();
+
+		// Support instamt hover between buttons
+		const hoverDelegate = this._updateStore.add(getDefaultHoverDelegate('element', true));
 
 		for (let i = 0; i < actions.length; i++) {
 
@@ -107,15 +115,16 @@ export class WorkbenchButtonBar extends ButtonBar {
 				}
 			}
 			const kb = this._keybindingService.lookupKeybinding(action.id);
+			let tooltip: string;
 			if (kb) {
-				btn.element.title = localize('labelWithKeybinding', "{0} ({1})", action.label, kb.getLabel());
+				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.label, kb.getLabel());
 			} else {
-				btn.element.title = action.label;
-
+				tooltip = action.label;
 			}
-			btn.onDidClick(async () => {
+			this._updateStore.add(setupCustomHover(hoverDelegate, btn.element, tooltip));
+			this._updateStore.add(btn.onDidClick(async () => {
 				this._actionRunner.run(action);
-			});
+			}));
 		}
 		this._onDidChange.fire(this);
 	}

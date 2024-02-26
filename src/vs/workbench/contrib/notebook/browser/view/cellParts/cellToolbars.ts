@@ -46,12 +46,12 @@ export class BetweenCellToolbar extends CellOverlayPart {
 		}
 
 		const betweenCellToolbar = this._register(new ToolBar(this._bottomCellToolbarContainer, this.contextMenuService, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
 					if (this._notebookEditor.notebookOptions.getDisplayOptions().insertToolbarAlignment === 'center') {
-						return this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
+						return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 					} else {
-						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 					}
 				}
 

@@ -532,7 +532,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// --- Editor Actions
 		const activeEditorPane = this.editorGroupsContainer.activeGroup?.activeEditorPane;
 		if (activeEditorPane && activeEditorPane instanceof EditorPane) {
-			const result = activeEditorPane.getActionViewItem(action, { hoverDelegate: this.hoverDelegate });
+			const result = activeEditorPane.getActionViewItem(action, options);
 
 			if (result) {
 				return result;
@@ -540,7 +540,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Check extensions
-		return createActionViewItem(this.instantiationService, action, { ...options, hoverDelegate: this.hoverDelegate, menuAsChild: false });
+		return createActionViewItem(this.instantiationService, action, { ...options, menuAsChild: false });
 	}
 
 	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
@@ -565,7 +565,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			telemetrySource: 'titlePart',
 			highlightToggledItems: this.editorActionsEnabled, // Only show toggled state for editor actions (Layout actions are not shown as toggled)
-			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options)
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
+			hoverDelegate: this.hoverDelegate
 		}));
 
 		if (this.editorActionsEnabled) {

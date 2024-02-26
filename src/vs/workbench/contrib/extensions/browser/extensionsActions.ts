@@ -1021,8 +1021,8 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 	}
 
 	private _actionViewItem: DropDownMenuActionViewItem | null = null;
-	createActionViewItem(): DropDownMenuActionViewItem {
-		this._actionViewItem = this.instantiationService.createInstance(DropDownMenuActionViewItem, this);
+	createActionViewItem(options: IActionViewItemOptions): DropDownMenuActionViewItem {
+		this._actionViewItem = this.instantiationService.createInstance(DropDownMenuActionViewItem, this, options);
 		return this._actionViewItem;
 	}
 
@@ -1034,10 +1034,12 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 
 export class DropDownMenuActionViewItem extends ActionViewItem {
 
-	constructor(action: ExtensionDropDownAction,
+	constructor(
+		action: ExtensionDropDownAction,
+		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
-		super(null, action, { icon: true, label: true });
+		super(null, action, { ...options, icon: true, label: true });
 	}
 
 	public showMenu(menuActionGroups: IAction[][], disposeActionsOnHide: boolean): void {
