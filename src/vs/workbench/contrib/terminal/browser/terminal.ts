@@ -113,7 +113,7 @@ export interface IMarkTracker {
 	selectToNextMark(): void;
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
-	clearMarker(): void;
+	clear(): void;
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;

@@ -140,8 +140,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 					const markTracker = this._instance?.xterm?.markTracker;
 					if (markTracker) {
 						markTracker.restoreScrollState();
-						// TODO: This name isn't great
-						markTracker.clearMarker();
+						markTracker.clear();
 						this._terminalScrollStateSaved = false;
 					}
 				}

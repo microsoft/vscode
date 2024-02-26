@@ -101,7 +101,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return undefined;
 	}
 
-	clearMarker(): void {
+	clear(): void {
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
