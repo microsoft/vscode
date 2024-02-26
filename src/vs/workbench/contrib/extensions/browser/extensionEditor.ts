@@ -5,8 +5,8 @@
 
 import { $, Dimension, addDisposableListener, append, setParentFlowTo } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { CheckboxActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -344,15 +344,15 @@ export class ExtensionEditor extends EditorPane {
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options) => {
 				if (action instanceof ExtensionDropDownAction) {
-					return action.createActionViewItem();
+					return action.createActionViewItem(options);
 				}
 				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+					return new ExtensionActionWithDropdownActionViewItem(action, { ...options, icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				if (action instanceof ToggleAutoUpdateForExtensionAction) {
-					return new CheckboxActionViewItem(undefined, action, { icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
+					return new CheckboxActionViewItem(undefined, action, { ...options, icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
 				}
 				return undefined;
 			},

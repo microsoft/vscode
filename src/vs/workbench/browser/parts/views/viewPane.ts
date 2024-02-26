@@ -47,8 +47,8 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */

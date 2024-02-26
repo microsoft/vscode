@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import * as nls from 'vs/nls';

@@ -72,15 +72,16 @@ export class GlobalCompositeBar extends Disposable {
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL
 		});
 		this.globalActivityActionBar = this._register(new ActionBar(this.element, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === GLOBAL_ACTIVITY_ID) {
-					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, { colors: this.colors, hoverOptions: this.activityHoverOptions }, contextMenuAlignmentOptions);
+					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, { ...options, colors: this.colors, hoverOptions: this.activityHoverOptions }, contextMenuAlignmentOptions);
 				}
 
 				if (action.id === ACCOUNTS_ACTIVITY_ID) {
 					return this.instantiationService.createInstance(AccountsActivityActionViewItem,
 						this.contextMenuActionsProvider,
 						{
+							...options,
 							colors: this.colors,
 							hoverOptions: this.activityHoverOptions
 						},

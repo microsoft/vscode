@@ -9,9 +9,9 @@ import { sanitize } from 'vs/base/browser/dompurify/dompurify';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -303,9 +303,9 @@ export class Button extends Disposable implements IButton {
 	}
 
 	private setTitle(title: string) {
-		if (!this._hover) {
+		if (!this._hover && title !== '') {
 			this._hover = this._register(setupCustomHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
-		} else {
+		} else if (this._hover) {
 			this._hover.update(title);
 		}
 	}

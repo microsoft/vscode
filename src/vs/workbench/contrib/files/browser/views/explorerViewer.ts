@@ -62,12 +62,13 @@ import { ResourceSet } from 'vs/base/common/map';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { timeout } from 'vs/base/common/async';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IExplorerFileContribution, explorerFileContribRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
