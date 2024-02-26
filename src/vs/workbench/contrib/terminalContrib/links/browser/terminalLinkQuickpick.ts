@@ -19,8 +19,6 @@ import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import type { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 
@@ -33,7 +31,6 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -212,12 +209,6 @@ export class TerminalLinkQuickpick extends DisposableStore {
 
 		const link = item.link;
 		if (link.type !== TerminalBuiltinLinkType.LocalFile) {
-			return;
-		}
-
-		// Don't open if preview editors are disabled as it may open many editor
-		const config = this._configurationService.getValue<IFilesConfiguration>();
-		if (!config.workbench?.editor?.enablePreview) {
 			return;
 		}
 
