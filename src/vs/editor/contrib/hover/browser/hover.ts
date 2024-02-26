@@ -31,7 +31,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
-import 'vs/css!./hoverWidget';
+import 'vs/css!./hover';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
