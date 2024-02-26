@@ -435,6 +435,7 @@ class CandidatesView {
 	private _lineHeight: number;
 	private _availableHeight: number;
 	private _minimumWidth: number;
+	private _typicalHalfwidthCharacterWidth: number;
 
 	private _disposables: DisposableStore;
 
@@ -446,6 +447,7 @@ class CandidatesView {
 		this._minimumWidth = 0;
 
 		this._lineHeight = opts.fontInfo.lineHeight;
+		this._typicalHalfwidthCharacterWidth = opts.fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._listContainer = document.createElement('div');
 		this._listContainer.style.fontFamily = opts.fontInfo.fontFamily;
@@ -612,8 +614,7 @@ class CandidatesView {
 	}
 
 	private _pickListWidth(candidates: NewSymbolName[]): number {
-		const APPROXIMATE_CHAR_WIDTH = 8; // approximate # of pixes taken by a single character
-		const longestCandidateWidth = Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * APPROXIMATE_CHAR_WIDTH); // TODO@ulugbekna: use editor#typicalCharacterWidth or something
+		const longestCandidateWidth = Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * this._typicalHalfwidthCharacterWidth);
 		const width = Math.max(
 			this._minimumWidth,
 			4 /* padding */ + 16 /* sparkle icon */ + 5 /* margin-left */ + longestCandidateWidth + 10 /* (possibly visible) scrollbar width */ // TODO@ulugbekna: approximate calc - clean this up
