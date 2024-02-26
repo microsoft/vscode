@@ -57,15 +57,21 @@
 	opacity: 0.7;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-all-button {
-	padding-right: 8px;
-	margin: 4px;
-}
-.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-all-button:hover {
-	background-color: 'var(--vscode-editorStickyScrollHover-background)';
-	cursor: 'pointer';
+.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-section-button {
+	position: relative;
+	left: 0px;
+	padding: 2px;
+	border-radius: 5px;
+	margin-right: 4px;
+	height: 16px;
+	width: 16px;
+	z-index: var(--z-index-notebook-cell-expand-part-button);
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container .folded-cell-run-section-button:hover {
+	background-color: var(--vscode-editorStickyScrollHover-background);
+	cursor: pointer;
+}
 
 .monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-expanded,
 .monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-collapsed {

@@ -11,12 +11,17 @@ import { FoldingController } from 'vs/workbench/contrib/notebook/browser/control
 import { CellEditState, CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class FoldedCellHint extends CellContentPart {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		private readonly _container: HTMLElement,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super();
 	}
@@ -35,7 +40,8 @@ export class FoldedCellHint extends CellContentPart {
 		} else if (element.foldingState === CellFoldingState.Collapsed) {
 			const idx = this._notebookEditor.getViewModel().getCellIndex(element);
 			const length = this._notebookEditor.getViewModel().getFoldedLength(idx);
-			DOM.reset(this._container, this.getRunFoldedSectionButton(element, idx, length), this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
+
+			DOM.reset(this._container, this.getRunFoldedSectionButton({ start: idx, end: idx + length }), this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
 			DOM.show(this._container);
 
 			const foldHintTop = element.layoutInfo.previewHeight;
@@ -67,17 +73,38 @@ export class FoldedCellHint extends CellContentPart {
 		return expandIcon;
 	}
 
-	private getRunFoldedSectionButton(element: MarkupCellViewModel, idx: number, length: number): HTMLElement {
-		const runAllIcon = DOM.$('span.folded-cell-run-all-button');
-		runAllIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.playCircle));
+	private getRunFoldedSectionButton(range: ICellRange): HTMLElement {
+		const runAllContainer = DOM.$('span.folded-cell-run-section-button');
+		const cells = this._notebookEditor.getCellsInRange(range);
 
-		this._register(DOM.addDisposableListener(runAllIcon, DOM.EventType.CLICK, () => {
-			const cellRange = this._notebookEditor.getCellRangeFromViewRange(idx, idx + length);
-			const cells = this._notebookEditor.getCellsInRange(cellRange);
+		const isRunning = cells.some(cell => {
+			const cellExecution = this._notebookExecutionStateService.getCellExecution(cell.uri);
+			return cellExecution && cellExecution.state === NotebookCellExecutionState.Executing;
+		});
+
+		const runAllIcon = isRunning ?
+			ThemeIcon.modify(executingStateIcon, 'spin') :
+			Codicon.play;
+		runAllContainer.classList.add(...ThemeIcon.asClassNameArray(runAllIcon));
+
+		this._register(DOM.addDisposableListener(runAllContainer, DOM.EventType.CLICK, () => {
 			this._notebookEditor.executeNotebookCells(cells);
 		}));
 
-		return runAllIcon;
+		this._register(this._notebookExecutionStateService.onDidChangeExecution(() => {
+			const isRunning = cells.some(cell => {
+				const cellExecution = this._notebookExecutionStateService.getCellExecution(cell.uri);
+				return cellExecution && cellExecution.state === NotebookCellExecutionState.Executing;
+			});
+
+			const runAllIcon = isRunning ?
+				ThemeIcon.modify(executingStateIcon, 'spin') :
+				Codicon.play;
+			runAllContainer.className = '';
+			runAllContainer.classList.add('folded-cell-run-section-button', ...ThemeIcon.asClassNameArray(runAllIcon));
+		}));
+
+		return runAllContainer;
 	}
 
 	override updateInternalLayoutNow(element: MarkupCellViewModel) {
