@@ -231,21 +231,15 @@ export interface ISerializedBulkEditEditorInput {
 
 export class BulkEditEditorSerializer implements IEditorSerializer {
 	canSerialize(editor: EditorInput): boolean {
-		return editor instanceof BulkEditEditorInput;
+		return false;
 	}
 
 	serialize(editor: BulkEditEditorInput): string | undefined {
-		return JSON.stringify(editor.serialize());
+		return undefined;
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
-		try {
-			const data = parse(serializedEditor) as ISerializedBulkEditEditorInput;
-			return BulkEditEditorInput.fromSerialized(data, instantiationService);
-		} catch (err) {
-			onUnexpectedError(err);
-			return undefined;
-		}
+		return undefined;
 	}
 }
 

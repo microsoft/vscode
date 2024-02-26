@@ -312,6 +312,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	toggleChecked() {
+		console.log('inside of toggle checked');
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
 			first.setChecked(!first.isChecked());
