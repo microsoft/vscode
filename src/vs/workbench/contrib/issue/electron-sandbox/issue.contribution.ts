@@ -19,6 +19,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
+// eslint-disable-next-line local/code-import-patterns
+import { IssueQuickAccess } from 'vs/code/electron-sandbox/issue/issueQuickAccess';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 
 //#region Issue Contribution
 
@@ -134,4 +137,16 @@ CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return accessor.get(IIssueMainService).getSystemStatus();
 });
 
+// Register quick access for contributed issues
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: IssueQuickAccess,
+	prefix: IssueQuickAccess.PREFIX,
+	contextKey: 'inReportIssuePicker',
+	placeholder: localize('tasksQuickAccessPlaceholder', "Type the name of an extension to report on."),
+	helpEntries: [{
+		description: localize('startDebuggingHelp', "Open Issue Reporter"),
+		commandId: 'workbench.action.openIssueReporter',
+		commandCenterOrder: 50
+	}]
+});
 //#endregion
