@@ -14,7 +14,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
-import { Sequencer } from 'vs/base/common/async';
+import { Sequencer, timeout } from 'vs/base/common/async';
 import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -50,11 +50,17 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	async show(instance: ITerminalInstance | IDetachedTerminalInstance, links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {
 		this._instance = instance;
 
+		// Allow all links a small amount of time to elapse to finish, if this is not done in this
+		// time they will be loaded upon the first filter.
+		const result = await Promise.race([links.all, timeout(500)]);
+		const usingAllLinks = typeof result === 'object';
+		const resolvedLinks = usingAllLinks ? result : links.viewport;
+
 		// Get raw link picks
-		const wordPicks = links.viewport.wordLinks ? await this._generatePicks(links.viewport.wordLinks) : undefined;
-		const filePicks = links.viewport.fileLinks ? await this._generatePicks(links.viewport.fileLinks) : undefined;
-		const folderPicks = links.viewport.folderLinks ? await this._generatePicks(links.viewport.folderLinks) : undefined;
-		const webPicks = links.viewport.webLinks ? await this._generatePicks(links.viewport.webLinks) : undefined;
+		const wordPicks = resolvedLinks.wordLinks ? await this._generatePicks(resolvedLinks.wordLinks) : undefined;
+		const filePicks = resolvedLinks.fileLinks ? await this._generatePicks(resolvedLinks.fileLinks) : undefined;
+		const folderPicks = resolvedLinks.folderLinks ? await this._generatePicks(resolvedLinks.folderLinks) : undefined;
+		const webPicks = resolvedLinks.webLinks ? await this._generatePicks(resolvedLinks.webLinks) : undefined;
 
 		const picks: LinkQuickPickItem[] = [];
 		if (webPicks) {
@@ -88,36 +94,38 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		// ASAP with only the viewport entries.
 		let accepted = false;
 		const disposables = new DisposableStore();
-		disposables.add(Event.once(pick.onDidChangeValue)(async () => {
-			const allLinks = await links.all;
-			if (accepted) {
-				return;
-			}
-			const wordIgnoreLinks = [...(allLinks.fileLinks ?? []), ...(allLinks.folderLinks ?? []), ...(allLinks.webLinks ?? [])];
+		if (!usingAllLinks) {
+			disposables.add(Event.once(pick.onDidChangeValue)(async () => {
+				const allLinks = await links.all;
+				if (accepted) {
+					return;
+				}
+				const wordIgnoreLinks = [...(allLinks.fileLinks ?? []), ...(allLinks.folderLinks ?? []), ...(allLinks.webLinks ?? [])];
 
-			const wordPicks = allLinks.wordLinks ? await this._generatePicks(allLinks.wordLinks, wordIgnoreLinks) : undefined;
-			const filePicks = allLinks.fileLinks ? await this._generatePicks(allLinks.fileLinks) : undefined;
-			const folderPicks = allLinks.folderLinks ? await this._generatePicks(allLinks.folderLinks) : undefined;
-			const webPicks = allLinks.webLinks ? await this._generatePicks(allLinks.webLinks) : undefined;
-			const picks: LinkQuickPickItem[] = [];
-			if (webPicks) {
-				picks.push({ type: 'separator', label: localize('terminal.integrated.urlLinks', "Url") });
-				picks.push(...webPicks);
-			}
-			if (filePicks) {
-				picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "File") });
-				picks.push(...filePicks);
-			}
-			if (folderPicks) {
-				picks.push({ type: 'separator', label: localize('terminal.integrated.localFolderLinks', "Folder") });
-				picks.push(...folderPicks);
-			}
-			if (wordPicks) {
-				picks.push({ type: 'separator', label: localize('terminal.integrated.searchLinks', "Workspace Search") });
-				picks.push(...wordPicks);
-			}
-			pick.items = picks;
-		}));
+				const wordPicks = allLinks.wordLinks ? await this._generatePicks(allLinks.wordLinks, wordIgnoreLinks) : undefined;
+				const filePicks = allLinks.fileLinks ? await this._generatePicks(allLinks.fileLinks) : undefined;
+				const folderPicks = allLinks.folderLinks ? await this._generatePicks(allLinks.folderLinks) : undefined;
+				const webPicks = allLinks.webLinks ? await this._generatePicks(allLinks.webLinks) : undefined;
+				const picks: LinkQuickPickItem[] = [];
+				if (webPicks) {
+					picks.push({ type: 'separator', label: localize('terminal.integrated.urlLinks', "Url") });
+					picks.push(...webPicks);
+				}
+				if (filePicks) {
+					picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "File") });
+					picks.push(...filePicks);
+				}
+				if (folderPicks) {
+					picks.push({ type: 'separator', label: localize('terminal.integrated.localFolderLinks', "Folder") });
+					picks.push(...folderPicks);
+				}
+				if (wordPicks) {
+					picks.push({ type: 'separator', label: localize('terminal.integrated.searchLinks', "Workspace Search") });
+					picks.push(...wordPicks);
+				}
+				pick.items = picks;
+			}));
+		}
 
 		disposables.add(pick.onDidChangeActive(async () => {
 			const [item] = pick.activeItems;
