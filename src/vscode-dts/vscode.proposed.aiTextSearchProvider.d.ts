@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/59921
+	// https://github.com/microsoft/vscode/issues/205317
 
 	/**
 	 * The parameters of a query for text search.
@@ -36,13 +36,6 @@ declare module 'vscode' {
 		 */
 		isWordMatch?: boolean;
 	}
-
-	/**
-	 * A file glob pattern to match file paths against.
-	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
-	 * @see {@link GlobPattern}
-	 */
-	export type GlobString = string;
 
 	/**
 	 * Options common to file and text search
@@ -106,9 +99,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options that apply to text search.
+	 * Options that apply to AI text search.
 	 */
-	export interface TextSearchOptions extends SearchOptions {
+	export interface AITextSearchOptions extends SearchOptions {
 		/**
 		 * The maximum number of results to be returned.
 		 */
@@ -125,12 +118,6 @@ declare module 'vscode' {
 		maxFileSize?: number;
 
 		/**
-		 * Interpret files using this encoding.
-		 * See the vscode setting `"files.encoding"`
-		 */
-		encoding?: string;
-
-		/**
 		 * Number of lines of context to include before each match.
 		 */
 		beforeContext?: number;
@@ -141,13 +128,7 @@ declare module 'vscode' {
 		afterContext?: number;
 	}
 
-	/**
-	 * Represents the severity of a TextSearchComplete message.
-	 */
-	export enum TextSearchCompleteMessageType {
-		Information = 1,
-		Warning = 2,
-	}
+
 
 	/**
 	 * A message regarding a completed search.
@@ -174,7 +155,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+		 * `maxResults` on {@linkcode AITextSearchOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -250,25 +231,24 @@ declare module 'vscode' {
 		lineNumber: number;
 	}
 
-	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
-	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 * An AITextSearchProvider provides additional AI text search results in the workspace.
 	 */
-	export interface TextSearchProvider {
+	export interface AITextSearchProvider {
 		/**
 		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
+		 * @param query The parameter for this query.
 		 * @param options A set of options to consider while searching.
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	export namespace workspace {
 		/**
-		 * Register a text search provider.
+		 * Register an AI text search provider.
 		 *
 		 * Only one provider can be registered per scheme.
 		 *
@@ -276,6 +256,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
+		export function registerAITextSearchProvider(scheme: string, provider: AITextSearchProvider): Disposable;
 	}
 }
