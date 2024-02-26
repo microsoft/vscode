@@ -21,7 +21,7 @@ import { hash } from 'vs/base/common/hash';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -142,11 +142,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			primary: KeyMod.CtrlCmd | KeyCode.Backspace
 		},
 		handler: (accessor, args?) => {
-			const audioCueService = accessor.get(IAudioCueService);
+			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification && !notification.hasProgress) {
 				notification.close();
-				audioCueService.playAudioCue(AudioCue.clear);
+				accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 			}
 		}
 	});

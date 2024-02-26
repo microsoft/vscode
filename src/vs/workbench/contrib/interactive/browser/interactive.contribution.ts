@@ -10,10 +10,9 @@ import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { assertType } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ITextModel } from 'vs/editor/common/model';
@@ -36,7 +35,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { contrastBorder, ifDefinedThenElse, listInactiveSelectionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
@@ -254,22 +253,28 @@ class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IW
 	}
 }
 
-registerWorkbenchContribution2(InteractiveDocumentContribution.ID, InteractiveDocumentContribution, WorkbenchContributionInstantiation.BlockRestore);
-registerWorkbenchContribution2(InteractiveInputContentProvider.ID, InteractiveInputContentProvider, WorkbenchContributionInstantiation.BlockRestore);
-registerWorkbenchContribution2(InteractiveWindowWorkingCopyEditorHandler.ID, InteractiveWindowWorkingCopyEditorHandler, WorkbenchContributionInstantiation.BlockRestore);
+registerWorkbenchContribution2(InteractiveDocumentContribution.ID, InteractiveDocumentContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(InteractiveInputContentProvider.ID, InteractiveInputContentProvider, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(InteractiveWindowWorkingCopyEditorHandler.ID, InteractiveWindowWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 
 type interactiveEditorInputData = { resource: URI; inputResource: URI; name: string; language: string };
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
 
-	canSerialize(editor: EditorInput): boolean {
-		const interactiveEditorInput = editor as InteractiveEditorInput;
-		return URI.isUri(interactiveEditorInput?.primary?.resource) && URI.isUri(interactiveEditorInput?.inputResource);
+	canSerialize(editor: EditorInput): editor is InteractiveEditorInput {
+		if (!(editor instanceof InteractiveEditorInput)) {
+			return false;
+		}
+
+		return URI.isUri(editor.primary.resource) && URI.isUri(editor.inputResource);
 	}
 
-	serialize(input: EditorInput): string {
-		assertType(input instanceof InteractiveEditorInput);
+	serialize(input: EditorInput): string | undefined {
+		if (!this.canSerialize(input)) {
+			return undefined;
+		}
+
 		return JSON.stringify({
 			resource: input.primary.resource,
 			inputResource: input.inputResource,

@@ -165,6 +165,7 @@ export class TestHistoryService implements IHistoryService {
 	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }
 	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
 	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
+	suspendTracking() { return Disposable.None; }
 }
 
 export class TestWorkingCopy extends Disposable implements IWorkingCopy {

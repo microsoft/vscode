@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { parseKeyboardLayoutDescription, areKeyboardLayoutsEqual, getKeyboardLayoutId, IKeyboardLayoutService, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { IWorkbenchContribution, WorkbenchContributionInstantiation, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { KEYBOARD_LAYOUT_OPEN_PICKER } from 'vs/workbench/contrib/preferences/common/preferences';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { QuickPickInput, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -80,7 +80,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 	}
 }
 
-registerWorkbenchContribution2(KeyboardLayoutPickerContribution.ID, KeyboardLayoutPickerContribution, WorkbenchContributionInstantiation.BlockStartup);
+registerWorkbenchContribution2(KeyboardLayoutPickerContribution.ID, KeyboardLayoutPickerContribution, WorkbenchPhase.BlockStartup);
 
 interface LayoutQuickPickItem extends IQuickPickItem {
 	layout: IKeyboardLayoutInfo;

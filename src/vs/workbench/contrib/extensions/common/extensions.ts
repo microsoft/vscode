@@ -133,11 +133,10 @@ export interface IExtensionsWorkbenchService {
 
 export const enum ExtensionEditorTab {
 	Readme = 'readme',
-	Contributions = 'contributions',
+	Features = 'features',
 	Changelog = 'changelog',
 	Dependencies = 'dependencies',
 	ExtensionPack = 'extensionPack',
-	RuntimeStatus = 'runtimeStatus',
 }
 
 export const ConfigurationKey = 'extensions';

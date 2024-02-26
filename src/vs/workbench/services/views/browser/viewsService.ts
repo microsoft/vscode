@@ -137,6 +137,11 @@ export class ViewsService extends Disposable implements IViewsService {
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
 		this.deregisterPaneComposite(viewContainer, from);
 		this.registerPaneComposite(viewContainer, to);
+
+		// Open view container if part is visible and there is only one view container in location
+		if (this.layoutService.isVisible(getPartByLocation(to)) && this.viewDescriptorService.getViewContainersByLocation(to).length === 1) {
+			this.openViewContainer(viewContainer.id);
+		}
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
@@ -501,10 +506,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
-				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
+				const title = localize2({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name.original} View`, value: title },
+					title,
 					category,
 					menu: [{
 						id: MenuId.CommandPalette,
@@ -520,7 +525,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						win: viewDescriptor.focusCommand?.keybindings?.win
 					},
 					metadata: {
-						description: title,
+						description: title.value,
 						args: [
 							{
 								name: 'focusOptions',

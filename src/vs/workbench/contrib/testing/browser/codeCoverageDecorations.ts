@@ -264,7 +264,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 							};
 						} else {
 							target.className = `coverage-deco-inline ${cls}`;
-							if (primary) {
+							if (primary && typeof hits === 'number') {
 								target.before = countBadge(hits);
 							}
 						}
@@ -286,7 +286,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
 						target.className = `coverage-deco-inline ${cls}`;
 						target.hoverMessage = description;
-						if (primary) {
+						if (primary && typeof detail.count === 'number') {
 							target.before = countBadge(detail.count);
 						}
 					};
@@ -366,7 +366,7 @@ export class CoverageDetailsModel {
 
 		//#region decoration generation
 		// Coverage from a provider can have a range that contains smaller ranges,
-		// such as a function declarationt that has nested statements. In this we
+		// such as a function declaration that has nested statements. In this we
 		// make sequential, non-overlapping ranges for each detail for display in
 		// the editor without ugly overlaps.
 		const detailRanges: DetailRange[] = details.map(detail => ({
@@ -445,13 +445,13 @@ export class CoverageDetailsModel {
 
 	/** Gets the markdown description for the given detail */
 	public describe(detail: CoverageDetailsWithBranch, model: ITextModel): IMarkdownString | undefined {
-		if (detail.type === DetailType.Function) {
-			return new MarkdownString().appendMarkdown(localize('coverage.fnExecutedCount', 'Function `{0}` was executed {1} time(s).', detail.name, detail.count));
+		if (detail.type === DetailType.Declaration) {
+			return new MarkdownString().appendMarkdown(localize('coverage.declExecutedCount', '`{0}` was executed {1} time(s).', detail.name, detail.count));
 		} else if (detail.type === DetailType.Statement) {
 			const text = wrapName(model.getValueInRange(tidyLocation(detail.location)).trim() || `<empty statement>`);
 			const str = new MarkdownString();
 			if (detail.branches?.length) {
-				const covered = detail.branches.filter(b => b.count > 0).length;
+				const covered = detail.branches.filter(b => !!b.count).length;
 				str.appendMarkdown(localize('coverage.branches', '{0} of {1} of branches in {2} were covered.', covered, detail.branches.length, text));
 			} else {
 				str.appendMarkdown(localize('coverage.codeExecutedCount', '{0} was executed {1} time(s).', text, detail.count));

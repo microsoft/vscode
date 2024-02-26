@@ -12,6 +12,12 @@ import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export function registerColorThemeExtensionPoint() {
 	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
@@ -102,6 +108,50 @@ export function registerProductIconThemeExtensionPoint() {
 		}
 	});
 }
+
+class ThemeDataRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+
+	readonly type = 'markdown';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.themes || !!manifest.contributes?.iconThemes || !!manifest.contributes?.productIconThemes;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
+		const markdown = new MarkdownString();
+		if (manifest.contributes?.themes) {
+			markdown.appendMarkdown(`### ${nls.localize('color themes', "Color Themes")}\n\n`);
+			for (const theme of manifest.contributes.themes) {
+				markdown.appendMarkdown(`- ${theme.label}\n`);
+			}
+		}
+		if (manifest.contributes?.iconThemes) {
+			markdown.appendMarkdown(`### ${nls.localize('file icon themes', "File Icon Themes")}\n\n`);
+			for (const theme of manifest.contributes.iconThemes) {
+				markdown.appendMarkdown(`- ${theme.label}\n`);
+			}
+		}
+		if (manifest.contributes?.productIconThemes) {
+			markdown.appendMarkdown(`### ${nls.localize('product icon themes', "Product Icon Themes")}\n\n`);
+			for (const theme of manifest.contributes.productIconThemes) {
+				markdown.appendMarkdown(`- ${theme.label}\n`);
+			}
+		}
+		return {
+			data: markdown,
+			dispose: () => { /* noop */ }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'themes',
+	label: nls.localize('themes', "Themes"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ThemeDataRenderer),
+});
 
 export interface ThemeChangeEvent<T> {
 	themes: T[];
