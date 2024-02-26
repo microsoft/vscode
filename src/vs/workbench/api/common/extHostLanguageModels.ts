@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLanguageModelsShape, IMainContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -12,12 +12,12 @@ import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { AsyncIterableSource } from 'vs/base/common/async';
+import { AsyncIterableSource, Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { localize } from 'vs/nls';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { CancellationError } from 'vs/base/common/errors';
 
 type LanguageModelData = {
 	readonly extension: ExtensionIdentifier;
@@ -36,43 +36,23 @@ class LanguageModelResponseStream {
 	}
 }
 
-class LanguageModelRequest {
-
-	static fromError(err: Error): vscode.LanguageModelChatResponse {
-		return new LanguageModelRequest(Promise.reject(err), new CancellationTokenSource()).apiObject;
-	}
+class LanguageModelResponse {
 
 	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
 	private readonly _defaultStream = new AsyncIterableSource<string>();
 	private _isDone: boolean = false;
+	private _isStreaming: boolean = false;
 
-	constructor(
-		promise: Promise<any>,
-		readonly cts: CancellationTokenSource
-	) {
+	constructor() {
+
 		const that = this;
 		this.apiObject = {
-			result: promise,
+			// result: promise,
 			stream: that._defaultStream.asyncIterable,
-			// responses: AsyncIterable<string>[] // FUTURE responses per N
+			// streams: AsyncIterable<string>[] // FUTURE responses per N
 		};
-
-		promise.then(() => {
-			for (const stream of this._streams()) {
-				stream.resolve();
-			}
-		}).catch(err => {
-			if (!(err instanceof Error)) {
-				err = new Error(toErrorMessage(err), { cause: err });
-			}
-			for (const stream of this._streams()) {
-				stream.reject(err);
-			}
-		}).finally(() => {
-			this._isDone = true;
-		});
 	}
 
 	private * _streams() {
@@ -89,6 +69,7 @@ class LanguageModelRequest {
 		if (this._isDone) {
 			return;
 		}
+		this._isStreaming = true;
 		let res = this._responseStreams.get(fragment.index);
 		if (!res) {
 			if (this._responseStreams.size === 0) {
@@ -100,6 +81,24 @@ class LanguageModelRequest {
 			this._responseStreams.set(fragment.index, res);
 		}
 		res.stream.emitOne(fragment.part);
+	}
+
+	get isStreaming(): boolean {
+		return this._isStreaming;
+	}
+
+	reject(err: Error): void {
+		this._isDone = true;
+		for (const stream of this._streams()) {
+			stream.reject(err);
+		}
+	}
+
+	resolve(): void {
+		this._isDone = true;
+		for (const stream of this._streams()) {
+			stream.resolve();
+		}
 	}
 
 }
@@ -116,7 +115,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _languageModels = new Map<number, LanguageModelData>();
 	private readonly _languageModelIds = new Set<string>(); // these are ALL models, not just the one in this EH
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
-	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelRequest }>();
+	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 
 
 	constructor(
@@ -191,7 +190,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				// cancel pending requests for this model
 				for (const [key, value] of this._pendingRequest) {
 					if (value.languageModelId === id) {
-						value.res.cts.cancel();
+						value.res.reject(new CancellationError());
 						this._pendingRequest.delete(key);
 					}
 				}
@@ -227,34 +226,52 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
-	async makeChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage[], options: Record<string, any>, token: CancellationToken) {
+	async makeChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
 
 		const from = extension.identifier;
-		// const justification = options?.justification; // TODO@jrieken
-		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, undefined);
+		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options.justification);
 
 		if (!metadata || !this._languageModelIds.has(languageModelId)) {
-			return LanguageModelRequest.fromError(new Error(`Language model ${languageModelId} is unknown`));
+			throw new Error(`Language model ${languageModelId} is unknown`);
 		}
 
 		if (this._isUsingAuth(from, metadata)) {
 			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, undefined);
 
 			if (!this._modelAccessList.get(from)?.has(metadata.extension)) {
-				return LanguageModelRequest.fromError(new Error('Access to chat has been revoked'));
+				throw new Error('Access to chat has been revoked');
 			}
 		}
 
-		const cts = new CancellationTokenSource(token);
 		const requestId = (Math.random() * 1e6) | 0;
-		const requestPromise = this._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options ?? {}, cts.token);
-		const res = new LanguageModelRequest(requestPromise, cts);
+		const requestPromise = this._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options.modelOptions ?? {}, token);
+
+		const barrier = new Barrier();
+
+		const res = new LanguageModelResponse();
 		this._pendingRequest.set(requestId, { languageModelId, res });
 
-		requestPromise.finally(() => {
+		let error: Error | undefined;
+
+		requestPromise.catch(err => {
+			if (barrier.isOpen()) {
+				// we received an error while streaming. this means we need to reject the "stream"
+				// because we have already returned the request object
+				res.reject(err);
+			} else {
+				error = err;
+			}
+		}).finally(() => {
 			this._pendingRequest.delete(requestId);
-			cts.dispose();
+			res.resolve();
+			barrier.open();
 		});
+
+		await barrier.wait();
+
+		if (error) {
+			throw error;
+		}
 
 		return res.apiObject;
 	}
@@ -293,15 +310,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				if (!that._languageModelIds.has(languageModelId)) {
 					throw new Error('Language Model has been removed');
 				}
-				const cts = new CancellationTokenSource(token);
+
 				const requestId = (Math.random() * 1e6) | 0;
-				const requestPromise = that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options ?? {}, cts.token);
-				const res = new LanguageModelRequest(requestPromise, cts);
+				const requestPromise = that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options ?? {}, token);
+				const res = new LanguageModelResponse();
 				that._pendingRequest.set(requestId, { languageModelId, res });
 
 				requestPromise.finally(() => {
 					that._pendingRequest.delete(requestId);
-					cts.dispose();
 				});
 
 				return res.apiObject;

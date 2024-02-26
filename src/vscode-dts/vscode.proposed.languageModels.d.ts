@@ -20,7 +20,7 @@ declare module 'vscode' {
 		 */
 		// TODO@API remove and always error via stream
 		// TODO@API Thenable<void> only for errors
-		result: Thenable<unknown>;
+		// result: Thenable<unknown>;
 
 		/**
 		 * An async iterable that is a stream of text chunks forming the overall response.
@@ -154,6 +154,12 @@ declare module 'vscode' {
 		readonly removed: readonly string[];
 	}
 
+	export interface LanguageModelChatRequestOptions {
+		justification?: string;
+		silent?: boolean;
+		modelOptions?: { [name: string]: any };
+	}
+
 	/**
 	 * Namespace for language model related functionality.
 	 */
@@ -194,9 +200,10 @@ declare module 'vscode' {
 		// TODO@API define specific error types?
 		// TODO@API NAME: fetchChatResponse, makeChatRequest, chat, chatRequest sendChatRequest
 		// TODO@API NAME: LanguageModelChatXYZMessage
-		// TODO@API errors on everything that prevents us to make the actual request
+		// TODO@API ✅ errors on everything that prevents us to make the actual request
+		// TODO@API ✅ double auth
 		// TODO@API ✅ NAME: LanguageModelChatResponse, ChatResponse, ChatRequestResponse
-		export function chatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: { [name: string]: any }, token: CancellationToken): Thenable<LanguageModelChatResponse>;
+		export function chatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**
 		 * @see {@link chatRequest}
@@ -204,7 +211,7 @@ declare module 'vscode' {
 		export function chatRequest(languageModel: string, messages: LanguageModelChatMessage[], token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		// TODO@API probe on having access
-		// TODO@API, BETTER?: ExtensionContext.permissions.languageModels: Record<string, boolean>;
+		// TODO@API, BETTER?: ExtensionContext.permissions.languageModels: Record<string, Info>;
 		// export function canMakeChatRequest(languageModel: string): Thenable<boolean>;
 
 		/**
@@ -217,4 +224,12 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
 	}
+
+	// export function chatRequest2<R = void>(languageModel: string, callback: (request: LanguageModelRequest) => R): Thenable<R>;
+
+	// interface LanguageModelRequest {
+	// 	readonly quota: any;
+	// 	readonly permissions: any;
+	// 	makeRequest(messages: LanguageModelChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelChatResponse;
+	// }
 }
