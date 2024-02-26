@@ -132,6 +132,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.updateToolbar(false);
 		this._focusedContextKey.set(false);
 		this._visibleContextKey.set(false);
+		this._inlineChatWidget.value = '';
 		this._instance.focus();
 	}
 	focus(): void {
