@@ -7,11 +7,11 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService, IHoverOptions } from 'vs/platform/hover/browser/hover';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/editor/browser/services/hoverService/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -20,10 +20,12 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { ContextViewHandler } from 'vs/platform/contextview/browser/contextViewService';
 
-export class HoverService implements IHoverService {
+export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
 
+	private _contextViewHandler: IContextViewProvider;
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
 	private _lastHoverOptions: IHoverOptions | undefined;
@@ -32,13 +34,15 @@ export class HoverService implements IHoverService {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
+		super();
+
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
+		this._contextViewHandler = this._register(new ContextViewHandler(this._layoutService));
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {
@@ -84,12 +88,12 @@ export class HoverService implements IHoverService {
 			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
-		const provider = this._contextViewService as IContextViewProvider;
-		provider.showContextView(
+
+		this._contextViewHandler.showContextView(
 			new HoverContextViewDelegate(hover, focus),
 			options.container
 		);
-		hover.onRequestLayout(() => provider.layout());
+		hover.onRequestLayout(() => this._contextViewHandler.layout());
 		if (options.persistence?.sticky) {
 			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
 				if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
@@ -136,7 +140,7 @@ export class HoverService implements IHoverService {
 	private doHideHover(): void {
 		this._currentHover = undefined;
 		this._currentHoverOptions = undefined;
-		this._contextViewService.hideContextView();
+		this._contextViewHandler.hideContextView();
 	}
 
 	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {
