@@ -22,8 +22,8 @@ import { BaseActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } 
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 

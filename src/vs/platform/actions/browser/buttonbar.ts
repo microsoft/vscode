@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -73,7 +73,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 		this.clear();
 
 		// Support instamt hover between buttons
-		const hoverDelegate = this._updateStore.add(getDefaultHoverDelegate('element', true));
+		const hoverDelegate = this._updateStore.add(createInstantHoverDelegate());
 
 		for (let i = 0; i < actions.length; i++) {
 

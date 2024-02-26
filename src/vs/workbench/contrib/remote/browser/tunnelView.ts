@@ -51,12 +51,12 @@ import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
