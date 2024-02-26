@@ -15,6 +15,7 @@ import 'vs/css!./toggle';
 import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
@@ -22,6 +23,7 @@ export interface IToggleOpts extends IToggleStyles {
 	readonly title: string;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export interface IToggleStyles {
@@ -130,7 +132,7 @@ export class Toggle extends Widget {
 		}
 
 		this.domNode = document.createElement('div');
-		this._hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
+		this._hover = this._register(setupCustomHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {
 			this.domNode.tabIndex = 0;

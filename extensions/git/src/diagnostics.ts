@@ -5,6 +5,7 @@
 
 import { CodeAction, CodeActionKind, CodeActionProvider, Diagnostic, DiagnosticCollection, DiagnosticSeverity, Disposable, Range, Selection, TextDocument, Uri, WorkspaceEdit, l10n, languages, workspace } from 'vscode';
 import { mapEvent, filterEvent, dispose } from './util';
+import { Model } from './model';
 
 export enum DiagnosticCodes {
 	empty_message = 'empty_message',
@@ -17,37 +18,65 @@ export class GitCommitInputBoxDiagnosticsManager {
 	private readonly severity = DiagnosticSeverity.Warning;
 	private readonly disposables: Disposable[] = [];
 
-	constructor() {
+	constructor(private readonly model: Model) {
 		this.diagnostics = languages.createDiagnosticCollection();
-		mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.validateTextDocument, this, this.disposables);
+
+		this.migrateInputValidationSettings()
+			.then(() => {
+				mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
+				filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation') || e.affectsConfiguration('git.inputValidationLength') || e.affectsConfiguration('git.inputValidationSubjectLength'))(this.onDidChangeConfiguration, this, this.disposables);
+			});
 	}
 
 	public getDiagnostics(uri: Uri): ReadonlyArray<Diagnostic> {
 		return this.diagnostics.get(uri) ?? [];
 	}
 
-	private validateTextDocument(document: TextDocument): void {
-		this.diagnostics.delete(document.uri);
+	private async migrateInputValidationSettings(): Promise<void> {
+		try {
+			const config = workspace.getConfiguration('git');
+			const inputValidation = config.inspect<'always' | 'warn' | 'off' | boolean>('inputValidation');
 
+			if (inputValidation === undefined) {
+				return;
+			}
+
+			// Workspace setting
+			if (typeof inputValidation.workspaceValue === 'string') {
+				await config.update('inputValidation', inputValidation.workspaceValue !== 'off', false);
+			}
+
+			// User setting
+			if (typeof inputValidation.globalValue === 'string') {
+				await config.update('inputValidation', inputValidation.workspaceValue !== 'off', true);
+			}
+		} catch { }
+	}
+
+	private onDidChangeConfiguration(): void {
+		for (const repository of this.model.repositories) {
+			this.onDidChangeTextDocument(repository.inputBox.document);
+		}
+	}
+
+	private onDidChangeTextDocument(document: TextDocument): void {
 		const config = workspace.getConfiguration('git');
-		const inputValidation = config.get<boolean>('experimental.inputValidation', false) === true;
+		const inputValidation = config.get<boolean>('inputValidation', false);
 		if (!inputValidation) {
+			this.diagnostics.set(document.uri, undefined);
 			return;
 		}
-
-		const diagnostics: Diagnostic[] = [];
 
 		if (/^\s+$/.test(document.getText())) {
 			const documentRange = new Range(document.lineAt(0).range.start, document.lineAt(document.lineCount - 1).range.end);
 			const diagnostic = new Diagnostic(documentRange, l10n.t('Current commit message only contains whitespace characters'), this.severity);
 			diagnostic.code = DiagnosticCodes.empty_message;
 
-			diagnostics.push(diagnostic);
-			this.diagnostics.set(document.uri, diagnostics);
-
+			this.diagnostics.set(document.uri, [diagnostic]);
 			return;
 		}
 
+		const diagnostics: Diagnostic[] = [];
 		const inputValidationLength = config.get<number>('inputValidationLength', 50);
 		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
 
@@ -94,7 +123,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 					const workspaceEdit = new WorkspaceEdit();
 					workspaceEdit.delete(document.uri, diagnostic.range);
 
-					const codeAction = new CodeAction(l10n.t('Remove empty characters'), CodeActionKind.QuickFix);
+					const codeAction = new CodeAction(l10n.t('Clear whitespace characters'), CodeActionKind.QuickFix);
 					codeAction.diagnostics = [diagnostic];
 					codeAction.edit = workspaceEdit;
 					codeActions.push(codeAction);
@@ -161,7 +190,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 		const lineLengthThreshold = line === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
 
 		const lineSegments: string[] = [];
-		const lineText = document.lineAt(line).text;
+		const lineText = document.lineAt(line).text.trim();
 
 		let position = 0;
 		while (lineText.length - position > lineLengthThreshold) {

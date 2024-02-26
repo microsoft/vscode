@@ -24,13 +24,14 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatFollowup, IChatProgress, IChatProvider, IChatRequest } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatProvider, IChatRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
 	private static sessionId = 0;
@@ -59,7 +60,10 @@ const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
 	metadata: {},
-	async provideSlashCommands(token) {
+	getLastSlashCommands() {
+		return undefined;
+	},
+	async provideSlashCommands() {
 		return [];
 	},
 	async invoke(request, progress, history, token) {
@@ -104,6 +108,7 @@ suite('Chat', () => {
 		instantiationService.stub(IChatContributionService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		instantiationService.stub(IChatService, new MockChatService());
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
@@ -114,6 +119,9 @@ suite('Chat', () => {
 			metadata: { isDefault: true },
 			async invoke(request, progress, history, token) {
 				return {};
+			},
+			getLastSlashCommands() {
+				return undefined;
 			},
 			async provideSlashCommands(token) {
 				return [];

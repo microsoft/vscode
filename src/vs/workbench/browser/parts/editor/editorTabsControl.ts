@@ -164,7 +164,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		this.renderDropdownAsChildElement = false;
 
-		this.tabsHoverDelegate = getDefaultHoverDelegate('element');
+		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
 
 		this.create(parent);
 	}

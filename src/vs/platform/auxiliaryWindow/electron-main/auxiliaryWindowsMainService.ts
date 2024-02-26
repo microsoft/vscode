@@ -12,7 +12,7 @@ import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/e
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
 import { WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
@@ -79,7 +79,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		});
 	}
 
-	private validateWindowState(details: HandlerDetails): IWindowState | undefined {
+	private validateWindowState(details: HandlerDetails): IWindowState {
 		const windowState: IWindowState = {};
 
 		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=800,height=600
@@ -101,7 +101,11 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 			}
 		}
 
-		return WindowStateValidator.validateWindowState(this.logService, windowState);
+		const state = WindowStateValidator.validateWindowState(this.logService, windowState) ?? defaultAuxWindowState();
+
+		this.logService.trace('[aux window] using window state', state);
+
+		return state;
 	}
 
 	registerWindow(webContents: WebContents): void {

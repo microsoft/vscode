@@ -30,7 +30,7 @@ import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -301,21 +301,22 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private createToolbar() {
 		this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === ToggleReactionsAction.ID) {
 					return new DropdownMenuActionViewItem(
 						action,
 						(<ToggleReactionsAction>action).menuActions,
 						this.contextMenuService,
 						{
-							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
+							...options,
+							actionViewItemProvider: (action, options) => this.actionViewItemProvider(action as Action, options),
 							actionRunner: this.actionRunner,
 							classNames: ['toolbar-toggle-pickReactions', ...ThemeIcon.asClassNameArray(Codicon.reactions)],
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);
 				}
-				return this.actionViewItemProvider(action as Action);
+				return this.actionViewItemProvider(action as Action, options);
 			},
 			orientation: ActionsOrientation.HORIZONTAL
 		});
@@ -357,8 +358,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
-	actionViewItemProvider(action: Action) {
-		let options = {};
+	actionViewItemProvider(action: Action, options: IActionViewItemOptions) {
 		if (action.id === ToggleReactionsAction.ID) {
 			options = { label: false, icon: true };
 		} else {
@@ -369,9 +369,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			const item = new ReactionActionViewItem(action);
 			return item;
 		} else if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 		} else if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, options);
 		} else {
 			const item = new ActionViewItem({}, action, options);
 			return item;
@@ -413,11 +413,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,
 			{
-				actionViewItemProvider: action => {
+				actionViewItemProvider: (action, options) => {
 					if (action.id === ToggleReactionsAction.ID) {
 						return toggleReactionActionViewItem;
 					}
-					return this.actionViewItemProvider(action as Action);
+					return this.actionViewItemProvider(action as Action, options);
 				},
 				actionRunner: this.actionRunner,
 				classNames: 'toolbar-toggle-pickReactions',
@@ -431,21 +431,21 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private createReactionsContainer(commentDetailsContainer: HTMLElement): void {
 		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
 		this._reactionsActionBar = new ActionBar(this._reactionActionsContainer, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === ToggleReactionsAction.ID) {
 					return new DropdownMenuActionViewItem(
 						action,
 						(<ToggleReactionsAction>action).menuActions,
 						this.contextMenuService,
 						{
-							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
+							actionViewItemProvider: (action, options) => this.actionViewItemProvider(action as Action, options),
 							actionRunner: this.actionRunner,
 							classNames: ['toolbar-toggle-pickReactions', ...ThemeIcon.asClassNameArray(Codicon.reactions)],
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);
 				}
-				return this.actionViewItemProvider(action as Action);
+				return this.actionViewItemProvider(action as Action, options);
 			}
 		});
 		this._register(this._reactionsActionBar);

@@ -90,7 +90,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				options: IWorkbenchListOptions<T>
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
 			styles: this.computeStyles(),
-			hoverDelegate: this.instantiationService.createInstance(QuickInputHoverDelegate)
+			hoverDelegate: this._register(this.instantiationService.createInstance(QuickInputHoverDelegate))
 		};
 
 		const controller = this._register(new QuickInputController({

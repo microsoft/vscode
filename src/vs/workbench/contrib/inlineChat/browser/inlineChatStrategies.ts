@@ -28,14 +28,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
+import { InlineChatFileCreatePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatFileCreationWidget';
 import { HunkInformation, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditObserver {
 	start(): void;
@@ -229,166 +231,7 @@ export interface ProgressingEditsOptions {
 	token: CancellationToken;
 }
 
-export class LivePreviewStrategy extends EditModeStrategy {
 
-	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
-	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
-
-	constructor(
-		session: Session,
-		editor: ICodeEditor,
-		zone: InlineChatZoneWidget,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) {
-		super(session, editor, zone);
-
-		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
-	}
-
-	override dispose(): void {
-		for (const zone of this._diffZonePool) {
-			zone.hide();
-			zone.dispose();
-		}
-		this._previewZone.rawValue?.hide();
-		this._previewZone.rawValue?.dispose();
-		super.dispose();
-	}
-
-	async apply() {
-		if (this._editCount > 0) {
-			this._editor.pushUndoStop();
-		}
-		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
-			return;
-		}
-		const { untitledTextModel } = this._session.lastExchange.response;
-		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
-			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
-		}
-	}
-
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
-		this._updateDiffZones();
-	}
-
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		return this._makeChanges(edits, obs, undefined, undefined);
-	}
-
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
-		await this._makeChanges(edits, obs, opts, new Progress<any>(() => {
-			this._updateDiffZones();
-		}));
-	}
-
-	override async renderChanges(response: ReplyResponse): Promise<Position | undefined> {
-
-		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
-		} else {
-			this._previewZone.rawValue?.hide();
-		}
-
-		return this._updateDiffZones();
-	}
-
-
-	protected _updateSummaryMessage(hunkCount: number) {
-		let message: string;
-		if (hunkCount === 0) {
-			message = localize('change.0', "Nothing changed");
-		} else if (hunkCount === 1) {
-			message = localize('change.1', "1 change");
-		} else {
-			message = localize('lines.NM', "{0} changes", hunkCount);
-		}
-		this._zone.widget.updateStatus(message);
-	}
-
-
-	private _updateDiffZones(): Position | undefined {
-
-		const { hunkData } = this._session;
-		const hunks = hunkData.getInfo().filter(hunk => hunk.getState() === HunkState.Pending);
-
-		if (hunks.length === 0) {
-			for (const zone of this._diffZonePool) {
-				zone.hide();
-			}
-
-			if (hunkData.getInfo().find(hunk => hunk.getState() === HunkState.Accepted)) {
-				this._onDidAccept.fire();
-			} else {
-				this._onDidDiscard.fire();
-			}
-
-			return;
-		}
-
-		this._updateSummaryMessage(hunks.length);
-
-		// create enough zones
-		const handleDiff = () => this._updateDiffZones();
-
-		type Data = { position: Position; distance: number; accept: Function; discard: Function };
-		let nearest: Data | undefined;
-
-		// create enough zones
-		while (hunks.length > this._diffZonePool.length) {
-			this._diffZonePool.push(this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, {}, this._diffZonePool.length === 0 ? handleDiff : undefined));
-		}
-
-		for (let i = 0; i < hunks.length; i++) {
-			const hunk = hunks[i];
-			this._diffZonePool[i].showForChanges(hunk);
-
-			const modifiedRange = hunk.getRangesN()[0];
-			const zoneLineNumber = this._zone.position!.lineNumber;
-			const distance = zoneLineNumber <= modifiedRange.startLineNumber
-				? modifiedRange.startLineNumber - zoneLineNumber
-				: zoneLineNumber - modifiedRange.endLineNumber;
-
-			if (!nearest || nearest.distance > distance) {
-				nearest = {
-					position: modifiedRange.getStartPosition().delta(-1),
-					distance,
-					accept: () => {
-						hunk.acceptChanges();
-						handleDiff();
-					},
-					discard: () => {
-						hunk.discardChanges();
-						handleDiff();
-					}
-				};
-			}
-
-		}
-		// hide unused zones
-		for (let i = hunks.length; i < this._diffZonePool.length; i++) {
-			this._diffZonePool[i].hide();
-		}
-
-		this.acceptHunk = async () => nearest?.accept();
-		this.discardHunk = async () => nearest?.discard();
-
-		if (nearest) {
-			this._zone.updatePositionAndHeight(nearest.position);
-			this._editor.revealPositionInCenterIfOutsideViewport(nearest.position);
-		}
-
-		return nearest?.position;
-	}
-
-	override hasFocus(): boolean {
-		return this._zone.widget.hasFocus()
-			|| Boolean(this._previewZone.rawValue?.hasFocus())
-			|| this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
-	}
-}
 
 type HunkDisplayData = {
 
@@ -404,6 +247,8 @@ type HunkDisplayData = {
 	toggleDiff?: () => any;
 	remove(): void;
 	move: (next: boolean) => void;
+
+	hunk: HunkInformation;
 };
 
 
@@ -441,6 +286,8 @@ export class LiveStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
 		super(session, editor, zone);
@@ -652,6 +499,7 @@ export class LiveStrategy extends EditModeStrategy {
 							: zoneLineNumber - hunkRanges[0].endLineNumber;
 
 						data = {
+							hunk: hunkData,
 							decorationIds,
 							viewZoneId: '',
 							viewZone: viewZoneData,
@@ -661,7 +509,7 @@ export class LiveStrategy extends EditModeStrategy {
 							discardHunk,
 							toggleDiff: !hunkData.isInsertion() ? toggleDiff : undefined,
 							remove,
-							move
+							move,
 						};
 
 						this._hunkDisplayData.set(hunkData, data);
@@ -699,6 +547,12 @@ export class LiveStrategy extends EditModeStrategy {
 
 				const remainingHunks = this._session.hunkData.pending;
 				this._updateSummaryMessage(remainingHunks);
+
+
+				const mode = this._configService.getValue<'on' | 'off' | 'auto'>(InlineChatConfigKeys.AccessibleDiffView);
+				if (mode === 'on' || mode === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
+					this._zone.widget.showAccessibleHunk(this._session, widgetData.hunk);
+				}
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 				this.toggleDiff = widgetData.toggleDiff;

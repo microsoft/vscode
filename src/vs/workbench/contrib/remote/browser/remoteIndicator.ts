@@ -97,7 +97,32 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private measureNetworkConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
-	private readonly remoteExtensionMetadata: RemoteExtensionMetadata[];
+
+	private _remoteExtensionMetadata: RemoteExtensionMetadata[] | undefined = undefined;
+	private get remoteExtensionMetadata(): RemoteExtensionMetadata[] {
+		if (!this._remoteExtensionMetadata) {
+			const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
+			this._remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.startEntry !== undefined).map(value => {
+				return {
+					id: value.extensionId,
+					installed: false,
+					friendlyName: value.friendlyName,
+					isPlatformCompatible: false,
+					dependencies: [],
+					helpLink: value.startEntry?.helpLink ?? '',
+					startConnectLabel: value.startEntry?.startConnectLabel ?? '',
+					startCommand: value.startEntry?.startCommand ?? '',
+					priority: value.startEntry?.priority ?? 10,
+					supportedPlatforms: value.supportedPlatforms
+				};
+			});
+
+			this.remoteExtensionMetadata.sort((ext1, ext2) => ext1.priority - ext2.priority);
+		}
+
+		return this._remoteExtensionMetadata;
+	}
+
 	private remoteMetadataInitialized: boolean = false;
 	private readonly _onDidChangeEntries = this._register(new Emitter<void>());
 	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
@@ -123,24 +148,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
-
-		const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
-		this.remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.startEntry !== undefined).map(value => {
-			return {
-				id: value.extensionId,
-				installed: false,
-				friendlyName: value.friendlyName,
-				isPlatformCompatible: false,
-				dependencies: [],
-				helpLink: value.startEntry?.helpLink ?? '',
-				startConnectLabel: value.startEntry?.startConnectLabel ?? '',
-				startCommand: value.startEntry?.startCommand ?? '',
-				priority: value.startEntry?.priority ?? 10,
-				supportedPlatforms: value.supportedPlatforms
-			};
-		});
-
-		this.remoteExtensionMetadata.sort((ext1, ext2) => ext1.priority - ext2.priority);
 
 		// Set initial connection state
 		if (this.remoteAuthority) {
