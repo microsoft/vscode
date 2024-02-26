@@ -6,13 +6,13 @@
 import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ITooltipMarkdownString, setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ITooltipMarkdownString, setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;

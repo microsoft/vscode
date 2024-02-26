@@ -43,9 +43,9 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Selection } from 'vs/editor/common/core/selection';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -1014,7 +1014,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._updateMatchesCount();
 
 		// Create a scoped hover delegate for all find related buttons
-		const hoverDelegate = getDefaultHoverDelegate('element', true);
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
@@ -1148,7 +1148,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}));
 
 		// Create scoped hover delegate for replace actions
-		const replaceHoverDelegate = this._register(getDefaultHoverDelegate('element', true));
+		const replaceHoverDelegate = this._register(createInstantHoverDelegate());
 
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({

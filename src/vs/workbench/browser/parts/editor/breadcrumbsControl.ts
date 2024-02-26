@@ -40,8 +40,8 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 class OutlineItem extends BreadcrumbsItem {
 

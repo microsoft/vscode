@@ -66,7 +66,7 @@ import { ExpansionState, HunkData, HunkInformation, Session } from 'vs/workbench
 import { asRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_VISIBLE, IInlineChatFollowup, IInlineChatSlashCommand, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_FEEDBACK, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -375,7 +375,7 @@ export class InlineChatWidget {
 		this._store.add(this._slashCommandContentWidget);
 
 		// Share hover delegates between toolbars to support instant hover between both
-		const hoverDelegate = this._store.add(getDefaultHoverDelegate('element', true));
+		const hoverDelegate = this._store.add(createInstantHoverDelegate());
 
 		// toolbars
 

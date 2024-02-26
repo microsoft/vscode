@@ -7,10 +7,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
