@@ -22,6 +22,8 @@ import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browse
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import type { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 
@@ -35,6 +37,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IHistoryService private readonly _historyService: IHistoryService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
 	) {
@@ -148,17 +151,57 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	/**
 	 * @param ignoreLinks Links with labels to not include in the picks.
 	 */
-	private async _generatePicks(links: ILink[], ignoreLinks?: ILink[]): Promise<ITerminalLinkQuickPickItem[] | undefined> {
+	private async _generatePicks(links: (ILink | TerminalLink)[], ignoreLinks?: ILink[]): Promise<ITerminalLinkQuickPickItem[] | undefined> {
 		if (!links) {
 			return;
 		}
-		const linkKeys: Set<string> = new Set();
+		const linkTextKeys: Set<string> = new Set();
+		const linkUriKeys: Set<string> = new Set();
 		const picks: ITerminalLinkQuickPickItem[] = [];
 		for (const link of links) {
-			const label = link.text;
-			if (!linkKeys.has(label) && (!ignoreLinks || !ignoreLinks.some(e => e.text === label))) {
-				linkKeys.add(label);
-				picks.push({ label, link });
+			let label = link.text;
+			if (!linkTextKeys.has(label) && (!ignoreLinks || !ignoreLinks.some(e => e.text === label))) {
+				linkTextKeys.add(label);
+
+				// Add a consistently formatted resolved URI label to the description if applicable
+				let description: string | undefined;
+				if ('uri' in link && link.uri) {
+					// For local files and folders, mimic the presentation of go to file
+					if (
+						link.type === TerminalBuiltinLinkType.LocalFile ||
+						link.type === TerminalBuiltinLinkType.LocalFolderInWorkspace ||
+						link.type === TerminalBuiltinLinkType.LocalFolderOutsideWorkspace
+					) {
+						label = basenameOrAuthority(link.uri);
+						description = this._labelService.getUriLabel(dirname(link.uri), { relative: true });
+					}
+
+					// Add line and column numbers to the label if applicable
+					if (link.type === TerminalBuiltinLinkType.LocalFile) {
+						if (link.parsedLink?.suffix?.row !== undefined) {
+							label += `:${link.parsedLink.suffix.row}`;
+							if (link.parsedLink?.suffix?.rowEnd !== undefined) {
+								label += `-${link.parsedLink.suffix.rowEnd}`;
+							}
+							if (link.parsedLink?.suffix?.col !== undefined) {
+								label += `:${link.parsedLink.suffix.col}`;
+								if (link.parsedLink?.suffix?.colEnd !== undefined) {
+									label += `-${link.parsedLink.suffix.colEnd}`;
+								}
+							}
+						}
+					}
+
+					// Skip the link if it's a duplicate URI + line/col
+					if (description) {
+						if (linkUriKeys.has(label + '|' + description)) {
+							continue;
+						}
+						linkUriKeys.add(label + '|' + description);
+					}
+				}
+
+				picks.push({ label, link, description });
 			}
 		}
 		return picks.length > 0 ? picks : undefined;

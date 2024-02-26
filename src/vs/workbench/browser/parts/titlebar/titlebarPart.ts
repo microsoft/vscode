@@ -52,9 +52,9 @@ import { IEditorCommandsContext, IEditorPartOptionsChangeEvent, IToolbarActions 
 import { mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
 import { IView } from 'vs/base/browser/ui/grid/grid';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -282,7 +282,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow, editorGroupsContainer));
 
-		this.hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
+		this.hoverDelegate = this._register(createInstantHoverDelegate());
 
 		this.registerListeners(getWindowId(targetWindow));
 	}

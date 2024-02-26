@@ -28,8 +28,8 @@ import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpres
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
