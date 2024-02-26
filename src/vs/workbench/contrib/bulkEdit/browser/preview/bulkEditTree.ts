@@ -286,7 +286,7 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 	compare(a: BulkEditElement, b: BulkEditElement): number {
 		if (a instanceof FileElement && b instanceof FileElement) {
-			return compare(a.edit.uri.toString(), b.edit.uri.toString());
+			return compareBulkFileOperations(a.edit, b.edit);
 		}
 
 		if (a instanceof TextEditElement && b instanceof TextEditElement) {
@@ -295,6 +295,10 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 
 		return 0;
 	}
+}
+
+export function compareBulkFileOperations(a: BulkFileOperation, b: BulkFileOperation): number {
+	return compare(a.uri.toString(), b.uri.toString());
 }
 
 // --- ACCESSI

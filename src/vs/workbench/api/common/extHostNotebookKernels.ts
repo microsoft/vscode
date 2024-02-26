@@ -12,7 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto, VariablesResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
@@ -90,7 +90,25 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				})
 			],
 			ApiCommandResult.Void);
+
+		const requestKernelVariablesApiCommand = new ApiCommand(
+			'vscode.executeNotebookVariableProvider',
+			'_executeNotebookVariableProvider',
+			'Execute notebook variable provider',
+			[ApiCommandArgument.Uri],
+			new ApiCommandResult<VariablesResult[], vscode.Variable[]>('A promise that resolves to an array of variables', (value, apiArgs) => {
+				return value.map(variable => {
+					return {
+						name: variable.name,
+						value: variable.value,
+						type: variable.type,
+						editable: false
+					};
+				});
+			})
+		);
 		this._commands.registerApiCommand(selectKernelApiCommand);
+		this._commands.registerApiCommand(requestKernelVariablesApiCommand);
 	}
 
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
@@ -458,7 +476,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				value: result.variable.value,
 				type: result.variable.type,
 				hasNamedChildren: result.hasNamedChildren,
-				indexedChildrenCount: result.indexedChildrenCount
+				indexedChildrenCount: result.indexedChildrenCount,
+				extensionId: obj.extensionId.value,
 			};
 			this.variableStore[variable.id] = result.variable;
 			this._proxy.$receiveVariable(requestId, variable);

@@ -34,6 +34,7 @@ import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chat
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -119,7 +120,16 @@ export class ChatSubmitSecondaryAgentEditorAction extends EditorAction2 {
 			}
 
 			const widgetService = accessor.get(IChatWidgetService);
-			widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
+			const widget = widgetService.getWidgetByInputUri(editorUri);
+			if (!widget) {
+				return;
+			}
+
+			if (widget.getInput().match(/^\s*@/)) {
+				widget.acceptInput();
+			} else {
+				widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
+			}
 		}
 	}
 }
@@ -192,13 +202,22 @@ export function registerChatActions() {
 			super({
 				id: 'chat.action.focus',
 				title: localize2('actions.interactiveSession.focus', 'Focus Chat List'),
-				precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP),
+				precondition: CONTEXT_IN_CHAT_INPUT,
 				category: CHAT_CATEGORY,
-				keybinding: {
-					when: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-					weight: KeybindingWeight.EditorContrib
-				}
+				keybinding: [
+					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
+					{
+						when: CONTEXT_CHAT_INPUT_CURSOR_AT_TOP,
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+						weight: KeybindingWeight.EditorContrib,
+					},
+					// On win/linux, ctrl+up can always focus the chat list
+					{
+						when: ContextKeyExpr.or(IsWindowsContext, IsLinuxContext),
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+						weight: KeybindingWeight.EditorContrib,
+					}
+				]
 			});
 		}
 
@@ -229,10 +248,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.focusInput',
-				title: {
-					value: localize('interactiveSession.focusInput.label', "Focus Chat Input"),
-					original: 'Focus Chat Input'
-				},
+				title: localize2('interactiveSession.focusInput.label', "Focus Chat Input"),
 				f1: false,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
@@ -253,7 +269,7 @@ export function getOpenChatEditorAction(id: string, label: string, when?: string
 		constructor() {
 			super({
 				id: `workbench.action.openChat.${id}`,
-				title: { value: localize('interactiveSession.open', "Open Editor ({0})", label), original: `Open Editor (${label})` },
+				title: localize2('interactiveSession.open', "Open Editor ({0})", label),
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.deserialize(when)

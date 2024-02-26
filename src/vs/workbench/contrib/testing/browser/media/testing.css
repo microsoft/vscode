@@ -5,28 +5,30 @@
 
 /** -- icons */
 
-.monaco-workbench .codicon-testing-error-icon {
-	color: var(--vscode-testing-iconErrored);
-}
+.monaco-workbench {
+	.codicon-testing-error-icon {
+		color: var(--vscode-testing-iconErrored);
+	}
 
-.monaco-workbench .codicon-testing-failed-icon {
-	color: var(--vscode-testing-iconFailed);
-}
+	.codicon-testing-failed-icon {
+		color: var(--vscode-testing-iconFailed);
+	}
 
-.monaco-workbench .codicon-testing-passed-icon {
-	color: var(--vscode-testing-iconPassed);
-}
+	.codicon-testing-passed-icon {
+		color: var(--vscode-testing-iconPassed);
+	}
 
-.monaco-workbench .codicon-testing-queued-icon {
-	color: var(--vscode-testing-iconQueued);
-}
+	.codicon-testing-queued-icon {
+		color: var(--vscode-testing-iconQueued);
+	}
 
-.monaco-workbench .codicon-testing-skipped-icon {
-	color: var(--vscode-testing-iconSkipped);
-}
+	.codicon-testing-skipped-icon {
+		color: var(--vscode-testing-iconSkipped);
+	}
 
-.monaco-workbench .codicon-testing-unset-icon {
-	color: var(--vscode-testing-iconUnset);
+	.codicon-testing-unset-icon {
+		color: var(--vscode-testing-iconUnset);
+	}
 }
 
 /** -- explorer */

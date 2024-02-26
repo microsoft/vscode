@@ -20,7 +20,6 @@ import { QuickInputService } from 'vs/platform/quickinput/browser/quickInputServ
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 class EditorScopedQuickInputService extends QuickInputService {
 
@@ -33,7 +32,6 @@ class EditorScopedQuickInputService extends QuickInputService {
 		@IThemeService themeService: IThemeService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IHoverService hoverService: IHoverService,
 	) {
 		super(
 			instantiationService,
@@ -41,7 +39,6 @@ class EditorScopedQuickInputService extends QuickInputService {
 			themeService,
 			new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService),
 			configurationService,
-			hoverService
 		);
 
 		// Use the passed in code editor as host for the quick input widget

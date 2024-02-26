@@ -121,53 +121,23 @@ steps:
         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
+        ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+          VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
+        ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+          VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-arm32v7
       displayName: Install dependencies (non-OSS)
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-    - script: |
-        set -e
+    - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+      - script: |
+          set -e
 
-        TRIPLE="x86_64-linux-gnu"
-        if [ "$VSCODE_ARCH" == "arm64" ]; then
-          TRIPLE="aarch64-linux-gnu"
-        elif [ "$VSCODE_ARCH" == "armhf" ]; then
-          TRIPLE="arm-rpi-linux-gnueabihf"
-        fi
-
-        # Get all files with .node extension from remote/node_modules folder
-        files=$(find remote/node_modules -name "*.node")
-
-        # Check if any file has dependency of GLIBC > 2.28 or GLIBCXX > 3.4.25
-        for file in $files; do
-          glibc_version="2.28"
-          glibcxx_version="3.4.25"
-          while IFS= read -r line; do
-            if [[ $line == *"GLIBC_"* ]]; then
-              version=$(echo "$line" | awk '{print $5}' | tr -d '()')
-              version=${version#*_}
-              if [[ $(printf "%s\n%s" "$version" "$glibc_version" | sort -V | tail -n1) == "$version" ]]; then
-                glibc_version=$version
-              fi
-            elif [[ $line == *"GLIBCXX_"* ]]; then
-              version=$(echo "$line" | awk '{print $5}' | tr -d '()')
-              version=${version#*_}
-              if [[ $(printf "%s\n%s" "$version" "$glibcxx_version" | sort -V | tail -n1) == "$version" ]]; then
-                glibcxx_version=$version
-              fi
-            fi
-          done < <("$PWD/.build/sysroots/$TRIPLE/$TRIPLE/bin/objdump" -T "$file")
-
-          if [[ "$glibc_version" != "2.28" ]]; then
-            echo "Error: File $file has dependency on GLIBC > 2.28"
-            exit 1
-          fi
-          if [[ "$glibcxx_version" != "3.4.25" ]]; then
-            echo "Error: File $file has dependency on GLIBCXX > 3.4.25"
-            exit 1
-          fi
-        done
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-      displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
+          EXPECTED_GLIBC_VERSION="2.17" \
+          EXPECTED_GLIBCXX_VERSION="3.4.19" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
 
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -248,6 +218,7 @@ steps:
 
     - script: |
         set -e
+        export VSCODE_NODE_GLIBC='-glibc-2.17'
         yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
@@ -260,6 +231,7 @@ steps:
 
     - script: |
         set -e
+        export VSCODE_NODE_GLIBC='-glibc-2.17'
         yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"

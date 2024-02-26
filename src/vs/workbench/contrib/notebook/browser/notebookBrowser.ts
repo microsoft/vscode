@@ -256,6 +256,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	lineNumbers: 'on' | 'off' | 'inherit';
 	chatHeight: number;
 	focusMode: CellFocusMode;
+	focusedOutputId?: string | undefined;
 	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;
@@ -415,6 +416,21 @@ export interface IModelDecorationsChangeAccessor {
 	deltaDecorations(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[];
 }
 
+export interface INotebookViewZone {
+	/**
+	 * Use 0 to place a view zone before the first cell
+	 */
+	afterModelPosition: number;
+	domNode: HTMLElement;
+
+	heightInPx: number;
+}
+
+export interface INotebookViewZoneChangeAccessor {
+	addZone(zone: INotebookViewZone): string;
+	removeZone(id: string): void;
+	layoutZone(id: string): void;
+}
 
 export type NotebookViewCellsSplice = [
 	number /* start */,
@@ -451,6 +467,7 @@ export interface INotebookEditor {
 	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
+	readonly onDidChangeFocus: Event<void>;
 	/**
 	 * An event emitted when the model of this editor has changed.
 	 */
@@ -505,7 +522,7 @@ export interface INotebookEditor {
 	/**
 	 * Focus the notebook cell list container
 	 */
-	focusContainer(): void;
+	focusContainer(clearSelection?: boolean): void;
 
 	hasEditorFocus(): boolean;
 	hasWebviewFocus(): boolean;
@@ -648,6 +665,11 @@ export interface INotebookEditor {
 	revealCellOffsetInCenter(cell: ICellViewModel, offset: number): void;
 
 	/**
+	 * Reveal `offset` in the list view into viewport center if it is outside of the viewport.
+	 */
+	revealOffsetInCenterIfOutsideViewport(offset: number): void;
+
+	/**
 	 * Convert the view range to model range
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
@@ -677,6 +699,8 @@ export interface INotebookEditor {
 	 */
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
+	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
+
 	/**
 	 * Get a contribution of this editor.
 	 * @id Unique identifier of the contribution.
@@ -702,6 +726,7 @@ export interface INotebookEditor {
 	hideProgress(): void;
 
 	getAbsoluteTopOfElement(cell: ICellViewModel): number;
+	getHeightOfElement(cell: ICellViewModel): number;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {

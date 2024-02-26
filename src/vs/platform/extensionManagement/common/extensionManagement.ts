@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -545,6 +545,5 @@ export interface IExtensionTipsService {
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 }
 
-export const ExtensionsLabel = localize('extensions', "Extensions");
-export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
+export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');

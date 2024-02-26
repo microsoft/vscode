@@ -183,6 +183,7 @@ class CellOutputElement extends Disposable {
 		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 
 		if (this.viewCell.isOutputCollapsed || !this.notebookEditor.hasModel()) {
+			this.cellOutputContainer.flagAsStale();
 			return undefined;
 		}
 
@@ -200,18 +201,23 @@ class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		const pickedMimeTypeRenderer = mimeTypes[pick];
-		const innerContainer = this._generateInnerOutputContainer(previousSibling, pickedMimeTypeRenderer);
+		const selectedPresentation = mimeTypes[pick];
+		let renderer = this.notebookService.getRendererInfo(selectedPresentation.rendererId);
+		if (!renderer && selectedPresentation.mimeType.indexOf('text/') > -1) {
+			renderer = this.notebookService.getRendererInfo('vscode.builtin-renderer');
+		}
+
+		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
 		this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 
 		this.renderedOutputContainer = DOM.append(innerContainer, DOM.$('.rendered-output'));
 
-		const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-		this.renderResult = renderer
-			? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-			: this._renderMissingRenderer(this.output, pickedMimeTypeRenderer.mimeType);
 
-		this.output.pickedMimeType = pickedMimeTypeRenderer;
+		this.renderResult = renderer
+			? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: selectedPresentation.mimeType }
+			: this._renderMissingRenderer(this.output, selectedPresentation.mimeType);
+
+		this.output.pickedMimeType = selectedPresentation;
 
 		if (!this.renderResult) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');
@@ -472,6 +478,7 @@ const enum CellOutputUpdateContext {
 
 export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
+	private _hasStaleOutputs: boolean = false;
 
 	get renderedOutputEntries() {
 		return this._outputEntries;
@@ -529,6 +536,13 @@ export class CellOutputContainer extends CellContentPart {
 		}
 	}
 
+	/**
+	 * Notify that an output may have been swapped out without the model getting rendered.
+	 */
+	flagAsStale() {
+		this._hasStaleOutputs = true;
+	}
+
 	private _doRender() {
 		if (this.viewCell.outputsViewModels.length > 0) {
 			if (this.viewCell.layoutInfo.outputTotalHeight !== 0) {
@@ -564,6 +578,13 @@ export class CellOutputContainer extends CellContentPart {
 	}
 
 	viewUpdateShowOutputs(initRendering: boolean): void {
+		if (this._hasStaleOutputs) {
+			this._hasStaleOutputs = false;
+			this._outputEntries.forEach(entry => {
+				entry.element.rerender();
+			});
+		}
+
 		for (let index = 0; index < this._outputEntries.length; index++) {
 			const viewHandler = this._outputEntries[index];
 			const outputEntry = viewHandler.element;

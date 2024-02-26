@@ -36,8 +36,7 @@ class ToggleBreakpointAction extends Action2 {
 		super({
 			id: 'editor.debug.action.toggleBreakpoint',
 			title: {
-				value: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
-				original: 'Debug: Toggle Breakpoint',
+				...nls.localize2('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
 				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"),
 			},
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
@@ -68,7 +67,7 @@ class ToggleBreakpointAction extends Action2 {
 				if (toRemove) {
 					debugService.removeInstructionBreakpoints(toRemove.instructionReference, toRemove.offset);
 				} else {
-					debugService.addInstructionBreakpoint(location.reference, location.offset, location.address);
+					debugService.addInstructionBreakpoint({ instructionReference: location.reference, offset: location.offset, address: location.address, canPersist: false });
 				}
 			}
 			return;
@@ -234,9 +233,8 @@ class OpenDisassemblyViewAction extends Action2 {
 		super({
 			id: OpenDisassemblyViewAction.ID,
 			title: {
-				value: nls.localize('openDisassemblyView', "Open Disassembly View"),
-				original: 'Open Disassembly View',
-				mnemonicTitle: nls.localize({ key: 'miDisassemblyView', comment: ['&& denotes a mnemonic'] }, "&&DisassemblyView")
+				...nls.localize2('openDisassemblyView', "Open Disassembly View"),
+				mnemonicTitle: nls.localize({ key: 'miDisassemblyView', comment: ['&& denotes a mnemonic'] }, "&&DisassemblyView"),
 			},
 			precondition: CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE,
 			menu: [
@@ -275,9 +273,8 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 		super({
 			id: ToggleDisassemblyViewSourceCodeAction.ID,
 			title: {
-				value: nls.localize('toggleDisassemblyViewSourceCode', "Toggle Source Code in Disassembly View"),
-				original: 'Toggle Source Code in Disassembly View',
-				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&ToggleSource")
+				...nls.localize2('toggleDisassemblyViewSourceCode', "Toggle Source Code in Disassembly View"),
+				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&ToggleSource"),
 			},
 			f1: true,
 		});
@@ -368,7 +365,7 @@ export class SelectionToReplAction extends EditorAction {
 			text = editor.getModel().getValueInRange(selection);
 		}
 
-		await session.addReplExpression(viewModel.focusedStackFrame!, text);
+		await session.addReplExpression(viewModel.focusedStackFrame, text);
 		await viewsService.openView(REPL_VIEW_ID, false);
 	}
 }

@@ -57,6 +57,7 @@ import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const $ = DOM.$;
 
@@ -397,9 +398,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 		const actions = [this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction];
 		const toolBar = this._register(new ToolBar(this.actionsContainer, this.contextMenuService, {
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === this.sortByPrecedenceAction.id || action.id === this.recordKeysAction.id) {
-					return new ToggleActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel(), toggleStyles: defaultToggleStyles });
+					return new ToggleActionViewItem(null, action, { ...options, keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel(), toggleStyles: defaultToggleStyles });
 				}
 				return undefined;
 			},
@@ -851,7 +852,7 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
 		const element = DOM.append(container, $('.actions'));
-		const actionBar = new ActionBar(element, { animated: false });
+		const actionBar = new ActionBar(element);
 		return { actionBar };
 	}
 

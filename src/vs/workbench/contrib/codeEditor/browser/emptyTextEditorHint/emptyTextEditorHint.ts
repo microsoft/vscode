@@ -83,6 +83,11 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => this.update()));
 		this.toDispose.push(this.inlineChatService.onDidChangeProviders(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.update()));
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.readOnly)) {
+				this.update();
+			}
+		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
 				this.update();

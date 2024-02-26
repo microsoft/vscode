@@ -40,6 +40,9 @@ export function requireToContent(instantiationService: IInstantiationService, re
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.walkThroughSnippetContentProvider';
+
 	private loads = new Map<string, Promise<ITextBufferFactory>>();
 
 	constructor(

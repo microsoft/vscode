@@ -25,7 +25,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
 		kind: CodeActionKind.SurroundWith.value,
-		title: SurroundWithSnippetEditorAction.options.title.value,
+		title: localize('more', "More..."),
 		command: {
 			id: SurroundWithSnippetEditorAction.options.id,
 			title: SurroundWithSnippetEditorAction.options.title.value,

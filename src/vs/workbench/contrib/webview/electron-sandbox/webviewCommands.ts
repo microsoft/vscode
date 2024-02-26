@@ -15,7 +15,7 @@ export class OpenWebviewDeveloperToolsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.webview.openDeveloperTools',
-			title: { value: nls.localize('openToolsLabel', "Open Webview Developer Tools"), original: 'Open Webview Developer Tools' },
+			title: nls.localize2('openToolsLabel', "Open Webview Developer Tools"),
 			category: Categories.Developer,
 			f1: true
 		});

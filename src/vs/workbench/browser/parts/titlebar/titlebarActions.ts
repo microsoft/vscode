@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -106,8 +106,24 @@ class ToggleCustomTitleBar extends Action2 {
 			title: localize('toggle.customTitleBar', 'Custom Title Bar'),
 			toggled: TitleBarVisibleContext,
 			menu: [
-				{ id: MenuId.MenubarAppearanceMenu, order: 6, when: ContextKeyExpr.or(ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext), group: '2_workbench_layout' },
-			]
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					order: 6,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
+								ContextKeyExpr.equals('config.window.commandCenter', false),
+								ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
+								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top')
+							)?.negate()
+						),
+						IsMainWindowFullscreenContext
+					),
+					group: '2_workbench_layout'
+				},
+			],
 		});
 	}
 
@@ -141,7 +157,7 @@ registerAction2(class ShowCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `showCustomTitleBar`,
-			title: { value: localize('showCustomTitleBar', 'Show Custom Title Bar'), original: 'Show Custom Title Bar' },
+			title: localize2('showCustomTitleBar', "Show Custom Title Bar"),
 			precondition: TitleBarVisibleContext.negate(),
 			f1: true
 		});
@@ -158,7 +174,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `hideCustomTitleBar`,
-			title: { value: localize('hideCustomTitleBar', 'Hide Custom Title Bar'), original: 'Hide Custom Title Bar' },
+			title: localize2('hideCustomTitleBar', "Hide Custom Title Bar"),
 			precondition: TitleBarVisibleContext,
 			f1: true
 		});
@@ -174,7 +190,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `hideCustomTitleBarInFullScreen`,
-			title: { value: localize('hideCustomTitleBarInFullScreen', 'Hide Custom Title Bar In Full Screen'), original: 'Hide Custom Title Bar In Full Screen' },
+			title: localize2('hideCustomTitleBarInFullScreen', "Hide Custom Title Bar In Full Screen"),
 			precondition: ContextKeyExpr.and(TitleBarVisibleContext, IsMainWindowFullscreenContext),
 			f1: true
 		});

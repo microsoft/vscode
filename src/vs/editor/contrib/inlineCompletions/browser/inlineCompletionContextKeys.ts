@@ -33,10 +33,10 @@ export class InlineCompletionContextKeys extends Disposable {
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
 
-			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.ghostText !== undefined && !state?.ghostText.isEmpty();
+			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.primaryGhostText !== undefined && !state?.primaryGhostText.isEmpty();
 			this.inlineCompletionVisible.set(isInlineCompletionVisible);
 
-			if (state?.ghostText && state?.inlineCompletion) {
+			if (state?.primaryGhostText && state?.inlineCompletion) {
 				this.suppressSuggestions.set(state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions);
 			}
 		}));
@@ -48,7 +48,7 @@ export class InlineCompletionContextKeys extends Disposable {
 			let startsWithIndentation = false;
 			let startsWithIndentationLessThanTabSize = true;
 
-			const ghostText = model?.ghostText.read(reader);
+			const ghostText = model?.primaryGhostText.read(reader);
 			if (!!model?.selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
 				const { column, lines } = ghostText.parts[0];
 

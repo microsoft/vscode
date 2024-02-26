@@ -28,7 +28,7 @@
 
 	[z-index] 	[kind]
 			12  drag and drop overlay
-			11 	scrollbar
+			11 	scrollbar / tabs dnd border
 			10	active-tab border-bottom
 			9	tabs, title border bottom
 			8	sticky-tab
@@ -220,14 +220,6 @@
 	padding-right: 5px; /* we need less room when sizing is shrink/fixed */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged {
-	transform: translate3d(0px, 0px, 0px); /* forces tab to be drawn on a separate layer (fixes https://github.com/microsoft/vscode/issues/18733) */
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged-over div {
-	pointer-events: none; /* prevents cursor flickering (fixes https://github.com/microsoft/vscode/issues/38753) */
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
 	flex-direction: row-reverse;
 	padding-left: 0;
@@ -394,11 +386,13 @@
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before {
 	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	font-family: 'codicon';
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before {
 	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+	font-family: 'codicon';
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
@@ -465,4 +459,39 @@
 
 	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;
+}
+
+/* Drag and drop target */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-right::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	height: 100%;
+	width: 1px;
+	background-color: var(--vscode-tab-dragAndDropBorder);
+	pointer-events: none;
+	z-index: 11;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-right::before {
+	left: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after {
+	right: -1px; /* -1 to connect with drop-target-right */
+}
+
+/* Make drop target edge cases more visible (wrapped tabs & first/last) */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(:last-child)::after {
+	right: 0px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row + .tab.drop-target-right::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:last-child.drop-target-left::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:first-child.drop-target-right::before {
+	width: 2px;
 }

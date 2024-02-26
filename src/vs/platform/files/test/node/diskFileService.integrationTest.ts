@@ -181,10 +181,10 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(existsSync(newFolder.resource.fsPath), true);
 
 		assert.ok(event);
-		assert.strictEqual(event!.resource.fsPath, newFolderResource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.fsPath, newFolderResource.fsPath);
-		assert.strictEqual(event!.target!.isDirectory, true);
+		assert.strictEqual(event.resource.fsPath, newFolderResource.fsPath);
+		assert.strictEqual(event.operation, FileOperation.CREATE);
+		assert.strictEqual(event.target!.resource.fsPath, newFolderResource.fsPath);
+		assert.strictEqual(event.target!.isDirectory, true);
 	});
 
 	test('createFolder: creating multiple folders at once', async () => {
@@ -243,20 +243,20 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(result.resource.toString(), resource.toString());
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
+		assert.ok(result.children.length > 0);
 		assert.ok(result.isDirectory);
 		assert.strictEqual(result.readonly, false);
 		assert.ok(result.mtime! > 0);
 		assert.ok(result.ctime! > 0);
-		assert.strictEqual(result.children!.length, testsElements.length);
+		assert.strictEqual(result.children.length, testsElements.length);
 
-		assert.ok(result.children!.every(entry => {
+		assert.ok(result.children.every(entry => {
 			return testsElements.some(name => {
 				return basename(entry.resource.fsPath) === name;
 			});
 		}));
 
-		result.children!.forEach(value => {
+		result.children.forEach(value => {
 			assert.ok(basename(value.resource.fsPath));
 			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
 				assert.ok(value.isDirectory);
@@ -286,36 +286,36 @@ flakySuite('Disk File Service', function () {
 		assert.ok(result);
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
+		assert.ok(result.children.length > 0);
 		assert.ok(result.isDirectory);
-		assert.ok(result.mtime! > 0);
-		assert.ok(result.ctime! > 0);
-		assert.strictEqual(result.children!.length, testsElements.length);
+		assert.ok(result.mtime > 0);
+		assert.ok(result.ctime > 0);
+		assert.strictEqual(result.children.length, testsElements.length);
 
-		assert.ok(result.children!.every(entry => {
+		assert.ok(result.children.every(entry => {
 			return testsElements.some(name => {
 				return basename(entry.resource.fsPath) === name;
 			});
 		}));
 
-		assert.ok(result.children!.every(entry => entry.etag.length > 0));
+		assert.ok(result.children.every(entry => entry.etag.length > 0));
 
-		result.children!.forEach(value => {
+		result.children.forEach(value => {
 			assert.ok(basename(value.resource.fsPath));
 			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
 				assert.ok(value.isDirectory);
-				assert.ok(value.mtime! > 0);
-				assert.ok(value.ctime! > 0);
+				assert.ok(value.mtime > 0);
+				assert.ok(value.ctime > 0);
 			} else if (basename(value.resource.fsPath) === 'index.html') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
-				assert.ok(value.mtime! > 0);
-				assert.ok(value.ctime! > 0);
+				assert.ok(value.mtime > 0);
+				assert.ok(value.ctime > 0);
 			} else if (basename(value.resource.fsPath) === 'site.css') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
-				assert.ok(value.mtime! > 0);
-				assert.ok(value.ctime! > 0);
+				assert.ok(value.mtime > 0);
+				assert.ok(value.ctime > 0);
 			} else {
 				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
 			}
@@ -336,20 +336,20 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(result);
 		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
+		assert.ok(result.children.length > 0);
 		assert.ok(result.isDirectory);
 
-		const children = result.children!;
+		const children = result.children;
 		assert.strictEqual(children.length, 4);
 
 		const other = getByName(result, 'other');
 		assert.ok(other);
-		assert.ok(other!.children!.length > 0);
+		assert.ok(other.children!.length > 0);
 
-		const deep = getByName(other!, 'deep');
+		const deep = getByName(other, 'deep');
 		assert.ok(deep);
-		assert.ok(deep!.children!.length > 0);
-		assert.strictEqual(deep!.children!.length, 4);
+		assert.ok(deep.children!.length > 0);
+		assert.strictEqual(deep.children!.length, 4);
 	});
 
 	test('resolve directory - resolveTo multiple directories', () => {
@@ -371,25 +371,25 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(result);
 		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
+		assert.ok(result.children.length > 0);
 		assert.ok(result.isDirectory);
 
-		const children = result.children!;
+		const children = result.children;
 		assert.strictEqual(children.length, 4);
 
 		const other = getByName(result, 'other');
 		assert.ok(other);
-		assert.ok(other!.children!.length > 0);
+		assert.ok(other.children!.length > 0);
 
-		const deep = getByName(other!, 'deep');
+		const deep = getByName(other, 'deep');
 		assert.ok(deep);
-		assert.ok(deep!.children!.length > 0);
-		assert.strictEqual(deep!.children!.length, 4);
+		assert.ok(deep.children!.length > 0);
+		assert.strictEqual(deep.children!.length, 4);
 
 		const examples = getByName(result, 'examples');
 		assert.ok(examples);
-		assert.ok(examples!.children!.length > 0);
-		assert.strictEqual(examples!.children!.length, 4);
+		assert.ok(examples.children!.length > 0);
+		assert.strictEqual(examples.children!.length, 4);
 	}
 
 	test('resolve directory - resolveSingleChildFolders', async () => {
@@ -398,16 +398,16 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(result);
 		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
+		assert.ok(result.children.length > 0);
 		assert.ok(result.isDirectory);
 
-		const children = result.children!;
+		const children = result.children;
 		assert.strictEqual(children.length, 1);
 
 		const deep = getByName(result, 'deep');
 		assert.ok(deep);
-		assert.ok(deep!.children!.length > 0);
-		assert.strictEqual(deep!.children!.length, 4);
+		assert.ok(deep.children!.length > 0);
+		assert.strictEqual(deep.children!.length, 4);
 	});
 
 	test('resolves', async () => {
@@ -470,9 +470,9 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.readonly, false);
 		assert.strictEqual(resolved.isSymbolicLink, false);
 		assert.strictEqual(resolved.resource.toString(), resource.toString());
-		assert.ok(resolved.mtime! > 0);
-		assert.ok(resolved.ctime! > 0);
-		assert.ok(resolved.size! > 0);
+		assert.ok(resolved.mtime > 0);
+		assert.ok(resolved.ctime > 0);
+		assert.ok(resolved.size > 0);
 	});
 
 	test('stat - directory', async () => {
@@ -484,8 +484,8 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.isDirectory);
 		assert.strictEqual(result.readonly, false);
-		assert.ok(result.mtime! > 0);
-		assert.ok(result.ctime! > 0);
+		assert.ok(result.mtime > 0);
+		assert.ok(result.ctime > 0);
 	});
 
 	test('deleteFile (non recursive)', async () => {
@@ -1554,7 +1554,7 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 	});
 
 	(isWindows /* error code does not seem to be supported on windows */ ? test.skip : test)('readFile - FILE_NOT_DIRECTORY', async () => {
@@ -1568,7 +1568,7 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_NOT_DIRECTORY);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_NOT_DIRECTORY);
 	});
 
 	test('readFile - FILE_NOT_FOUND', async () => {
@@ -1582,7 +1582,7 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 	});
 
 	test('readFile - FILE_NOT_MODIFIED_SINCE - default', async () => {
@@ -1621,7 +1621,7 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
 		assert.ok(error instanceof NotModifiedSinceFileOperationError && error.stat);
 		assert.strictEqual(fileProvider.totalBytesRead, 0);
 	}
@@ -2377,7 +2377,7 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.ok(error instanceof FileOperationError);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 	});
 
 	test('writeFile - no error when writing to file where size is the same', async () => {
