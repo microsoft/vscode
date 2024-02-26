@@ -63,10 +63,11 @@ native-watchdog/build/**
 native-watchdog/src/**
 !native-watchdog/build/Release/*.node
 
-node-vsce-sign/**
-!node-vsce-sign/src/main.js
-!node-vsce-sign/package.json
-!node-vsce-sign/bin/**
+@vscode/vsce-sign/**
+!@vscode/vsce-sign/src/main.d.ts
+!@vscode/vsce-sign/src/main.js
+!@vscode/vsce-sign/package.json
+!@vscode/vsce-sign/bin/**
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**

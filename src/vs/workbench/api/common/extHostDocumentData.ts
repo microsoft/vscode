@@ -37,7 +37,6 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
-		public readonly notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
 	}

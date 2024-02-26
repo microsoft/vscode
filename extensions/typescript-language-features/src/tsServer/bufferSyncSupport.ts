@@ -745,6 +745,10 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private shouldValidate(buffer: SyncedBuffer): boolean {
+		if (buffer.resource.scheme === fileSchemes.chatCodeBlock) {
+			return false;
+		}
+
 		if (!this.client.configuration.enableProjectDiagnostics && !this._tabResources.has(buffer.resource)) { // Only validate resources that are showing to the user
 			return false;
 		}
