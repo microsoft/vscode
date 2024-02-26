@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
+import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/testDiffProviderFactoryService';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';

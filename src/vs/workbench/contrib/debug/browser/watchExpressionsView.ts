@@ -93,7 +93,7 @@ export class WatchExpressionsView extends ViewPane {
 				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
 				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
 			],
-			new WatchExpressionsDataSource(this.debugService), {
+			this.instantiationService.createInstance(WatchExpressionsDataSource), {
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression) => element.getId() },
 			keyboardNavigationLabelProvider: {
@@ -157,7 +157,7 @@ export class WatchExpressionsView extends ViewPane {
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			const expression = e?.expression;
-			if (expression instanceof Expression || (expression instanceof Variable && e?.settingWatch)) {
+			if (expression && this.tree.hasElement(expression)) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
@@ -204,7 +204,7 @@ export class WatchExpressionsView extends ViewPane {
 		const element = e.element;
 		// double click on primitive value: open input box to be able to select and copy value.
 		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
-		if (element instanceof Expression && element !== selectedExpression?.expression) {
+		if ((element instanceof Expression && element !== selectedExpression?.expression) || (element instanceof VisualizedExpression && element.treeItem.canEdit)) {
 			this.debugService.getViewModel().setSelectedExpression(element, false);
 		} else if (!element) {
 			// Double click in watch panel triggers to add a new watch expression
@@ -259,7 +259,7 @@ class WatchExpressionsDataSource extends AbstractExpressionDataSource<IDebugServ
 		return isDebugService(element) || element.hasChildren;
 	}
 
-	public override doGetChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
+	protected override doGetChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
 		if (isDebugService(element)) {
 			const debugService = element as IDebugService;
 			const watchExpressions = debugService.getModel().getWatchExpressions();

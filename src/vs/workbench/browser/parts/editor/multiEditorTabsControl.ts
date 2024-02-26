@@ -56,8 +56,6 @@ import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -152,10 +150,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
-		@IDecorationsService decorationsService: IDecorationsService,
-		@IHoverService hoverService: IHoverService,
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, hoverService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the

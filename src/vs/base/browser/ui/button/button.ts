@@ -9,6 +9,9 @@ import { sanitize } from 'vs/base/browser/dompurify/dompurify';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -27,6 +30,7 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export interface IButtonStyles {
@@ -74,6 +78,7 @@ export class Button extends Disposable implements IButton {
 	protected _label: string | IMarkdownString = '';
 	protected _labelElement: HTMLElement | undefined;
 	protected _labelShortElement: HTMLElement | undefined;
+	private _hover: ICustomHover | undefined;
 
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
@@ -110,6 +115,10 @@ export class Button extends Disposable implements IButton {
 			this._element.appendChild(this._labelElement);
 
 			this._element.classList.add('monaco-text-button-with-short-label');
+		}
+
+		if (typeof options.title === 'string') {
+			this.setTitle(options.title);
 		}
 
 		if (typeof options.ariaLabel === 'string') {
@@ -240,16 +249,19 @@ export class Button extends Disposable implements IButton {
 			}
 		}
 
+		let title: string = '';
 		if (typeof this.options.title === 'string') {
-			this._element.title = this.options.title;
+			title = this.options.title;
 		} else if (this.options.title) {
-			this._element.title = renderStringAsPlaintext(value);
+			title = renderStringAsPlaintext(value);
 		}
+
+		this.setTitle(title);
 
 		if (typeof this.options.ariaLabel === 'string') {
 			this._element.setAttribute('aria-label', this.options.ariaLabel);
 		} else if (this.options.ariaLabel) {
-			this._element.setAttribute('aria-label', this._element.title);
+			this._element.setAttribute('aria-label', title);
 		}
 
 		this._label = value;
@@ -288,6 +300,14 @@ export class Button extends Disposable implements IButton {
 
 	get enabled() {
 		return !this._element.classList.contains('disabled');
+	}
+
+	private setTitle(title: string) {
+		if (!this._hover && title !== '') {
+			this._hover = this._register(setupCustomHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
+		} else if (this._hover) {
+			this._hover.update(title);
+		}
 	}
 
 	focus(): void {
@@ -348,7 +368,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
-		this.dropdownButton.element.title = localize("button dropdown more actions", 'More Actions...');
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
 		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
 		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');

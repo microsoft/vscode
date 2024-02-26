@@ -24,6 +24,7 @@ export class ViewModel implements IViewModel {
 	private readonly _onWillUpdateViews = new Emitter<void>();
 	private readonly _onDidChangeVisualization = new Emitter<{ original: IExpression; replacement: IExpression }>();
 	private readonly visualized = new WeakMap<IExpression, IExpression>();
+	private readonly preferredVisualizers = new Map</** cache key */ string, /* tree ID */ string>();
 	private expressionSelectedContextKey!: IContextKey<boolean>;
 	private loadedScriptsSupportedContextKey!: IContextKey<boolean>;
 	private stepBackSupportedContextKey!: IContextKey<boolean>;
@@ -165,23 +166,33 @@ export class ViewModel implements IViewModel {
 		this.multiSessionDebug.set(isMultiSessionView);
 	}
 
-	setVisualizedExpression(original: IExpression, visualized: IExpression | undefined): void {
+	setVisualizedExpression(original: IExpression, visualized: IExpression & { treeId: string } | undefined): void {
 		const current = this.visualized.get(original) || original;
-
+		const key = this.getPreferredVisualizedKey(original);
 		if (visualized) {
 			this.visualized.set(original, visualized);
+			this.preferredVisualizers.set(key, visualized.treeId);
 		} else {
 			this.visualized.delete(original);
+			this.preferredVisualizers.delete(key);
 		}
 		this._onDidChangeVisualization.fire({ original: current, replacement: visualized || original });
 	}
 
-	getVisualizedExpression(expression: IExpression): IExpression | undefined {
-		return this.visualized.get(expression);
+	getVisualizedExpression(expression: IExpression): IExpression | string | undefined {
+		return this.visualized.get(expression) || this.preferredVisualizers.get(this.getPreferredVisualizedKey(expression));
 	}
 
 	async evaluateLazyExpression(expression: IExpressionContainer): Promise<void> {
 		await expression.evaluateLazy();
 		this._onDidEvaluateLazyExpression.fire(expression);
+	}
+
+	private getPreferredVisualizedKey(expr: IExpression) {
+		return JSON.stringify([
+			expr.name,
+			expr.type,
+			!!expr.memoryReference,
+		].join('\0'));
 	}
 }

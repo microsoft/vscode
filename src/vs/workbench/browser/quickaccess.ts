@@ -84,7 +84,7 @@ export class EditorViewState {
 			if (shouldCloseCurrEditor) {
 				const activeEditorPane = this.editorService.activeEditorPane;
 				const currEditor = activeEditorPane?.input;
-				if (currEditor && currEditor !== this._editorViewState.editor) {
+				if (currEditor && currEditor !== this._editorViewState.editor && activeEditorPane?.group.isPinned(currEditor) !== true) {
 					await activeEditorPane.group.closeEditor(currEditor);
 				}
 			}
