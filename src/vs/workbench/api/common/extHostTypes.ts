@@ -4271,7 +4271,7 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	) { }
 }
 
-export class LanguageModelSystemMessage {
+export class LanguageModelChatSystemMessage {
 	content: string;
 
 	constructor(content: string) {
@@ -4279,7 +4279,7 @@ export class LanguageModelSystemMessage {
 	}
 }
 
-export class LanguageModelUserMessage {
+export class LanguageModelChatUserMessage {
 	content: string;
 	name: string | undefined;
 
@@ -4289,7 +4289,7 @@ export class LanguageModelUserMessage {
 	}
 }
 
-export class LanguageModelAssistantMessage {
+export class LanguageModelChatAssistantMessage {
 	content: string;
 
 	constructor(content: string) {

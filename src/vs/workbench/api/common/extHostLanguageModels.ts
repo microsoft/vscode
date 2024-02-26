@@ -38,11 +38,11 @@ class LanguageModelResponseStream {
 
 class LanguageModelRequest {
 
-	static fromError(err: Error): vscode.LanguageModelResponse {
+	static fromError(err: Error): vscode.LanguageModelChatResponse {
 		return new LanguageModelRequest(Promise.reject(err), new CancellationTokenSource()).apiObject;
 	}
 
-	readonly apiObject: vscode.LanguageModelResponse;
+	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
 	private readonly _defaultStream = new AsyncIterableSource<string>();
@@ -227,7 +227,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
-	async makeChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelMessage[], options: Record<string, any>, token: CancellationToken) {
+	async makeChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage[], options: Record<string, any>, token: CancellationToken) {
 
 		const from = extension.identifier;
 		// const justification = options?.justification; // TODO@jrieken

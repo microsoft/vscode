@@ -1437,7 +1437,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			chatRequest(languageModel: string, messages: vscode.LanguageModelMessage[], optionsOrToken: { [name: string]: any } | vscode.CancellationToken, token?: vscode.CancellationToken) {
+			chatRequest(languageModel: string, messages: vscode.LanguageModelChatMessage[], optionsOrToken: { [name: string]: any } | vscode.CancellationToken, token?: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'languageModels');
 				let options: Record<string, any>;
 				if (CancellationToken.isCancellationToken(optionsOrToken)) {
@@ -1693,9 +1693,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
-			LanguageModelSystemMessage: extHostTypes.LanguageModelSystemMessage,
-			LanguageModelUserMessage: extHostTypes.LanguageModelUserMessage,
-			LanguageModelAssistantMessage: extHostTypes.LanguageModelAssistantMessage,
+			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
+			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
+			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			InlineEdit: extHostTypes.InlineEdit,

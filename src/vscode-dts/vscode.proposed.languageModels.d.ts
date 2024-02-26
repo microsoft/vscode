@@ -8,16 +8,18 @@ declare module 'vscode' {
 	/**
 	 * Represents a language model response.
 	 *
-	 * @see {@link LanguageModelAccess.makeChatRequest}
+	 * @see {@link LanguageModelAccess.chatRequest}
 	 */
-	export interface LanguageModelResponse {
+	export interface LanguageModelChatResponse {
 
 		/**
 		 * The overall result of the request which represents failure or success
 		 * but. The concrete value is not specified and depends on the selected language model.
 		 *
-		 * *Note* that the actual response represented by the {@link LanguageModelResponse.stream `stream`}-property
+		 * *Note* that the actual response represented by the {@link LanguageModelChatResponse.stream `stream`}-property
 		 */
+		// TODO@API remove and always error via stream
+		// TODO@API Thenable<void> only for errors
 		result: Thenable<unknown>;
 
 		/**
@@ -35,7 +37,7 @@ declare module 'vscode' {
 	 * *Note* that a language model may choose to add additional system messages to the ones
 	 * provided by extensions.
 	 */
-	export class LanguageModelSystemMessage {
+	export class LanguageModelChatSystemMessage {
 
 		/**
 		 * The content of this message.
@@ -53,7 +55,7 @@ declare module 'vscode' {
 	/**
 	 * A language model message that represents a user message.
 	 */
-	export class LanguageModelUserMessage {
+	export class LanguageModelChatUserMessage {
 
 		/**
 		 * The content of this message.
@@ -78,7 +80,7 @@ declare module 'vscode' {
 	 * A language model message that represents an assistant message, usually in response to a user message
 	 * or as a sample response/reply-pair.
 	 */
-	export class LanguageModelAssistantMessage {
+	export class LanguageModelChatAssistantMessage {
 
 		/**
 		 * The content of this message.
@@ -93,7 +95,7 @@ declare module 'vscode' {
 		constructor(content: string);
 	}
 
-	export type LanguageModelMessage = LanguageModelSystemMessage | LanguageModelUserMessage | LanguageModelAssistantMessage;
+	export type LanguageModelChatMessage = LanguageModelChatSystemMessage | LanguageModelChatUserMessage | LanguageModelChatAssistantMessage;
 
 	/**
 	 * Represents access to using a language model. Access can be revoked at any time and extension
@@ -128,7 +130,7 @@ declare module 'vscode' {
 		 * @param messages
 		 * @param options
 		 */
-		makeChatRequest(messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelResponse;
+		makeChatRequest(messages: LanguageModelChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelChatResponse;
 	}
 
 	export interface LanguageModelAccessOptions {
@@ -177,7 +179,7 @@ declare module 'vscode' {
 		 * Make a chat request using a language model.
 		 *
 		 * *Note* that language model use may be subject to access restrictions and user consent. This function always returns a response-object
-		 * but its {@link LanguageModelResponse.result `result`}-property may indicate failure, e.g. due to
+		 * but its {@link LanguageModelChatResponse.result `result`}-property may indicate failure, e.g. due to
 		 *
 		 * - user consent not given
 		 * - quote limits exceeded
@@ -190,15 +192,16 @@ declare module 'vscode' {
 		 */
 		// TODO@API refine doc
 		// TODO@API define specific error types?
-		// TODO@API NAME: chatRequest
-		// TODO@API NAME: ChatRequestXYZMessage
-		// TODO@API NAME: ChatRequestResponse
-		export function chatRequest(languageModel: string, messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): Thenable<LanguageModelResponse>;
+		// TODO@API NAME: fetchChatResponse, makeChatRequest, chat, chatRequest sendChatRequest
+		// TODO@API NAME: LanguageModelChatXYZMessage
+		// TODO@API errors on everything that prevents us to make the actual request
+		// TODO@API ✅ NAME: LanguageModelChatResponse, ChatResponse, ChatRequestResponse
+		export function chatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: { [name: string]: any }, token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**
 		 * @see {@link chatRequest}
 		 */
-		export function chatRequest(languageModel: string, messages: LanguageModelMessage[], token: CancellationToken): Thenable<LanguageModelResponse>;
+		export function chatRequest(languageModel: string, messages: LanguageModelChatMessage[], token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		// TODO@API probe on having access
 		// TODO@API, BETTER?: ExtensionContext.permissions.languageModels: Record<string, boolean>;
