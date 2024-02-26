@@ -767,7 +767,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		let command = element?.command;
 		if (element && !command) {
 			if ((element instanceof ResolvableTreeItem) && element.hasResolve) {
-				await element.resolve(new CancellationTokenSource().token);
+				await element.resolve(CancellationToken.None);
 				command = element.command;
 			}
 		}
