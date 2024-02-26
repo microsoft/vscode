@@ -1059,7 +1059,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				group: this.group,
 				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
-		} else {
+		} else if (editor) {
 			MessageController.get(editor)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
 		}
 	}
