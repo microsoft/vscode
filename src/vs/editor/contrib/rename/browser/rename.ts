@@ -6,7 +6,8 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { CancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
@@ -192,9 +193,15 @@ class RenameController implements IEditorContribution {
 			this._progressService.showWhile(resolveLocationOperation, 250);
 			loc = await resolveLocationOperation;
 			trace('resolved rename location');
-		} catch (e) {
-			trace('resolve rename location failed', JSON.stringify(e, null, '\t'));
-			MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
+		} catch (e: unknown) {
+			if (e instanceof CancellationError) {
+				trace('resolve rename location cancelled', JSON.stringify(e, null, '\t'));
+			} else {
+				trace('resolve rename location failed', e instanceof Error ? e : JSON.stringify(e, null, '\t'));
+				if (typeof e === 'string' || isMarkdownString(e)) {
+					MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
+				}
+			}
 			return undefined;
 
 		} finally {
@@ -242,7 +249,9 @@ class RenameController implements IEditorContribution {
 		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
 		trace('received response from rename input field');
 
-		this._reportTelemetry(inputFieldResult);
+		if (newSymbolNamesProviders.length > 0) { // @ulugbekna: we're interested only in telemetry for rename suggestions currently
+			this._reportTelemetry(newSymbolNamesProviders.length, model.getLanguageId(), inputFieldResult);
+		}
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
@@ -330,36 +339,51 @@ class RenameController implements IEditorContribution {
 		this._renameInputField.focusPreviousRenameSuggestion();
 	}
 
-	private _reportTelemetry(inputFieldResult: boolean | RenameInputFieldResult) {
+	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameInputFieldResult) {
 		type RenameInvokedEvent =
 			{
 				kind: 'accepted' | 'cancelled';
-				/** provided only if kind = 'accepted' */
-				wantsPreview?: boolean;
+				languageId: string;
+				nRenameSuggestionProviders: number;
+
 				/** provided only if kind = 'accepted' */
 				source?: RenameInputFieldResult['source'];
 				/** provided only if kind = 'accepted' */
-				hadRenameSuggestions?: boolean;
+				nRenameSuggestions?: number;
+				/** provided only if kind = 'accepted' */
+				wantsPreview?: boolean;
 			};
 
 		type RenameInvokedClassification = {
 			owner: 'ulugbekna';
 			comment: 'A rename operation was invoked.';
+
 			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename operation was cancelled or accepted.' };
-			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Document language ID.' };
+			nRenameSuggestionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename providers for this document.'; isMeasurement: true };
+
 			source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new name came from the input field or rename suggestions.' };
-			hadRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user had rename suggestions.'; isMeasurement: true };
+			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got'; isMeasurement: true };
+			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
 		};
 
-		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>(
-			'renameInvokedEvent',
-			typeof inputFieldResult === 'boolean' ? { kind: 'cancelled' } : {
-				kind: 'accepted',
-				wantsPreview: inputFieldResult.wantsPreview,
-				source: inputFieldResult.source,
-				hadRenameSuggestions: inputFieldResult.hadRenameSuggestions,
+		const value: RenameInvokedEvent = typeof inputFieldResult === 'boolean'
+			? {
+				kind: 'cancelled',
+				languageId,
+				nRenameSuggestionProviders,
 			}
-		);
+			: {
+				kind: 'accepted',
+				languageId,
+				nRenameSuggestionProviders,
+
+				source: inputFieldResult.source,
+				nRenameSuggestions: inputFieldResult.nRenameSuggestions,
+				wantsPreview: inputFieldResult.wantsPreview,
+			};
+
+		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
 	}
 }
 

@@ -13,6 +13,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { IHoverAction } from 'vs/platform/hover/browser/hover';
+import type { URI } from 'vs/base/common/uri';
+import type { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;
@@ -30,6 +32,8 @@ export class TerminalLink extends DisposableStore implements ILink {
 		private readonly _xterm: Terminal,
 		readonly range: IBufferRange,
 		readonly text: string,
+		readonly uri: URI | undefined,
+		readonly parsedLink: IParsedLink | undefined,
 		readonly actions: IHoverAction[] | undefined,
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => Promise<void>,

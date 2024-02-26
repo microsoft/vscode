@@ -11,7 +11,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
+import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/testDiffProviderFactoryService';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';
@@ -512,18 +512,15 @@ suite('InteractiveChatController', function () {
 		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
 		await makeRequest();
 
-		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.LivePreview });
-		await makeRequest();
 
 		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Preview });
 		await makeRequest();
 
-		assert.strictEqual(requests.length, 3);
+		assert.strictEqual(requests.length, 2);
 
 		assert.strictEqual(requests[0].previewDocument.toString(), model.uri.toString()); // live
-		assert.strictEqual(requests[1].previewDocument.toString(), model.uri.toString()); // live preview
-		assert.strictEqual(requests[2].previewDocument.scheme, Schemas.vscode); // preview
-		assert.strictEqual(requests[2].previewDocument.authority, 'inline-chat');
+		assert.strictEqual(requests[1].previewDocument.scheme, Schemas.vscode); // preview
+		assert.strictEqual(requests[1].previewDocument.authority, 'inline-chat');
 	});
 
 	test('start with existing exchange', async function () {

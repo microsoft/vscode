@@ -307,7 +307,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('moreActions', "More Actions..."),
-			hoverDelegate: this.hoverDelegate
+			hoverDelegate: this.toolbarHoverDelegate
 		}));
 
 		this.updateGlobalToolbarActions();
