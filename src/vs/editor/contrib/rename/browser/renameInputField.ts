@@ -612,7 +612,7 @@ class CandidatesView {
 	}
 
 	private _pickListWidth(candidates: NewSymbolName[]): number {
-		const APPROXIMATE_CHAR_WIDTH = 7.2; // approximate # of pixes taken by a single character
+		const APPROXIMATE_CHAR_WIDTH = 8; // approximate # of pixes taken by a single character
 		const longestCandidateWidth = Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * APPROXIMATE_CHAR_WIDTH); // TODO@ulugbekna: use editor#typicalCharacterWidth or something
 		const width = Math.max(
 			this._minimumWidth,
