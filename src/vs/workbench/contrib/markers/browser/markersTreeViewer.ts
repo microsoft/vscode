@@ -295,7 +295,7 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
+			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
 		}));
 
 		// wrap the icon in a container that get the icon color as foreground color. That way, if the
@@ -342,9 +342,9 @@ class MarkerWidget extends Disposable {
 
 	private renderMultilineActionbar(marker: Marker, parent: HTMLElement): void {
 		const multilineActionbar = this.disposables.add(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
-			actionViewItemProvider: (action) => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === toggleMultilineAction) {
-					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
+					return new ToggleMultilineActionViewItem(undefined, action, { ...options, icon: true });
 				}
 				return undefined;
 			}

@@ -101,7 +101,7 @@ suite('WorkspaceContextService - Folder', () => {
 				userDataProfileService,
 				environmentService,
 				TestProductService,
-				disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService)),
+				disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)),
 				new SignService(TestProductService), new NullLogService())),
 			uriIdentityService,
 			new NullLogService(),
@@ -152,7 +152,7 @@ suite('WorkspaceContextService - Folder', () => {
 			userDataProfileService,
 			userDataProfilesService,
 			fileService,
-			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
 			uriIdentityService,
 			new NullLogService(),
 			new NullPolicyService()));
@@ -184,7 +184,7 @@ suite('WorkspaceContextService - Folder', () => {
 			userDataProfileService,
 			userDataProfilesService,
 			fileService,
-			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
 			uriIdentityService,
 			new NullLogService(),
 			new NullPolicyService()));

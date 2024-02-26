@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Schemas } from 'vs/base/common/network';
+import { IAction } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const configuration: IConfigurationNode = {
 	'id': 'examples',
@@ -50,98 +52,67 @@ suite('Markdown Setting Renderer Test', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let configurationService: TestConfigurationService;
+	let preferencesService: IPreferencesService;
+	let contextMenuService: IContextMenuService;
 	let settingRenderer: SimpleSettingRenderer;
 
 	suiteSetup(() => {
 		configurationService = new MarkdownConfigurationService();
+		preferencesService = <IPreferencesService>{};
+		contextMenuService = <IContextMenuService>{};
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(configuration);
-		settingRenderer = new SimpleSettingRenderer(configurationService);
+		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService, { publicLog2: () => { } } as any, { writeText: async () => { } } as any);
 	});
 
 	suiteTeardown(() => {
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([configuration]);
 	});
 
-	test('render boolean setting', () => {
+	test('render code setting button with value', () => {
 		const htmlRenderer = settingRenderer.getHtmlRenderer();
-		const htmlNoValue = '<span codesetting="example.booleanSetting">';
+		const htmlNoValue = '<code codesetting="example.booleanSetting">';
 		const renderedHtmlNoValue = htmlRenderer(htmlNoValue);
-		assert.equal(renderedHtmlNoValue,
-			`(<a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.booleanSetting%22%5D">View "Example: Boolean Setting" in Settings</a>)`);
-
-		const htmlWithValue = '<span codesetting="example.booleanSetting:true">';
-		const renderedHtmlWithValue = htmlRenderer(htmlWithValue);
-		assert.equal(renderedHtmlWithValue,
-			`(<a href="code-setting://example.booleanSetting/true">Enable "Example: Boolean Setting" now</a> | <a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.booleanSetting%22%5D">View in Settings</a>)`);
-
-		const htmlWithValueSetToFalse = '<span codesetting="example.booleanSetting2:false">';
-		const renderedHtmlWithValueSetToFalse = htmlRenderer(htmlWithValueSetToFalse);
-		assert.equal(renderedHtmlWithValueSetToFalse,
-			`(<a href="code-setting://example.booleanSetting2/false">Disable "Example: Boolean Setting2" now</a> | <a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.booleanSetting2%22%5D">View in Settings</a>)`);
-
-		const htmlSameValue = '<span codesetting="example.booleanSetting:false">';
-		const renderedHtmlSameValue = htmlRenderer(htmlSameValue);
-		assert.equal(renderedHtmlSameValue,
-			`(<a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.booleanSetting%22%5D">View "Example: Boolean Setting" in Settings</a>)`);
+		assert.strictEqual(renderedHtmlNoValue,
+			`<code tabindex="0"><a href="code-setting://example.booleanSetting" class="codesetting" title="View or change setting" aria-role="button"><svg width="14" height="14" viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.3h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM9.4 1l.5 2.4L12 2.1l2 2-1.4 2.1 2.4.4v2.8l-2.4.5L14 12l-2 2-2.1-1.4-.5 2.4H6.6l-.5-2.4L4 13.9l-2-2 1.4-2.1L1 9.4V6.6l2.4-.5L2.1 4l2-2 2.1 1.4.4-2.4h2.8zm.6 7c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zM8 9c.6 0 1-.4 1-1s-.4-1-1-1-1 .4-1 1 .4 1 1 1z"/></svg>
+			<span class="separator"></span>
+			<span class="setting-name">example.booleanSetting</span>
+		</a></code><code>`);
 	});
 
-	test('render string setting', () => {
-		const htmlRenderer = settingRenderer.getHtmlRenderer();
-		const htmlNoValue = '<span codesetting="example.stringSetting">';
-		const renderedHtmlNoValue = htmlRenderer(htmlNoValue);
-		assert.equal(renderedHtmlNoValue,
-			`(<a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.stringSetting%22%5D">View "Example: String Setting" in Settings</a>)`);
-
-		const htmlWithValue = '<span codesetting="example.stringSetting:two">';
-		const renderedHtmlWithValue = htmlRenderer(htmlWithValue);
-		assert.equal(renderedHtmlWithValue,
-			`(<a href="code-setting://example.stringSetting/two">Set "Example: String Setting" to "two" now</a> | <a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.stringSetting%22%5D">View in Settings</a>)`);
-
-		const htmlSameValue = '<span codesetting="example.stringSetting:one">';
-		const renderedHtmlSameValue = htmlRenderer(htmlSameValue);
-		assert.equal(renderedHtmlSameValue,
-			`(<a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.stringSetting%22%5D">View "Example: String Setting" in Settings</a>)`);
+	test('actions with no value', () => {
+		const uri = URI.parse(settingRenderer.settingToUriString('example.booleanSetting'));
+		const actions = settingRenderer.getActions(uri);
+		assert.strictEqual(actions?.length, 2);
+		assert.strictEqual(actions[0].label, 'View "Example: Boolean Setting" in Settings');
 	});
 
-	test('render number setting', () => {
-		const htmlRenderer = settingRenderer.getHtmlRenderer();
-		const htmlNoValue = '<span codesetting="example.numberSetting">';
-		const renderedHtmlNoValue = htmlRenderer(htmlNoValue);
-		assert.equal(renderedHtmlNoValue,
-			`(<a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.numberSetting%22%5D">View "Example: Number Setting" in Settings</a>)`);
-
-		const htmlWithValue = '<span codesetting="example.numberSetting:2">';
-		const renderedHtmlWithValue = htmlRenderer(htmlWithValue);
-		assert.equal(renderedHtmlWithValue,
-			`(<a href="code-setting://example.numberSetting/2">Set "Example: Number Setting" to 2 now</a> | <a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.numberSetting%22%5D">View in Settings</a>)`);
-
-		const htmlSameValue = '<span codesetting="example.numberSetting:3">';
-		const renderedHtmlSameValue = htmlRenderer(htmlSameValue);
-		assert.equal(renderedHtmlSameValue,
-			`(<a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.numberSetting%22%5D">View "Example: Number Setting" in Settings</a>)`);
-	});
-
-	test('updating and restoring the setting through the renderer changes what is rendered', async () => {
+	test('actions with value + updating and restoring', async () => {
 		await configurationService.setUserConfiguration('example', { stringSetting: 'two' });
-		const htmlRenderer = settingRenderer.getHtmlRenderer();
-		const htmlWithValue = '<span codesetting="example.stringSetting:three">';
-		const renderedHtmlWithValue = htmlRenderer(htmlWithValue);
-		assert.equal(renderedHtmlWithValue,
-			`(<a href="code-setting://example.stringSetting/three">Set "Example: String Setting" to "three" now</a> | <a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.stringSetting%22%5D">View in Settings</a>)`);
-		assert.equal(configurationService.getValue('example.stringSetting'), 'two');
+		const uri = URI.parse(settingRenderer.settingToUriString('example.stringSetting', 'three'));
 
-		// Update the value
-		await settingRenderer.updateSettingValue(URI.parse(`${Schemas.codeSetting}://example.stringSetting/three`));
-		assert.equal(configurationService.getValue('example.stringSetting'), 'three');
-		const renderedHtmlWithValueAfterUpdate = htmlRenderer(htmlWithValue);
-		assert.equal(renderedHtmlWithValueAfterUpdate,
-			`(<a href="code-setting://example.stringSetting/two">Restore value of "Example: String Setting"</a> | <a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.stringSetting%22%5D">View in Settings</a>)`);
+		const verifyOriginalState = (actions: IAction[] | undefined): actions is IAction[] => {
+			assert.strictEqual(actions?.length, 3);
+			assert.strictEqual(actions[0].label, 'Set "Example: String Setting" to "three"');
+			assert.strictEqual(actions[1].label, 'View in Settings');
+			assert.strictEqual(configurationService.getValue('example.stringSetting'), 'two');
+			return true;
+		};
 
-		// Restore the value
-		await settingRenderer.updateSettingValue(URI.parse(`${Schemas.codeSetting}://example.stringSetting/two`));
-		assert.equal(configurationService.getValue('example.stringSetting'), 'two');
-		const renderedHtmlWithValueAfterRestore = htmlRenderer(htmlWithValue);
-		assert.equal(renderedHtmlWithValueAfterRestore,
-			`(<a href="code-setting://example.stringSetting/three">Set "Example: String Setting" to "three" now</a> | <a href="command:workbench.action.openSettings?%5B%22%40id%3Aexample.stringSetting%22%5D">View in Settings</a>)`);
+		const actions = settingRenderer.getActions(uri);
+		if (verifyOriginalState(actions)) {
+			// Update the value
+			await actions[0].run();
+			assert.strictEqual(configurationService.getValue('example.stringSetting'), 'three');
+			const actionsUpdated = settingRenderer.getActions(uri);
+			assert.strictEqual(actionsUpdated?.length, 3);
+			assert.strictEqual(actionsUpdated[0].label, 'Restore value of "Example: String Setting"');
+			assert.strictEqual(actions[1].label, 'View in Settings');
+			assert.strictEqual(actions[2].label, 'Copy Setting ID');
+			assert.strictEqual(configurationService.getValue('example.stringSetting'), 'three');
+
+			// Restore the value
+			await actionsUpdated[0].run();
+			verifyOriginalState(settingRenderer.getActions(uri));
+		}
 	});
 });

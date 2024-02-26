@@ -33,6 +33,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -52,6 +53,7 @@ export class ReleaseNotesManager {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
@@ -78,8 +80,8 @@ export class ReleaseNotesManager {
 		}
 	}
 
-	public async show(version: string): Promise<boolean> {
-		const releaseNoteText = await this.loadReleaseNotes(version);
+	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
+		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
 		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
@@ -116,6 +118,10 @@ export class ReleaseNotesManager {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
 				} else if (e.message.type === 'scroll') {
 					this.scrollPosition = e.message.value.scrollPosition;
+				} else if (e.message.type === 'clickSetting') {
+					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
+					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
+					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), x, y);
 				}
 			}));
 
@@ -130,7 +136,7 @@ export class ReleaseNotesManager {
 		return true;
 	}
 
-	private async loadReleaseNotes(version: string): Promise<string> {
+	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			throw new Error('not found');
@@ -192,7 +198,12 @@ export class ReleaseNotesManager {
 		const fetchReleaseNotes = async () => {
 			let text;
 			try {
-				text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+				if (useCurrentFile) {
+					const file = this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue();
+					text = file ? file.substring(file.indexOf('#')) : undefined;
+				} else {
+					text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+				}
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}
@@ -204,6 +215,10 @@ export class ReleaseNotesManager {
 			return patchKeybindings(text);
 		};
 
+		// Don't cache the current file
+		if (useCurrentFile) {
+			return fetchReleaseNotes();
+		}
 		if (!this._releaseNotesCache.has(version)) {
 			this._releaseNotesCache.set(version, (async () => {
 				try {
@@ -219,9 +234,8 @@ export class ReleaseNotesManager {
 	}
 
 	private async onDidClickLink(uri: URI) {
-		if (uri.scheme === Schemas.codeSetting) {
-			await this._simpleSettingRenderer.updateSettingValue(uri);
-			this.updateHtml();
+		if (uri.scheme === Schemas.codeSetting || uri.scheme === Schemas.codeFeature) {
+			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
 				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings'] }))
@@ -254,6 +268,149 @@ export class ReleaseNotesManager {
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
+
+					/* codesetting */
+
+					code:has(.codesetting)+code {
+						display: none;
+					}
+
+					code:has(.codesetting) {
+						background-color: var(--vscode-textPreformat-background);
+						color: var(--vscode-textPreformat-foreground);
+						padding-left: 1px;
+						margin-right: 3px;
+						padding-right: 0px;
+					}
+
+					code:has(.codesetting):focus {
+						border: 1px solid var(--vscode-button-border, transparent);
+					}
+
+					.codesetting {
+						color: var(--vscode-textPreformat-foreground);
+						padding: 0px 1px 1px 0px;
+						font-size: 0px;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						outline-offset: 2px !important;
+						box-sizing: border-box;
+						text-align: center;
+						cursor: pointer;
+						display: inline;
+						margin-right: 3px;
+					}
+					.codesetting svg {
+						font-size: 12px;
+						text-align: center;
+						cursor: pointer;
+						border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+						outline: 1px solid transparent;
+						line-height: 9px;
+						margin-bottom: -5px;
+						padding-left: 0px;
+						padding-top: 2px;
+						padding-bottom: 2px;
+						padding-right: 2px;
+						display: inline-block;
+						text-decoration: none;
+						text-rendering: auto;
+						text-transform: none;
+						-webkit-font-smoothing: antialiased;
+						-moz-osx-font-smoothing: grayscale;
+						user-select: none;
+						-webkit-user-select: none;
+					}
+					.codesetting .setting-name {
+						font-size: 13px;
+						padding-left: 2px;
+						padding-right: 3px;
+						padding-top: 1px;
+						padding-bottom: 1px;
+						margin-left: -5px;
+						margin-top: -3px;
+					}
+					.codesetting:hover {
+						color: var(--vscode-textPreformat-foreground) !important;
+						text-decoration: none !important;
+					}
+					code:has(.codesetting):hover {
+						filter: brightness(140%);
+						text-decoration: none !important;
+					}
+					.codesetting:focus {
+						outline: 0 !important;
+						text-decoration: none !important;
+						color: var(--vscode-button-hoverForeground) !important;
+					}
+					.codesetting .separator {
+						width: 1px;
+						height: 14px;
+						margin-bottom: -3px;
+						display: inline-block;
+						background-color: var(--vscode-editor-background);
+						font-size: 12px;
+						margin-right: 8px;
+					}
+
+					/* codefeature */
+
+					.codefeature-container {
+						display: flex;
+					}
+
+					.codefeature {
+						position: relative;
+						display: inline-block;
+						width: 46px;
+						height: 24px;
+					}
+
+					.codefeature-container input {
+						display: none;
+					}
+
+					.toggle {
+						position: absolute;
+						cursor: pointer;
+						top: 0;
+						left: 0;
+						right: 0;
+						bottom: 0;
+						background-color: var(--vscode-button-background);
+						transition: .4s;
+						border-radius: 24px;
+					}
+
+					.toggle:before {
+						position: absolute;
+						content: "";
+						height: 16px;
+						width: 16px;
+						left: 4px;
+						bottom: 4px;
+						background-color: var(--vscode-editor-foreground);
+						transition: .4s;
+						border-radius: 50%;
+					}
+
+					input:checked+.codefeature > .toggle:before {
+						transform: translateX(22px);
+					}
+
+					.codefeature-container:has(input) .title {
+						line-height: 30px;
+						padding-left: 4px;
+						font-weight: bold;
+					}
+
+					.codefeature-container:has(input:checked) .title:after {
+						content: "${nls.localize('disableFeature', "Disable this feature")}";
+					}
+					.codefeature-container:has(input:not(:checked)) .title:after {
+						content: "${nls.localize('enableFeature', "Enable this feature")}";
+					}
+
 					header { display: flex; align-items: center; padding-top: 1em; }
 				</style>
 			</head>
@@ -288,6 +445,13 @@ export class ReleaseNotesManager {
 							input.checked = event.data.value;
 						} else if (event.data.type === 'setScroll') {
 							window.scrollTo(event.data.value.scrollPosition.x, event.data.value.scrollPosition.y);
+						} else if (event.data.type === 'setFeaturedSettings') {
+							for (const [settingId, value] of event.data.value) {
+								const setting = document.getElementById(settingId);
+								if (setting instanceof HTMLInputElement) {
+									setting.checked = value;
+								}
+							}
 						}
 					});
 
@@ -303,6 +467,28 @@ export class ReleaseNotesManager {
 						});
 					};
 
+					window.addEventListener('click', event => {
+						const href = event.target.href ?? event.target.parentElement.href ?? event.target.parentElement.parentElement?.href;
+						if (href && (href.startsWith('${Schemas.codeSetting}') || href.startsWith('${Schemas.codeFeature}'))) {
+							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.clientX, y: event.clientY }});
+							if (href.startsWith('${Schemas.codeFeature}')) {
+								const featureInput = event.target.parentElement.previousSibling;
+								if (featureInput instanceof HTMLInputElement) {
+									featureInput.checked = !featureInput.checked;
+								}
+							}
+						}
+					});
+
+					window.addEventListener('keypress', event => {
+						if (event.keyCode === 13) {
+							if (event.target.children.length > 0 && event.target.children[0].href) {
+								const clientRect = event.target.getBoundingClientRect();
+								vscode.postMessage({ type: 'clickSetting', value: { uri: event.target.children[0].href, x: clientRect.right , y: clientRect.bottom }});
+							}
+						}
+					});
+
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');
 					});
@@ -313,21 +499,31 @@ export class ReleaseNotesManager {
 
 	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {
 		if (e.affectsConfiguration('update.showReleaseNotes')) {
-			this.updateWebview();
+			this.updateCheckboxWebview();
 		}
 	}
 
 	private onDidChangeActiveWebviewEditor(input: WebviewInput | undefined): void {
 		if (input && input === this._currentReleaseNotes) {
-			this.updateWebview();
+			this.updateCheckboxWebview();
+			this.updateFeaturedSettingsWebview();
 		}
 	}
 
-	private updateWebview() {
+	private updateCheckboxWebview() {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.webview.postMessage({
 				type: 'showReleaseNotes',
 				value: this._configurationService.getValue<boolean>('update.showReleaseNotes')
+			});
+		}
+	}
+
+	private updateFeaturedSettingsWebview() {
+		if (this._currentReleaseNotes) {
+			this._currentReleaseNotes.webview.postMessage({
+				type: 'setFeaturedSettings',
+				value: this._simpleSettingRenderer.featuredSettingStates
 			});
 		}
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from 'vs/base/common/arraysFind';
-import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { commonPrefixLength, splitLinesIncludeSeparators } from 'vs/base/common/strings';
@@ -470,17 +470,30 @@ export class InlineCompletionsModel extends Disposable {
 }
 
 export function getSecondaryEdits(textModel: ITextModel, positions: readonly Position[], primaryEdit: SingleTextEdit): SingleTextEdit[] {
+	if (positions.length === 1) {
+		// No secondary cursor positions
+		return [];
+	}
 	const primaryPosition = positions[0];
 	const secondaryPositions = positions.slice(1);
+	const primaryEditStartPosition = primaryEdit.range.getStartPosition();
 	const primaryEditEndPosition = primaryEdit.range.getEndPosition();
 	const replacedTextAfterPrimaryCursor = textModel.getValueInRange(
 		Range.fromPositions(primaryPosition, primaryEditEndPosition)
 	);
-	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEdit.range.getStartPosition());
+	const positionWithinTextEdit = subtractPositions(primaryPosition, primaryEditStartPosition);
+	if (positionWithinTextEdit.lineNumber < 1) {
+		onUnexpectedError(new BugIndicatingError(
+			`positionWithinTextEdit line number should be bigger than 0.
+			Invalid subtraction between ${primaryPosition.toString()} and ${primaryEditStartPosition.toString()}`
+		));
+		return [];
+	}
 	const secondaryEditText = substringPos(primaryEdit.text, positionWithinTextEdit);
 	return secondaryPositions.map(pos => {
+		const posEnd = addPositions(subtractPositions(pos, primaryEditStartPosition), primaryEditEndPosition);
 		const textAfterSecondaryCursor = textModel.getValueInRange(
-			Range.fromPositions(pos, primaryEditEndPosition)
+			Range.fromPositions(pos, posEnd)
 		);
 		const l = commonPrefixLength(replacedTextAfterPrimaryCursor, textAfterSecondaryCursor);
 		const range = Range.fromPositions(pos, pos.delta(0, l));

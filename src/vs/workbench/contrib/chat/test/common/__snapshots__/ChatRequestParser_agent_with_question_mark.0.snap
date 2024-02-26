@@ -15,12 +15,7 @@
         id: "agent",
         metadata: { description: "" },
         provideSlashCommands: [Function provideSlashCommands],
-        lastSlashCommands: [
-          {
-            name: "subCommand",
-            description: ""
-          }
-        ]
+        getLastSlashCommands: [Function getLastSlashCommands]
       },
       kind: "agent"
     },
