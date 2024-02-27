@@ -30,6 +30,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -258,8 +259,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			this._state.change({ searchScope: null }, true);
 		} else {
 			if (this._editor.hasModel()) {
-				const selections = this._editor.getSelections();
-				selections.map(selection => {
+				let selections = this._editor.getSelections();
+				selections = selections.map(selection => {
 					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 						selection = selection.setEndPosition(
 							selection.endLineNumber - 1,
@@ -270,7 +271,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 						return selection;
 					}
 					return null;
-				}).filter(element => !!element);
+				}).filter((element): element is Selection => !!element);
 
 				if (selections.length) {
 					this._state.change({ searchScope: selections }, true);

@@ -279,9 +279,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		const actionBar = new ActionBar(actionsContainer, {
 			actionRunner: new TerminalContextActionRunner(),
-			actionViewItemProvider: action =>
+			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
 					: undefined
 		});
 
@@ -318,7 +318,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			const terminalIndex = group.terminalInstances.indexOf(instance);
 			if (terminalIndex === 0) {
 				prefix = `┌ `;
-			} else if (terminalIndex === group!.terminalInstances.length - 1) {
+			} else if (terminalIndex === group.terminalInstances.length - 1) {
 				prefix = `└ `;
 			} else {
 				prefix = `├ `;

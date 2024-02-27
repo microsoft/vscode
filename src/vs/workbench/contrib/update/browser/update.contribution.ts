@@ -17,7 +17,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { isWindows } from 'vs/base/common/platform';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from 'vs/workbench/contrib/update/common/update';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -38,9 +38,8 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		super({
 			id: ShowCurrentReleaseNotesActionId,
 			title: {
-				value: localize('showReleaseNotes', "Show Release Notes"),
+				...localize2('showReleaseNotes', "Show Release Notes"),
 				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
-				original: 'Show Release Notes'
 			},
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
@@ -60,7 +59,7 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 
 		try {
-			await showReleaseNotesInEditor(instantiationService, productService.version);
+			await showReleaseNotesInEditor(instantiationService, productService.version, false);
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));
@@ -71,7 +70,35 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 	}
 }
 
+export class ShowCurrentReleaseNotesFromCurrentFileAction extends Action2 {
+
+	constructor() {
+		super({
+			id: ShowCurrentReleaseNotesFromCurrentFileActionId,
+			title: {
+				...localize2('showReleaseNotesCurrentFile', "Open Current File as Release Notes"),
+				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
+			},
+			category: localize2('developerCategory', "Developer"),
+			f1: true,
+			precondition: RELEASE_NOTES_URL
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const productService = accessor.get(IProductService);
+
+		try {
+			await showReleaseNotesInEditor(instantiationService, productService.version, true);
+		} catch (err) {
+			throw new Error(localize('releaseNotesFromFileNone', "Cannot open the current file as Release Notes"));
+		}
+	}
+}
+
 registerAction2(ShowCurrentReleaseNotesAction);
+registerAction2(ShowCurrentReleaseNotesFromCurrentFileAction);
 
 // Update
 
@@ -148,10 +175,7 @@ class DownloadAction extends Action2 {
 	constructor() {
 		super({
 			id: DownloadAction.ID,
-			title: {
-				value: localize('openDownloadPage', "Download {0}", product.nameLong),
-				original: `Download ${product.downloadUrl}`
-			},
+			title: localize2('openDownloadPage', "Download {0}", product.nameLong),
 			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
 			f1: true,
 			menu: [{

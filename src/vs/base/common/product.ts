@@ -113,7 +113,7 @@ export interface IProductConfiguration {
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
-	readonly trustedExtensionAuthAccess?: readonly string[];
+	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];

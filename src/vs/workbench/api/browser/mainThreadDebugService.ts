@@ -30,6 +30,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
 	private readonly _extHostKnownSessions: Set<DebugSessionUUID>;
 	private readonly _visualizerHandles = new Map<string, IDisposable>();
+	private readonly _visualizerTreeHandles = new Map<string, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -92,7 +93,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				const dto: IThreadFocusDto = {
 					kind: 'thread',
 					threadId: thread?.threadId,
-					sessionId: session!.getId(),
+					sessionId: session.getId(),
 				};
 				this._proxy.$acceptStackFrameFocus(dto);
 			}
@@ -110,6 +111,20 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		}));
 		this.sendBreakpointsAndListen();
+	}
+
+	$registerDebugVisualizerTree(treeId: string, canEdit: boolean): void {
+		this.visualizerService.registerTree(treeId, {
+			disposeItem: id => this._proxy.$disposeVisualizedTree(id),
+			getChildren: e => this._proxy.$getVisualizerTreeItemChildren(treeId, e),
+			getTreeItem: e => this._proxy.$getVisualizerTreeItem(treeId, e),
+			editItem: canEdit ? ((e, v) => this._proxy.$editVisualizerTreeItem(e, v)) : undefined
+		});
+	}
+
+	$unregisterDebugVisualizerTree(treeId: string): void {
+		this._visualizerTreeHandles.get(treeId)?.dispose();
+		this._visualizerTreeHandles.delete(treeId);
 	}
 
 	$registerDebugVisualizer(extensionId: string, id: string): void {
@@ -202,14 +217,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
 						condition: l.condition,
 						hitCondition: l.hitCondition,
-						logMessage: l.logMessage
+						logMessage: l.logMessage,
+						mode: l.mode,
 					}
 				);
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
-				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
+				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id, dto.mode);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType, dto.mode);
 			}
 		}
 		return Promise.resolve();

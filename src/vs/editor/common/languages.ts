@@ -1652,6 +1652,19 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export interface NewSymbolName {
+	readonly newSymbolName: string;
+	readonly tags?: readonly NewSymbolNameTag[];
+}
+
+export interface NewSymbolNamesProvider {
+	provideNewSymbolNames(model: model.ITextModel, range: IRange, token: CancellationToken): ProviderResult<NewSymbolName[]>;
+}
+
 export interface Command {
 	id: string;
 	title: string;
@@ -2129,4 +2142,25 @@ export interface MappedEditsProvider {
 		context: MappedEditsContext,
 		token: CancellationToken
 	): Promise<WorkspaceEdit | null>;
+}
+
+export interface IInlineEdit {
+	text: string;
+	range: IRange;
+	accepted?: Command;
+	rejected?: Command;
+}
+
+export interface IInlineEditContext {
+	triggerKind: InlineEditTriggerKind;
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
+	freeInlineEdit(edit: T): void;
 }

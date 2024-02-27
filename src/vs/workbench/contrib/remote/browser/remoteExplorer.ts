@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -41,8 +41,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 export const VIEWLET_ID = 'workbench.view.remote';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
-	private contextKeyListener?: IDisposable;
-	private _activityBadge?: IDisposable;
+	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly activityBadge = this._register(new MutableDisposable<IDisposable>());
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
@@ -65,7 +65,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private async getViewContainer(): Promise<ViewContainer | null> {
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 			id: TUNNEL_VIEW_CONTAINER_ID,
-			title: { value: nls.localize('ports', "Ports"), original: 'Ports' },
+			title: nls.localize2('ports', "Ports"),
 			icon: portsViewIcon,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TUNNEL_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: TUNNEL_VIEW_CONTAINER_ID,
@@ -75,10 +75,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async enableForwardedPortsView() {
-		if (this.contextKeyListener) {
-			this.contextKeyListener.dispose();
-			this.contextKeyListener = undefined;
-		}
+		this.contextKeyListener.clear();
 
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 
@@ -88,10 +85,10 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				this.remoteExplorerService.enablePortsFeatures();
-				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
+				viewsRegistry.registerViews([tunnelPanelDescriptor], viewContainer);
 			}
 		} else {
-			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
+			this.contextKeyListener.value = this.contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
 					this.enableForwardedPortsView();
 				}
@@ -119,9 +116,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		this._activityBadge?.dispose();
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			this._activityBadge = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
+			this.activityBadge.value = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
 				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
 			});
 		}

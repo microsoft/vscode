@@ -9,7 +9,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -32,11 +32,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { AbstractExpressionDataSource, renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { VariablesRenderer, openContextMenuForVariableTreeElement } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { VariablesRenderer, VisualizedVariableRenderer, openContextMenuForVariableTreeElement } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const $ = dom.$;
@@ -127,9 +127,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer.setAttribute('role', 'tree');
 		const tip = dom.append(this.complexValueContainer, $('.tip'));
 		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
-		const dataSource = new DebugHoverDataSource();
+		const dataSource = this.instantiationService.createInstance(DebugHoverDataSource);
 		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
+		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [
+			this.instantiationService.createInstance(VariablesRenderer, linkeDetector),
+			this.instantiationService.createInstance(VisualizedVariableRenderer, linkeDetector),
+		],
 			dataSource, {
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
@@ -140,6 +143,8 @@ export class DebugHoverWidget implements IContentWidget {
 				listBackground: editorHoverBackground
 			}
 		});
+
+		this.toDispose.push(VisualizedVariableRenderer.rendererOnVisualizationRange(this.debugService.getViewModel(), this.tree));
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -403,13 +408,13 @@ class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExp
 	}
 }
 
-class DebugHoverDataSource implements IAsyncDataSource<IExpression, IExpression> {
+class DebugHoverDataSource extends AbstractExpressionDataSource<IExpression, IExpression> {
 
-	hasChildren(element: IExpression): boolean {
+	public override hasChildren(element: IExpression): boolean {
 		return element.hasChildren;
 	}
 
-	getChildren(element: IExpression): Promise<IExpression[]> {
+	protected override doGetChildren(element: IExpression): Promise<IExpression[]> {
 		return element.getChildren();
 	}
 }
@@ -420,6 +425,9 @@ class DebugHoverDelegate implements IListVirtualDelegate<IExpression> {
 	}
 
 	getTemplateId(element: IExpression): string {
+		if (element instanceof VisualizedExpression) {
+			return VisualizedVariableRenderer.ID;
+		}
 		return VariablesRenderer.ID;
 	}
 }

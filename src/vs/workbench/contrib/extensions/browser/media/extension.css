@@ -174,14 +174,16 @@
 	display: flex;
 	justify-content: flex-end;
 	padding-right: 7px;
-	height: 18px;
+	height: 24px;
 	overflow: hidden;
+	align-items: center;
 }
 
 .extension-list-item > .details > .footer > .author {
 	flex: 1;
 	display: flex;
 	align-items: center;
+	line-height: 24px;
 }
 
 .extension-list-item > .details > .footer > .author > .publisher-name {

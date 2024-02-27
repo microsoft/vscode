@@ -225,7 +225,24 @@ export async function main(argv: string[]): Promise<any> {
 				try {
 					const readFromStdinDone = new DeferredPromise<void>();
 					await readFromStdin(stdinFilePath, !!args.verbose, () => readFromStdinDone.complete());
-					processCallbacks.push(() => readFromStdinDone.p);
+					if (!args.wait) {
+
+						// if `--wait` is not provided, we keep this process alive
+						// for at least as long as the stdin stream is open to
+						// ensure that we read all the data.
+						// the downside is that the Code CLI process will then not
+						// terminate until stdin is closed, but users can always
+						// pass `--wait` to prevent that from happening (this is
+						// actually what we enforced until v1.85.x but then was
+						// changed to not enforce it anymore).
+						// a solution in the future would possibly be to exit, when
+						// the Code process exits. this would require some careful
+						// solution though in case Code is already running and this
+						// is a second instance telling the first instance what to
+						// open.
+
+						processCallbacks.push(() => readFromStdinDone.p);
+					}
 
 					// Make sure to open tmp file as editor but ignore it in the "recently open" list
 					addArg(argv, stdinFilePath);

@@ -216,7 +216,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (state.collapsedRegions && state.collapsedRegions.length > 0 && this.foldingModel) {
 			this._restoringViewState = true;
 			try {
-				this.foldingModel.applyMemento(state.collapsedRegions!);
+				this.foldingModel.applyMemento(state.collapsedRegions);
 			} finally {
 				this._restoringViewState = false;
 			}
@@ -476,7 +476,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				const surrounding = e.event.altKey;
 				let toToggle = [];
 				if (surrounding) {
-					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
+					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region) && !region.containedBy(otherRegion);
 					const toMaybeToggle = foldingModel.getRegionsInside(null, filter);
 					for (const r of toMaybeToggle) {
 						if (r.isCollapsed) {

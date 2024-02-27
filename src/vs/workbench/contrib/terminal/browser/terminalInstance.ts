@@ -26,7 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -118,6 +118,7 @@ const shellIntegrationSupportedShellTypes = [
 	PosixShellType.Bash,
 	PosixShellType.Zsh,
 	PosixShellType.PowerShell,
+	PosixShellType.Python,
 	WindowsShellType.PowerShell
 ];
 
@@ -363,7 +364,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
@@ -753,7 +754,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// starts up or reconnects
 		disposableTimeout(() => {
 			this._register(xterm.raw.onBell(() => {
-				if (this._configHelper.config.enableBell) {
+				if (this._configurationService.getValue(TerminalSettingId.EnableBell) || this._configurationService.getValue(TerminalSettingId.EnableVisualBell)) {
 					this.statusList.add({
 						id: TerminalStatus.Bell,
 						severity: Severity.Warning,
@@ -761,7 +762,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						tooltip: nls.localize('bellStatus', "Bell")
 					}, this._configHelper.config.bellDuration);
 				}
-				this._audioCueService.playAudioCue(AudioCue.terminalBell);
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalBell);
 			}));
 		}, 1000, this._store);
 		this._register(xterm.raw.onSelectionChange(async () => this._onSelectionChange()));

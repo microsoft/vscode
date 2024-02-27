@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Scanner, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
 
 suite('Context Key Scanner', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function tokenTypeToStr(token: Token) {
 		switch (token.type) {
 			case TokenType.LParen:

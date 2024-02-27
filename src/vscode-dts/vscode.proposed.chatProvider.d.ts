@@ -10,11 +10,13 @@ declare module 'vscode' {
 		part: string;
 	}
 
+	// @API extension ship a d.ts files for their options
+
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	 */
 	export interface ChatResponseProvider {
-		provideChatResponse(messages: ChatMessage[], options: { [name: string]: any }, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse2(messages: LanguageModelMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 	}
 
 	export interface ChatResponseProviderMetadata {
@@ -24,6 +26,13 @@ declare module 'vscode' {
 		 */
 		// TODO@API rename to model
 		name: string;
+
+		/**
+		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
+		 * the user must approve of another extension accessing the models contributed by this extension.
+		 * Additionally, the extension can provide a label that will be shown in the UI.
+		 */
+		auth?: true | { label: string };
 	}
 
 	export namespace chat {

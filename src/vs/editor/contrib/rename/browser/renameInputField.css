@@ -16,6 +16,7 @@
 .monaco-editor .rename-box .rename-input {
 	padding: 3px;
 	border-radius: 2px;
+	width: calc(100% - 8px); /* 4px padding on each side */
 }
 
 .monaco-editor .rename-box .rename-label {
