@@ -58,8 +58,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private readonly _responseSupportsIssueReportingContextKey!: IContextKey<boolean>;
 	private readonly _sessionResponseVoteContextKey!: IContextKey<string | undefined>;
 
-	private _requestId: number = 0;
-
 	private _messages = this._store.add(new Emitter<Message>());
 
 	private _currentRequest: ChatRequestModel | undefined;
@@ -225,10 +223,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		if (!this._lastInput) {
 			return;
 		}
-		this._chatAccessibilityService.acceptRequest();
+		const accessibilityRequestId = this._chatAccessibilityService.acceptRequest();
 		this._requestActiveContextKey.set(true);
 		const cancellationToken = new CancellationTokenSource().token;
 		let responseContent = '';
+		let firstCodeBlock: string | undefined;
+		let shellType: string | undefined;
 		const progressCallback = (progress: IChatProgress) => {
 			if (cancellationToken.isCancellationRequested) {
 				return;
@@ -239,6 +239,21 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			}
 			if (this._currentRequest) {
 				this._model?.acceptResponseProgress(this._currentRequest, progress);
+			}
+			if (!firstCodeBlock) {
+				const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
+				if (firstCodeBlockContent) {
+					const regex = /```(?<language>[\w\n]+)\n(?<content>[\s\S]*?)```/g;
+					const match = regex.exec(firstCodeBlockContent);
+					firstCodeBlock = match?.groups?.content.trim();
+					shellType = match?.groups?.language;
+					if (firstCodeBlock) {
+						this._chatWidget?.rawValue?.renderTerminalCommand(firstCodeBlock, accessibilityRequestId, shellType);
+						this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
+						this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+						this._messages.fire(Message.ACCEPT_INPUT);
+					}
+				}
 			}
 		};
 
@@ -280,25 +295,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				this._responseSupportsIssueReportingContextKey.set(supportIssueReporting);
 			}
 			this._lastResponseContent = responseContent;
+			if (!firstCodeBlock) {
+				this._chatWidget?.rawValue?.renderMessage(responseContent, accessibilityRequestId, this._currentRequest!.id);
+				this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
+				this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+				this._messages.fire(Message.ACCEPT_INPUT);
+			}
 		}
-		const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
-		const regex = /```(?<language>\w+)\n(?<content>[\s\S]*?)```/g;
-		const match = regex.exec(firstCodeBlockContent);
-		const codeBlock = match?.groups?.content.trim();
-		const shellType = match?.groups?.language;
-		this._requestId++;
-		if (cancellationToken.isCancellationRequested) {
-			return;
-		}
-		if (codeBlock) {
-			this._chatWidget?.rawValue?.renderTerminalCommand(codeBlock, this._requestId, shellType);
-			this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
-		} else {
-			this._chatWidget?.rawValue?.renderMessage(responseContent, this._requestId, this._currentRequest!.id);
-			this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
-		}
-		this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
-		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
 	updateInput(text: string, selectAll = true): void {
