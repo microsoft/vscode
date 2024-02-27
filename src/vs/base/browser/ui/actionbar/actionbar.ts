@@ -6,8 +6,8 @@
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -118,7 +118,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
 		};
 
-		this._hoverDelegate = options.hoverDelegate ?? this._register(getDefaultHoverDelegate('element', true));
+		this._hoverDelegate = options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 
 		if (this.options.actionRunner) {
 			this._actionRunner = this.options.actionRunner;

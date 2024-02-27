@@ -33,9 +33,9 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export interface ICompositeTitleLabel {
 
@@ -97,7 +97,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super(id, options, themeService, storageService, layoutService);
 
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
-		this.toolbarHoverDelegate = this._register(getDefaultHoverDelegate('element', true));
+		this.toolbarHoverDelegate = this._register(createInstantHoverDelegate());
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
