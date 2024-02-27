@@ -88,6 +88,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	}
 
 	override create(parent: HTMLElement): void {
+		console.log('inside of create of editor pane');
 		super.create(parent);
 
 		// Create Editor

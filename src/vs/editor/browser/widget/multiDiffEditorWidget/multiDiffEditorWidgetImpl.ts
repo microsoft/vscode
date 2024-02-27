@@ -374,6 +374,7 @@ class VirtualizedViewItem extends Disposable {
 	}
 
 	public setViewState(viewState: IMultiDiffDocState, tx: ITransaction): void {
+		console.log('inside of viewState : ', viewState);
 		this.viewModel.collapsed.set(viewState.collapsed, tx);
 
 		this._updateTemplateData(tx);

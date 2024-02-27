@@ -54,8 +54,9 @@ export async function getBulkEditPane(viewsService: IViewsService): Promise<Bulk
 	return undefined;
 }
 
-export async function getBulkEditPane2(instantiationService: IInstantiationService, edits: ResourceEdit[]): Promise<BulkEditPane | undefined> {
-	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' }, edits);
+export async function getBulkEditPane2(instantiationService: IInstantiationService, editor: BulkEditEditor, edits: ResourceEdit[]): Promise<BulkEditPane | undefined> {
+	console.log('inside of getBulkEditPane2');
+	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' }, editor, edits);
 }
 
 const enum State {
@@ -88,9 +89,12 @@ export class BulkEditPane extends ViewPane {
 	private _currentProvider?: BulkEditPreviewProvider;
 	private _fileOperations?: BulkFileOperation[];
 	private _resources?: IResourceDiffEditorInput[];
+	// private _bulkEditEditorInput: BulkEditEditorInput | undefined;
+	// private _editor: BulkEditEditor;
 
 	constructor(
 		options: IViewletViewOptions,
+		editor: BulkEditEditor,
 		private edits: ResourceEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -99,6 +103,7 @@ export class BulkEditPane extends ViewPane {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IEditorGroupsService private readonly groupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -113,13 +118,16 @@ export class BulkEditPane extends ViewPane {
 			keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
 		);
 
+		// this._editor = editor;
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
-		console.log('inside of constructor of bulk edit pane');
-		console.log('edits : ', edits);
 	}
+
+	// set input(input: BulkEditEditorInput) {
+	// 	this._bulkEditEditorInput = input;
+	// }
 
 	override dispose(): void {
 		this._tree.dispose();
@@ -128,7 +136,6 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	public override renderBody(parent: HTMLElement): void {
-		console.log('inside of renderBody of bulk edit pane');
 		super.renderBody(parent);
 
 		const resourceLabels = this._instaService.createInstance(
@@ -166,13 +173,9 @@ export class BulkEditPane extends ViewPane {
 			}
 		);
 		this._tree.layout(500, 500);
-		console.log('this._treeDataSource : ', this._treeDataSource);
-		console.log('this._tree inside of renderBody : ', this._tree);
-		console.log('treeContainer : ', treeContainer);
-		console.log('contentContainer : ', contentContainer);
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
-		this._disposables.add(this._tree.onDidOpen(e => this._openElementInMultiDiffEditor(e)));
+		this._disposables.add(this._tree.onDidOpen(e => this._revealInMultiDiffEditor(e)));
 
 		// buttons
 		const buttonsContainer = document.createElement('div');
@@ -200,7 +203,6 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	protected override layoutBody(height: number, width: number): void {
-		console.log('inside of layoutBody');
 		super.layoutBody(height, width);
 		const treeHeight = height - 50;
 		this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
@@ -212,8 +214,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	async setInput(edit: IResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
-		console.log('inside of setInput of BulkEditPane');
-		console.log('edits : ', edit);
+		console.log('inside of setInput of bulk edit pane');
 		this.edits = edit;
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
@@ -244,10 +245,81 @@ export class BulkEditPane extends ViewPane {
 			this._currentResolve = resolve;
 			this._setTreeInput(input);
 
+			const fileOperations = this._tree.getInput()?.fileOperations;
+			if (fileOperations) {
+				this._resolveResources(fileOperations);
+			}
+
 			// refresh when check state changes
-			this._sessionDisposables.add(input.checked.onDidChange(() => {
+			this._sessionDisposables.add(input.checked.onDidChange((e) => {
+
+				console.log('when input checked state changed');
 				this._tree.updateChildren();
 				this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
+
+				/*
+				// In  the following however we want to open the editor with the edits less than what we wanted
+				// Because we need to update the edits inside of the bulk edit editor
+				console.log('input : ', input);
+				console.log('e : ', e);
+
+				if (!(e instanceof ResourceTextEdit)) {
+					return;
+				}
+
+				const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
+				const label = 'Refactor Preview';
+				// Maybe need to add the reveal data in here
+				const options: Mutable<IMultiDiffEditorOptions> = {};
+				// The edits changed, so need to update them, the resources have remained the same
+
+				console.log('this.edits ; ', this.edits);
+
+				const isChecked = input.checked.isChecked(e);
+				const edits = JSON.parse(JSON.stringify(this.edits));
+				if (isChecked) {
+					// is checked now, so should be added
+					edits.push(e);
+				} else {
+					const index = edits.indexOf(e);
+					edits.splice(index, 1);
+				}
+				console.log('edits : ', edits);
+				this.edits = edits;
+
+				console.log('this._resources : ', this._resources);
+				console.log('this._bulkEditEditorInput: ', this._bulkEditEditorInput);
+				// need to update edits from the bulk edit editor
+
+				if (this._bulkEditEditorInput) {
+					this._bulkEditEditorInput.edits = this.edits;
+					// need to update the actual files with the edits too
+					// The diff will be automatically computed
+				}
+
+				console.log('this._editor : ', this._editor);
+				console.log('this._editor.input : ', this._editor?.input);
+				*/
+				// Maybe don't need to close the editor
+				/*
+				if (this._editor && this._editor.input) {
+					console.log('before closing the editor');
+					await this._editorService.closeEditor({ editor: this._editor.input, groupId: this.groupService.activeGroup.id });
+				}
+				*/
+				/*
+				// Maybe don't need the above
+				console.log('before opening the editor');
+				await this._editorService.openEditor({
+					edits: this.edits,
+					refactorPreviewSource,
+					diffResources: this._resources,
+					label,
+					options,
+					description: label
+				}, ACTIVE_GROUP);
+				*/
+				// this.edits = edits;
 			}));
 		});
 	}
@@ -257,7 +329,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private async _setTreeInput(input: BulkFileOperations) {
-		console.log('inside of _setTreeInput');
+
 		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
 		await this._tree.setInput(input, viewState);
 		this._tree.domFocus();
@@ -304,7 +376,6 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
-		console.log('Inside of _done');
 		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 		this._currentInput = undefined;
 		this._setState(State.Message);
@@ -351,8 +422,8 @@ export class BulkEditPane extends ViewPane {
 		}
 	}
 
-	private async _openElementInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
-		console.log('inside of __openElementInMultiDiffEditor');
+	private async _revealInMultiDiffEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
+
 		const fileOperations = this._currentInput?.fileOperations;
 		if (!fileOperations) {
 			return;
@@ -380,8 +451,7 @@ export class BulkEditPane extends ViewPane {
 		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
 		const edits = this.edits;
-		console.log('edits : ', edits);
-		this._editorService.openEditor({
+		await this._editorService.openEditor({
 			edits,
 			refactorPreviewSource,
 			diffResources,
@@ -423,6 +493,7 @@ export class BulkEditPane extends ViewPane {
 		}
 		this._fileOperations = fileOperations;
 		this._resources = resources;
+		console.log('this._resources inside of _resolvedSource : ', this._resources);
 		return resources;
 	}
 
@@ -487,7 +558,6 @@ export class OpenMultiDiffEditor extends Disposable {
 			}
 		);
 		this._tree.layout(500, 500);
-		console.log('inside of constructor of bulk edit pane');
 	}
 
 	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
@@ -500,32 +570,22 @@ export class OpenMultiDiffEditor extends Disposable {
 	}
 
 	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<void> {
-		console.log('inside of setInput of OpenMultiDiffEditor');
 		this._sessionDisposables.clear();
 		this._treeViewStates.clear();
 
-		// if (this._currentResolve) {
-		// 	this._currentResolve(undefined);
-		// 	this._currentResolve = undefined;
-		// }
-
 		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
-		console.log('input : ', input);
 
 		this._currentProvider = this._instaService.createInstance(BulkEditPreviewProvider, input);
 		this._sessionDisposables.add(this._currentProvider);
 		this._sessionDisposables.add(input);
 
-		//
 		const hasCategories = input.categories.length > 1;
 		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
 
 		this._currentInput = input;
 
-		// this._currentResolve = resolve;
 		this._setTreeInput(input);
 
-		// refresh when check state changes
 		this._sessionDisposables.add(input.checked.onDidChange(() => {
 			this._tree.updateChildren();
 		}));
@@ -536,7 +596,6 @@ export class OpenMultiDiffEditor extends Disposable {
 	}
 
 	private async _setTreeInput(input: BulkFileOperations) {
-		console.log('inside of _setTreeInput');
 		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
 		await this._tree.setInput(input, viewState);
 		this._tree.domFocus();
@@ -571,9 +630,6 @@ export class OpenMultiDiffEditor extends Disposable {
 		}
 		const _edits = edits as ResourceTextEdit[];
 
-		console.log('inside of _openElementInMultiDiffEditor');
-		console.log('_edits : ', _edits);
-
 		const diffResources = await this._resolveResources(_edits);
 		const options: Mutable<IMultiDiffEditorOptions> = {
 			viewState: {
@@ -585,7 +641,6 @@ export class OpenMultiDiffEditor extends Disposable {
 		};
 		const refactorPreviewSource = URI.from({ scheme: 'refactor-preview' });
 		const label = 'Refactor Preview';
-		console.log('before opening the editor');
 
 		const bulkEditEditor = await this._editorService.openEditor({
 			refactorPreviewSource,
@@ -596,11 +651,7 @@ export class OpenMultiDiffEditor extends Disposable {
 			description: label
 		}, ACTIVE_GROUP) as BulkEditEditor;
 
-		console.log('bulkEditEditor : ', bulkEditEditor);
-		// This method should instead return the refactor preview from within the bulk edit editor and await the set input method from there
 		const inputEditsAfterResolving = await bulkEditEditor.inputEdits;
-
-		// need to close the editor that was opened for the bulk edit pane
 		if (bulkEditEditor.input) {
 			await this._editorService.closeEditor({ editor: bulkEditEditor.input, groupId: this._groupService.activeGroup.id });
 		}

@@ -42,6 +42,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	override create(parent: HTMLElement): void {
+		console.log('inside of create of pane composite');
 		super.create(parent);
 		this.viewPaneContainer = this._register(this.createViewPaneContainer(parent));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));

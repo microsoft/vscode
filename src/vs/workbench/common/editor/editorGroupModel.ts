@@ -378,6 +378,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 						targetIndex--; // accomodate for the fact that the preview editor closes
 					}
 
+					console.log('inside of replaceEditor');
 					this.replaceEditor(this.preview, newEditor, targetIndex, !makeActive);
 				}
 
@@ -495,6 +496,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	private replaceEditor(toReplace: EditorInput, replaceWith: EditorInput, replaceIndex: number, openNext = true): void {
+		console.log('inside of replaceEditor');
 		const closeResult = this.doCloseEditor(toReplace, EditorCloseContext.REPLACE, openNext); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
@@ -528,8 +530,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	private doCloseEditor(candidate: EditorInput, context: EditorCloseContext, openNext: boolean): IEditorCloseResult | undefined {
+		console.log('doCloseEditor');
+		console.log('candidate : ', candidate);
+
 		const index = this.indexOf(candidate);
 		if (index === -1) {
+			console.log('inside of first if statement');
+
 			return undefined; // not found
 		}
 
@@ -538,6 +545,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		// Active Editor closed
 		if (openNext && this.matches(this.active, editor)) {
+			console.log('inside of second if statement');
 
 			// More than one editor
 			if (this.mru.length > 1) {
@@ -563,6 +571,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		// Preview Editor closed
 		if (this.matches(this.preview, editor)) {
+			console.log('inside of third if statement');
+
 			this.preview = null;
 		}
 
@@ -660,6 +670,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	private doSetActive(editor: EditorInput, editorIndex: number): void {
+		console.log('inside of doSetActive');
+
 		if (this.matches(this.active, editor)) {
 			return; // already active
 		}
@@ -961,7 +973,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	private matches(editor: EditorInput | null | undefined, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchEditorOptions): boolean {
+		console.log('inside of matches of editor group model');
+		console.log('editor : ', editor);
+		console.log('options : ', options);
 		if (!editor || !candidate) {
+			console.log('early false return');
 			return false;
 		}
 

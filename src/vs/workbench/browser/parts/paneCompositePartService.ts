@@ -46,6 +46,7 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 	}
 
 	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
+		console.log('open openPaneComposite');
 		return this.getPartByLocation(viewContainerLocation).openPaneComposite(id, focus);
 	}
 

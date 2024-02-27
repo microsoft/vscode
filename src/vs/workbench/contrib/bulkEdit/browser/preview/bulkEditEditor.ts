@@ -56,10 +56,12 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
+	// private _initialViewModel: MultiDiffEditorViewModel | undefined;
 	private _refactorViewPane: BulkEditPane | undefined;
 	private _refactorViewContainer: HTMLElement | undefined;
 	private _edits: ResourceEdit[] = [];
 	private _inputEdits: Promise<ResourceEdit[] | undefined> | undefined;
+	// private _bulkEditEditorInput: BulkEditEditorInput | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -102,7 +104,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		));
 		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 		console.log('before getBulkEditPane2');
-		this._refactorViewPane = await getBulkEditPane2(this.instantiationService, this._edits);
+		this._refactorViewPane = await getBulkEditPane2(this.instantiationService, this, this._edits);
 		console.log('view of getBulkEditPane2: ', this._refactorViewPane);
 		this._renderRefactorPreviewPane();
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -118,6 +120,11 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		if (this._refactorViewPane && this._refactorViewContainer) {
 			DOM.clearNode(this._refactorViewContainer);
 			this._inputEdits = this._refactorViewPane.setInput(this._edits, CancellationToken.None);
+			// console.log('_renderRefactorPreviewPane');
+			// console.log('this._bulkEditEditorInput : ', this._bulkEditEditorInput);
+			// if (this._bulkEditEditorInput) {
+			// 	this._refactorViewPane.input = this._bulkEditEditorInput;
+			// }
 			this._refactorViewPane.renderBody(this._refactorViewContainer);
 			this._refactorViewPane.focus();
 			this._refactorViewPane.maximumBodySize = 100;
@@ -131,21 +138,48 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 
 		// In here, we can remove the editors if there are editors to remove
-		this._edits = input.edits;
+		// this._bulkEditEditorInput = input;
+		this._edits = input._edits;
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
+		// this._initialViewModel = this._viewModel;
+		console.log('this._viewModel : ', this._viewModel);
 		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
 
 		const viewState = this.loadEditorViewState(input, context);
+		console.log('viewState : ', viewState);
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
 		this._renderRefactorPreviewPane();
 		this._reveal(options);
+		console.log('end of setInput');
 	}
 
-	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
+	override async setOptions(options: IMultiDiffEditorOptions | undefined): Promise<void> {
+		console.log('setOptions options : ', options);
 		this._reveal(options);
+
+		/*
+		// Updating the view model
+		console.log('this._bulkEditEditorInput : ', this._bulkEditEditorInput);
+		if (this._bulkEditEditorInput) {
+			// TODO: the bulk edit editor edits are not update correctly
+			// TODO: make following set view model work correctly
+			// TODO: The actual files need to be change in the temporary files for the change to be propagated, how to change the transient files?
+			this._viewModel = await this._bulkEditEditorInput.getViewModel();
+
+			console.log('this._viewModel : ', this._viewModel);
+			const items = this._viewModel.items.get();
+			const _item = items[0];
+			console.log('_item.lastTemplateData.get().selections : ', _item.lastTemplateData.get().selections);
+			console.log('this._viewModel.items.get() : ', items);
+			console.log('this._viewModel.model : ', this._viewModel.model);
+			console.log('this._multiDiffEditorWidget :', this._multiDiffEditorWidget);
+			this._multiDiffEditorWidget!.setViewModel(this._viewModel);
+
+		}
+		*/
 	}
 
 	private _reveal(options: IMultiDiffEditorOptions | undefined): void {
@@ -293,7 +327,7 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 		public readonly refactorPreviewSource: URI,
 		public readonly label: string | undefined,
 		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
-		public readonly edits: ResourceEdit[],
+		public _edits: ResourceEdit[],
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -322,7 +356,7 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 				originalUri: resource.original?.toString(),
 				modifiedUri: resource.modified?.toString(),
 			})),
-			edits: this.edits,
+			edits: this._edits,
 		};
 	}
 
@@ -435,18 +469,30 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 		};
 	});
 
+	// set edits(edits: ResourceEdit[]) {
+	// 	console.log('inside of edits with edits : ', edits);
+	// 	this._edits = edits;
+	// }
+
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		console.log('inside of matches of bulk edit editor input');
 		console.log('otherInput : ', otherInput);
 		if (super.matches(otherInput)) {
+			console.log('first return');
 			console.log('return true');
 			return true;
 		}
 
 		if (otherInput instanceof BulkEditEditorInput) {
-			console.log('return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString() : ', this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString() && this.edits.toString() === otherInput.edits.toString());
-			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString()
-				&& this.edits.toString() === otherInput.edits.toString();
+
+			// console.log('second return');
+			// console.log('this.edits : ', this._edits);
+			// console.log('otherInput.edits : ', otherInput._edits);
+			// console.log('return : ', this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString());
+			// && this._edits.toString() === otherInput._edits.toString())
+
+			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString();
+			// && this._edits.toString() === otherInput._edits.toString()
 		}
 
 		console.log('return false');

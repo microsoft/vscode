@@ -55,6 +55,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined): void {
+		console.log('inside of setViewModel of MultiDiffEditorWidget');
 		this._viewModel.set(viewModel, undefined);
 	}
 
@@ -75,6 +76,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public setViewState(viewState: IMultiDiffEditorViewState): void {
+		console.log('isnide of setViewState');
 		this._widgetImpl.get().setViewState(viewState);
 	}
 
