@@ -5,6 +5,7 @@
 
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalStickyScrollContribution } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollContribution';
+
 import 'vs/css!./media/stickyScroll';
 import './terminalStickyScrollColorRegistry';
 
