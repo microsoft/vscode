@@ -987,11 +987,23 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 
 			case EventName.createDirectoryWatcher:
-				this.createFileSystemWatcher(event.body.id, new vscode.RelativePattern(vscode.Uri.file(event.body.path), event.body.recursive ? '**' : '*'), [ /* TODO need to fill in excludes list */]);
+				this.createFileSystemWatcher(
+					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
+					new vscode.RelativePattern(
+						vscode.Uri.file((event.body as Proto.CreateDirectoryWatcherEventBody).path),
+						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
+					)
+				);
 				break;
 
 			case EventName.createFileWatcher:
-				this.createFileSystemWatcher(event.body.id, event.body.path, []);
+				this.createFileSystemWatcher(
+					(event.body as Proto.CreateFileWatcherEventBody).id,
+					new vscode.RelativePattern(
+						vscode.Uri.file((event.body as Proto.CreateFileWatcherEventBody).path),
+						'*'
+					)
+				);
 				break;
 
 			case EventName.closeFileWatcher:
@@ -1002,22 +1014,25 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private createFileSystemWatcher(
 		id: number,
-		pattern: vscode.GlobPattern,
-		excludes: string[]
+		pattern: vscode.RelativePattern
 	) {
 		const disposable = new DisposableStore();
-		const watcher = typeof pattern === 'string' ?
-			disposable.add(vscode.workspace.createFileSystemWatcher(pattern)) :
-			disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes }));
+
+		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO need to fill in excludes list */ }));
+
 		disposable.add(watcher.onDidChange(changeFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, path: changeFile.fsPath, eventType: 'update' })
+			this.executeWithoutWaitingForResponse('watchChange', { id, path: changeFile.fsPath, eventType: 'update' } satisfies Proto.WatchChangeRequestArgs)
 		));
 		disposable.add(watcher.onDidCreate(createFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, path: createFile.fsPath, eventType: 'create' })
+			this.executeWithoutWaitingForResponse('watchChange', { id, path: createFile.fsPath, eventType: 'create' } satisfies Proto.WatchChangeRequestArgs)
 		));
 		disposable.add(watcher.onDidDelete(deletedFile =>
-			this.executeWithoutWaitingForResponse('watchChange', { id, path: deletedFile.fsPath, eventType: 'delete' })
+			this.executeWithoutWaitingForResponse('watchChange', { id, path: deletedFile.fsPath, eventType: 'delete' } satisfies Proto.WatchChangeRequestArgs)
 		));
+
+		if (this.watches.has(id)) {
+			this.closeFileSystemWatcher(id);
+		}
 		this.watches.set(id, disposable);
 	}
 
