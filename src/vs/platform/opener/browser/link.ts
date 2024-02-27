@@ -12,6 +12,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import 'vs/css!./link';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export interface ILinkDescriptor {
 	readonly label: string | HTMLElement;
@@ -28,6 +30,8 @@ export interface ILinkOptions {
 export class Link extends Disposable {
 
 	private el: HTMLAnchorElement;
+	private hover?: ICustomHover;
+
 	private _enabled: boolean = true;
 
 	get enabled(): boolean {
@@ -68,9 +72,7 @@ export class Link extends Disposable {
 			this.el.tabIndex = link.tabIndex;
 		}
 
-		if (typeof link.title !== 'undefined') {
-			this.el.title = link.title;
-		}
+		this.setTooltip(link.title);
 
 		this._link = link;
 	}
@@ -86,8 +88,9 @@ export class Link extends Disposable {
 		this.el = append(container, $('a.monaco-link', {
 			tabIndex: _link.tabIndex ?? 0,
 			href: _link.href,
-			title: _link.title
 		}, _link.label));
+
+		this.setTooltip(_link.title);
 
 		this.el.setAttribute('role', 'button');
 
@@ -116,5 +119,13 @@ export class Link extends Disposable {
 		}));
 
 		this.enabled = true;
+	}
+
+	private setTooltip(title: string | undefined): void {
+		if (!this.hover && title) {
+			this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.el, title));
+		} else if (this.hover) {
+			this.hover.update(title);
+		}
 	}
 }

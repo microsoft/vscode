@@ -387,7 +387,7 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
