@@ -84,7 +84,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
@@ -299,7 +299,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
