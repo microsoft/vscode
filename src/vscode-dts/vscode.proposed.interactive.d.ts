@@ -99,11 +99,11 @@ declare module 'vscode' {
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
 
-		// Fires whenver the enablements have changed and should be rechecked
-		onDidChangeEnablementStatus: Event<void>;
+		// Fires whenver the disablements have changed and should be rechecked
+		onDidChangeDisablementStatus: Event<void>;
 
-		// Provides whether or not the session provider is enabled for this given resource. If false must provide a reason.
-		provideEnablementStatus(resource: Uri, token: CancellationToken): ProviderResult<true | { reason: string }>;
+		// Provides whether or not the session provider is disabled for this given resource. The string represents the reason, undefined means it is not disabled.
+		provideDisablementStatus(resource: Uri, token: CancellationToken): ProviderResult<string | undefined>;
 
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;

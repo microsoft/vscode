@@ -31,7 +31,7 @@ export class InlineChatServiceImpl implements IInlineChatService {
 		const rm = this._entries.push(provider);
 		this._ctxHasProvider.set(true);
 		this._onDidChangeProviders.fire({ added: provider });
-		this._providerEventListeners.set(provider, provider.onDidChangeEnablementStatus(() => this._onDidChangeProvidersEnablementStatus.fire()));
+		this._providerEventListeners.set(provider, provider.onDidChangeDisablementStatus(() => this._onDidChangeProvidersEnablementStatus.fire()));
 
 		return toDisposable(() => {
 			rm();

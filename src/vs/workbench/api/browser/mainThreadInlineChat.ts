@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from 'vs/base/common/lifecycle';
+import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
@@ -12,11 +12,14 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { Emitter } from 'vs/base/common/event';
 
+interface IInlineChatRegistrationEntry extends IDisposable {
+	disablementChangeEmitter: Emitter<void>;
+}
+
 @extHostNamedCustomer(MainContext.MainThreadInlineChat)
 export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
-	private readonly _registrations = new DisposableMap<number>();
-	private readonly _changeEvents = new DisposableMap<number, Emitter<void>>();
+	private readonly _registrations = new DisposableMap<number, IInlineChatRegistrationEntry>();
 	private readonly _proxy: ExtHostInlineChatShape;
 
 	private readonly _progresses = new Map<string, IProgress<IInlineChatProgressItem>>();
@@ -31,25 +34,24 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	dispose(): void {
 		this._registrations.dispose();
-		this._changeEvents.dispose();
 	}
 
-	$onDidChangeEnablement(handle: number): void {
-		if (this._registrations.has(handle)) {
-			this._changeEvents.get(handle)?.fire();
+	$onDidChangeDisablement(handle: number): void {
+		const entry = this._registrations.get(handle);
+		if (entry) {
+			entry.disablementChangeEmitter.fire();
 		}
 	}
 
 	async $registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsFollowups: boolean, supportIssueReporting: boolean): Promise<void> {
-		const onDidChangeEnablement: Emitter<void> = new Emitter<void>();
-		this._changeEvents.set(handle, onDidChangeEnablement);
+		const onDidChangeDisablement: Emitter<void> = new Emitter<void>();
 		const unreg = this._inlineChatService.addProvider({
 			debugName,
 			label,
 			supportIssueReporting,
-			onDidChangeEnablementStatus: onDidChangeEnablement.event,
-			provideEnablementStatus: async (resource, token) => {
-				return this._proxy.$provideEnablementStatus(handle, resource, token);
+			onDidChangeDisablementStatus: onDidChangeDisablement.event,
+			provideDisablementStatus: async (resource, token) => {
+				return this._proxy.$provideDisablementStatus(handle, resource, token);
 			},
 			prepareInlineChatSession: async (model, range, token) => {
 				const session = await this._proxy.$prepareSession(handle, model.uri, range, token);
@@ -83,7 +85,13 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 			}
 		});
 
-		this._registrations.set(handle, unreg);
+		this._registrations.set(handle, {
+			disablementChangeEmitter: onDidChangeDisablement,
+			dispose: () => {
+				unreg.dispose();
+				onDidChangeDisablement.dispose();
+			}
+		});
 	}
 
 	async $handleProgressChunk(requestId: string, chunk: IInlineChatProgressItem): Promise<void> {
@@ -92,6 +100,5 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	async $unregisterInteractiveEditorProvider(handle: number): Promise<void> {
 		this._registrations.deleteAndDispose(handle);
-		this._changeEvents.deleteAndDispose(handle);
 	}
 }

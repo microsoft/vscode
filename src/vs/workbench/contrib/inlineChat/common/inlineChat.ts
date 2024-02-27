@@ -120,9 +120,9 @@ export interface IInlineChatSessionProvider {
 	label: string;
 	supportIssueReporting?: boolean;
 
-	onDidChangeEnablementStatus: Event<void>;
+	onDidChangeDisablementStatus: Event<void>;
 
-	provideEnablementStatus(resource: URI, token: CancellationToken): ProviderResult<true | { reason: string }>;
+	provideDisablementStatus(resource: URI, token: CancellationToken): ProviderResult<string | undefined>;
 
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 

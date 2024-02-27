@@ -134,9 +134,9 @@ suite('InlineChatSession', function () {
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
 			label: 'Unit Test',
-			onDidChangeEnablementStatus: Event.None,
-			provideEnablementStatus(resource, token) {
-				return true;
+			onDidChangeDisablementStatus: Event.None,
+			provideDisablementStatus(resource, token) {
+				return undefined;
 			},
 			prepareInlineChatSession() {
 				return {

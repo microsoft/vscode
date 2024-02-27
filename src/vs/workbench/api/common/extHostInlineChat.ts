@@ -97,8 +97,8 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
 		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata?.label ?? extension.displayName ?? extension.name, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', typeof provider.provideFollowups === 'function', metadata?.supportReportIssue ?? false);
-		const enablementChangeListener = provider.onDidChangeEnablementStatus(() => {
-			this._proxy.$onDidChangeEnablement(wrapper.handle);
+		const enablementChangeListener = provider.onDidChangeDisablementStatus(() => {
+			this._proxy.$onDidChangeDisablement(wrapper.handle);
 		});
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
@@ -107,19 +107,19 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		});
 	}
 
-	async $provideEnablementStatus(handle: number, uri: UriComponents, token: CancellationToken): Promise<true | { reason: string }> {
+	async $provideDisablementStatus(handle: number, uri: UriComponents, token: CancellationToken): Promise<string | undefined> {
 		const entry = this._inputProvider.get(handle);
 		if (!entry) {
 			this._logService.warn('CANNOT provide enablement status because the PROVIDER IS GONE');
-			return { reason: 'provider is gone' };
+			return 'Provider is gone';
 		}
 
 		const revivedURI = URI.revive(uri);
-		const enablementStatus = await entry.provider.provideEnablementStatus(revivedURI, token);
-		if (enablementStatus === null || enablementStatus === undefined) {
-			return true;
+		const disablementStatus = await entry.provider.provideDisablementStatus(revivedURI, token);
+		if (disablementStatus === null || disablementStatus === undefined) {
+			return undefined;
 		}
-		return enablementStatus;
+		return disablementStatus;
 	}
 
 	async $prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined> {

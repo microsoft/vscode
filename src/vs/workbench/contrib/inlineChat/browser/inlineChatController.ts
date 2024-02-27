@@ -136,7 +136,7 @@ export class InlineChatController implements IEditorContribution {
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 
-	private _enabledProvider: Promise<IInlineChatSessionProvider | { reason: string } | undefined> = Promise.resolve(undefined);
+	private _enabledProvider: Promise<IInlineChatSessionProvider | string | undefined> = Promise.resolve(undefined);
 	private _providerEnablementEvents: DisposableMap<IInlineChatSessionProvider> = this._store.add(new DisposableMap());
 
 	constructor(
@@ -245,7 +245,7 @@ export class InlineChatController implements IEditorContribution {
 	private _installProviderEnablementListeners() {
 		this._store.add(this._inlineChatService.onDidChangeProviders(async (e) => {
 			if (e.added) {
-				this._providerEnablementEvents.set(e.added, e.added.onDidChangeEnablementStatus(async () => {
+				this._providerEnablementEvents.set(e.added, e.added.onDidChangeDisablementStatus(async () => {
 					if ((await this._enabledProvider) === e.added) {
 						if (this._session?.provider === e.added) {
 							await this.cancelSession();
@@ -266,10 +266,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async _refreshAllProviderEnablements(editor: ICodeEditor) {
-		let reason: { reason: string } | undefined;
+		let reason: string | undefined;
 		for (const provider of this._inlineChatService.getAllProvider()) {
-			const status = await this._getProviderEnablementStatus(editor, provider);
-			if (status === true) {
+			const status = await this._getProviderDisablementStatus(editor, provider);
+			if (!status) {
 				return provider;
 			}
 			reason = status;
@@ -277,17 +277,17 @@ export class InlineChatController implements IEditorContribution {
 		return reason;
 	}
 
-	private async _getProviderEnablementStatus(editor: ICodeEditor, provider: IInlineChatSessionProvider) {
+	private async _getProviderDisablementStatus(editor: ICodeEditor, provider: IInlineChatSessionProvider): Promise<string | undefined> {
 
 		const currentFileURI = editor.getModel()?.uri;
 		if (!currentFileURI) {
-			return { reason: 'No file open' };
+			return undefined;
 		}
-		const enablementStatus = await provider.provideEnablementStatus(currentFileURI, CancellationToken.None);
-		if (enablementStatus === null || enablementStatus === undefined || enablementStatus === true) {
-			return true;
+		const disablementStatus = await provider.provideDisablementStatus(currentFileURI, CancellationToken.None);
+		if (disablementStatus === null || disablementStatus === undefined) {
+			return undefined;
 		}
-		return enablementStatus;
+		return disablementStatus;
 	}
 
 	private _getMode(): EditMode {
@@ -377,7 +377,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 			if (!(isInlineSessionProvider(enabledProvider))) {
-				MessageController.get(this._editor)?.showMessage(enabledProvider.reason, this._editor.getPosition());
+				MessageController.get(this._editor)?.showMessage(enabledProvider, this._editor.getPosition());
 				return State.CANCEL;
 			}
 
