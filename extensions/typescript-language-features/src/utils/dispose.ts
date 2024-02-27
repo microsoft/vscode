@@ -41,3 +41,12 @@ export abstract class Disposable {
 		return this._isDisposed;
 	}
 }
+
+export class DisposableStore extends Disposable {
+
+	public add<T extends IDisposable>(disposable: T): T {
+		this._register(disposable);
+
+		return disposable;
+	}
+}

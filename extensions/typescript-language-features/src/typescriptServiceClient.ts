@@ -21,7 +21,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
-import { Disposable, disposeAll } from './utils/dispose';
+import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
 import * as fileSchemes from './configuration/fileSchemes';
 import { Logger } from './logging/logger';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
@@ -128,7 +128,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly versionProvider: ITypeScriptVersionProvider;
 	private readonly processFactory: TsServerProcessFactory;
 
-	private readonly watches = new Map<number, vscode.FileSystemWatcher>();
+	private readonly watches = new Map<number, Disposable>();
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -1005,17 +1005,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		pattern: vscode.GlobPattern,
 		excludes: string[]
 	) {
-		const watcher = typeof pattern === 'string' ? vscode.workspace.createFileSystemWatcher(pattern) : vscode.workspace.createFileSystemWatcher(pattern, { excludes });
-		watcher.onDidChange(changeFile =>
+		const disposable = new DisposableStore();
+		const watcher = typeof pattern === 'string' ?
+			disposable.add(vscode.workspace.createFileSystemWatcher(pattern)) :
+			disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes }));
+		disposable.add(watcher.onDidChange(changeFile =>
 			this.executeWithoutWaitingForResponse('watchChange', { id, path: changeFile.fsPath, eventType: 'update' })
-		);
-		watcher.onDidCreate(createFile =>
+		));
+		disposable.add(watcher.onDidCreate(createFile =>
 			this.executeWithoutWaitingForResponse('watchChange', { id, path: createFile.fsPath, eventType: 'create' })
-		);
-		watcher.onDidDelete(deletedFile =>
+		));
+		disposable.add(watcher.onDidDelete(deletedFile =>
 			this.executeWithoutWaitingForResponse('watchChange', { id, path: deletedFile.fsPath, eventType: 'delete' })
-		);
-		this.watches.set(id, watcher);
+		));
+		this.watches.set(id, disposable);
 	}
 
 	private closeFileSystemWatcher(
