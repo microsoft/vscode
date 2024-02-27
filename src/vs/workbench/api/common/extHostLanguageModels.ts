@@ -13,7 +13,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource, Barrier } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { localize } from 'vs/nls';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
@@ -232,14 +232,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options.justification);
 
 		if (!metadata || !this._languageModelIds.has(languageModelId)) {
-			throw new Error(`Language model ${languageModelId} is unknown`);
+			return Promise.reject(new Error(`Language model ${languageModelId} is unknown`));
 		}
 
 		if (this._isUsingAuth(from, metadata)) {
 			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, undefined);
 
 			if (!this._modelAccessList.get(from)?.has(metadata.extension)) {
-				throw new Error('Access to chat has been revoked');
+				return Promise.reject(new Error('Access to chat has been revoked'));
 			}
 		}
 
@@ -270,59 +270,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		await barrier.wait();
 
 		if (error) {
-			throw error;
+			return Promise.reject(error);
 		}
 
 		return res.apiObject;
-	}
-
-	async requestLanguageModelAccess(extension: IExtensionDescription, languageModelId: string, options?: vscode.LanguageModelAccessOptions): Promise<vscode.LanguageModelAccess> {
-		const from = extension.identifier;
-		const justification = options?.justification;
-		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, justification);
-
-		if (!metadata) {
-			throw new Error(`Language model '${languageModelId}' NOT found`);
-		}
-
-		if (this._isUsingAuth(from, metadata)) {
-			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, justification);
-		}
-
-		const that = this;
-
-		return {
-			get model() {
-				return metadata.model;
-			},
-			get isRevoked() {
-				return (that._isUsingAuth(from, metadata) && !that._modelAccessList.get(from)?.has(metadata.extension)) || !that._languageModelIds.has(languageModelId);
-			},
-			get onDidChangeAccess() {
-				const onDidRemoveLM = Event.filter(that._onDidChangeProviders.event, e => e.removed.includes(languageModelId));
-				const onDidChangeModelAccess = Event.filter(that._onDidChangeModelAccess.event, e => ExtensionIdentifier.equals(e.from, from) && ExtensionIdentifier.equals(e.to, metadata.extension));
-				return Event.signal(Event.any(onDidRemoveLM, onDidChangeModelAccess));
-			},
-			makeChatRequest(messages, options, token) {
-				if (that._isUsingAuth(from, metadata) && !that._modelAccessList.get(from)?.has(metadata.extension)) {
-					throw new Error('Access to chat has been revoked');
-				}
-				if (!that._languageModelIds.has(languageModelId)) {
-					throw new Error('Language Model has been removed');
-				}
-
-				const requestId = (Math.random() * 1e6) | 0;
-				const requestPromise = that._proxy.$fetchResponse(from, languageModelId, requestId, messages.map(typeConvert.LanguageModelMessage.from), options ?? {}, token);
-				const res = new LanguageModelResponse();
-				that._pendingRequest.set(requestId, { languageModelId, res });
-
-				requestPromise.finally(() => {
-					that._pendingRequest.delete(requestId);
-				});
-
-				return res.apiObject;
-			},
-		};
 	}
 
 	async $handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void> {

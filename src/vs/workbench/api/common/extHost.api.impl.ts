@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
@@ -1425,10 +1425,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: lm
 		const lm: typeof vscode.lm = {
-			requestLanguageModelAccess(id, options) {
-				checkProposedApiEnabled(extension, 'languageModels');
-				return extHostChatProvider.requestLanguageModelAccess(extension, id, options);
-			},
 			get languageModels() {
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostChatProvider.getLanguageModelIds();
@@ -1437,18 +1433,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'languageModels');
 				return extHostChatProvider.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			chatRequest(languageModel: string, messages: vscode.LanguageModelChatMessage[], optionsOrToken: { [name: string]: any } | vscode.CancellationToken, token?: vscode.CancellationToken) {
+			chatRequest(languageModel: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'languageModels');
-				let options: Record<string, any>;
-				if (CancellationToken.isCancellationToken(optionsOrToken)) {
-					options = {};
-					token = optionsOrToken;
-				} else if (CancellationToken.isCancellationToken(token)) {
-					options = optionsOrToken;
-					token = token;
-				} else {
-					throw new Error('Invalid arguments');
-				}
 				return extHostChatProvider.makeChatRequest(extension, languageModel, messages, options, token);
 			}
 		};
@@ -1696,6 +1682,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,
 			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
+			LanguageModelSystemMessage: extHostTypes.LanguageModelChatSystemMessage,
+			LanguageModelUserMessage: extHostTypes.LanguageModelChatUserMessage,
+			LanguageModelAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			InlineEdit: extHostTypes.InlineEdit,
