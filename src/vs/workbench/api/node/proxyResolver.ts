@@ -76,12 +76,21 @@ export function connectProxyResolver(
 	return configureModuleLoading(extensionService, lookup);
 }
 
+function createPatchedModule<T extends object>(module: T, patch: any) {
+	// @ts-ignore
+	if (module[Symbol.toStringTag] === 'Module') {
+		console.info(`[proxyResolver] ESM: module cannot be patched`)
+		return
+	}
+	return Object.assign(module, patch)
+}
+
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
 	return {
-		http: Object.assign(http, createHttpPatch(params, http, resolveProxy)),
-		https: Object.assign(https, createHttpPatch(params, https, resolveProxy)),
-		net: Object.assign(net, createNetPatch(params, net)),
-		tls: Object.assign(tls, createTlsPatch(params, tls))
+		http: createPatchedModule(http, createHttpPatch(params, http, resolveProxy)),
+		https: createPatchedModule(https, createHttpPatch(params, https, resolveProxy)),
+		net: createPatchedModule(net, createNetPatch(params, net)),
+		tls: createPatchedModule(tls, createTlsPatch(params, tls))
 	};
 }
 
