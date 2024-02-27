@@ -21,7 +21,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -30,9 +30,11 @@ export class SearchService extends Disposable implements ISearchService {
 
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
+	private readonly aiTextSearchProviders = new Map<string, ISearchResultProvider>();
 
 	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
+	private deferredAITextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
 
 	private loggedSchemesMissingProviders = new Set<string>();
 
@@ -57,6 +59,9 @@ export class SearchService extends Disposable implements ISearchService {
 		} else if (type === SearchProviderType.text) {
 			list = this.textSearchProviders;
 			deferredMap = this.deferredTextSearchesByScheme;
+		} else if (type === SearchProviderType.aiText) {
+			list = this.aiTextSearchProviders;
+			deferredMap = this.deferredAITextSearchesByScheme;
 		} else {
 			throw new Error('Unknown SearchProviderType');
 		}
@@ -82,6 +87,24 @@ export class SearchService extends Disposable implements ISearchService {
 			results: [...otherResults.results, ...openEditorResults.results],
 			messages: [...otherResults.messages, ...openEditorResults.messages]
 		};
+	}
+
+	async aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		const onProviderProgress = (progress: ISearchProgressItem) => {
+			// Match
+			if (onProgress) { // don't override open editor results
+				if (isFileMatch(progress)) {
+					onProgress(progress);
+				} else {
+					onProgress(<IProgressMessage>progress);
+				}
+			}
+
+			if (isProgressMessage(progress)) {
+				this.logService.debug('SearchService#search', progress.message);
+			}
+		};
+		return this.doSearch(query, token, onProviderProgress);
 	}
 
 	textSearchSplitSyncAsync(
@@ -205,9 +228,7 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private async waitForProvider(queryType: QueryType, scheme: string): Promise<ISearchResultProvider> {
-		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = queryType === QueryType.File ?
-			this.deferredFileSearchesByScheme :
-			this.deferredTextSearchesByScheme;
+		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = this.getDeferredTextSearchesByScheme(queryType);
 
 		if (deferredMap.has(scheme)) {
 			return deferredMap.get(scheme)!.p;
@@ -218,6 +239,32 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
+	private getSearchProvider(type: QueryType): Map<string, ISearchResultProvider> {
+		switch (type) {
+			case QueryType.File:
+				return this.fileSearchProviders;
+			case QueryType.Text:
+				return this.textSearchProviders;
+			case QueryType.aiText:
+				return this.aiTextSearchProviders;
+			default:
+				throw new Error(`Unknown query type: ${type}`);
+		}
+	}
+
+	private getDeferredTextSearchesByScheme(type: QueryType): Map<string, DeferredPromise<ISearchResultProvider>> {
+		switch (type) {
+			case QueryType.File:
+				return this.deferredFileSearchesByScheme;
+			case QueryType.Text:
+				return this.deferredTextSearchesByScheme;
+			case QueryType.aiText:
+				return this.deferredAITextSearchesByScheme;
+			default:
+				throw new Error(`Unknown query type: ${type}`);
+		}
+	}
+
 	private async searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
 		const e2eSW = StopWatch.create(false);
 
@@ -225,16 +272,12 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const fqs = this.groupFolderQueriesByScheme(query);
 		const someSchemeHasProvider = [...fqs.keys()].some(scheme => {
-			return query.type === QueryType.File ?
-				this.fileSearchProviders.has(scheme) :
-				this.textSearchProviders.has(scheme);
+			return this.getSearchProvider(query.type).has(scheme);
 		});
 
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
-			let provider = query.type === QueryType.File ?
-				this.fileSearchProviders.get(scheme) :
-				this.textSearchProviders.get(scheme);
+			let provider = this.getSearchProvider(query.type).get(scheme);
 
 			if (!provider) {
 				if (someSchemeHasProvider) {
@@ -259,9 +302,18 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 			};
 
-			searchPs.push(query.type === QueryType.File ?
-				provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
-				provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+			const doProviderSearch = () => {
+				switch (query.type) {
+					case QueryType.File:
+						return provider.fileSearch(<IFileQuery>oneSchemeQuery, token);
+					case QueryType.Text:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+					default:
+						return provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token);
+				}
+			};
+
+			searchPs.push(doProviderSearch());
 		}));
 
 		return Promise.all(searchPs).then(completes => {

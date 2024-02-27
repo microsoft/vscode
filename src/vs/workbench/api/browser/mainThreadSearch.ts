@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
 
@@ -38,6 +38,10 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.text, scheme, handle, this._proxy));
 	}
 
+	$registerAITextSearchProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.aiText, scheme, handle, this._proxy));
+	}
+
 	$registerFileSearchProvider(handle: number, scheme: string): void {
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.file, scheme, handle, this._proxy));
 	}
@@ -64,7 +68,6 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 		provider.handleFindMatch(session, data);
 	}
-
 	$handleTelemetry(eventName: string, data: any): void {
 		this._telemetryService.publicLog(eventName, data);
 	}
@@ -126,7 +129,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		return this.doSearch(query, onProgress, token);
 	}
 
-	doSearch(query: ITextQuery | IFileQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
+	doSearch(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
 		if (!query.folderQueries.length) {
 			throw new Error('Empty folderQueries');
 		}
@@ -134,9 +137,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		const search = new SearchOperation(onProgress);
 		this._searches.set(search.id, search);
 
-		const searchP = query.type === QueryType.File
-			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, token)
-			: this._proxy.$provideTextSearchResults(this._handle, search.id, query, token);
+		const searchP = this._provideSearchResults(query, search.id, token);
 
 		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
@@ -168,5 +169,16 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 				});
 			}
 		});
+	}
+
+	private _provideSearchResults(query: ISearchQuery, session: number, token: CancellationToken): Promise<ISearchCompleteStats> {
+		switch (query.type) {
+			case QueryType.File:
+				return this._proxy.$provideFileSearchResults(this._handle, session, query, token);
+			case QueryType.Text:
+				return this._proxy.$provideTextSearchResults(this._handle, session, query, token);
+			default:
+				return this._proxy.$provideAITextSearchResults(this._handle, session, query, token);
+		}
 	}
 }
