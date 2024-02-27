@@ -232,14 +232,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options.justification);
 
 		if (!metadata || !this._languageModelIds.has(languageModelId)) {
-			return Promise.reject(new Error(`Language model ${languageModelId} is unknown`));
+			throw new Error(`Language model ${languageModelId} is unknown`);
 		}
 
 		if (this._isUsingAuth(from, metadata)) {
 			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, undefined);
 
 			if (!this._modelAccessList.get(from)?.has(metadata.extension)) {
-				return Promise.reject(new Error('Access to chat has been revoked'));
+				throw new Error('Access to chat has been revoked');
 			}
 		}
 
@@ -270,7 +270,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		await barrier.wait();
 
 		if (error) {
-			return Promise.reject(error);
+			throw error;
 		}
 
 		return res.apiObject;
