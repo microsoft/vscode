@@ -91,13 +91,17 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this._resources.read(reader) ?? [];
-			const label = this.label ?? localize('name', "Multi Diff Editor");
+			const label = this.label ?? this.getLabel();
 			this._name = label + localize({
 				key: 'files',
 				comment: ['the number of files being shown']
 			}, " ({0} files)", resources?.length ?? 0);
 			this._onDidChangeLabel.fire();
 		}));
+	}
+
+	protected getLabel(): string {
+		return localize('name', "Multi Diff Editor");
 	}
 
 	public serialize(): ISerializedMultiDiffEditorInput {

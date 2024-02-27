@@ -486,10 +486,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// If it's a refactor preview editor we trigger the create refactor preview editor input
 		if (isResourceBulkEditEditorInput(editor)) {
-			if (!selectedEditor.editorFactoryObject.createRefactorPreviewEditorInput) {
+			if (!selectedEditor.editorFactoryObject.createBulkEditorInput) {
 				return;
 			}
-			const inputWithOptions = await selectedEditor.editorFactoryObject.createRefactorPreviewEditorInput(editor, group);
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createBulkEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 

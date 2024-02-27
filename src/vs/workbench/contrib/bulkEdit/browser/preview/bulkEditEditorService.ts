@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mutable } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditEditorService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -24,8 +23,6 @@ export class BulkEditEditorService implements IBulkEditEditorService {
 
 	static readonly ID = 'refactorPreview';
 
-	private readonly _disposables = new DisposableStore();
-
 	private _bulkEditEditor: BulkEditEditor | undefined;
 
 	constructor(
@@ -35,10 +32,6 @@ export class BulkEditEditorService implements IBulkEditEditorService {
 		@IEditorGroupsService private readonly _groupService: IEditorGroupsService,
 		@IStorageService _storageService: IStorageService,
 	) { }
-
-	dispose(): void {
-		this._disposables.dispose();
-	}
 
 	hasInput(): boolean {
 		return this._bulkEditEditor?.hasFocus() ?? false;
@@ -73,11 +66,15 @@ export class BulkEditEditorService implements IBulkEditEditorService {
 			description: label
 		}, ACTIVE_GROUP) as BulkEditEditor;
 
-		const resolvedEdits = await this._bulkEditEditor.promiseEdits;
-		if (this._bulkEditEditor.input) {
+		const resolvedEdits = await this._bulkEditEditor.promiseResolvedEdits;
+		await this._closeBulkEditEditor();
+		return resolvedEdits;
+	}
+
+	public async _closeBulkEditEditor(): Promise<void> {
+		if (this._bulkEditEditor?.input) {
 			await this._editorService.closeEditor({ editor: this._bulkEditEditor.input, groupId: this._groupService.activeGroup.id });
 		}
-		return resolvedEdits;
 	}
 
 	private async _resolveResources(provider: BulkEditPreviewProvider, edits: ResourceTextEdit[]): Promise<IResourceDiffEditorInput[]> {

@@ -119,7 +119,7 @@ type EditorInputFactories = {
 	createUntitledEditorInput?: UntitledEditorInputFactoryFunction;
 	createDiffEditorInput?: DiffEditorInputFactoryFunction;
 	createMultiDiffEditorInput?: DiffListEditorInputFactoryFunction;
-	createRefactorPreviewEditorInput?: RefactorPreviewInputFactoryFunction;
+	createBulkEditorInput?: RefactorPreviewInputFactoryFunction;
 	createMergeEditorInput?: MergeEditorInputFactoryFunction;
 };
 

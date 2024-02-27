@@ -28,11 +28,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolver, BulkEditEditorSerializer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
+import { BulkEditEditor } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { BulkEditEditorService } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditorService';
+import { BulkEditEditorInput, BulkEditEditorResolverContribution, BulkEditEditorSerializer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditorInput';
 
 class UXState {
 
@@ -339,7 +340,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	containerIcon: refactorPreviewViewIcon,
 }], container);
 
-registerWorkbenchContribution2(BulkEditEditorResolver.ID, BulkEditEditorResolver, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
+registerWorkbenchContribution2(BulkEditEditorResolverContribution.ID, BulkEditEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	.registerEditorPane(
