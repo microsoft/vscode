@@ -39,6 +39,16 @@ import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+
+export function createPaneCompositeHoverDelegate(position: () => HoverPosition, instantiationService: IInstantiationService): WorkbenchHoverDelegate {
+	return instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, () => ({
+		position: {
+			hoverPosition: position()
+		}
+	}));
+}
 
 export interface IPaneCompositePart extends IView {
 
@@ -338,7 +348,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			if (!this.paneCompositeBar.value) {
 				this.titleContainer.classList.add('has-composite-bar');
 				this.paneCompositeBarContainer = prepend(this.titleContainer, $('.composite-bar-container'));
-				this.paneCompositeBar.value = this.createCompisteBar();
+				this.paneCompositeBar.value = this.createCompositeBar();
 				this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
 			}
 		} else {
@@ -349,7 +359,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 	}
 
-	protected createCompisteBar(): PaneCompositeBar {
+	protected createCompositeBar(): PaneCompositeBar {
 		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompositeBarOptions(), this.partId, this);
 	}
 

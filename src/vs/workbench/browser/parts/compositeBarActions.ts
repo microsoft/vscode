@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { NumberBadge, IBadge, IActivity, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -20,13 +20,9 @@ import { Color } from 'vs/base/common/color';
 import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export interface ICompositeBar {
 
@@ -131,22 +127,15 @@ export interface ICompositeBarColors {
 	readonly dragAndDropBorder?: Color;
 }
 
-export interface IActivityHoverOptions {
-	readonly position: () => HoverPosition;
-}
-
 export interface ICompositeBarActionViewItemOptions extends IActionViewItemOptions {
 	readonly icon?: boolean;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
 
-	readonly hoverOptions: IActivityHoverOptions;
 	readonly hasPopup?: boolean;
 	readonly compact?: boolean;
 }
 
 export class CompositeBarActionViewItem extends BaseActionViewItem {
-
-	private static hoverLeaveTime = 0;
 
 	protected container!: HTMLElement;
 	protected label!: HTMLElement;
@@ -158,16 +147,11 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	private mouseUpTimeout: any;
 	private keybindingLabel: string | undefined | null;
 
-	private readonly hoverDisposables = this._register(new DisposableStore());
-	private lastHover: IHoverWidget | undefined;
-	private readonly showHoverScheduler = new RunOnceScheduler(() => this.showHover(), 0);
-
 	constructor(
 		action: CompositeBarAction,
 		options: ICompositeBarActionViewItemOptions,
 		private readonly badgesEnabled: (compositeId: string) => boolean,
 		@IThemeService protected readonly themeService: IThemeService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 	) {
@@ -179,7 +163,6 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this._register(action.onDidChangeCompositeBarActionItem(() => this.update()));
 		this._register(Event.filter(keybindingService.onDidUpdateKeybindings, () => this.keybindingLabel !== this.computeKeybindingLabel())(() => this.updateTitle()));
 		this._register(action.onDidChangeActivity(() => this.updateActivity()));
-		this._register(toDisposable(() => this.showHoverScheduler.cancel()));
 	}
 
 	protected get compositeBarActionItem(): ICompositeBarActionItem {
@@ -271,7 +254,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		this.update();
 		this.updateStyles();
-		this.updateHover();
+		this.updateTooltip();
 	}
 
 	private onThemeChange(theme: IColorTheme): void {
@@ -360,7 +343,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	}
 
 	private updateTitle(): void {
-		const title = this.computeTitle();
+		const title = this.getTooltip();
 		[this.label, this.badge, this.container].forEach(element => {
 			if (element) {
 				element.setAttribute('aria-label', title);
@@ -370,7 +353,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		});
 	}
 
-	protected computeTitle(): string {
+	protected override getTooltip(): string {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.compositeBarActionItem.name, this.keybindingLabel) : this.compositeBarActionItem.name;
 		const badge = (this.action as CompositeBarAction).activity?.badge;
@@ -385,58 +368,6 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		const keybinding = this.compositeBarActionItem.keybindingId ? this.keybindingService.lookupKeybinding(this.compositeBarActionItem.keybindingId) : null;
 
 		return keybinding?.getLabel();
-	}
-
-	private updateHover(): void {
-		this.hoverDisposables.clear();
-
-		this.updateTitle();
-
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
-			if (!this.showHoverScheduler.isScheduled()) {
-				if (Date.now() - CompositeBarActionViewItem.hoverLeaveTime < 200) {
-					this.showHover(true);
-				} else {
-					this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
-				}
-			}
-		}, true));
-
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, e => {
-			if (e.target === this.container) {
-				CompositeBarActionViewItem.hoverLeaveTime = Date.now();
-				this.hoverService.hideHover();
-				this.showHoverScheduler.cancel();
-			}
-		}, true));
-
-		this.hoverDisposables.add(toDisposable(() => {
-			this.hoverService.hideHover();
-			this.showHoverScheduler.cancel();
-		}));
-	}
-
-	showHover(skipFadeInAnimation: boolean = false): void {
-		if (this.lastHover && !this.lastHover.isDisposed) {
-			return;
-		}
-
-		const hoverPosition = this.options.hoverOptions.position();
-		this.lastHover = this.hoverService.showHover({
-			target: this.container,
-			content: this.computeTitle(),
-			position: {
-				hoverPosition,
-			},
-			persistence: {
-				hideOnKeyDown: true,
-			},
-			appearance: {
-				showPointer: true,
-				compact: true,
-				skipFadeInAnimation,
-			}
-		});
 	}
 
 	override dispose(): void {
@@ -471,19 +402,17 @@ export class CompositeOverflowActivityActionViewItem extends CompositeBarActionV
 
 	constructor(
 		action: CompositeBarAction,
+		options: ICompositeBarActionViewItemOptions,
 		private getOverflowingComposites: () => { id: string; name?: string }[],
 		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => IAction,
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		hoverOptions: IActivityHoverOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, () => true, themeService, hoverService, configurationService, keybindingService);
+		super(action, { ...options, icon: true, hasPopup: true }, () => true, themeService, configurationService, keybindingService);
 	}
 
 	showMenu(): void {
@@ -546,7 +475,6 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
@@ -554,7 +482,6 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 			options,
 			compositeBar.areBadgesEnabled.bind(compositeBar),
 			themeService,
-			hoverService,
 			configurationService,
 			keybindingService
 		);

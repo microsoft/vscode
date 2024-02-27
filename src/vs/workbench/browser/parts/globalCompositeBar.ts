@@ -12,7 +12,7 @@ import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CompositeBarActionViewItem, CompositeBarAction, IActivityHoverOptions, ICompositeBarActionViewItemOptions, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CompositeBarActionViewItem, CompositeBarAction, ICompositeBarActionViewItemOptions, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -43,6 +43,7 @@ import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -58,7 +59,7 @@ export class GlobalCompositeBar extends Disposable {
 	constructor(
 		private readonly contextMenuActionsProvider: () => IAction[],
 		private readonly colors: (theme: IColorTheme) => ICompositeBarColors,
-		private readonly activityHoverOptions: IActivityHoverOptions,
+		hoverDelegate: IHoverDelegate,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -74,7 +75,7 @@ export class GlobalCompositeBar extends Disposable {
 		this.globalActivityActionBar = this._register(new ActionBar(this.element, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === GLOBAL_ACTIVITY_ID) {
-					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, { ...options, colors: this.colors, hoverOptions: this.activityHoverOptions }, contextMenuAlignmentOptions);
+					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, { ...options, colors: this.colors }, contextMenuAlignmentOptions);
 				}
 
 				if (action.id === ACCOUNTS_ACTIVITY_ID) {
@@ -83,7 +84,6 @@ export class GlobalCompositeBar extends Disposable {
 						{
 							...options,
 							colors: this.colors,
-							hoverOptions: this.activityHoverOptions
 						},
 						contextMenuAlignmentOptions,
 						(actions: IAction[]) => {
@@ -96,6 +96,7 @@ export class GlobalCompositeBar extends Disposable {
 
 				throw new Error(`No view item for action '${action.id}'`);
 			},
+			hoverDelegate,
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('manage', "Manage"),
 			preventLoopNavigation: true
@@ -163,7 +164,6 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 		private readonly contextMenuActionsProvider: () => IAction[],
 		private readonly contextMenuAlignmentOptions: () => Readonly<{ anchorAlignment: AnchorAlignment; anchorAxisAlignment: AnchorAxisAlignment }> | undefined,
 		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -171,7 +171,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IActivityService private readonly activityService: IActivityService,
 	) {
-		super(action, { draggable: false, icon: true, hasPopup: true, ...options }, () => true, themeService, hoverService, configurationService, keybindingService);
+		super(action, { draggable: false, icon: true, hasPopup: true, ...options }, () => true, themeService, configurationService, keybindingService);
 
 		this.updateItemActivity();
 		this._register(this.activityService.onDidChangeActivity(viewContainerOrAction => {
@@ -301,7 +301,6 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -315,7 +314,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			name: localize('accounts', "Accounts"),
 			classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.ACCOUNTS_ICON)
 		});
-		super(MenuId.AccountsContext, action, options, contextMenuActionsProvider, contextMenuAlignmentOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
+		super(MenuId.AccountsContext, action, options, contextMenuActionsProvider, contextMenuAlignmentOptions, themeService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
 		this._register(action);
 		this.registerListeners();
 		this.initialize();
@@ -555,7 +554,7 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 			name: localize('manage', "Manage"),
 			classNames: ThemeIcon.asClassNameArray(userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(userDataProfileService.currentProfile.icon) : DEFAULT_ICON)
 		});
-		super(MenuId.GlobalActivity, action, options, contextMenuActionsProvider, contextMenuAlignmentOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
+		super(MenuId.GlobalActivity, action, options, contextMenuActionsProvider, contextMenuAlignmentOptions, themeService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
 		this._register(action);
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
 			action.compositeBarActionItem = {
@@ -604,15 +603,14 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 		this.updateProfileBadge();
 	}
 
-	protected override computeTitle(): string {
-		return this.userDataProfileService.currentProfile.isDefault ? super.computeTitle() : localize('manage profile', "Manage {0} (Profile)", this.userDataProfileService.currentProfile.name);
+	protected override getTooltip(): string {
+		return this.userDataProfileService.currentProfile.isDefault ? super.getTooltip() : localize('manage profile', "Manage {0} (Profile)", this.userDataProfileService.currentProfile.name);
 	}
 }
 
 export class SimpleAccountActivityActionViewItem extends AccountsActivityActionViewItem {
 
 	constructor(
-		hoverOptions: IActivityHoverOptions,
 		options: IBaseActionViewItemOptions,
 		@IThemeService themeService: IThemeService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -621,7 +619,6 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -636,16 +633,14 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 			}),
-			hoverOptions,
 			compact: true,
-		}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService);
+		}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService);
 	}
 }
 
 export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionViewItem {
 
 	constructor(
-		hoverOptions: IActivityHoverOptions,
 		options: IBaseActionViewItemOptions,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IThemeService themeService: IThemeService,
@@ -665,7 +660,6 @@ export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionView
 				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 			}),
-			hoverOptions,
 			compact: true,
 		}, () => undefined, userDataProfileService, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService, instantiationService, activityService);
 	}

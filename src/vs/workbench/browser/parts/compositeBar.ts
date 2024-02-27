@@ -8,7 +8,7 @@ import { IAction, toAction } from 'vs/base/common/actions';
 import { IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor, getWindow } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -21,6 +21,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export interface ICompositeBarItem {
 
@@ -137,7 +138,7 @@ export interface ICompositeBarOptions {
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
 	readonly dndHandler: ICompositeDragAndDrop;
-	readonly activityHoverOptions: IActivityHoverOptions;
+	readonly hoverDelegate: IHoverDelegate;
 	readonly preventLoopNavigation?: boolean;
 
 	readonly getActivityAction: (compositeId: string) => CompositeBarAction;
@@ -208,7 +209,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const item = this.model.findItem(action.id);
 				return item && this.instantiationService.createInstance(
 					CompositeActionViewItem,
-					{ ...options, draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions, compact: this.options.compact },
+					{ ...options, draggable: true, colors: this.options.colors, icon: this.options.icon, compact: this.options.compact },
 					action as CompositeBarAction,
 					item.pinnedAction,
 					item.toggleBadgeAction,
@@ -218,6 +219,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					this
 				);
 			},
+			hoverDelegate: this.options.hoverDelegate,
 			orientation: this.options.orientation,
 			ariaLabel: localize('activityBarAriaLabel', "Active View Switcher"),
 			ariaRole: 'tablist',
@@ -590,6 +592,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.compositeOverflowActionViewItem = this._register(this.instantiationService.createInstance(
 				CompositeOverflowActivityActionViewItem,
 				this.compositeOverflowAction,
+				{ colors: this.options.colors, hoverDelegate: this.options.hoverDelegate },
 				() => this.getOverflowingComposites(),
 				() => this.model.activeItem ? this.model.activeItem.id : undefined,
 				compositeId => {
@@ -597,8 +600,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					return item?.activity[0]?.badge;
 				},
 				this.options.getOnCompositeClickAction,
-				this.options.colors,
-				this.options.activityHoverOptions
 			));
 
 			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });

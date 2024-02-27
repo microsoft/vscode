@@ -21,7 +21,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { AbstractPaneCompositePart, createPaneCompositeHoverDelegate } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ActivityBarCompositeBar, ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -153,7 +153,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
 	}
 
-	protected override createCompisteBar(): ActivityBarCompositeBar {
+	protected override createCompositeBar(): ActivityBarCompositeBar {
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.getCompositeBarOptions(), this.partId, this, false);
 	}
 
@@ -166,9 +166,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			icon: true,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
-			activityHoverOptions: {
-				position: () => HoverPosition.BELOW,
-			},
+			hoverDelegate: this._register(createPaneCompositeHoverDelegate(() => HoverPosition.BELOW, this.instantiationService)),
 			fillExtraContextMenuActions: actions => {
 				const viewsSubmenuAction = this.getViewsSubmenuAction();
 				if (viewsSubmenuAction) {

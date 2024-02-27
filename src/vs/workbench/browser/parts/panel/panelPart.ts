@@ -25,7 +25,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { AbstractPaneCompositePart, createPaneCompositeHoverDelegate } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
@@ -125,9 +125,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
-			activityHoverOptions: {
-				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
-			},
+			hoverDelegate: this._register(createPaneCompositeHoverDelegate(() => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW, this.instantiationService)),
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,

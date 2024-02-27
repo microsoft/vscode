@@ -25,7 +25,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { AbstractPaneCompositePart, createPaneCompositeHoverDelegate } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -135,9 +135,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			icon: true,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
-			activityHoverOptions: {
-				position: () => HoverPosition.BELOW,
-			},
+			hoverDelegate: this._register(createPaneCompositeHoverDelegate(() => HoverPosition.BELOW, this.instantiationService)),
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,

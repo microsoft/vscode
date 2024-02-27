@@ -15,7 +15,7 @@ import { Dimension, createCSSRule, asCSSUrl, isMouseEvent } from 'vs/base/browse
 import { IStorageService, StorageScope, StorageTarget, IProfileStorageValueChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isString } from 'vs/base/common/types';
@@ -29,6 +29,8 @@ import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -78,7 +80,7 @@ export interface IPaneCompositeBarOptions {
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
 	readonly preventLoopNavigation?: boolean;
-	readonly activityHoverOptions: IActivityHoverOptions;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
 }
@@ -135,7 +137,7 @@ export class PaneCompositeBar extends Disposable {
 			icon: this.options.icon,
 			compact: this.options.compact,
 			orientation: this.options.orientation,
-			activityHoverOptions: this.options.activityHoverOptions,
+			hoverDelegate: this.options.hoverDelegate ?? this._register(createInstantHoverDelegate()),
 			preventLoopNavigation: this.options.preventLoopNavigation,
 			openComposite: async (compositeId, preserveFocus) => {
 				return (await this.paneCompositePart.openPaneComposite(compositeId, !preserveFocus)) ?? null;

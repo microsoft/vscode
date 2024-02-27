@@ -25,7 +25,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { IPaneCompositePart, createPaneCompositeHoverDelegate } from 'vs/workbench/browser/parts/paneCompositePart';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { GlobalCompositeBar } from 'vs/workbench/browser/parts/globalCompositeBar';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -37,6 +37,7 @@ import { IViewDescriptorService, ViewContainerLocation, ViewContainerLocationToS
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export class ActivitybarPart extends Part {
 
@@ -77,9 +78,7 @@ export class ActivitybarPart extends Part {
 			orientation: ActionsOrientation.VERTICAL,
 			icon: true,
 			iconSize: 24,
-			activityHoverOptions: {
-				position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
-			},
+			hoverDelegate: this._register(createPaneCompositeHoverDelegate(() => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT, this.instantiationService)),
 			preventLoopNavigation: true,
 			recomputeSizes: false,
 			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => { },
@@ -220,7 +219,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, contextKeyService, environmentService, layoutService);
 
 		if (showGlobalActivities) {
-			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));
+			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.hoverDelegate ?? this._register(createInstantHoverDelegate())));
 		}
 
 		// Register for configuration changes
