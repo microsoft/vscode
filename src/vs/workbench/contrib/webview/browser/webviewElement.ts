@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener, EventType, getActiveWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { promiseWithResolvers, ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -88,10 +88,13 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 */
 	public readonly origin: string;
 
+	private readonly _codeWindow: CodeWindow;
+
 	/**
 	 * The code window the webview is contained within.
 	 */
-	public readonly codeWindow: CodeWindow;
+	public get codeWindow(): CodeWindow { return this._codeWindow; }
+
 
 	private readonly _encodedWebviewOriginPromise: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
@@ -108,7 +111,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (!this._focused) {
 			return false;
 		}
-		if (this.codeWindow.document.activeElement && this.codeWindow.document.activeElement !== this.element) {
+		if (this._codeWindow.document.activeElement && this._codeWindow.document.activeElement !== this.element) {
 			// looks like https://github.com/microsoft/vscode/issues/132641
 			// where the focus is actually not in the `<iframe>`
 			return false;
@@ -164,9 +167,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? this.id;
-		this.codeWindow = initInfo.codeWindow;
+		this._codeWindow = initInfo.codeWindow;
 
-		this._encodedWebviewOriginPromise = parentOriginHash(this.codeWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
+		this._encodedWebviewOriginPromise = parentOriginHash(this._codeWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 
 		this._options = initInfo.options;
 		this.extension = initInfo.extension;
@@ -186,7 +189,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._element = this._createElement(initInfo.options, initInfo.contentOptions);
 
-		const subscription = this._register(addDisposableListener(initInfo.codeWindow ?? getActiveWindow(), 'message', (e: MessageEvent) => {
+		const subscription = this._register(addDisposableListener(this._codeWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -466,7 +469,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
-			parentOrigin: this.codeWindow.origin,
+			parentOrigin: this._codeWindow.origin,
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -506,7 +509,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}));
 		}
 
-		for (const node of [element, this.codeWindow]) {
+		for (const node of [element, this._codeWindow]) {
 			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
@@ -689,7 +692,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			get: () => this.element,
 		});
 		// And re-dispatch
-		this.codeWindow.dispatchEvent(emulatedKeyboardEvent);
+		this._codeWindow.dispatchEvent(emulatedKeyboardEvent);
 	}
 
 	windowDidDragStart(): void {
@@ -831,7 +834,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
-			if (this.codeWindow.document.activeElement && this.codeWindow.document.activeElement !== this.element && this.codeWindow.document.activeElement?.tagName !== 'BODY') {
+			if (this._codeWindow.document.activeElement && this._codeWindow.document.activeElement !== this.element && this._codeWindow.document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 
