@@ -283,7 +283,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private showPasteAsNoEditMessage(selections: readonly Selection[], editId: string) {
 		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", editId), selections[0].getStartPosition());
-  }
+	}
 
 	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, context: DocumentPasteContext, clipboardEvent: ClipboardEvent): void {
 		const p = createCancelablePromise(async (token) => {
