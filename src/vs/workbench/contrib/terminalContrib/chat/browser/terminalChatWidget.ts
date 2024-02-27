@@ -116,7 +116,17 @@ export class TerminalChatWidget extends Disposable {
 		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
 			this._container.style.top = '';
 		}
+		this._updateWidth();
+		this._register(this._instance.onDimensionsChanged(() => this._updateWidth()));
 	}
+
+	private _updateWidth() {
+		const terminalWidth = this._instance.domElement.clientWidth;
+		if (terminalWidth && terminalWidth < 640) {
+			this._inlineChatWidget.layout(new Dimension(terminalWidth - 40, this._inlineChatWidget.getHeight()));
+		}
+	}
+
 	hide(): void {
 		this._container.classList.add('hide');
 		this._reset();
