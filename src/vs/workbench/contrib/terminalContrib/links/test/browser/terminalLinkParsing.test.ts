@@ -706,5 +706,11 @@ suite('TerminalLinkParsing', () => {
 				});
 			}
 		});
+		suite('should ignore links with suffixes when the path itself is the empty string', () => {
+			deepStrictEqual(
+				detectLinks('""",1', OperatingSystem.Linux),
+				[] as IParsedLink[]
+			);
+		});
 	});
 });

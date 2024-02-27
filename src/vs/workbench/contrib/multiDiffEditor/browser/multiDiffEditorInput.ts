@@ -343,9 +343,9 @@ export class MultiDiffEditorResolverContribution extends Disposable {
 			},
 			{},
 			{
-				createMultiDiffEditorInput: (diffListEditor: IResourceMultiDiffEditorInput): EditorInputWithOptions => {
+				createMultiDiffEditorInput: (multiDiffEditor: IResourceMultiDiffEditorInput): EditorInputWithOptions => {
 					return {
-						editor: MultiDiffEditorInput.fromResourceMultiDiffEditorInput(diffListEditor, instantiationService),
+						editor: MultiDiffEditorInput.fromResourceMultiDiffEditorInput(multiDiffEditor, instantiationService),
 					};
 				},
 			}

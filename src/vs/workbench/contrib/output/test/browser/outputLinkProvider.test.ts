@@ -277,9 +277,9 @@ suite('OutputLinkProvider', () => {
 		line = toOSPath(' at \'C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts\' in');
 		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts\'').toString());
+		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
 		assert.strictEqual(result[0].range.startColumn, 6);
-		assert.strictEqual(result[0].range.endColumn, 86);
+		assert.strictEqual(result[0].range.endColumn, 85);
 	});
 
 	test('OutputLinkProvider - #106847', function () {

@@ -26,6 +26,7 @@ import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 
@@ -98,12 +99,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $(`.verified-publisher`)), true);
 		const publisherDisplayName = append(publisher, $('.publisher-name.ellipsis'));
 		const actionbar = new ActionBar(footer, {
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+					return new ExtensionActionWithDropdownActionViewItem(action, { ...options, icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				if (action instanceof ExtensionDropDownAction) {
-					return action.createActionViewItem();
+					return action.createActionViewItem(options);
 				}
 				return undefined;
 			},

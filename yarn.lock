@@ -3523,10 +3523,27 @@ electron-to-chromium@^1.4.668:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.681.tgz#5f23fad8aa7e1f64cbb7dd9d15c7e39a1cd7e6e3"
   integrity sha512-1PpuqJUFWoXZ1E54m8bsLPVYwIVCRzvaL+n5cjigGga4z854abDnFRc+cTa2th4S79kyGqya/1xoR7h+Y5G5lg==
 
+<<<<<<< HEAD
 electron@28.2.4:
   version "28.2.4"
   resolved "https://registry.yarnpkg.com/electron/-/electron-28.2.4.tgz#fda9ef789894de836714cda12768127a3bee0284"
   integrity sha512-XrSsqKCmpGwz1pqzmdLhdGonYvatDXor60rBd+TfURMQQRSxyTaSwrds9kV0aab9YRpeYUH6NJDAOwBhQYDDkA==
+=======
+electron-to-chromium@^1.4.202:
+  version "1.4.207"
+  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
+  integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
+
+electron-to-chromium@^1.4.648:
+  version "1.4.648"
+  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.648.tgz#c7b46c9010752c37bb4322739d6d2dd82354fbe4"
+  integrity sha512-EmFMarXeqJp9cUKu/QEciEApn0S/xRcpZWuAm32U7NgoZCimjsilKXHRO9saeEW55eHZagIDg6XTUOv32w9pjg==
+
+electron@28.2.2:
+  version "28.2.2"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-28.2.2.tgz#d5aa4a33c00927d83ca893f8726f7c62aad98c41"
+  integrity sha512-8UcvIGFcjplHdjPFNAHVFg5bS0atDyT3Zx21WwuE4iLfxcAMsyMEOgrQX3im5LibA8srwsUZs7Cx0JAUfcQRpw==
+>>>>>>> origin/main
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^18.11.18"
@@ -9740,10 +9757,17 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.5.tgz#095979f9bcc0d09da324d58d03ce8f8374cbe65a"
   integrity sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==
 
+<<<<<<< HEAD
 typescript@^5.4.0-dev.20240206:
   version "5.4.0-dev.20240220"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.4.0-dev.20240220.tgz#eace77e5b4fd613d17dd0e49d2aa924b2d9a3c89"
   integrity sha512-mUiEcRGUeqXn0/xKi0K01LrBOJ4D1zbn5oVpvofeuo/QUTS/y4+r46h34STyDGMc2KnMYJcWUt2XMalady2J1A==
+=======
+typescript@^5.5.0-dev.20240226:
+  version "5.5.0-dev.20240226"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.5.0-dev.20240226.tgz#b571688666f07e4d7db4c9863f3ee1401e161a7a"
+  integrity sha512-mLY9/pjzSCr7JLkMKHS3KQUKX+LPO9WWjiR+mRcWKcskSdMBZ0j1TPhk/zUyuBklOf3YX4orkvamNiZWZEK0CQ==
+>>>>>>> origin/main
 
 typical@^4.0.0:
   version "4.0.0"

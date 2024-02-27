@@ -16,7 +16,7 @@ declare module 'vscode' {
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	 */
 	export interface ChatResponseProvider {
-		provideLanguageModelResponse2(messages: LanguageModelMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse2(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 	}
 
 	export interface ChatResponseProviderMetadata {

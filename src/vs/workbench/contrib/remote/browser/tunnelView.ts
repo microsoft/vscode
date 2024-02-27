@@ -44,19 +44,19 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 
@@ -1372,9 +1372,9 @@ export namespace OpenPortInPreviewAction {
 		if (tunnel) {
 			const remoteHost = tunnel.remoteHost.includes(':') ? `[${tunnel.remoteHost}]` : tunnel.remoteHost;
 			const sourceUri = URI.parse(`http://${remoteHost}:${tunnel.remotePort}`);
-			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
+			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, CancellationToken.None);
 			if (opener) {
-				return opener.openExternalUri(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
+				return opener.openExternalUri(tunnel.localUri, { sourceUri }, CancellationToken.None);
 			}
 			return openerService.open(tunnel.localUri);
 		}

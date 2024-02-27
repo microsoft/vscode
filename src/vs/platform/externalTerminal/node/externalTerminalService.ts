@@ -80,8 +80,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		return new Promise<number | undefined>((resolve, reject) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
-			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
-
+			const command = `"${args.join('" "')}" & pause`; // use '|' to only pause on non-zero exit code
 
 			// merge environment variables into a copy of the process.env
 			const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
@@ -110,7 +109,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				cmdArgs = ['-d', '.', exec, '/c', command];
 			} else {
 				spawnExec = WindowsExternalTerminalService.CMD;
-				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
+				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', `"${command}"`];
 			}
 
 			const cmd = cp.spawn(spawnExec, cmdArgs, options);
