@@ -41,7 +41,7 @@ import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, I
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
 
@@ -2039,11 +2039,6 @@ export class SearchModel extends Disposable {
 			notebookResult.allScannedFiles,
 		);
 
-		const asyncAIResults = this.searchService.aiTextSearch(
-			{ ...searchQuery, contentPattern: searchQuery.contentPattern.pattern, type: QueryType.aiText },
-			this.currentCancelTokenSource.token, asyncGenerateOnProgress);
-
-
 		const syncResults = textResult.syncResults.results;
 		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
 
@@ -2053,11 +2048,10 @@ export class SearchModel extends Disposable {
 			// resolve async parts of search
 			const allClosedEditorResults = await textResult.asyncResults;
 			const resolvedNotebookResults = await notebookResult.completeData;
-			const aiResults = await asyncAIResults;
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
 			const resolvedResult = <ISearchComplete>{
-				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results, ...aiResults.results],
+				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
 				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
 				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
 				exit: allClosedEditorResults.exit,
