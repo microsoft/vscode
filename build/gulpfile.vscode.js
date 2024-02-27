@@ -64,7 +64,7 @@ const vscodeResources = [
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-slim.js',
+	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
@@ -184,7 +184,7 @@ function computeChecksum(filename) {
 	const contents = fs.readFileSync(filename);
 
 	const hash = crypto
-		.createHash('md5')
+		.createHash('sha256')
 		.update(contents)
 		.digest('base64')
 		.replace(/=+$/, '');
@@ -281,7 +281,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
-				'**/node-vsce-sign/bin/*',
+				'**/@vscode/vsce-sign/bin/*',
 			], 'node_modules.asar'));
 
 		let all = es.merge(

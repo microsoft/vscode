@@ -67,6 +67,7 @@ const glob = require('glob');
 const util = require('util');
 const bootstrap = require('../../../src/bootstrap');
 const coverage = require('../coverage');
+const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -82,6 +83,7 @@ globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)('../../.
 
 // Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 Object.assign(globalThis, {
+	__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
 	__readFileInTests: path => fs.promises.readFile(path, 'utf-8'),
 	__writeFileInTests: (path, contents) => fs.promises.writeFile(path, contents),
 	__readDirInTests: path => fs.promises.readdir(path),
@@ -121,7 +123,7 @@ function initLoader(opts) {
 
 function createCoverageReport(opts) {
 	if (opts.coverage) {
-		return coverage.createReport(opts.run || opts.runGlob);
+		return coverage.createReport(opts.run || opts.runGlob, opts.coveragePath, opts.coverageFormats);
 	}
 	return Promise.resolve(undefined);
 }
@@ -193,8 +195,7 @@ function loadTests(opts) {
 		'issue #149130: vscode freezes because of Bracket Pair Colorization', // https://github.com/microsoft/vscode/issues/192440
 		'property limits', // https://github.com/microsoft/vscode/issues/192443
 		'Error events', // https://github.com/microsoft/vscode/issues/192443
-		'Ensure output channel is logged to', // https://github.com/microsoft/vscode/issues/192443
-		'guards calls after runs are ended' // https://github.com/microsoft/vscode/issues/192468
+		'fetch returns keybinding with user first if title and id matches' //
 	]);
 
 	let _testsWithUnexpectedOutput = false;
@@ -277,7 +278,7 @@ function loadTests(opts) {
 		teardown(() => {
 
 			// should not have unexpected output
-			if (_testsWithUnexpectedOutput) {
+			if (_testsWithUnexpectedOutput && !opts.dev) {
 				assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
 			}
 

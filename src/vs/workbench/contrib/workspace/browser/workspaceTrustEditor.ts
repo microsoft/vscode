@@ -155,6 +155,11 @@ class WorkspaceTrustedUrisTable extends Disposable {
 						return localize('trustedFolderWithHostAriaLabel', "{0} on {1}, trusted", this.labelService.getUriLabel(item.uri), hostLabel);
 					},
 					getWidgetAriaLabel: () => localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces")
+				},
+				identityProvider: {
+					getId(element: ITrustedUriItem) {
+						return element.uri.toString();
+					},
 				}
 			}
 		) as WorkbenchTable<ITrustedUriItem>;
@@ -336,8 +341,14 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	async delete(item: ITrustedUriItem) {
+		this.table.focusNext();
 		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
+
+		if (this.table.getFocus().length === 0) {
+			this.table.focusLast();
+		}
 		this._onDelete.fire(item);
+		this.table.domFocus();
 	}
 
 	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
@@ -395,7 +406,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
 		const element = container.appendChild($('.actions'));
-		const actionBar = new ActionBar(element, { animated: false });
+		const actionBar = new ActionBar(element);
 		return { actionBar };
 	}
 
@@ -746,9 +757,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	override focus() {
-		this.rootElement.focus();
-
 		super.focus();
+
+		this.rootElement.focus();
 	}
 
 	override async setInput(input: WorkspaceTrustEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -18,6 +18,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -52,11 +53,14 @@ export interface IExtension {
 	readonly publisherSponsorLink?: URI;
 	readonly version: string;
 	readonly latestVersion: string;
+	readonly preRelease: boolean;
+	readonly isPreReleaseVersion: boolean;
 	readonly hasPreReleaseVersion: boolean;
 	readonly hasReleaseVersion: boolean;
 	readonly description: string;
 	readonly url?: string;
 	readonly repository?: string;
+	readonly supportUrl?: string;
 	readonly iconUrl: string;
 	readonly iconUrlFallback: string;
 	readonly licenseUrl?: string;
@@ -64,7 +68,6 @@ export interface IExtension {
 	readonly rating?: number;
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
-	readonly pinned: boolean;
 	readonly outdatedTargetPlatform: boolean;
 	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
@@ -109,13 +112,18 @@ export interface IExtensionsWorkbenchService {
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
+	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	pinExtension(extension: IExtension, pin: boolean): Promise<void>;
+	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean;
+	updateAutoUpdateEnablementFor(extensionOrPublisher: IExtension | string, enable: boolean): Promise<void>;
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
+	isAutoUpdateEnabled(): boolean;
+	getAutoUpdateValue(): AutoUpdateConfigurationValue;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
+	updateAll(): Promise<InstallExtensionResult[]>;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
@@ -125,17 +133,18 @@ export interface IExtensionsWorkbenchService {
 
 export const enum ExtensionEditorTab {
 	Readme = 'readme',
-	Contributions = 'contributions',
+	Features = 'features',
 	Changelog = 'changelog',
 	Dependencies = 'dependencies',
 	ExtensionPack = 'extensionPack',
-	RuntimeStatus = 'runtimeStatus',
 }
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
+
+export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
@@ -198,3 +207,6 @@ export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', fals
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
 export const INSTALL_ACTIONS_GROUP = '0_install';
+export const UPDATE_ACTIONS_GROUP = '0_update';
+
+export const extensionsSearchActionsMenu = new MenuId('extensionsSearchActionsMenu');

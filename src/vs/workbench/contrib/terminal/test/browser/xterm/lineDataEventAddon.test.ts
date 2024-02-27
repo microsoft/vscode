@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
@@ -25,7 +25,7 @@ suite('LineDataEventAddon', () => {
 		let events: string[];
 
 		setup(async () => {
-			const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 			xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 4 }));
 			lineDataEventAddon = store.add(new LineDataEventAddon());
 			xterm.loadAddon(lineDataEventAddon);

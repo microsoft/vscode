@@ -13,12 +13,12 @@ import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -29,11 +29,13 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
@@ -156,7 +158,8 @@ export class AccessibleView extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IMenuService private readonly _menuService: IMenuService
+		@IMenuService private readonly _menuService: IMenuService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -251,6 +254,7 @@ export class AccessibleView extends Disposable {
 		}
 	}
 
+
 	showLastProvider(id: AccessibleViewProviderId): void {
 		if (!this._lastProvider || this._lastProvider.options.id !== id) {
 			return;
@@ -264,10 +268,10 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
-				return this._render(provider!, container, showAccessibleViewHelp);
+				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
 				if (!showAccessibleViewHelp) {
@@ -457,7 +461,7 @@ export class AccessibleView extends Disposable {
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
 		this._updateContextKeys(provider, true);
-
+		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
 			if (!model) {
 				return;
@@ -482,6 +486,11 @@ export class AccessibleView extends Disposable {
 			} else if (actionsHint) {
 				ariaLabel = localize('accessibility-help-hint', "Accessibility Help, {0}", actionsHint);
 			}
+			if (isWindows && widgetIsFocused) {
+				// prevent the screen reader on windows from reading
+				// the aria label again when it's refocused
+				ariaLabel = '';
+			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
 			if (this._currentProvider?.options.position) {
@@ -499,19 +508,21 @@ export class AccessibleView extends Disposable {
 		});
 		this._updateToolbar(provider.actions, provider.options.type);
 
-		const handleEscape = (e: KeyboardEvent | IKeyboardEvent): void => {
+		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
+			provider.onClose();
 			e.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
-			// HACK: Delay to allow the context view to hide #186514
-			setTimeout(() => provider.onClose(), 100);
+			this._lastProvider = undefined;
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				handleEscape(e);
+			if (e.keyCode === KeyCode.Enter) {
+				this._commandService.executeCommand('editor.action.openLink');
+			} else if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
+				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
-				const url: string = provider.options.readMoreUrl!;
+				const url: string = provider.options.readMoreUrl;
 				alert(AccessibilityHelpNLS.openingDocs);
 				this._openerService.open(URI.parse(url));
 				e.preventDefault();
@@ -522,7 +533,7 @@ export class AccessibleView extends Disposable {
 		disposableStore.add(addDisposableListener(this._toolbar.getElement(), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
-				handleEscape(e);
+				hide(e);
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
@@ -531,7 +542,7 @@ export class AccessibleView extends Disposable {
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
-		disposableStore.add(this._layoutService.onDidLayout(() => this._layout()));
+		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
 		return disposableStore;
 	}
 
@@ -552,7 +563,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		const dimension = this._layoutService.dimension;
+		const dimension = this._layoutService.activeContainerDimension;
 		const maxHeight = dimension.height && dimension.height * .4;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
 		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
@@ -764,4 +775,22 @@ export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	markdownToParse?: string;
 	firstListItem?: string;
 	lineNumber?: number;
+}
+
+function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService, configurationService: IConfigurationService): boolean {
+	if (!configurationService.getValue(AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress)) {
+		return false;
+	}
+	const standardKeyboardEvent = new StandardKeyboardEvent(event);
+	const resolveResult = keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+
+	const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded;
+	if (keybindingService.inChordMode || isValidChord) {
+		return false;
+	}
+	return shouldHandleKey(event) && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+}
+
+function shouldHandleKey(event: KeyboardEvent): boolean {
+	return !!event.code.match(/^(Key[A-Z]|Digit[0-9]|Equal|Comma|Period|Slash|Quote|Backquote|Backslash|Minus|Semicolon|Space|Enter)$/);
 }

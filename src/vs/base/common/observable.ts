@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// This is a facade for the observable implementation. Only import from here!
+
 export {
 	IObservable,
 	IObserver,
@@ -43,13 +45,24 @@ export {
 	observableFromPromise,
 	observableSignal,
 	observableSignalFromEvent,
-	waitForState,
 	wasEventTriggeredRecently,
 } from 'vs/base/common/observableInternal/utils';
+export {
+	ObservableLazy,
+	ObservableLazyPromise,
+	ObservablePromise,
+	PromiseResult,
+	waitForState,
+	derivedWithCancellationToken,
+} from 'vs/base/common/observableInternal/promise';
 
 import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableInternal/logging';
 
-const enableLogging = false;
+// Remove "//" in the next line to enable logging
+const enableLogging = false
+	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	;
+
 if (enableLogging) {
 	setLogger(new ConsoleObservableLogger());
 }

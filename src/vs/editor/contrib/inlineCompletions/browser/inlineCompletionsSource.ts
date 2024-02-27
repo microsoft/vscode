@@ -56,7 +56,7 @@ export class InlineCompletionsSource extends Disposable {
 			const shouldDebounce = updateOngoing || context.triggerKind === InlineCompletionTriggerKind.Automatic;
 			if (shouldDebounce) {
 				// This debounces the operation
-				await wait(this._debounceValue.get(this.textModel));
+				await wait(this._debounceValue.get(this.textModel), source.token);
 			}
 
 			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
@@ -292,8 +292,9 @@ export class InlineCompletionWithUpdatedRange {
 			return false;
 		}
 
-		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF).toLowerCase();
-		const filterText = minimizedReplacement.text.toLowerCase();
+		// We might consider comparing by .toLowerText, but this requires GhostTextReplacement
+		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF);
+		const filterText = minimizedReplacement.text;
 
 		const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
 

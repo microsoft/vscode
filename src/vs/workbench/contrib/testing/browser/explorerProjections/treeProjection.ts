@@ -224,8 +224,9 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 					}
 
 					// The first element will cause the root to be hidden
-					const affectsRootElement = toRemove.depth === 1 && toRemove.parent?.children.size === 1;
-					this.changedParents.add(affectsRootElement ? null : toRemove.parent);
+					const parent = toRemove.parent;
+					const affectsRootElement = toRemove.depth === 1 && parent?.children.size === 1;
+					this.changedParents.add(affectsRootElement ? null : parent);
 
 					const queue: Iterable<TestExplorerTreeElement>[] = [[toRemove]];
 					while (queue.length) {
@@ -234,6 +235,10 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 								queue.push(this.unstoreItem(item));
 							}
 						}
+					}
+
+					if (parent instanceof TreeTestItemElement) {
+						refreshComputedState(computedStateAccessor, parent, undefined, !!parent.duration).forEach(i => i.fireChange());
 					}
 				}
 			}
@@ -290,10 +295,6 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 		const parent = treeElement.parent;
 		parent?.children.delete(treeElement);
 		this.items.delete(treeElement.test.item.extId);
-		if (parent instanceof TreeTestItemElement) {
-			refreshComputedState(computedStateAccessor, parent, undefined, !!treeElement.duration).forEach(i => i.fireChange());
-		}
-
 		return treeElement.children;
 	}
 
@@ -301,9 +302,14 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 		treeElement.parent?.children.add(treeElement);
 		this.items.set(treeElement.test.item.extId, treeElement);
 
-		// The first element will cause the root to be shown
-		const affectsRootElement = treeElement.depth === 1 && treeElement.parent?.children.size === 1;
-		this.changedParents.add(affectsRootElement ? null : treeElement.parent);
+		// The first element will cause the root to be shown. The first element of
+		// a parent may need to re-render it for #204805.
+		const affectsParent = treeElement.parent?.children.size === 1;
+		const affectedParent = affectsParent ? treeElement.parent.parent : treeElement.parent;
+		this.changedParents.add(affectedParent);
+		if (affectedParent?.depth === 0) {
+			this.changedParents.add(null);
+		}
 
 		if (treeElement.depth === 0 || isCollapsedInSerializedTestTree(this.lastState, treeElement.test.item.extId) === false) {
 			this.expandElement(treeElement, 0);

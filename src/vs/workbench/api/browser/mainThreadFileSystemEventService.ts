@@ -168,7 +168,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 								label: localize('cancel', "Skip Changes"),
 								run: () => Choice.Cancel
 							},
-							checkbox: { label: localize('again', "Don't ask again") }
+							checkbox: { label: localize('again', "Do not ask me again") }
 						});
 						if (result === Choice.Cancel) {
 							// no changes wanted, don't persist cancel option
@@ -212,9 +212,8 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this._proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
-	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
+	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
-		const correlate = Array.isArray(unvalidatedOpts?.excludes) && unvalidatedOpts.excludes.length > 0; // TODO@bpasero for now only correlate proposed new file system watcher API with excludes
 
 		const opts: IWatchOptions = {
 			...unvalidatedOpts
@@ -278,7 +277,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							opts.excludes.push(key);
 						}
 					}
@@ -300,7 +299,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							if (!opts.includes) {
 								opts.includes = [];
 							}

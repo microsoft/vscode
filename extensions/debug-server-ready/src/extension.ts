@@ -18,6 +18,7 @@ interface ServerReadyAction {
 	uriFormat?: string;
 	webRoot?: string;
 	name?: string;
+	config?: vscode.DebugConfiguration;
 	killOnServerStop?: boolean;
 }
 
@@ -53,11 +54,12 @@ class ServerReadyDetector extends vscode.Disposable {
 	private static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
 	private static terminalDataListener: vscode.Disposable | undefined;
 
+	private readonly stoppedEmitter = new vscode.EventEmitter<void>();
+	private readonly onDidSessionStop = this.stoppedEmitter.event;
+	private readonly disposables = new Set<vscode.Disposable>([]);
 	private trigger: Trigger;
 	private shellPid?: number;
 	private regexp: RegExp;
-	private disposables: vscode.Disposable[] = [];
-	private lateDisposables = new Set<vscode.Disposable>([]);
 
 	static start(session: vscode.DebugSession): ServerReadyDetector | undefined {
 		if (session.configuration.serverReadyAction) {
@@ -75,6 +77,7 @@ class ServerReadyDetector extends vscode.Disposable {
 		const detector = ServerReadyDetector.detectors.get(session);
 		if (detector) {
 			ServerReadyDetector.detectors.delete(session);
+			detector.sessionStopped();
 			detector.dispose();
 		}
 	}
@@ -125,12 +128,11 @@ class ServerReadyDetector extends vscode.Disposable {
 
 	private internalDispose() {
 		this.disposables.forEach(d => d.dispose());
-		this.disposables = [];
+		this.disposables.clear();
 	}
 
-	override dispose() {
-		this.lateDisposables.forEach(d => d.dispose());
-		return super.dispose();
+	public sessionStopped() {
+		this.stoppedEmitter.fire();
 	}
 
 	detectPattern(s: string): boolean {
@@ -139,7 +141,6 @@ class ServerReadyDetector extends vscode.Disposable {
 			if (matches && matches.length >= 1) {
 				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
 				this.trigger.fire();
-				this.internalDispose();
 				return true;
 			}
 		}
@@ -147,7 +148,6 @@ class ServerReadyDetector extends vscode.Disposable {
 	}
 
 	private openExternalWithString(session: vscode.DebugSession, captureString: string) {
-
 		const args: ServerReadyAction = session.configuration.serverReadyAction;
 
 		let uri;
@@ -195,7 +195,11 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 
 			case 'startDebugging':
-				await this.startNamedDebugSession(session, args.name || 'unspecified');
+				if (args.config) {
+					await this.startDebugSession(session, args.config.name, args.config);
+				} else {
+					await this.startDebugSession(session, args.name || 'unspecified');
+				}
 				break;
 
 			default:
@@ -228,14 +232,12 @@ class ServerReadyDetector extends vscode.Disposable {
 			return;
 		}
 
-		const stopListener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
-			if (terminated === session) {
-				stopListener.dispose();
-				this.lateDisposables.delete(stopListener);
-				await vscode.debug.stopDebugging(createdSession);
-			}
+		const stopListener = this.onDidSessionStop(async () => {
+			stopListener.dispose();
+			this.disposables.delete(stopListener);
+			await vscode.debug.stopDebugging(createdSession);
 		});
-		this.lateDisposables.add(stopListener);
+		this.disposables.add(stopListener);
 	}
 
 	private startBrowserDebugSession(type: string, session: vscode.DebugSession, uri: string, trackerId?: string) {
@@ -249,17 +251,24 @@ class ServerReadyDetector extends vscode.Disposable {
 		});
 	}
 
-	private async startNamedDebugSession(session: vscode.DebugSession, name: string) {
+	/**
+	 * Starts a debug session given a debug configuration name (saved in launch.json) or a debug configuration object.
+	 *
+	 * @param session The parent debugSession
+	 * @param name The name of the configuration to launch. If config it set, it assumes it is the same as config.name.
+	 * @param config [Optional] Instead of starting a debug session by debug configuration name, use a debug configuration object instead.
+	 */
+	private async startDebugSession(session: vscode.DebugSession, name: string, config?: vscode.DebugConfiguration) {
 		const args = session.configuration.serverReadyAction as ServerReadyAction;
 		if (!args.killOnServerStop) {
-			await vscode.debug.startDebugging(session.workspaceFolder, name);
+			await vscode.debug.startDebugging(session.workspaceFolder, config ?? name);
 			return;
 		}
 
 		const cts = new vscode.CancellationTokenSource();
 		const newSessionPromise = this.catchStartedDebugSession(x => x.name === name, cts.token);
 
-		if (!await vscode.debug.startDebugging(session.workspaceFolder, name)) {
+		if (!await vscode.debug.startDebugging(session.workspaceFolder, config ?? name)) {
 			cts.cancel();
 			cts.dispose();
 			return;
@@ -272,14 +281,12 @@ class ServerReadyDetector extends vscode.Disposable {
 			return;
 		}
 
-		const stopListener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
-			if (terminated === session) {
-				stopListener.dispose();
-				this.lateDisposables.delete(stopListener);
-				await vscode.debug.stopDebugging(createdSession);
-			}
+		const stopListener = this.onDidSessionStop(async () => {
+			stopListener.dispose();
+			this.disposables.delete(stopListener);
+			await vscode.debug.stopDebugging(createdSession);
 		});
-		this.lateDisposables.add(stopListener);
+		this.disposables.add(stopListener);
 	}
 
 	private catchStartedDebugSession(predicate: (session: vscode.DebugSession) => boolean, cancellationToken: vscode.CancellationToken): Promise<vscode.DebugSession | undefined> {
@@ -287,8 +294,8 @@ class ServerReadyDetector extends vscode.Disposable {
 			const done = (value?: vscode.DebugSession) => {
 				listener.dispose();
 				cancellationListener.dispose();
-				this.lateDisposables.delete(listener);
-				this.lateDisposables.delete(cancellationListener);
+				this.disposables.delete(listener);
+				this.disposables.delete(cancellationListener);
 				_resolve(value);
 			};
 
@@ -300,8 +307,8 @@ class ServerReadyDetector extends vscode.Disposable {
 			});
 
 			// In case the debug session of interest was never caught anyhow.
-			this.lateDisposables.add(listener);
-			this.lateDisposables.add(cancellationListener);
+			this.disposables.add(listener);
+			this.disposables.add(cancellationListener);
 		});
 	}
 }

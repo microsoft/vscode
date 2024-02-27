@@ -29,6 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class TerminalEditor extends EditorPane {
 
@@ -73,7 +74,7 @@ export class TerminalEditor extends EditorPane {
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);
 		}
-		this._editorInput.terminalInstance?.setVisible(this.isVisible() && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART));
+		this._editorInput.terminalInstance?.setVisible(this.isVisible() && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, dom.getWindow(this._editorInstanceElement)));
 		if (this._editorInput.terminalInstance) {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
@@ -99,9 +100,9 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	override focus() {
-		this._editorInput?.terminalInstance?.focus();
-
 		super.focus();
+
+		this._editorInput?.terminalInstance?.focus();
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -142,7 +143,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
+						openContextMenu(dom.getWindow(this._editorInstanceElement), event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -180,7 +181,7 @@ export class TerminalEditor extends EditorPane {
 			else
 				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 					if (!this._cancelContextMenu) {
-						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
+						openContextMenu(dom.getWindow(this._editorInstanceElement), event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 					}
 					event.preventDefault();
 					event.stopImmediatePropagation();
@@ -200,21 +201,21 @@ export class TerminalEditor extends EditorPane {
 
 	override setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible, group);
-		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART));
+		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, dom.getWindow(this._editorInstanceElement)));
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.CreateTerminalEditor: {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
 					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
+					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate });
 					return button;
 				}
 			}
 		}
-		return super.getActionViewItem(action);
+		return super.getActionViewItem(action, options);
 	}
 
 	private _getDefaultProfileName(): string {

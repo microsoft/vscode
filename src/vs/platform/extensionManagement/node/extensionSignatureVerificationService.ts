@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getErrorMessage } from 'vs/base/common/errors';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const IExtensionSignatureVerificationService = createDecorator<IExtensionSignatureVerificationService>('IExtensionSignatureVerificationService');
 
@@ -44,11 +46,15 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private moduleLoadingPromise: Promise<typeof vsceSign> | undefined;
 
+	constructor(
+		@ILogService private readonly logService: ILogService
+	) { }
+
 	private vsceSign(): Promise<typeof vsceSign> {
 		if (!this.moduleLoadingPromise) {
 			this.moduleLoadingPromise = new Promise(
 				(resolve, reject) => require(
-					['node-vsce-sign'],
+					['@vscode/vsce-sign'],
 					async (obj) => {
 						const instance = <typeof vsceSign>obj;
 
@@ -65,6 +71,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		try {
 			module = await this.vsceSign();
 		} catch (error) {
+			this.logService.error('Could not load vsce-sign module', getErrorMessage(error));
 			return false;
 		}
 

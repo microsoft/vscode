@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { mainWindow } from 'vs/base/browser/window';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ProgressBar', () => {
@@ -12,11 +13,11 @@ suite('ProgressBar', () => {
 
 	setup(() => {
 		fixture = document.createElement('div');
-		document.body.appendChild(fixture);
+		mainWindow.document.body.appendChild(fixture);
 	});
 
 	teardown(() => {
-		document.body.removeChild(fixture);
+		mainWindow.document.body.removeChild(fixture);
 	});
 
 	test('Progress Bar', function () {

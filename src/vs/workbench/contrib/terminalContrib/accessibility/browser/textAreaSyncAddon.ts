@@ -6,10 +6,11 @@
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import type { Terminal, ITerminalAddon } from 'xterm';
+import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import type { Terminal, ITerminalAddon } from '@xterm/xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface ITextAreaData {
 	content: string;
@@ -24,7 +25,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
-		if (this._accessibilityService.isScreenReaderOptimized()) {
+		if (this._shouldBeActive()) {
 			this._registerSyncListeners();
 		}
 	}
@@ -32,11 +33,12 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService
 	) {
 		super();
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			if (this._accessibilityService.isScreenReaderOptimized()) {
+			if (this._shouldBeActive()) {
 				this._syncTextArea();
 				this._registerSyncListeners();
 			} else {
@@ -46,12 +48,16 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _registerSyncListeners(): void {
-		if (this._accessibilityService.isScreenReaderOptimized() && this._terminal?.textarea) {
+		if (this._shouldBeActive() && this._terminal?.textarea) {
 			this._listeners.value = new DisposableStore();
 			this._listeners.value.add(this._terminal.onCursorMove(() => this._syncTextArea()));
 			this._listeners.value.add(this._terminal.onData(() => this._syncTextArea()));
 			this._listeners.value.add(addDisposableListener(this._terminal.textarea, 'focus', () => this._syncTextArea()));
 		}
+	}
+
+	private _shouldBeActive(): boolean {
+		return this._accessibilityService.isScreenReaderOptimized() || this._configurationService.getValue(TerminalSettingId.DevMode);
 	}
 
 	@debounce(50)

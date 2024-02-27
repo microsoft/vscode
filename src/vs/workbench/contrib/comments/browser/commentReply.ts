@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -29,6 +29,9 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
@@ -63,7 +66,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		@ILanguageService private languageService: ILanguageService,
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -235,7 +239,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 				uri: commentEditor.getModel()!.uri,
 				value: commentEditor.getValue()
 			};
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveEditingCommentThread(this._commentThread);
+			this.commentService.setActiveCommentAndThread(this.owner, { thread: this._commentThread });
 		}));
 
 		this._commentThreadDisposables.push(commentEditor.getModel()!.onDidChangeContent(() => {
@@ -245,7 +250,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 				newInput.value = modelContent;
 				this._commentThread.input = newInput;
 			}
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveEditingCommentThread(this._commentThread);
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeInput(input => {
@@ -283,7 +288,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
 			await this._actionRunDelegate?.();
 
 			await action.run({
@@ -306,7 +311,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions.setActions(editorMenu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(container, async (action: IAction) => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
 			this._actionRunDelegate?.();
 
 			action.run({
@@ -352,7 +357,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	private createReplyButton(commentEditor: ICodeEditor, commentForm: HTMLElement) {
 		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(commentForm, dom.$(`button.review-thread-reply-button.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
-		this._reviewThreadReplyButton.title = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this._reviewThreadReplyButton, this._commentOptions?.prompt || nls.localize('reply', "Reply...")));
 
 		this._reviewThreadReplyButton.textContent = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
@@ -366,4 +371,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		});
 	}
 
+	override dispose(): void {
+		super.dispose();
+		dispose(this._commentThreadDisposables);
+	}
 }

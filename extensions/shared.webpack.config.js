@@ -31,7 +31,7 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 		},
 
 		resolve: {
-			conditionNames: ['import', 'require'],
+			conditionNames: ['import', 'require', 'node-addons', 'node'],
 			mainFields: ['module', 'main'],
 			extensions: ['.ts', '.js'] // support ts-files and js-files
 		},

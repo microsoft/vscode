@@ -26,7 +26,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -39,6 +39,9 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.localTerminalBackend';
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
@@ -85,7 +88,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IHistoryService historyService: IHistoryService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
@@ -129,7 +132,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			// _localPtyService, and one directly via message port _ptyHostDirectProxy. The former is
 			// used for pty host management messages, it would make sense in the future to use a
 			// separate interface/service for this one.
-			const client = new MessagePortClient(port, `window:${this._environmentService.window.id}`);
+			const client = new MessagePortClient(port, `window:${this._nativeHostService.windowId}`);
 			directProxyClientEventually.complete(client);
 			this._onPtyHostConnected.fire();
 

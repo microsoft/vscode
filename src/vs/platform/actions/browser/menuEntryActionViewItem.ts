@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDark } from 'vs/platform/theme/common/theme';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { assertType } from 'vs/base/common/types';
 import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -45,7 +45,8 @@ export function createAndFillInActionBarActions(
 	target: IAction[] | { primary: IAction[]; secondary: IAction[] },
 	primaryGroup?: string | ((actionGroup: string) => boolean),
 	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
-	useSeparatorsInPrimaryActions?: boolean): void {
+	useSeparatorsInPrimaryActions?: boolean
+): void {
 	const groups = menu.getActions(options);
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
@@ -381,11 +382,11 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		};
 
 		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions);
-		this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+		this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
 			if (e.action instanceof MenuItemAction) {
 				this.update(e.action);
 			}
-		});
+		}));
 	}
 
 	private update(lastAction: MenuItemAction): void {
@@ -514,7 +515,7 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 /**
  * Creates action view items for menu actions or submenu actions.
  */
-export function createActionViewItem(instaService: IInstantiationService, action: IAction, options?: IDropdownMenuActionViewItemOptions | IMenuEntryActionViewItemOptions): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
+export function createActionViewItem(instaService: IInstantiationService, action: IAction, options: IDropdownMenuActionViewItemOptions | IMenuEntryActionViewItemOptions | undefined): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, options);
 	} else if (action instanceof SubmenuItemAction) {

@@ -8,6 +8,7 @@ import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
+import { revive } from 'vs/base/common/marshalling';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
@@ -119,12 +120,7 @@ suite('ExtHostSearch', () => {
 		}
 
 		await rpcProtocol.sync();
-		const results = (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
-			...r,
-			...{
-				resource: URI.revive(r.resource)
-			}
-		}));
+		const results: IFileMatch[] = revive(<IRawFileMatch2[]>mockMainThreadSearch.results);
 
 		return { results, stats: stats! };
 	}

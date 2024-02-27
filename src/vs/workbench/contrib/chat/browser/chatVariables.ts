@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IOffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatDynamicReferenceModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferences';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicReferencePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolveResult, IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
+import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -28,39 +30,35 @@ export class ChatVariablesService implements IChatVariablesService {
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
-		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
+	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
+		let resolvedVariables: { name: string; range: IOffsetRange; values: IChatRequestVariableValue[] }[] = [];
 		const jobs: Promise<any>[] = [];
 
-		const parsedPrompt: string[] = [];
 		prompt.parts
 			.forEach((part, i) => {
 				if (part instanceof ChatRequestVariablePart) {
 					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, token).then(value => {
-							if (value) {
-								resolvedVariables[part.variableName] = value;
-								parsedPrompt[i] = `[${part.text}](values:${part.variableName})`;
-							} else {
-								parsedPrompt[i] = part.promptText;
+						jobs.push(data.resolver(prompt.text, part.variableArg, model, progress, token).then(values => {
+							if (values?.length) {
+								resolvedVariables[i] = { name: part.variableName, range: part.range, values };
 							}
 						}).catch(onUnexpectedExternalError));
 					}
-				} else if (part instanceof ChatRequestDynamicReferencePart) {
-					// Maybe the dynamic reference should include a full IChatRequestVariableValue[] at the time it is inserted?
-					resolvedVariables[part.referenceText] = [{ level: 'full', value: part.data.toString() }];
-					parsedPrompt[i] = part.promptText;
-				} else {
-					parsedPrompt[i] = part.promptText;
+				} else if (part instanceof ChatRequestDynamicVariablePart) {
+					resolvedVariables[i] = { name: part.referenceText, range: part.range, values: part.data };
 				}
 			});
 
 		await Promise.allSettled(jobs);
 
+		resolvedVariables = coalesce(resolvedVariables);
+
+		// "reverse", high index first so that replacement is simple
+		resolvedVariables.sort((a, b) => b.range.start - a.range.start);
+
 		return {
 			variables: resolvedVariables,
-			prompt: parsedPrompt.join('').trim()
 		};
 	}
 
@@ -73,7 +71,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		return Iterable.filter(all, data => !data.hidden);
 	}
 
-	getDynamicReferences(sessionId: string): ReadonlyArray<IDynamicReference> {
+	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable> {
 		// This is slightly wrong... the parser pulls dynamic references from the input widget, but there is no guarantee that message came from the input here.
 		// Need to ...
 		// - Parser takes list of dynamic references (annoying)
@@ -83,12 +81,12 @@ export class ChatVariablesService implements IChatVariablesService {
 			return [];
 		}
 
-		const model = widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID);
+		const model = widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
 		if (!model) {
 			return [];
 		}
 
-		return model.references;
+		return model.variables;
 	}
 
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {

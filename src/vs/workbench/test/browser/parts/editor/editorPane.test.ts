@@ -18,8 +18,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { URI } from 'vs/base/common/uri';
 import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TestStorageService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -232,12 +231,12 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, URI.file('/A'), { line: 3 });
 		res = memento.loadEditorState(testGroup0, URI.file('/A'));
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		memento.saveEditorState(testGroup1, URI.file('/A'), { line: 5 });
 		res = memento.loadEditorState(testGroup1, URI.file('/A'));
 		assert.ok(res);
-		assert.strictEqual(res!.line, 5);
+		assert.strictEqual(res.line, 5);
 
 		// Ensure capped at 3 elements
 		memento.saveEditorState(testGroup0, URI.file('/B'), { line: 1 });
@@ -320,7 +319,7 @@ suite('EditorPane', () => {
 				super();
 			}
 			override get typeId() { return 'testEditorInputForMementoTest'; }
-			override async resolve(): Promise<IEditorModel | null> { return null; }
+			override async resolve(): Promise<IDisposable | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -338,7 +337,7 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputA, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		// State removed when input gets disposed
 		testInputA.dispose();
@@ -358,7 +357,7 @@ suite('EditorPane', () => {
 				super();
 			}
 			override get typeId() { return 'testEditorInputForMementoTest'; }
-			override async resolve(): Promise<IEditorModel | null> { return null; }
+			override async resolve(): Promise<IDisposable | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -376,7 +375,7 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputA.resource, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		// State not yet removed when input gets disposed
 		// because we used resource
@@ -392,7 +391,7 @@ suite('EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputB.resource, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputB);
 		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		assert.strictEqual(res.line, 3);
 
 		memento.clearEditorStateOnDispose(testInputB.resource, testInputB);
 
@@ -488,7 +487,7 @@ suite('EditorPane', () => {
 		const editorPart = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, editorPart);
 
-		const editorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		const group = editorPart.activeGroup;

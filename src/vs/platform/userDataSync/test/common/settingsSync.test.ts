@@ -89,8 +89,8 @@ suite('SettingsSync - Auto', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
-		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, '{}');
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content)?.settings, '{}');
+		assert.strictEqual(parseSettingsSyncContent(remoteUserData.syncData!.content)?.settings, '{}');
 		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), '');
 	}));
 
@@ -130,8 +130,8 @@ suite('SettingsSync - Auto', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, content);
-		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, content);
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content)?.settings, content);
+		assert.strictEqual(parseSettingsSyncContent(remoteUserData.syncData!.content)?.settings, content);
 		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), content);
 	}));
 
@@ -155,7 +155,7 @@ suite('SettingsSync - Auto', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content)?.settings, '{}');
 	}));
 
 	test('sync for first time to the server', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -187,7 +187,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, expected);
 	}));
 
@@ -211,7 +211,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -242,7 +242,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -273,7 +273,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -297,7 +297,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 }`);
 	}));
@@ -315,7 +315,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	,
 }`);
@@ -367,7 +367,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -415,7 +415,7 @@ suite('SettingsSync - Auto', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
@@ -576,7 +576,7 @@ suite('SettingsSync - Manual', () => {
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSettings(content!);
+		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",

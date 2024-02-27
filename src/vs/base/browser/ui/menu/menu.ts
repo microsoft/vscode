@@ -85,7 +85,6 @@ interface ISubMenuData {
 
 export class Menu extends ActionBar {
 	private mnemonics: Map<string, Array<BaseMenuActionViewItem>>;
-	private readonly menuDisposables: DisposableStore;
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
 	static globalStyleSheet: HTMLStyleElement;
@@ -113,23 +112,21 @@ export class Menu extends ActionBar {
 
 		this.actionsList.tabIndex = 0;
 
-		this.menuDisposables = this._register(new DisposableStore());
-
 		this.initializeOrUpdateStyleSheet(container, menuStyles);
 
 		this._register(Gesture.addTarget(menuElement));
 
-		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+		this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 
 			// Stop tab navigation of menus
 			if (event.equals(KeyCode.Tab)) {
 				e.preventDefault();
 			}
-		});
+		}));
 
 		if (options.enableMnemonics) {
-			this.menuDisposables.add(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
@@ -262,10 +259,22 @@ export class Menu extends ActionBar {
 		const window = getWindow(container);
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
 
-		actions = actions.filter(a => {
+		actions = actions.filter((a, idx) => {
 			if (options.submenuIds?.has(a.id)) {
 				console.warn(`Found submenu cycle: ${a.id}`);
 				return false;
+			}
+
+			// Filter out consecutive or useless separators
+			if (a instanceof Separator) {
+				if (idx === actions.length - 1 || idx === 0) {
+					return false;
+				}
+
+				const prevAction = actions[idx - 1];
+				if (prevAction instanceof Separator) {
+					return false;
+				}
 			}
 
 			return true;
@@ -481,7 +490,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				// => to get the Copy and Paste context menu actions working on Firefox,
 				// there should be no timeout here
 				if (isFirefox) {
-					const mouseEvent = new StandardMouseEvent(e);
+					const mouseEvent = new StandardMouseEvent(getWindow(this.element), e);
 
 					// Allowing right click to trigger the event causes the issue described below,
 					// but since the solution below does not work in FF, we must disable right click
@@ -879,7 +888,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 			// Set the top value of the menu container before construction
 			// This allows the menu constructor to calculate the proper max height
-			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
+			const computedStyles = getWindow(this.parentData.parent.domNode).getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			this.submenuContainer.style.zIndex = '1';
@@ -1045,10 +1054,6 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar .action-item.disabled {
 	cursor: default;
-}
-
-.monaco-menu .monaco-action-bar.animated .action-item.active {
-	transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
 }
 
 .monaco-menu .monaco-action-bar .action-item .icon,

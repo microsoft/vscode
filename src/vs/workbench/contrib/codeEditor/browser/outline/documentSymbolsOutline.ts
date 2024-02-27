@@ -36,7 +36,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
-class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<DocumentSymbolItem>{
+class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<DocumentSymbolItem> {
 
 	private _breadcrumbs: (OutlineGroup | OutlineElement)[] = [];
 
@@ -144,7 +144,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
 		const delegate = new DocumentSymbolVirtualDelegate();
-		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true)];
+		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true, target)];
 		const treeDataSource: IDataSource<this, DocumentSymbolItem> = {
 			getChildren: (parent) => {
 				if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
@@ -324,11 +324,14 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				}
 			}));
 			this._outlineDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
-					if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
-						this._applyMarkersToOutline(model);
-					} else {
+				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled) || e.affectsConfiguration('problems.visibility')) {
+					const problem = this._configurationService.getValue('problems.visibility');
+					const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
+
+					if (!problem || !config) {
 						model.updateMarker([]);
+					} else {
+						this._applyMarkersToOutline(model);
 					}
 					this._onDidChange.fire({});
 				}
@@ -373,7 +376,9 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	private _applyMarkersToOutline(model: OutlineModel | undefined): void {
-		if (!model || !this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
+		const problem = this._configurationService.getValue('problems.visibility');
+		const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
+		if (!model || !problem || !config) {
 			return;
 		}
 		const markers: IOutlineMarker[] = [];
@@ -428,7 +433,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor!, target, firstLoadBarrier));
+		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier));
 		await firstLoadBarrier.wait();
 		return result;
 	}

@@ -81,6 +81,8 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	_reason?: string;
 
 	folderQueries: IFolderQuery<U>[];
+	// The include pattern for files that gets passed into ripgrep.
+	// Note that this will override any ignore files if applicable.
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
@@ -94,6 +96,10 @@ export interface ICommonQueryProps<U extends UriComponents> {
 export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
 	type: QueryType.File;
 	filePattern?: string;
+
+	// when walking through the tree to find the result, don't use the filePattern to fuzzy match.
+	// Instead, should use glob matching.
+	shouldGlobMatchFilePattern?: boolean;
 
 	/**
 	 * If true no results will be returned. Instead `limitHit` will indicate if at least one result exists or not.
@@ -164,7 +170,7 @@ export interface IExtendedExtensionSearchOptions {
 
 export interface IFileMatch<U extends UriComponents = URI> {
 	resource: U;
-	results?: ITextSearchResult[];
+	results?: ITextSearchResult<U>[];
 }
 
 export type IRawFileMatch2 = IFileMatch<UriComponents>;
@@ -187,20 +193,20 @@ export interface ITextSearchResultPreview {
 	cellFragment?: string;
 }
 
-export interface ITextSearchMatch {
-	uri?: URI;
+export interface ITextSearchMatch<U extends UriComponents = URI> {
+	uri?: U;
 	ranges: ISearchRange | ISearchRange[];
 	preview: ITextSearchResultPreview;
 	webviewIndex?: number;
 }
 
-export interface ITextSearchContext {
-	uri?: URI;
+export interface ITextSearchContext<U extends UriComponents = URI> {
+	uri?: U;
 	text: string;
 	lineNumber: number;
 }
 
-export type ITextSearchResult = ITextSearchMatch | ITextSearchContext;
+export type ITextSearchResult<U extends UriComponents = URI> = ITextSearchMatch<U> | ITextSearchContext<U>;
 
 export function resultIsMatch(result: ITextSearchResult): result is ITextSearchMatch {
 	return !!(<ITextSearchMatch>result).preview;
@@ -586,9 +592,11 @@ export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg i
 	return !!(<ISerializedFileMatch>arg).path;
 }
 
-export function isFilePatternMatch(candidate: IRawFileMatch, normalizedFilePatternLowercase: string): boolean {
+export function isFilePatternMatch(candidate: IRawFileMatch, filePatternToUse: string, fuzzy = true): boolean {
 	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
-	return fuzzyContains(pathToMatch, normalizedFilePatternLowercase);
+	return fuzzy ?
+		fuzzyContains(pathToMatch, filePatternToUse) :
+		glob.match(filePatternToUse, pathToMatch);
 }
 
 export interface ISerializedFileMatch {

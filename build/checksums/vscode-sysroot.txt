@@ -1,0 +1,6 @@
+68a17006021975ff271a1dd615f9db9eda7c25f2cc65e750c87980dc57a06c94  aarch64-linux-gnu-glibc-2.17.tar.gz
+0de422a81683cf9e8cf875dbd1e0c27545ac3c775b2d53015daf3ca2b31d3f15  aarch64-linux-gnu-glibc-2.28.tar.gz
+3ced48cb479f2cdba95aa649710fcb7778685551c745bbd76ac706c3c0ead9fb  arm-rpi-linux-gnueabihf-glibc-2.17.tar.gz
+7aea163f7fad8cc50000c86b5108be880121d35e2f55d016ef8c96bbe54129eb  arm-rpi-linux-gnueabihf-glibc-2.28.tar.gz
+5aae21115f1d284c3cdf32c83db15771b59bc80793f1423032abf5a823c0d658  x86_64-linux-gnu-glibc-2.17.tar.gz
+dbb927408393041664a020661f2641c9785741be3d29b050b9dac58980967784  x86_64-linux-gnu-glibc-2.28.tar.gz

@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -146,7 +146,7 @@ export class TitleMenu extends Disposable {
 
 		const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, targetHtmlElement, menuId, {
 			menuOptions: { renderShortTitle: true },
-			toolbarOptions: { primaryGroup: () => false }
+			toolbarOptions: { primaryGroup: (g) => g === 'primary' }
 		});
 		this._store.add(toolbar);
 	}

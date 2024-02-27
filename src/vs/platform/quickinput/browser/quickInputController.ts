@@ -22,6 +22,7 @@ import { QuickInputList, QuickInputListFocus } from 'vs/platform/quickinput/brow
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { mainWindow } from 'vs/base/browser/window';
 
 const $ = dom.$;
 
@@ -40,7 +41,9 @@ export class QuickInputController extends Disposable {
 
 	private controller: IQuickInput | null = null;
 
-	private parentElement: HTMLElement;
+	private _container: HTMLElement;
+	get container() { return this._container; }
+
 	private styles: IQuickInputStyles;
 
 	private onShowEmitter = this._register(new Emitter<void>());
@@ -53,12 +56,23 @@ export class QuickInputController extends Disposable {
 
 	constructor(private options: IQuickInputOptions,
 		private readonly themeService: IThemeService,
-		private readonly layoutService: ILayoutService) {
+		private readonly layoutService: ILayoutService
+	) {
 		super();
 		this.idPrefix = options.idPrefix;
-		this.parentElement = options.container;
+		this._container = options.container;
 		this.styles = options.styles;
-		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposableStore }) => this.registerKeyModsListeners(window, disposableStore), { window, disposableStore: this._store }));
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window: mainWindow, disposables: this._store }));
+		this._register(dom.onWillUnregisterWindow(window => {
+			if (this.ui && dom.getWindow(this.ui.container) === window) {
+				// The window this quick input is contained in is about to
+				// close, so we have to make sure to reparent it back to an
+				// existing parent to not loose functionality.
+				// (https://github.com/microsoft/vscode/issues/195870)
+				this.reparentUI(this.layoutService.mainContainer);
+				this.layout(this.layoutService.mainContainerDimension, this.layoutService.mainContainerOffset.quickPickTop);
+			}
+		}));
 	}
 
 	private registerKeyModsListeners(window: Window, disposables: DisposableStore): void {
@@ -72,19 +86,21 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	private getUI() {
+	private getUI(showInActiveContainer?: boolean) {
 		if (this.ui) {
-			// In order to support aux windows, re-parent the controller if the original event is
-			// from a different document
-			if (this.parentElement.ownerDocument !== this.layoutService.activeContainer.ownerDocument) {
-				this.parentElement = this.layoutService.activeContainer;
-				dom.append(this.parentElement, this.ui.container);
+			// In order to support aux windows, re-parent the controller
+			// if the original event is from a different document
+			if (showInActiveContainer) {
+				if (dom.getWindow(this._container) !== dom.getWindow(this.layoutService.activeContainer)) {
+					this.reparentUI(this.layoutService.activeContainer);
+					this.layout(this.layoutService.activeContainerDimension, this.layoutService.activeContainerOffset.quickPickTop);
+				}
 			}
 
 			return this.ui;
 		}
 
-		const container = dom.append(this.parentElement, $('.quick-input-widget.show-file-icons'));
+		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
@@ -92,13 +108,12 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const actionBarOption = this.options.hoverDelegate ? { hoverDelegate: this.options.hoverDelegate } : undefined;
-		const leftActionBar = this._register(new ActionBar(titleBar, actionBarOption));
+		const leftActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar, actionBarOption));
+		const rightActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
@@ -140,7 +155,7 @@ export class QuickInputController extends Disposable {
 		}));
 
 		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const customButton = this._register(new Button(customButtonContainer, this.styles.button));
+		const customButton = this._register(new Button(customButtonContainer, { ...this.styles.button, supportIcons: true }));
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
@@ -173,7 +188,11 @@ export class QuickInputController extends Disposable {
 		}));
 		this._register(list.onLeave(() => {
 			// Defer to avoid the input field reacting to the triggering key.
+			// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/203675
 			setTimeout(() => {
+				if (!this.controller) {
+					return;
+				}
 				inputBox.setFocus();
 				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 					list.clearFocus();
@@ -306,6 +325,13 @@ export class QuickInputController extends Disposable {
 		return this.ui;
 	}
 
+	private reparentUI(container: HTMLElement): void {
+		if (this.ui) {
+			this._container = container;
+			dom.append(this._container, this.ui.container);
+		}
+	}
+
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
 		type R = (O extends { canPickMany: true } ? T[] : T) | undefined;
 		return new Promise<R>((doResolve, reject) => {
@@ -388,7 +414,6 @@ export class QuickInputController extends Disposable {
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
-			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
@@ -491,22 +516,22 @@ export class QuickInputController extends Disposable {
 	backButton = backButton;
 
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
-		const ui = this.getUI();
+		const ui = this.getUI(true);
 		return new QuickPick<T>(ui);
 	}
 
 	createInputBox(): IInputBox {
-		const ui = this.getUI();
+		const ui = this.getUI(true);
 		return new InputBox(ui);
 	}
 
 	createQuickWidget(): IQuickWidget {
-		const ui = this.getUI();
+		const ui = this.getUI(true);
 		return new QuickWidget(ui);
 	}
 
 	private show(controller: IQuickInput) {
-		const ui = this.getUI();
+		const ui = this.getUI(true);
 		this.onShowEmitter.fire();
 		const oldController = this.controller;
 		this.controller = controller;
@@ -542,6 +567,10 @@ export class QuickInputController extends Disposable {
 		ui.container.style.display = '';
 		this.updateLayout();
 		ui.inputBox.setFocus();
+	}
+
+	isVisible(): boolean {
+		return !!this.ui && this.ui.container.style.display !== 'none';
 	}
 
 	private setVisibilities(visibilities: Visibilities) {
@@ -590,7 +619,9 @@ export class QuickInputController extends Disposable {
 		const focusChanged = container && !dom.isAncestorOfActiveElement(container);
 		this.controller = null;
 		this.onHideEmitter.fire();
-		this.getUI().container.style.display = 'none';
+		if (container) {
+			container.style.display = 'none';
+		}
 		if (!focusChanged) {
 			let currentElement = this.previousFocusElement;
 			while (currentElement && !currentElement.offsetParent) {
@@ -607,7 +638,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	focus() {
-		if (this.isDisplayed()) {
+		if (this.isVisible()) {
 			const ui = this.getUI();
 			if (ui.inputBox.enabled) {
 				ui.inputBox.setFocus();
@@ -618,13 +649,13 @@ export class QuickInputController extends Disposable {
 	}
 
 	toggle() {
-		if (this.isDisplayed() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
+		if (this.isVisible() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
 			this.getUI().list.toggleCheckbox();
 		}
 	}
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
-		if (this.isDisplayed() && this.getUI().list.isDisplayed()) {
+		if (this.isVisible() && this.getUI().list.isDisplayed()) {
 			this.getUI().list.focus(next ? QuickInputListFocus.Next : QuickInputListFocus.Previous);
 			if (quickNavigate && this.controller instanceof QuickPick) {
 				this.controller.quickNavigate = quickNavigate;
@@ -658,7 +689,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	private updateLayout() {
-		if (this.ui && this.isDisplayed()) {
+		if (this.ui && this.isVisible()) {
 			this.ui.container.style.top = `${this.titleBarOffset}px`;
 
 			const style = this.ui.container.style;
@@ -729,10 +760,6 @@ export class QuickInputController extends Disposable {
 				this.ui.styleSheet.textContent = newStyles;
 			}
 		}
-	}
-
-	private isDisplayed() {
-		return this.ui && this.ui.container.style.display !== 'none';
 	}
 }
 export interface IQuickInputControllerHost extends ILayoutService { }

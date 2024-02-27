@@ -5,7 +5,7 @@
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -13,7 +13,6 @@ import * as languages from 'vs/editor/common/languages';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { ICallHierarchyItemDto, IIncomingCallDto, IInlineValueContextDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
@@ -429,6 +428,31 @@ const newCommands: ApiCommand[] = [
 				v => v === undefined || typeof v === 'object',
 				v => v && [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
 			).optional(),
+		],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.changes', '_workbench.changes', 'Opens a list of resources in the changes editor to compare their contents.',
+		[
+			ApiCommandArgument.String.with('title', 'Human readable title for the changes editor'),
+			new ApiCommandArgument<[URI, URI?, URI?][]>('resourceList', 'List of resources to compare',
+				resources => {
+					for (const resource of resources) {
+						if (resource.length !== 3) {
+							return false;
+						}
+
+						const [label, left, right] = resource;
+						if (!URI.isUri(label) ||
+							(!URI.isUri(left) && left !== undefined && left !== null) ||
+							(!URI.isUri(right) && right !== undefined && right !== null)) {
+							return false;
+						}
+					}
+
+					return true;
+				},
+				v => v)
 		],
 		ApiCommandResult.Void
 	),

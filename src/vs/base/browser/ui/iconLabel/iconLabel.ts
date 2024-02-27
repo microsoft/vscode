@@ -6,12 +6,13 @@
 import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ITooltipMarkdownString, setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ITooltipMarkdownString, setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -22,7 +23,8 @@ export interface IIconLabelCreationOptions {
 
 export interface IIconLabelValueOptions {
 	title?: string | ITooltipMarkdownString;
-	descriptionTitle?: string;
+	descriptionTitle?: string | ITooltipMarkdownString;
+	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
 	italic?: boolean;
@@ -85,13 +87,15 @@ export class IconLabel extends Disposable {
 	private readonly creationOptions?: IIconLabelCreationOptions;
 
 	private readonly domNode: FastLabelNode;
+	private readonly nameContainer: HTMLElement;
 	private readonly nameNode: Label | LabelWithHighlights;
 
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
+	private suffixNode: FastLabelNode | undefined;
 
 	private readonly labelContainer: HTMLElement;
 
-	private readonly hoverDelegate: IHoverDelegate | undefined;
+	private readonly hoverDelegate: IHoverDelegate;
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
@@ -102,15 +106,15 @@ export class IconLabel extends Disposable {
 
 		this.labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
 
-		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
+		this.nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
 
 		if (options?.supportHighlights || options?.supportIcons) {
-			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportIcons);
+			this.nameNode = new LabelWithHighlights(this.nameContainer, !!options.supportIcons);
 		} else {
-			this.nameNode = new Label(nameContainer);
+			this.nameNode = new Label(this.nameContainer);
 		}
 
-		this.hoverDelegate = options?.hoverDelegate;
+		this.hoverDelegate = options?.hoverDelegate ?? getDefaultHoverDelegate('mouse');
 	}
 
 	get element(): HTMLElement {
@@ -138,7 +142,11 @@ export class IconLabel extends Disposable {
 				containerClasses.push('disabled');
 			}
 			if (options.title) {
-				ariaLabel += options.title;
+				if (typeof options.title === 'string') {
+					ariaLabel += options.title;
+				} else {
+					ariaLabel += label;
+				}
 			}
 		}
 
@@ -160,6 +168,11 @@ export class IconLabel extends Disposable {
 				descriptionNode.empty = !description;
 			}
 		}
+
+		if (options?.suffix || this.suffixNode) {
+			const suffixNode = this.getOrCreateSuffixNode();
+			suffixNode.textContent = options?.suffix ?? '';
+		}
 	}
 
 	private setupHover(htmlElement: HTMLElement, tooltip: string | ITooltipMarkdownString | undefined): void {
@@ -174,7 +187,7 @@ export class IconLabel extends Disposable {
 			return;
 		}
 
-		if (!this.hoverDelegate) {
+		if (this.hoverDelegate.showNativeHover) {
 			setupNativeHover(htmlElement, tooltip);
 		} else {
 			const hoverDisposable = setupCustomHover(this.hoverDelegate, htmlElement, tooltip);
@@ -190,6 +203,15 @@ export class IconLabel extends Disposable {
 			disposable.dispose();
 		}
 		this.customHovers.clear();
+	}
+
+	private getOrCreateSuffixNode() {
+		if (!this.suffixNode) {
+			const suffixContainer = this._register(new FastLabelNode(dom.after(this.nameContainer, dom.$('span.monaco-icon-suffix-container'))));
+			this.suffixNode = this._register(new FastLabelNode(dom.append(suffixContainer.element, dom.$('span.label-suffix'))));
+		}
+
+		return this.suffixNode;
 	}
 
 	private getOrCreateDescriptionNode() {

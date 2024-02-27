@@ -79,7 +79,7 @@ export class MockScopableContextKeyService extends MockContextKeyService {
 	 * Don't implement this for all tests since we rarely depend on this behavior and it isn't implemented fully
 	 */
 	public override createScoped(domNote: HTMLElement): IScopedContextKeyService {
-		return new MockContextKeyService();
+		return new MockScopableContextKeyService();
 	}
 }
 
@@ -145,6 +145,10 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		return false;
+	}
+
+	public enableKeybindingHoldMode(commandId: string): undefined {
+		return undefined;
 	}
 
 	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {

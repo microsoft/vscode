@@ -3,7 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Iterable } from 'vs/base/common/iterator';
+
 const unset = Symbol('unset');
+
+export interface IPrefixTreeNode<T> {
+	/** Possible children of the node. */
+	children?: ReadonlyMap<string, Node<T>>;
+
+	/** The value if data exists for this node in the tree. Mutable. */
+	value: T | undefined;
+}
 
 /**
  * A simple prefix tree implementation where a value is stored based on
@@ -17,45 +27,78 @@ export class WellDefinedPrefixTree<V> {
 		return this._size;
 	}
 
-	/** Inserts a new value in the prefix tree. */
-	insert(key: Iterable<string>, value: V): void {
-		this.opNode(key, n => n.value = value);
+	/** Gets the top-level nodes of the tree */
+	public get nodes(): Iterable<IPrefixTreeNode<V>> {
+		return this.root.children?.values() || Iterable.empty();
+	}
+
+	/**
+	 * Inserts a new value in the prefix tree.
+	 * @param onNode - called for each node as we descend to the insertion point,
+	 * including the insertion point itself.
+	 */
+	insert(key: Iterable<string>, value: V, onNode?: (n: IPrefixTreeNode<V>) => void): void {
+		this.opNode(key, n => n._value = value, onNode);
 	}
 
 	/** Mutates a value in the prefix tree. */
 	mutate(key: Iterable<string>, mutate: (value?: V) => V): void {
-		this.opNode(key, n => n.value = mutate(n.value === unset ? undefined : n.value));
+		this.opNode(key, n => n._value = mutate(n._value === unset ? undefined : n._value));
 	}
 
 	/** Deletes a node from the prefix tree, returning the value it contained. */
 	delete(key: Iterable<string>): V | undefined {
-		const path = [{ part: '', node: this.root }];
-		let i = 0;
-		for (const part of key) {
-			const node = path[i].node.children?.get(part);
-			if (!node) {
-				return undefined; // node not in tree
-			}
-
-			path.push({ part, node });
-			i++;
+		const path = this.getPathToKey(key);
+		if (!path) {
+			return;
 		}
 
-		const value = path[i].node.value;
+		let i = path.length - 1;
+		const value = path[i].node._value;
 		if (value === unset) {
 			return; // not actually a real node
 		}
 
 		this._size--;
+		path[i].node._value = unset;
+
 		for (; i > 0; i--) {
+			const { node, part } = path[i];
+			if (node.children?.size || node._value !== unset) {
+				break;
+			}
+
+			path[i - 1].node.children!.delete(part);
+		}
+
+		return value;
+	}
+
+	/** Deletes a subtree from the prefix tree, returning the values they contained. */
+	*deleteRecursive(key: Iterable<string>): Iterable<V> {
+		const path = this.getPathToKey(key);
+		if (!path) {
+			return;
+		}
+
+		const subtree = path[path.length - 1].node;
+
+		// important: run the deletion before we start to yield results, so that
+		// it still runs even if the caller doesn't consumer the iterator
+		for (let i = path.length - 1; i > 0; i--) {
 			const parent = path[i - 1];
 			parent.node.children!.delete(path[i].part);
-			if (parent.node.children!.size > 0 || parent.node.value !== unset) {
+			if (parent.node.children!.size > 0 || parent.node._value !== unset) {
 				break;
 			}
 		}
 
-		return value;
+		for (const node of bfsIterate(subtree)) {
+			if (node._value !== unset) {
+				this._size--;
+				yield node._value;
+			}
+		}
 	}
 
 	/** Gets a value from the tree. */
@@ -70,7 +113,7 @@ export class WellDefinedPrefixTree<V> {
 			node = next;
 		}
 
-		return node.value === unset ? undefined : node.value;
+		return node._value === unset ? undefined : node._value;
 	}
 
 	/** Gets whether the tree has the key, or a parent of the key, already inserted. */
@@ -81,7 +124,7 @@ export class WellDefinedPrefixTree<V> {
 			if (!next) {
 				return false;
 			}
-			if (next.value !== unset) {
+			if (next._value !== unset) {
 				return true;
 			}
 
@@ -118,10 +161,26 @@ export class WellDefinedPrefixTree<V> {
 			node = next;
 		}
 
-		return node.value !== unset;
+		return node._value !== unset;
 	}
 
-	private opNode(key: Iterable<string>, fn: (node: Node<V>) => void): void {
+	private getPathToKey(key: Iterable<string>) {
+		const path = [{ part: '', node: this.root }];
+		let i = 0;
+		for (const part of key) {
+			const node = path[i].node.children?.get(part);
+			if (!node) {
+				return; // node not in tree
+			}
+
+			path.push({ part, node });
+			i++;
+		}
+
+		return path;
+	}
+
+	private opNode(key: Iterable<string>, fn: (node: Node<V>) => void, onDescend?: (node: Node<V>) => void): void {
 		let node = this.root;
 		for (const part of key) {
 			if (!node.children) {
@@ -135,34 +194,49 @@ export class WellDefinedPrefixTree<V> {
 			} else {
 				node = node.children.get(part)!;
 			}
+			onDescend?.(node);
 		}
 
-		if (node.value === unset) {
-			this._size++;
-		}
-
+		const sizeBefore = node._value === unset ? 0 : 1;
 		fn(node);
+		const sizeAfter = node._value === unset ? 0 : 1;
+		this._size += sizeAfter - sizeBefore;
 	}
 
 	/** Returns an iterable of the tree values in no defined order. */
 	*values() {
-		const stack = [this.root];
-		while (stack.length > 0) {
-			const node = stack.pop()!;
-			if (node.value !== unset) {
-				yield node.value;
-			}
-
-			if (node.children) {
-				for (const child of node.children.values()) {
-					stack.push(child);
-				}
+		for (const { _value } of bfsIterate(this.root)) {
+			if (_value !== unset) {
+				yield _value;
 			}
 		}
 	}
 }
 
-class Node<T> {
+function* bfsIterate<T>(root: Node<T>): Iterable<Node<T>> {
+	const stack = [root];
+	while (stack.length > 0) {
+		const node = stack.pop()!;
+		yield node;
+
+		if (node.children) {
+			for (const child of node.children.values()) {
+				stack.push(child);
+			}
+		}
+	}
+}
+
+class Node<T> implements IPrefixTreeNode<T> {
 	public children?: Map<string, Node<T>>;
-	public value: T | typeof unset = unset;
+
+	public get value() {
+		return this._value === unset ? undefined : this._value;
+	}
+
+	public set value(value: T | undefined) {
+		this._value = value === undefined ? unset : value;
+	}
+
+	public _value: T | typeof unset = unset;
 }

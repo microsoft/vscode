@@ -453,9 +453,9 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	override focus(): void {
-		(this.getControl() ?? this.inputResultView.editor).focus();
-
 		super.focus();
+
+		(this.getControl() ?? this.inputResultView.editor).focus();
 	}
 
 	override hasFocus(): boolean {
@@ -745,6 +745,8 @@ export class MergeEditorOpenHandlerContribution extends Disposable {
 }
 
 export class MergeEditorResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.mergeEditorResolver';
 
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,

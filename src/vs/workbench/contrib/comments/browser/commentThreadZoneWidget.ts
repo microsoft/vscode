@@ -25,6 +25,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 
 function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
@@ -327,13 +328,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
-		if (shouldMoveWidget && this._isExpanded) {
+		if ((shouldMoveWidget && this._isExpanded) || (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded)) {
 			this.show(this.arrowPosition(this._commentThread.range), 2);
-		}
-
-		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
-			this.show(this.arrowPosition(this._commentThread.range), 2);
-		} else {
+		} else if (this._commentThread.collapsibleState !== languages.CommentThreadCollapsibleState.Expanded) {
 			this.hide();
 		}
 	}
@@ -404,7 +401,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (this._initialCollapsibleState === undefined) {
 			const onDidChangeInitialCollapsibleState = this._commentThread.onDidChangeInitialCollapsibleState(state => {
 				// File comments always start expanded
-				this._initialCollapsibleState = this._commentThread.range ? state : languages.CommentThreadCollapsibleState.Expanded;
+				this._initialCollapsibleState = state;
 				this._commentThread.collapsibleState = this._initialCollapsibleState;
 				onDidChangeInitialCollapsibleState.dispose();
 			});
@@ -457,7 +454,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				this._commentThreadWidget.focusCommentEditor();
 			}
 
+			const capture = StableEditorScrollState.capture(this.editor);
 			this._relayout(computedLinesNumber);
+			capture.restore(this.editor);
 		}
 	}
 

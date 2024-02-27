@@ -5,11 +5,13 @@
 
 import 'vs/css!./media/singleeditortabscontrol';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorTabsControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { Dimension } from 'vs/base/browser/dom';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
+import { IToolbarActions } from 'vs/workbench/common/editor';
 
 export class NoEditorTabsControl extends EditorTabsControl {
+	private activeEditor: EditorInput | null = null;
 
 	protected prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
 		return {
@@ -19,10 +21,27 @@ export class NoEditorTabsControl extends EditorTabsControl {
 	}
 
 	openEditor(editor: EditorInput): boolean {
-		return false;
+		return this.handleOpenedEditors();
 	}
 
 	openEditors(editors: EditorInput[]): boolean {
+		return this.handleOpenedEditors();
+	}
+
+	private handleOpenedEditors(): boolean {
+		const didChange = this.activeEditorChanged();
+		this.activeEditor = this.tabsModel.activeEditor;
+		return didChange;
+	}
+
+	private activeEditorChanged(): boolean {
+		if (
+			!this.activeEditor && this.tabsModel.activeEditor || 				// active editor changed from null => editor
+			this.activeEditor && !this.tabsModel.activeEditor || 				// active editor changed from editor => null
+			(!this.activeEditor || !this.tabsModel.isActive(this.activeEditor))	// active editor changed from editorA => editorB
+		) {
+			return true;
+		}
 		return false;
 	}
 

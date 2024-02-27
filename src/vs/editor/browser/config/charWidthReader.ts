@@ -45,18 +45,18 @@ class DomCharWidthReader {
 		this._testElements = null;
 	}
 
-	public read(): void {
+	public read(targetWindow: Window): void {
 		// Create a test container with all these test elements
 		this._createDomElements();
 
 		// Add the container to the DOM
-		document.body.appendChild(this._container!);
+		targetWindow.document.body.appendChild(this._container!);
 
 		// Read character widths
 		this._readFromDomElements();
 
 		// Remove the container from the DOM
-		document.body.removeChild(this._container!);
+		targetWindow.document.body.removeChild(this._container!);
 
 		this._container = null;
 		this._testElements = null;
@@ -137,7 +137,7 @@ class DomCharWidthReader {
 	}
 }
 
-export function readCharWidths(bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
+export function readCharWidths(targetWindow: Window, bareFontInfo: BareFontInfo, requests: CharWidthRequest[]): void {
 	const reader = new DomCharWidthReader(bareFontInfo, requests);
-	reader.read();
+	reader.read(targetWindow);
 }

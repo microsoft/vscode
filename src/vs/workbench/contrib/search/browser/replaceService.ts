@@ -42,6 +42,8 @@ const toFileResource = (replaceResource: URI): URI => {
 
 export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.replacePreviewContentProvider';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
@@ -202,7 +204,7 @@ export class ReplaceService implements IReplaceService {
 				if (!arg.isReadonly()) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
 					const match = <MatchInNotebook>arg;
-					edits.push(this.createEdit(match, match.replaceString, match.cell.uri));
+					edits.push(this.createEdit(match, match.replaceString, match.cell?.uri));
 				}
 			} else {
 				const match = <Match>arg;

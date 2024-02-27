@@ -10,9 +10,13 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
-const HELP_COMMANDS: &str = "Usage: {name} [options][paths...]
+const HELP_COMMANDS: &str = concatcp!(
+	"Usage: ",
+	constants::APPLICATION_NAME,
+	" [options][paths...]
 
-To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')";
+To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')"
+);
 
 const STANDALONE_TEMPLATE: &str = concatcp!(
 	CLI_NAME,
@@ -223,7 +227,7 @@ pub struct CommandShellArgs {
 	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
 	pub on_port: Option<u16>,
 	/// Require the given token string to be given in the handshake.
-	#[clap(long)]
+	#[clap(long, env = "VSCODE_CLI_REQUIRE_TOKEN")]
 	pub require_token: Option<String>,
 	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
 	#[clap(long, hide = true)]
@@ -254,6 +258,8 @@ pub enum ExtensionSubcommand {
 	Install(InstallExtensionArgs),
 	/// Uninstall an extension.
 	Uninstall(UninstallExtensionArgs),
+	/// Update the installed extensions.
+	Update,
 }
 
 impl ExtensionSubcommand {
@@ -283,6 +289,9 @@ impl ExtensionSubcommand {
 				for id in args.id.iter() {
 					target.push(format!("--uninstall-extension={}", id));
 				}
+			}
+			ExtensionSubcommand::Update => {
+				target.push("--update-extensions".to_string());
 			}
 		}
 	}

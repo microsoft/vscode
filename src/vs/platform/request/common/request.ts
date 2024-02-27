@@ -22,6 +22,7 @@ export interface IRequestService {
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 }
 
 class LoggableHeaders {
@@ -79,6 +80,7 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	abstract request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 	abstract resolveProxy(url: string): Promise<string | undefined>;
+	abstract loadCertificates(): Promise<string[]>;
 }
 
 export function isSuccess(context: IRequestContext): boolean {

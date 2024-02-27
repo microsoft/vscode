@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { arch, release, type } from 'os';
+import { Promises, raceTimeout, timeout } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { randomPath } from 'vs/base/common/extpath';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { listProcesses } from 'vs/base/node/ps';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { localize } from 'vs/nls';
 import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
@@ -21,15 +25,11 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { IWindowState } from 'vs/platform/window/electron-main/window';
-import { randomPath } from 'vs/base/common/extpath';
 import { IStateService } from 'vs/platform/state/node/state';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
+import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { Promises, timeout } from 'vs/base/common/async';
 
 const processExplorerWindowState = 'issue.processExplorerWindowState';
 
@@ -179,7 +179,6 @@ export class IssueMainService implements IIssueMainService {
 
 				this.issueReporterWindow.on('close', () => {
 					this.issueReporterWindow = null;
-
 					issueReporterDisposables.dispose();
 				});
 
@@ -187,14 +186,13 @@ export class IssueMainService implements IIssueMainService {
 					if (this.issueReporterWindow) {
 						this.issueReporterWindow.close();
 						this.issueReporterWindow = null;
-
 						issueReporterDisposables.dispose();
 					}
 				});
 			}
 		}
 
-		if (this.issueReporterWindow) {
+		else if (this.issueReporterWindow) {
 			this.focusWindow(this.issueReporterWindow);
 		}
 	}
@@ -365,7 +363,7 @@ export class IssueMainService implements IIssueMainService {
 		return false;
 	}
 
-	async $getIssueReporterUri(extensionId: string): Promise<URI> {
+	issueReporterWindowCheck(): ICodeWindow {
 		if (!this.issueReporterParentWindow) {
 			throw new Error('Issue reporter window not available');
 		}
@@ -373,6 +371,11 @@ export class IssueMainService implements IIssueMainService {
 		if (!window) {
 			throw new Error('Window not found');
 		}
+		return window;
+	}
+
+	async $getIssueReporterUri(extensionId: string): Promise<URI> {
+		const window = this.issueReporterWindowCheck();
 		const replyChannel = `vscode:triggerIssueUriRequestHandlerResponse${window.id}`;
 		return Promises.withAsyncBody<URI>(async (resolve, reject) => {
 
@@ -391,6 +394,76 @@ export class IssueMainService implements IIssueMainService {
 				validatedIpcMain.removeHandler(replyChannel);
 			}
 		});
+	}
+
+	async $getIssueReporterData(extensionId: string): Promise<string> {
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerIssueDataProviderResponse${window.id}`;
+		return Promises.withAsyncBody<string>(async (resolve) => {
+
+			const cts = new CancellationTokenSource();
+			window.sendWhenReady('vscode:triggerIssueDataProvider', cts.token, { replyChannel, extensionId });
+
+			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
+				resolve(data);
+			});
+
+			try {
+				await timeout(5000);
+				cts.cancel();
+				resolve('Error: Extension timed out waiting for issue reporter data');
+			} finally {
+				validatedIpcMain.removeHandler(replyChannel);
+			}
+		});
+	}
+
+	async $getIssueReporterTemplate(extensionId: string): Promise<string> {
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerIssueDataTemplateResponse${window.id}`;
+		return Promises.withAsyncBody<string>(async (resolve) => {
+
+			const cts = new CancellationTokenSource();
+			window.sendWhenReady('vscode:triggerIssueDataTemplate', cts.token, { replyChannel, extensionId });
+
+			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
+				resolve(data);
+			});
+
+			try {
+				await timeout(5000);
+				cts.cancel();
+				resolve('Error: Extension timed out waiting for issue reporter template');
+			} finally {
+				validatedIpcMain.removeHandler(replyChannel);
+			}
+		});
+	}
+
+	async $getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
+		const defaultResult = [false, false];
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerReporterStatus`;
+		const cts = new CancellationTokenSource();
+		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterStatusResponse', (_: unknown, data: boolean[]) => resolve(data))), 2000, () => {
+			this.logService.error('Error: Extension timed out waiting for reporter status');
+			cts.cancel();
+		});
+		return (result ?? defaultResult) as boolean[];
+	}
+
+
+	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerReporterMenu`;
+		const cts = new CancellationTokenSource();
+		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
+			this.logService.error(`Error: Extension ${extensionId} timed out waiting for menu response`);
+			cts.cancel();
+		});
+		return result as IssueReporterData | undefined;
 	}
 
 	async $closeReporter(): Promise<void> {
@@ -505,11 +578,11 @@ export class IssueMainService implements IIssueMainService {
 				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
 			}
 
-			if (state.width! > displayBounds.width) {
+			if (state.width > displayBounds.width) {
 				state.width = displayBounds.width; // prevent window from exceeding display bounds width
 			}
 
-			if (state.height! > displayBounds.height) {
+			if (state.height > displayBounds.height) {
 				state.height = displayBounds.height; // prevent window from exceeding display bounds height
 			}
 		}

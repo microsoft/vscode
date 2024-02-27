@@ -51,7 +51,7 @@ suite('Workbench - TerminalService', () => {
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ITerminalLogService, new NullLogService());
-		instantiationService.stub(IEditorService, new TestEditorService());
+		instantiationService.stub(IEditorService, store.add(new TestEditorService()));
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(ITerminalEditorService, new TestTerminalEditorService());
 		instantiationService.stub(ITerminalGroupService, new TestTerminalGroupService());
