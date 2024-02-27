@@ -253,21 +253,20 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 	 * @inheritdoc
 	 */
 	public applyTo(tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>) {
-		for (const s of [this.changedParents, this.resortedParents]) {
-			for (const element of s) {
-				if (element && !tree.hasElement(element)) {
-					s.delete(element);
-				}
+		for (const parent of this.changedParents) {
+			if (!parent || tree.hasElement(parent)) {
+				tree.setChildren(parent, getChildrenForParent(this.lastState, this.rootsWithChildren, parent), { diffIdentityProvider: testIdentityProvider });
 			}
 		}
 
-		for (const parent of this.changedParents) {
-			tree.setChildren(parent, getChildrenForParent(this.lastState, this.rootsWithChildren, parent), { diffIdentityProvider: testIdentityProvider });
+		for (const parent of this.resortedParents) {
+			if (!parent || tree.hasElement(parent)) {
+				tree.resort(parent, false);
+			}
 		}
 
-		for (const parent of this.resortedParents) {
-			tree.resort(parent, false);
-		}
+		this.changedParents.clear();
+		this.resortedParents.clear();
 	}
 
 	/**
