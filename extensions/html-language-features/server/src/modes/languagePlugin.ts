@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import type { ExtraServiceScript, LanguagePlugin, VirtualCode } from '@volar/language-server';
 import { forEachEmbeddedCode } from '@volar/language-core';
 import type * as ts from 'typescript';
@@ -41,10 +46,10 @@ export const htmlLanguagePlugin: LanguagePlugin = {
 					});
 				}
 			}
-			return extraScripts
+			return extraScripts;
 		},
 	},
-}
+};
 
 function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 	const root: VirtualCode = {
@@ -102,7 +107,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 					suffix = '; ' + suffix;
 				}
 			}
-			const content = `${prefix}${documentRegion.content}${suffix}`
+			const content = `${prefix}${documentRegion.content}${suffix}`;
 			const generatedStart = documentRegion.generatedStart + prefix.length;
 			root.embeddedCodes ??= [];
 			root.embeddedCodes.push({

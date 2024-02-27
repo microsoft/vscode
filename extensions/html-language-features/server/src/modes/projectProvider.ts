@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { ServerProject, ServerProjectProviderFactory } from '@volar/language-server';
 import { createServiceEnvironment, getWorkspaceFolder } from '@volar/language-server/node';
 import type { SnapshotDocument } from '@volar/snapshot-document';

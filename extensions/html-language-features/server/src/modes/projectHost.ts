@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { ServiceEnvironment, TypeScriptProjectHost, resolveCommonLanguageId, TextDocument } from '@volar/language-service';
 import type * as ts from 'typescript';
 import { JQUERY_PATH } from './javascriptLibs';
@@ -41,7 +46,7 @@ export function createProjectHost(
 			if (uri === getCurrentTextDocument().uri) {
 				return getCurrentTextDocument().languageId;
 			}
-			return resolveCommonLanguageId(uri)
+			return resolveCommonLanguageId(uri);
 		},
 	};
 	return host;
