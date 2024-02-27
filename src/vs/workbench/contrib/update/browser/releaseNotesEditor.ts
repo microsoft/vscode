@@ -38,7 +38,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
-	private scrollPosition: { x: number; y: number } | undefined;
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
@@ -72,11 +71,9 @@ export class ReleaseNotesManager {
 		if (!this._currentReleaseNotes || !this._lastText) {
 			return;
 		}
-		const captureScroll = this.scrollPosition;
 		const html = await this.renderBody(this._lastText);
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.webview.setHtml(html);
-			this._currentReleaseNotes.webview.postMessage({ type: 'setScroll', value: { scrollPosition: captureScroll } });
 		}
 	}
 
@@ -116,8 +113,6 @@ export class ReleaseNotesManager {
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
-				} else if (e.message.type === 'scroll') {
-					this.scrollPosition = e.message.value.scrollPosition;
 				} else if (e.message.type === 'clickSetting') {
 					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
 					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
@@ -234,7 +229,7 @@ export class ReleaseNotesManager {
 	}
 
 	private async onDidClickLink(uri: URI) {
-		if (uri.scheme === Schemas.codeSetting || uri.scheme === Schemas.codeFeature) {
+		if (uri.scheme === Schemas.codeSetting) {
 			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
@@ -353,64 +348,6 @@ export class ReleaseNotesManager {
 						margin-right: 8px;
 					}
 
-					/* codefeature */
-
-					.codefeature-container {
-						display: flex;
-					}
-
-					.codefeature {
-						position: relative;
-						display: inline-block;
-						width: 46px;
-						height: 24px;
-					}
-
-					.codefeature-container input {
-						display: none;
-					}
-
-					.toggle {
-						position: absolute;
-						cursor: pointer;
-						top: 0;
-						left: 0;
-						right: 0;
-						bottom: 0;
-						background-color: var(--vscode-button-background);
-						transition: .4s;
-						border-radius: 24px;
-					}
-
-					.toggle:before {
-						position: absolute;
-						content: "";
-						height: 16px;
-						width: 16px;
-						left: 4px;
-						bottom: 4px;
-						background-color: var(--vscode-editor-foreground);
-						transition: .4s;
-						border-radius: 50%;
-					}
-
-					input:checked+.codefeature > .toggle:before {
-						transform: translateX(22px);
-					}
-
-					.codefeature-container:has(input) .title {
-						line-height: 30px;
-						padding-left: 4px;
-						font-weight: bold;
-					}
-
-					.codefeature-container:has(input:checked) .title:after {
-						content: "${nls.localize('disableFeature', "Disable this feature")}";
-					}
-					.codefeature-container:has(input:not(:checked)) .title:after {
-						content: "${nls.localize('enableFeature', "Enable this feature")}";
-					}
-
 					header { display: flex; align-items: center; padding-top: 1em; }
 				</style>
 			</head>
@@ -443,40 +380,13 @@ export class ReleaseNotesManager {
 					window.addEventListener('message', event => {
 						if (event.data.type === 'showReleaseNotes') {
 							input.checked = event.data.value;
-						} else if (event.data.type === 'setScroll') {
-							window.scrollTo(event.data.value.scrollPosition.x, event.data.value.scrollPosition.y);
-						} else if (event.data.type === 'setFeaturedSettings') {
-							for (const [settingId, value] of event.data.value) {
-								const setting = document.getElementById(settingId);
-								if (setting instanceof HTMLInputElement) {
-									setting.checked = value;
-								}
-							}
 						}
 					});
 
-					window.onscroll = () => {
-						vscode.postMessage({
-							type: 'scroll',
-							value: {
-								scrollPosition: {
-									x: window.scrollX,
-									y: window.scrollY
-								}
-							}
-						});
-					};
-
 					window.addEventListener('click', event => {
 						const href = event.target.href ?? event.target.parentElement.href ?? event.target.parentElement.parentElement?.href;
-						if (href && (href.startsWith('${Schemas.codeSetting}') || href.startsWith('${Schemas.codeFeature}'))) {
+						if (href && (href.startsWith('${Schemas.codeSetting}'))) {
 							vscode.postMessage({ type: 'clickSetting', value: { uri: href, x: event.clientX, y: event.clientY }});
-							if (href.startsWith('${Schemas.codeFeature}')) {
-								const featureInput = event.target.parentElement.previousSibling;
-								if (featureInput instanceof HTMLInputElement) {
-									featureInput.checked = !featureInput.checked;
-								}
-							}
 						}
 					});
 
@@ -506,7 +416,6 @@ export class ReleaseNotesManager {
 	private onDidChangeActiveWebviewEditor(input: WebviewInput | undefined): void {
 		if (input && input === this._currentReleaseNotes) {
 			this.updateCheckboxWebview();
-			this.updateFeaturedSettingsWebview();
 		}
 	}
 
@@ -515,15 +424,6 @@ export class ReleaseNotesManager {
 			this._currentReleaseNotes.webview.postMessage({
 				type: 'showReleaseNotes',
 				value: this._configurationService.getValue<boolean>('update.showReleaseNotes')
-			});
-		}
-	}
-
-	private updateFeaturedSettingsWebview() {
-		if (this._currentReleaseNotes) {
-			this._currentReleaseNotes.webview.postMessage({
-				type: 'setFeaturedSettings',
-				value: this._simpleSettingRenderer.featuredSettingStates
 			});
 		}
 	}

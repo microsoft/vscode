@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
@@ -103,6 +103,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
+		if (portSelector.portRange === undefined && portSelector.commandPattern === undefined) {
+			this.logService.error('PortAttributesProvider must specify either a portRange or a commandPattern');
+		}
 		const providerHandle = this.nextPortAttributesProviderHandle();
 		this._portAttributesProviders.set(providerHandle, { selector: portSelector, provider });
 
@@ -149,7 +152,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			throw new Error('A tunnel provider has already been registered. Only the first tunnel provider to be registered will be used.');
 		}
 		this._forwardPortProvider = async (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
-			const result = await provider.provideTunnel(tunnelOptions, tunnelCreationOptions, new CancellationTokenSource().token);
+			const result = await provider.provideTunnel(tunnelOptions, tunnelCreationOptions, CancellationToken.None);
 			return result ?? undefined;
 		};
 

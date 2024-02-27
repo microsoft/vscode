@@ -4271,7 +4271,7 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	) { }
 }
 
-export class LanguageModelSystemMessage {
+export class LanguageModelChatSystemMessage {
 	content: string;
 
 	constructor(content: string) {
@@ -4279,7 +4279,7 @@ export class LanguageModelSystemMessage {
 	}
 }
 
-export class LanguageModelUserMessage {
+export class LanguageModelChatUserMessage {
 	content: string;
 	name: string | undefined;
 
@@ -4289,12 +4289,32 @@ export class LanguageModelUserMessage {
 	}
 }
 
-export class LanguageModelAssistantMessage {
+export class LanguageModelChatAssistantMessage {
 	content: string;
 
 	constructor(content: string) {
 		this.content = content;
 	}
+}
+
+export class LanguageModelError extends Error {
+
+	static NotFound(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NotFound.name);
+	}
+
+	static NoPermissions(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
+	}
+
+	readonly code: string;
+
+	constructor(message?: string, code?: string, cause?: Error) {
+		super(message, { cause });
+		this.name = 'LanguageModelError';
+		this.code = code ?? '';
+	}
+
 }
 
 //#endregion
