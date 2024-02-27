@@ -152,13 +152,13 @@ declare module 'vscode' {
 		 */
 		// TODO@API refine doc
 		// TODO@API define specific error types?
-		// TODO@API NAME: fetchChatResponse, makeChatRequest, chat, chatRequest sendChatRequest
+		// TODO@API NAME: sendChatRequest, fetchChatResponse, makeChatRequest, chat, chatRequest sendChatRequest
 		// TODO@API ExtensionContext#permission#languageModels: { languageModel: string: LanguageModelAccessInformation}
 		// TODO@API ✅ NAME: LanguageModelChatXYZMessage
 		// TODO@API ✅ errors on everything that prevents us to make the actual request
 		// TODO@API ✅ double auth
 		// TODO@API ✅ NAME: LanguageModelChatResponse, ChatResponse, ChatRequestResponse
-		export function chatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
+		export function sendChatRequest(languageModel: string, messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, token: CancellationToken): Thenable<LanguageModelChatResponse>;
 
 		/**
 		 * The identifiers of all language models that are currently available.
