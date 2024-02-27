@@ -17,11 +17,8 @@ import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/br
 import { Sequencer, timeout } from 'vs/base/common/async';
 import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import type { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 
@@ -36,9 +33,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IHistoryService private readonly _historyService: IHistoryService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
@@ -247,12 +242,6 @@ export class TerminalLinkQuickpick extends DisposableStore {
 			return;
 		}
 
-		// Don't open if preview editors are disabled as it may open many editor
-		const config = this._configurationService.getValue<IFilesConfiguration>();
-		if (!config.workbench?.editor?.enablePreview) {
-			return;
-		}
-
 		this._previewItemInEditor(link);
 	}
 
@@ -267,16 +256,10 @@ export class TerminalLinkQuickpick extends DisposableStore {
 
 		this._editorViewState.set();
 		this._editorSequencer.queue(async () => {
-			// disable and re-enable history service so that we can ignore this history entry
-			const disposable = this._historyService.suspendTracking();
-			try {
-				await this._editorService.openEditor({
-					resource: link.uri,
-					options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
-				});
-			} finally {
-				disposable.dispose();
-			}
+			await this._editorService.openEditor({
+				resource: link.uri,
+				options: { transient: true, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
+			});
 		});
 	}
 

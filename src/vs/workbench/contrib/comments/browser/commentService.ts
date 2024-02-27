@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread } from 'vs/editor/common/languages';
+import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread, CommentingRangeResources } from 'vs/editor/common/languages';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -112,6 +112,8 @@ export interface ICommentService {
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
 	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
+	setResourcesWithCommentingRanges(owner: string, resources: CommentingRangeResources): void;
+	resourceHasCommentingRanges(resource: URI): boolean;
 }
 
 const CONTINUE_ON_COMMENTS = 'comments.continueOnComments';
@@ -168,6 +170,8 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _commentsModel: CommentsModel = this._register(new CommentsModel());
 	public readonly commentsModel: ICommentsModel = this._commentsModel;
+
+	private _commentingRangeResources = new Map<string, CommentingRangeResources>(); // owner -> CommentingRangeResources
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -493,5 +497,20 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}
 		return changedOwners;
+	}
+
+	setResourcesWithCommentingRanges(owner: string, resources: CommentingRangeResources): void {
+		this._commentingRangeResources.set(owner, resources);
+	}
+
+	resourceHasCommentingRanges(resource: URI): boolean {
+		for (const resources of this._commentingRangeResources.values()) {
+			if (resources.schemes.includes(resource.scheme)) {
+				return true;
+			} else if (resources.uris.some(uri => uri.toString() === resource.toString())) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

@@ -904,6 +904,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	openEditors(_editors: EditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
 	isPinned(_editor: EditorInput): boolean { return false; }
 	isSticky(_editor: EditorInput): boolean { return false; }
+	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
@@ -917,6 +918,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
 	unstickEditor(editor?: EditorInput | undefined): void { }
+	setTransient(editor: EditorInput | undefined, transient: boolean): void { }
 	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
