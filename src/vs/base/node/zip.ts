@@ -164,7 +164,6 @@ async function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile>
 	const { open } = await import('yauzl');
 
 	return new Promise<ZipFile>((resolve, reject) => {
-		// @ts-ignore
 		open(zipFile, lazy ? { lazyEntries: true } : undefined!, (error?: Error, zipfile?: ZipFile) => {
 			if (error) {
 				reject(toExtractError(error));
@@ -177,7 +176,6 @@ async function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile>
 
 function openZipStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
 	return new Promise<Readable>((resolve, reject) => {
-		// @ts-ignore
 		zipFile.openReadStream(entry, (error?: Error, stream?: Readable) => {
 			if (error) {
 				reject(toExtractError(error));
