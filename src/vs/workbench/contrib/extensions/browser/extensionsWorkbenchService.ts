@@ -1693,7 +1693,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		let extension: IExtension;
-		if (installable instanceof URI || installable.extension.local?.manifest.version !== installable.gallery.version) {
+		if (installable instanceof URI || !(installOptions.enable && installable.extension.local)) {
 			if (installOptions.justification) {
 				const syncCheck = isUndefined(installOptions.isMachineScoped) && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions);
 				const result = await this.dialogService.prompt<boolean>({
