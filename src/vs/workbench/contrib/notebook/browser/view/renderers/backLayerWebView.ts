@@ -560,7 +560,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview.mountTo(this.element);
 		this._register(this.webview);
 
-		this._register(new WebviewWindowDragMonitor(() => this.webview));
+		this._register(new WebviewWindowDragMonitor(codeWindow, () => this.webview));
 
 		const initializePromise = new DeferredPromise<void>();
 

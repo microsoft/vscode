@@ -6,6 +6,7 @@
 import { Dimension } from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { CodeWindow } from 'vs/base/browser/window';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -44,6 +45,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	public readonly providedViewType?: string;
 
 	public origin: string;
+	public codeWindow: CodeWindow;
 
 	private _container: FastDomNode<HTMLDivElement> | undefined;
 
@@ -62,6 +64,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._extension = initInfo.extension;
 		this._options = initInfo.options;
 		this._contentOptions = initInfo.contentOptions;
+		this.codeWindow = initInfo.codeWindow;
 	}
 
 	public get isFocused() {
@@ -197,6 +200,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				options: this._options,
 				contentOptions: this._contentOptions,
 				extension: this.extension,
+				codeWindow: this.codeWindow
 			});
 			this._webview.value = webview;
 			webview.state = this._state;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, findParentWithClass } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -174,13 +174,15 @@ export class WebviewViewPane extends ViewPane {
 		this._activated = true;
 
 		const origin = this.extensionId ? WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId) : undefined;
+		const codeWindow = getWindow(this.element);
 		const webview = this.webviewService.createWebviewOverlay({
 			origin,
 			providedViewType: this.id,
 			title: this.title,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
-			extension: this.extensionId ? { id: this.extensionId } : undefined
+			extension: this.extensionId ? { id: this.extensionId } : undefined,
+			codeWindow: codeWindow
 		});
 		webview.state = this.viewState[storageKeys.webviewState];
 		this._webview.value = webview;
@@ -206,7 +208,7 @@ export class WebviewViewPane extends ViewPane {
 			}));
 		}
 
-		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+		this._webviewDisposables.add(new WebviewWindowDragMonitor(codeWindow, () => this._webview.value));
 
 		const source = this._webviewDisposables.add(new CancellationTokenSource());
 

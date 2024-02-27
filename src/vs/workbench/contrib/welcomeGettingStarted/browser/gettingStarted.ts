@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, getWindow, reset } from 'vs/base/browser/dom';
+import { $, Dimension, addDisposableListener, append, clearNode, getActiveWindow, getWindow, reset } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -538,10 +538,10 @@ export class GettingStartedPage extends EditorPane {
 			clearNode(this.stepMediaComponent);
 
 			if (stepToExpand.media.type === 'svg') {
-				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: { disableServiceWorker: true }, contentOptions: {}, extension: undefined }));
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: { disableServiceWorker: true }, contentOptions: {}, extension: undefined, codeWindow: getActiveWindow() }));
 				this.webview.mountTo(this.stepMediaComponent);
 			} else if (stepToExpand.media.type === 'markdown') {
-				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined }));
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined, codeWindow: getActiveWindow() }));
 				this.webview.mountTo(this.stepMediaComponent);
 			}
 		}

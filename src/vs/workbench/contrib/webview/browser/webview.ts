@@ -78,7 +78,7 @@ export interface WebviewInitInfo {
 	readonly contentOptions: WebviewContentOptions;
 
 	readonly extension: WebviewExtensionDescription | undefined;
-	readonly codeWindow?: CodeWindow;
+	readonly codeWindow: CodeWindow;
 }
 
 export const enum WebviewContentPurpose {
@@ -188,6 +188,11 @@ export interface IWebview extends IDisposable {
 	 * The origin this webview itself is loaded from. May not be unique.
 	 */
 	readonly origin: string;
+
+	/**
+	 * The code window the webview is contained within.
+	 */
+	readonly codeWindow: CodeWindow;
 
 	/**
 	 * Set html content of the webview.

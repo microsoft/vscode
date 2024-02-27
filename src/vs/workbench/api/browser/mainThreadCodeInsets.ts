@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -88,6 +89,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		}
 
 		const disposables = new DisposableStore();
+		const codeWindow = getWindow(editor.getDomNode());
 
 		const webview = this._webviewService.createWebviewElement({
 			title: undefined,
@@ -95,7 +97,8 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 				enableFindWidget: false,
 			},
 			contentOptions: reviveWebviewContentOptions(options),
-			extension: { id: extensionId, location: URI.revive(extensionLocation) }
+			extension: { id: extensionId, location: URI.revive(extensionLocation) },
+			codeWindow: codeWindow
 		});
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);

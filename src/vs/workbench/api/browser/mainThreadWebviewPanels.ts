@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
@@ -170,7 +171,8 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			title: initData.title,
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
-			extension
+			extension,
+			codeWindow: getActiveWindow()
 		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions);
 
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, setParentFlowTo } from 'vs/base/browser/dom';
+import { $, Dimension, addDisposableListener, append, getWindow, getWindowById, setParentFlowTo } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
@@ -661,6 +661,14 @@ export class ExtensionEditor extends EditorPane {
 				return Promise.resolve(null);
 			}
 
+			let codeWindow;
+			if (this.group?.windowId) {
+				const windowById = getWindowById(this.group.windowId);
+				codeWindow = windowById?.window ?? getWindow(container);
+			} else {
+				codeWindow = getWindow(container);
+			}
+
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
 				title,
 				options: {
@@ -670,6 +678,7 @@ export class ExtensionEditor extends EditorPane {
 				},
 				contentOptions: {},
 				extension: undefined,
+				codeWindow: codeWindow
 			}));
 
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;

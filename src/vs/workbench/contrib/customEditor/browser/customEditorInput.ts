@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindowById } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -37,18 +39,21 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		group: GroupIdentifier | undefined,
+		windowId: number,
 		options?: { readonly customClasses?: string; readonly oldResource?: URI },
 	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+			const codeWindow = getWindowById(windowId)?.window ?? mainWindow;
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: viewType,
 				title: undefined,
 				options: { customClasses: options?.customClasses },
 				contentOptions: {},
 				extension: undefined,
+				codeWindow
 			});
 			const input = instantiationService.createInstance(CustomEditorInput, { resource, viewType }, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
@@ -65,6 +70,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private _defaultDirtyState: boolean | undefined;
 
 	private readonly _backupId: string | undefined;
+	private readonly _windowId: number;
 
 	private readonly _untitledDocumentData: VSBuffer | undefined;
 
@@ -91,6 +97,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
 		this._untitledDocumentData = options.untitledDocumentData;
+		this._windowId = webview.codeWindow.vscodeWindowId;
 
 		this.registerListeners();
 	}
@@ -250,7 +257,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override copy(): EditorInput {
-		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
+		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this._windowId, this.webview.options);
 	}
 
 	public override isReadonly(): boolean | IMarkdownString {

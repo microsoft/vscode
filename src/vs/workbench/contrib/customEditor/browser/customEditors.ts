@@ -29,6 +29,7 @@ import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from 'v
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class CustomEditorService extends Disposable implements ICustomEditorService {
 	_serviceBrand: any;
@@ -131,10 +132,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					},
 					{
 						createEditorInput: ({ resource }, group) => {
-							return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
+							return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id, group.windowId) };
 						},
 						createUntitledEditorInput: ({ resource }, group) => {
-							return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+							return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id, group.windowId) };
 						},
 						createDiffEditorInput: (diffEditorInput, group) => {
 							return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
@@ -150,8 +151,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		editorID: string,
 		group: IEditorGroup
 	): DiffEditorInput {
-		const modifiedOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.modified.resource), editorID, group.id, { customClasses: 'modified' });
-		const originalOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.original.resource), editorID, group.id, { customClasses: 'original' });
+		const modifiedOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.modified.resource), editorID, group.id, group.windowId, { customClasses: 'modified' });
+		const originalOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.original.resource), editorID, group.id, group.windowId, { customClasses: 'original' });
 		return this.instantiationService.createInstance(DiffEditorInput, editor.label, editor.description, originalOverride, modifiedOverride, true);
 	}
 
@@ -245,7 +246,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				let replacement: EditorInput | IResourceEditorInput;
 				if (possibleEditors.defaultEditor) {
 					const viewType = possibleEditors.defaultEditor.id;
-					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType, group);
+					const windowId = this.editorGroupService.getGroup(group)?.windowId ?? mainWindow.vscodeWindowId;
+					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType, group, windowId);
 				} else {
 					replacement = { resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
 				}

@@ -37,7 +37,7 @@ import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/web
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage } from 'vs/workbench/contrib/webview/browser/webviewMessages';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/contrib/webview/common/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { $window } from 'vs/base/browser/window';
+import { CodeWindow } from 'vs/base/browser/window';
 
 interface WebviewContent {
 	readonly html: string;
@@ -88,6 +88,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 */
 	public readonly origin: string;
 
+	/**
+	 * The code window the webview is contained within.
+	 */
+	public readonly codeWindow: CodeWindow;
+
 	private readonly _encodedWebviewOriginPromise: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
 
@@ -103,7 +108,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (!this._focused) {
 			return false;
 		}
-		if ($window.document.activeElement && $window.document.activeElement !== this.element) {
+		if (this.codeWindow.document.activeElement && this.codeWindow.document.activeElement !== this.element) {
 			// looks like https://github.com/microsoft/vscode/issues/132641
 			// where the focus is actually not in the `<iframe>`
 			return false;
@@ -159,8 +164,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? this.id;
+		this.codeWindow = initInfo.codeWindow;
 
-		this._encodedWebviewOriginPromise = parentOriginHash($window.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
+		this._encodedWebviewOriginPromise = parentOriginHash(this.codeWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 
 		this._options = initInfo.options;
 		this.extension = initInfo.extension;
@@ -460,7 +466,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
-			parentOrigin: $window.origin,
+			parentOrigin: this.codeWindow.origin,
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -500,7 +506,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}));
 		}
 
-		for (const node of [element, $window]) {
+		for (const node of [element, this.codeWindow]) {
 			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
@@ -683,7 +689,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			get: () => this.element,
 		});
 		// And re-dispatch
-		$window.dispatchEvent(emulatedKeyboardEvent);
+		this.codeWindow.dispatchEvent(emulatedKeyboardEvent);
 	}
 
 	windowDidDragStart(): void {
@@ -825,7 +831,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
-			if ($window.document.activeElement && $window.document.activeElement !== this.element && $window.document.activeElement?.tagName !== 'BODY') {
+			if (this.codeWindow.document.activeElement && this.codeWindow.document.activeElement !== this.element && this.codeWindow.document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 

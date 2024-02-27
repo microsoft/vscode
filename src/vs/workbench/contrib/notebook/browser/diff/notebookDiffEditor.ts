@@ -47,7 +47,6 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookDiffOverviewRuler } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffOverviewRuler';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
-import { mainWindow } from 'vs/base/browser/window';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const $ = DOM.$;
@@ -154,7 +153,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group?.windowId, true).window ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, false);
+		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group?.windowId, true).window, this.configurationService, notebookExecutionStateService, codeEditorService, false);
 		this._register(this._notebookOptions);
 		this._revealFirst = true;
 	}

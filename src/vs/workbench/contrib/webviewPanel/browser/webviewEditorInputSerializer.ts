@@ -11,6 +11,8 @@ import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } fr
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService } from './webviewWorkbenchService';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { getWindowById } from 'vs/base/browser/dom';
 
 export type SerializedWebviewOptions = WebviewOptions & WebviewContentOptions;
 
@@ -30,6 +32,7 @@ export interface SerializedWebview {
 	readonly state: any;
 	readonly iconPath: SerializedIconPath | undefined;
 	readonly group?: number;
+	readonly windowId: number;
 }
 
 export interface DeserializedWebview {
@@ -43,6 +46,7 @@ export interface DeserializedWebview {
 	readonly state: any;
 	readonly iconPath: WebviewIcons | undefined;
 	readonly group?: number;
+	readonly codeWindow: CodeWindow;
 }
 
 export class WebviewEditorInputSerializer implements IEditorSerializer {
@@ -83,6 +87,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 				options: data.webviewOptions,
 				contentOptions: data.contentOptions,
 				extension: data.extension,
+				codeWindow: data.codeWindow
 			},
 			viewType: data.viewType,
 			title: data.title,
@@ -100,6 +105,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 			state: reviveState(data.state),
 			webviewOptions: restoreWebviewOptions(data.options),
 			contentOptions: restoreWebviewContentOptions(data.options),
+			codeWindow: getWindowById(data.windowId)?.window ?? mainWindow
 		};
 	}
 
@@ -114,7 +120,8 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 			extensionId: input.extension?.id.value,
 			state: input.webview.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
-			group: input.group
+			group: input.group,
+			windowId: input.webview.codeWindow.vscodeWindowId
 		};
 	}
 }
