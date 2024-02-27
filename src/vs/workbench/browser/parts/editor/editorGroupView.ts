@@ -578,6 +578,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			case GroupModelChangeKind.EDITOR_DIRTY:
 				this.onDidChangeEditorDirty(e.editor);
 				break;
+			case GroupModelChangeKind.EDITOR_TRANSIENT:
+				this.onDidChangeEditorTransient(e.editor);
+				break;
 			case GroupModelChangeKind.EDITOR_LABEL:
 				this.onDidChangeEditorLabel(e.editor);
 				break;
@@ -760,6 +763,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control
 		this.titleControl.updateEditorDirty(editor);
+	}
+
+	private onDidChangeEditorTransient(editor: EditorInput): void {
+		const transient = this.model.isTransient(editor);
+
+		// Transient state overrides the `enablePreview` setting,
+		// so when an editor leaves the transient state, we have
+		// to ensure its preview state is also cleared.
+		if (!transient && !this.groupsView.partOptions.enablePreview) {
+			this.model.pin(editor);
+		}
 	}
 
 	private onDidChangeEditorLabel(editor: EditorInput): void {

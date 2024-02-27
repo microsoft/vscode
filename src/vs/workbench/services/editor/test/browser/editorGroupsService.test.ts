@@ -1881,6 +1881,9 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditor(input2, { transient: true });
 		assert.strictEqual(group.isPinned(input2), false);
+
+		group.setTransient(input2, false);
+		assert.strictEqual(group.isPinned(input2), true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
