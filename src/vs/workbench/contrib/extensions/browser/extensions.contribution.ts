@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -79,6 +79,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
 import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -318,6 +319,15 @@ CommandsRegistry.registerCommand({
 							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
 							default: false
 						},
+						'justification': {
+							'type': ['string', 'object'],
+							'description': localize('workbench.extensions.installExtension.option.justification', "Justification for installing the extension. This is a string or an object that can be used to pass any information to the installation handlers. i.e. `{reason: 'This extension wants to open a URI', action: 'Open URI'}` will show a message box with the reason and action upon install."),
+						},
+						'enable': {
+							'type': 'boolean',
+							'description': localize('workbench.extensions.installExtension.option.enable', "When enabled, the extension will be enabled if it is installed but disabled. If the extension is already enabled, this has no effect."),
+							default: false
+						},
 						'context': {
 							'type': 'object',
 							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
@@ -327,31 +337,44 @@ CommandsRegistry.registerCommand({
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean; context?: IStringDictionary<any> }) => {
+	handler: async (
+		accessor,
+		arg: string | UriComponents,
+		options?: {
+			installOnlyNewlyAddedFromExtensionPackVSIX?: boolean;
+			installPreReleaseVersion?: boolean;
+			donotSync?: boolean;
+			justification?: string | { reason: string; action: string };
+			enable?: boolean;
+			context?: IStringDictionary<any>;
+		}) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
-				const [extension] = await extensionsWorkbenchService.getExtensions([{ id, preRelease: options?.installPreReleaseVersion }], CancellationToken.None);
-				if (extension) {
-					const installOptions: InstallOptions = {
+				const extension = extensionsWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id, uuid: version }));
+				if (extension?.enablementState === EnablementState.DisabledByExtensionKind) {
+					const [gallery] = await extensionGalleryService.getExtensions([{ id, preRelease: options?.installPreReleaseVersion }], CancellationToken.None);
+					if (gallery) {
+						throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
+					}
+					await extensionManagementService.installFromGallery(gallery, {
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						installGivenVersion: !!version,
 						context: options?.context
-					};
-					if (extension.gallery && extension.enablementState === EnablementState.DisabledByExtensionKind) {
-						await extensionManagementService.installFromGallery(extension.gallery, installOptions);
-						return;
-					}
-					if (version) {
-						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
-					} else {
-						await extensionsWorkbenchService.install(extension, installOptions);
-					}
+					});
 				} else {
-					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
+					await extensionsWorkbenchService.install(arg, {
+						version,
+						installPreReleaseVersion: options?.installPreReleaseVersion,
+						context: options?.context,
+						justification: options?.justification,
+						enable: options?.enable,
+						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
+					}, ProgressLocation.Notification);
 				}
 			} else {
 				const vsix = URI.revive(arg);
