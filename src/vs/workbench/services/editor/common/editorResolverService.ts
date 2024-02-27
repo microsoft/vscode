@@ -16,7 +16,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, IResourceRefactorPreviewInput } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMultiDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, IResourceBulkEditEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { AtLeastOne } from 'vs/base/common/types';
@@ -110,7 +110,7 @@ export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEdit
 
 export type DiffListEditorInputFactoryFunction = (diffEditorInput: IResourceMultiDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
-export type RefactorPreviewInputFactoryFunction = (refactorPreviewInput: IResourceRefactorPreviewInput, group: IEditorGroup) => EditorInputFactoryResult;
+export type RefactorPreviewInputFactoryFunction = (refactorPreviewInput: IResourceBulkEditEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export type MergeEditorInputFactoryFunction = (mergeEditorInput: IResourceMergeEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 

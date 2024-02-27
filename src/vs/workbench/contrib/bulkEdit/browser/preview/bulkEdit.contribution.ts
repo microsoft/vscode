@@ -5,14 +5,14 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { BulkEditPane, OpenMultiDiffEditor, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { IBulkEditEditorService, IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { BulkEditPane, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { localize, localize2 } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -22,16 +22,17 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { EditorExtensions, EditorResourceAccessor, IEditorFactoryRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInstantiationService, type ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { BulkEditEditor, BulkEditEditorInput, BulkEditEditorResolver, BulkEditEditorSerializer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Severity } from 'vs/platform/notification/common/notification';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { BulkEditEditorService } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditorService';
 
 class UXState {
 
@@ -88,34 +89,47 @@ class BulkEditPreviewContribution {
 
 	static readonly ctxEnabled = new RawContextKey('refactorPreview.enabled', false);
 
+	private readonly _ctxEnabled: IContextKey<boolean>;
+
 	private _activeSession: PreviewSession | undefined;
 
 	constructor(
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		// looks like not registered correctly because of the following bulk edit editor service which is throwing an error
+		@IBulkEditEditorService private readonly _bulkEditEditorService: IBulkEditEditorService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		console.log('inside of constructor of BulkEditPreviewContribution');
 		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
+		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
 		console.log('inside of _previewEdit of BulkEditPreviewContribution');
+		this._ctxEnabled.set(true);
 
-		const openMultiDiffEditor = new OpenMultiDiffEditor(
-			this._instantiationService,
-			this._editorService,
-			this._textModelService,
-			this._editorGroupsService,
-			this._storageService
-		);
+		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
+		console.log('this._bulkEditEditorService : ', this._bulkEditEditorService);
+		const bulkEditEditors = this._bulkEditEditorService.findBulkEditEditors();
+
+		// check for active preview session and let the user decide
+		if (bulkEditEditors.length > 0) {
+			const { confirmed } = await this._dialogService.confirm({
+				type: Severity.Info,
+				message: localize('overlap', "Another refactoring is being previewed."),
+				detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
+				primaryButton: localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+			});
+
+			if (!confirmed) {
+				return [];
+			}
+		}
 
 		// session
-		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
 		let session: PreviewSession;
 		if (this._activeSession) {
 			await this._activeSession.uxState.restore(false, true);
@@ -126,17 +140,19 @@ class BulkEditPreviewContribution {
 		}
 		this._activeSession = session;
 
+		// the actual work...
 		try {
 
-			await openMultiDiffEditor.setInput(edits, session.cts.token);
+			console.log('before set input of bulk edit preview contribution');
+			await this._bulkEditEditorService.setInput(edits, session.cts.token);
 			console.log('after setInput of _previewEdit of BulkEditPreviewContribution');
-			return await openMultiDiffEditor.openMultiDiffEditorReturnInput(edits) ?? [];
-
+			return await this._bulkEditEditorService.openBulkEditEditor(edits) ?? [];
 		} finally {
 			// restore UX state
 			if (this._activeSession === session) {
 				await this._activeSession.uxState.restore(true, true);
 				this._activeSession.cts.dispose();
+				this._ctxEnabled.set(false);
 				this._activeSession = undefined;
 			}
 		}
@@ -167,6 +183,7 @@ registerAction2(class ApplyAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<any> {
+		console.log('inside of run of ApplyAction');
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
 		view?.accept();
@@ -301,6 +318,8 @@ registerAction2(class ToggleGrouping extends Action2 {
 		view?.toggleGrouping();
 	}
 });
+
+registerSingleton(IBulkEditEditorService, BulkEditEditorService, InstantiationType.Eager);
 
 registerWorkbenchContribution2(
 	BulkEditPreviewContribution.ID, BulkEditPreviewContribution, WorkbenchPhase.BlockRestore

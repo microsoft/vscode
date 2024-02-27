@@ -507,7 +507,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly resources?: IResourceDiffEditorInput[];
 }
 
-export interface IResourceRefactorPreviewInput extends IBaseUntypedEditorInput {
+export interface IResourceBulkEditEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * A unique identifier of this multi diff editor input.
 	 * If a second multi diff editor with the same uri is opened, the existing one is revealed instead (even if the resources list is different!).
@@ -604,12 +604,12 @@ export function isResourceDiffListEditorInput(editor: unknown): editor is IResou
 	return !!candidate.resources || !!candidate.multiDiffSource;
 }
 
-export function isResourceRefactorPreviewEditorInput(editor: unknown): editor is IResourceRefactorPreviewInput {
+export function isResourceBulkEditEditorInput(editor: unknown): editor is IResourceBulkEditEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
 
-	const candidate = editor as IResourceRefactorPreviewInput | undefined;
+	const candidate = editor as IResourceBulkEditEditorInput | undefined;
 	if (!candidate) {
 		return false;
 	}
@@ -839,7 +839,7 @@ export const enum EditorInputCapabilities {
 	AuxWindowUnsupported = 1 << 10
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput | IResourceRefactorPreviewInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput | IResourceBulkEditEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -1350,7 +1350,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceRefactorPreviewEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceBulkEditEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1419,7 +1419,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceRefactorPreviewEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceBulkEditEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

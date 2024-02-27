@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
 import { ICompositeControl } from 'vs/workbench/common/composite';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, IEditorOpenContext, IEditorSerializer, IResourceRefactorPreviewInput, IUntypedEditorInput, GroupIdentifier, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, IEditorOpenContext, IEditorSerializer, IResourceBulkEditEditorInput, IUntypedEditorInput, GroupIdentifier, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -27,7 +27,6 @@ import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/br
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { parse } from 'vs/base/common/marshalling';
 import { ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
@@ -56,11 +55,11 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
-	// private _initialViewModel: MultiDiffEditorViewModel | undefined;
 	private _refactorViewPane: BulkEditPane | undefined;
 	private _refactorViewContainer: HTMLElement | undefined;
 	private _edits: ResourceEdit[] = [];
 	private _inputEdits: Promise<ResourceEdit[] | undefined> | undefined;
+	// private _initialViewModel: MultiDiffEditorViewModel | undefined;
 	// private _bulkEditEditorInput: BulkEditEditorInput | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
@@ -87,7 +86,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			editorService,
 			editorGroupService
 		);
-		console.log('inside of constructor of bulk edit editor');
+		// console.log('inside of constructor of bulk edit editor');
 	}
 
 	protected async createEditor(parent: HTMLElement): Promise<void> {
@@ -278,7 +277,7 @@ export class BulkEditEditorSerializer implements IEditorSerializer {
 }
 
 export class BulkEditEditorInput extends EditorInput implements ILanguageSupport {
-	public static fromResourceMultiDiffEditorInput(input: IResourceRefactorPreviewInput, instantiationService: IInstantiationService): BulkEditEditorInput {
+	public static fromResourceMultiDiffEditorInput(input: IResourceBulkEditEditorInput, instantiationService: IInstantiationService): BulkEditEditorInput {
 		if (!input.refactorPreviewSource && !input.diffResources && !input.edits) {
 			throw new BugIndicatingError('BulkEditEditorInput requires either multiDiffSource or resources');
 		}
@@ -348,11 +347,11 @@ export class BulkEditEditorInput extends EditorInput implements ILanguageSupport
 		}));
 	}
 
-	public serialize(): ISerializedMultiDiffEditorInput {
+	public serialize(): ISerializedBulkEditEditorInput {
 		return {
 			label: this.label,
-			multiDiffSourceUri: this.refactorPreviewSource.toString(),
-			resources: this.initialResources?.map(resource => ({
+			refactorResourceUri: this.refactorPreviewSource.toString(),
+			diffResources: this.initialResources?.map(resource => ({
 				originalUri: resource.original?.toString(),
 				modifiedUri: resource.modified?.toString(),
 			})),
@@ -607,42 +606,12 @@ export class BulkEditEditorResolver extends Disposable {
 			},
 			{},
 			{
-				createRefactorPreviewEditorInput: (refactorPreviewEditorInput: IResourceRefactorPreviewInput): EditorInputWithOptions => {
+				createRefactorPreviewEditorInput: (refactorPreviewEditorInput: IResourceBulkEditEditorInput): EditorInputWithOptions => {
 					return {
 						editor: BulkEditEditorInput.fromResourceMultiDiffEditorInput(refactorPreviewEditorInput, instantiationService),
 					};
 				},
 			}
 		));
-	}
-}
-
-interface ISerializedMultiDiffEditorInput {
-	multiDiffSourceUri: string;
-	label: string | undefined;
-	resources: {
-		originalUri: string | undefined;
-		modifiedUri: string | undefined;
-	}[] | undefined;
-	edits: ResourceEdit[];
-}
-
-export class MultiDiffEditorSerializer implements IEditorSerializer {
-	canSerialize(editor: EditorInput): boolean {
-		return editor instanceof BulkEditEditorInput;
-	}
-
-	serialize(editor: BulkEditEditorInput): string | undefined {
-		return JSON.stringify(editor.serialize());
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
-		try {
-			const data = parse(serializedEditor) as ISerializedBulkEditEditorInput;
-			return BulkEditEditorInput.fromSerialized(data, instantiationService);
-		} catch (err) {
-			onUnexpectedError(err);
-			return undefined;
-		}
 	}
 }

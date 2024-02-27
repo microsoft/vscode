@@ -168,6 +168,7 @@ export class BulkEditService implements IBulkEditService {
 	) { }
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
+		console.log('inside of setPreviewHandler of bulk edit service');
 		this._previewHandler = handler;
 		return toDisposable(() => {
 			console.log('inside of toDisposable of bulk edit service');
@@ -194,7 +195,6 @@ export class BulkEditService implements IBulkEditService {
 			edits = await this._previewHandler(edits, options);
 			console.log('edits inside of apply : ', edits);
 		}
-
 		console.log('edits after preview handler : ', edits);
 
 		let codeEditor = options?.editor;

@@ -14,6 +14,7 @@ import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
+export const IBulkEditEditorService = createDecorator<IBulkEditEditorService>('IWorkspaceEditEditorService');
 
 export class ResourceEdit {
 
@@ -122,3 +123,21 @@ export interface IBulkEditService {
 
 	apply(edit: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }
+
+export interface IBulkEditEditorService {
+
+	readonly _serviceBrand: undefined;
+
+	setInput(edit: ResourceEdit[], token: CancellationToken): Promise<void>;
+
+	openBulkEditEditor(edits: ResourceEdit[]): Promise<ResourceEdit[] | undefined>;
+
+	findBulkEditEditors(): readonly IEditorIdentifier[];
+}
+
+interface IEditorIdentifier {
+	groupId: number;
+	editor: IEditorInput;
+}
+
+interface IEditorInput { }

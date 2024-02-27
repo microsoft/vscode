@@ -237,12 +237,16 @@ class RenameController implements IEditorContribution {
 
 		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
+		console.log('this._bulkEditService.hasPreviewHandler() : ', this._bulkEditService.hasPreviewHandler());
+		console.log('this._configService.getValue<boolean>(this.editor.getModel().uri, "editor.rename.enablePreview") : ', this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview'));
+		console.log('supportPreview : ', supportPreview);
 		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
+		console.log('inputFieldResult : ', inputFieldResult);
 		trace('received response from rename input field');
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
-			trace(`returning early - rename input field response - ${inputFieldResult}`);
+			trace(`returning early - rename input field response - ${inputFieldResult} `);
 			if (inputFieldResult) {
 				this.editor.focus();
 			}
@@ -265,7 +269,7 @@ class RenameController implements IEditorContribution {
 			}
 
 			if (renameResult.rejectReason) {
-				trace(`returning early - rejected with reason: ${renameResult.rejectReason}`);
+				trace(`returning early - rejected with reason: ${renameResult.rejectReason} `);
 				this._notificationService.info(renameResult.rejectReason);
 				return;
 			}
@@ -288,7 +292,7 @@ class RenameController implements IEditorContribution {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, inputFieldResult.newName, result.ariaSummary));
 				}
 			}).catch(err => {
-				trace(`error when applying edits ${JSON.stringify(err, null, '\t')}`);
+				trace(`error when applying edits ${JSON.stringify(err, null, '\t')} `);
 				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));
 				this._logService.error(err);
 			});
