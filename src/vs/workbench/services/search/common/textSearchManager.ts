@@ -161,12 +161,11 @@ export class TextSearchManager {
 
 
 		let result;
-		if (this.queryProviderPair.query.type === QueryType.Text) {
-			result = await (this.queryProviderPair as ITextQueryProviderPair).provider.provideTextSearchResults(patternInfoToQuery(this.queryProviderPair.query.contentPattern), searchOptions, progress, token);
-		} else {
+		if (this.queryProviderPair.query.type === QueryType.aiText) {
 			result = await (this.queryProviderPair as IAITextQueryProviderPair).provider.provideAITextSearchResults(this.queryProviderPair.query.contentPattern, searchOptions, progress, token);
+		} else {
+			result = await (this.queryProviderPair as ITextQueryProviderPair).provider.provideTextSearchResults(patternInfoToQuery(this.queryProviderPair.query.contentPattern), searchOptions, progress, token);
 		}
-
 		if (testingPs.length) {
 			await Promise.all(testingPs);
 		}
