@@ -16,6 +16,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -167,7 +168,8 @@ export class ChatService extends Disposable implements IChatService {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -396,6 +398,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const defaultAgent = this.chatAgentService.getDefaultAgent();
 			if (!defaultAgent) {
+				this.notificationService.error('Chat failed to load. Please ensure that the Copilot Chat extension is up to date');
 				throw new Error('No default agent');
 			}
 
