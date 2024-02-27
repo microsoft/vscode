@@ -280,8 +280,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
-		const instantHover = this.isInstantlyHovering();
-		const id = instantHover ? (options.content instanceof HTMLElement ? options.content.innerHTML : options.content.toString()) : undefined;
+		const id = options.content instanceof HTMLElement ? undefined : options.content.toString();
 
 		return this.hoverService.showHover({
 			...options,
@@ -295,7 +294,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			appearance: {
 				...options.appearance,
 				compact: true,
-				skipFadeInAnimation: instantHover,
+				skipFadeInAnimation: this.isInstantlyHovering(),
 				...overrideOptions.appearance
 			}
 		}, focus);
