@@ -58,9 +58,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	private _refactorViewPane: BulkEditPane | undefined;
 	private _refactorViewContainer: HTMLElement | undefined;
 	private _edits: ResourceEdit[] = [];
-	private _inputEdits: Promise<ResourceEdit[] | undefined> | undefined;
-	// private _initialViewModel: MultiDiffEditorViewModel | undefined;
-	// private _bulkEditEditorInput: BulkEditEditorInput | undefined;
+	private _promiseEdits: Promise<ResourceEdit[] | undefined> | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -86,7 +84,6 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			editorService,
 			editorGroupService
 		);
-		// console.log('inside of constructor of bulk edit editor');
 	}
 
 	protected async createEditor(parent: HTMLElement): Promise<void> {
@@ -111,14 +108,14 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		}));
 	}
 
-	public get inputEdits(): Promise<ResourceEdit[] | undefined> | undefined {
-		return this._inputEdits;
+	public get promiseEdits(): Promise<ResourceEdit[] | undefined> | undefined {
+		return this._promiseEdits;
 	}
 
 	private _renderRefactorPreviewPane() {
 		if (this._refactorViewPane && this._refactorViewContainer) {
 			DOM.clearNode(this._refactorViewContainer);
-			this._inputEdits = this._refactorViewPane.setInput(this._edits, CancellationToken.None);
+			this._promiseEdits = this._refactorViewPane.setInput(this._edits, CancellationToken.None);
 			// console.log('_renderRefactorPreviewPane');
 			// console.log('this._bulkEditEditorInput : ', this._bulkEditEditorInput);
 			// if (this._bulkEditEditorInput) {
@@ -153,6 +150,10 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		this._renderRefactorPreviewPane();
 		this._reveal(options);
 		console.log('end of setInput');
+	}
+
+	public hasInput(): boolean {
+		return this._refactorViewPane?.hasInput() ?? false;
 	}
 
 	override async setOptions(options: IMultiDiffEditorOptions | undefined): Promise<void> {
