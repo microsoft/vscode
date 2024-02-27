@@ -190,12 +190,19 @@ declare module 'vscode' {
 		 */
 		// TODO@API refine doc
 		// TODO@API define specific error types?
-		export function makeChatRequest(languageModel: string, messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): Thenable<LanguageModelResponse>;
+		// TODO@API NAME: chatRequest
+		// TODO@API NAME: ChatRequestXYZMessage
+		// TODO@API NAME: ChatRequestResponse
+		export function chatRequest(languageModel: string, messages: LanguageModelMessage[], options: { [name: string]: any }, token: CancellationToken): Thenable<LanguageModelResponse>;
 
 		/**
-		 * @see {@link makeChatRequest}
+		 * @see {@link chatRequest}
 		 */
-		export function makeChatRequest(languageModel: string, messages: LanguageModelMessage[], token: CancellationToken): Thenable<LanguageModelResponse>;
+		export function chatRequest(languageModel: string, messages: LanguageModelMessage[], token: CancellationToken): Thenable<LanguageModelResponse>;
+
+		// TODO@API probe on having access
+		// TODO@API, BETTER?: ExtensionContext.permissions.languageModels: Record<string, boolean>;
+		// export function canMakeChatRequest(languageModel: string): Thenable<boolean>;
 
 		/**
 		 * The identifiers of all language models that are currently available.

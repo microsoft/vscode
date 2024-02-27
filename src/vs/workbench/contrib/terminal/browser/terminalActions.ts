@@ -1654,7 +1654,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StartVoice,
-		title: localize2('workbench.action.terminal.startVoice', "Start Terminal Voice"),
+		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
 		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
 		run: (activeInstance, c, accessor) => {
@@ -1665,7 +1665,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StopVoice,
-		title: localize2('workbench.action.terminal.stopVoice', "Stop Terminal Voice"),
+		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
 		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
 		run: (activeInstance, c, accessor) => {

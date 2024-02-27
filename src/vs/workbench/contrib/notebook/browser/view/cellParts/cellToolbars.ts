@@ -22,8 +22,8 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellOverlayPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerCellToolbarStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbarStickyScroll';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export class BetweenCellToolbar extends CellOverlayPart {
 	private _betweenCellToolbar: ToolBar | undefined;
@@ -167,7 +167,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		if (this._view) {
 			return this._view;
 		}
-		const hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
 			actionViewItemProvider: (action, options) => {
 				return createActionViewItem(this.instantiationService, action, options);
