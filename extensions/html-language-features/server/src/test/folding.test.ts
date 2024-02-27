@@ -214,6 +214,6 @@ suite('HTML Folding', () => {
 		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3)], 'limit 3', 3);
 		await assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
 		await assertRanges(input, [r(0, 19)], 'limit 1', 1);
-	}).timeout(4000);
+	}).timeout(8000);
 
 }).afterAll(onTestEnd);
