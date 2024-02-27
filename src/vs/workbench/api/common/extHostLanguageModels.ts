@@ -232,14 +232,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options.justification);
 
 		if (!metadata || !this._languageModelIds.has(languageModelId)) {
-			throw new Error(`Language model ${languageModelId} is unknown`);
+			throw new Error(`Language model '${languageModelId}' is unknown.`);
 		}
 
 		if (this._isUsingAuth(from, metadata)) {
-			await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, undefined);
+			const success = await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, options.justification, options.silent);
 
-			if (!this._modelAccessList.get(from)?.has(metadata.extension)) {
-				throw new Error('Access to chat has been revoked');
+			if (!success || !this._modelAccessList.get(from)?.has(metadata.extension)) {
+				throw new Error(`Language model '${languageModelId}' cannot be used by '${from.value}'.`);
 			}
 		}
 
@@ -270,7 +270,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		await barrier.wait();
 
 		if (error) {
-			throw error;
+			throw new Error(`Language model '${languageModelId}' errored, check cause for more details`, { cause: error });
 		}
 
 		return res.apiObject;
@@ -284,22 +284,32 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	// BIG HACK: Using AuthenticationProviders to check access to Language Models
-	private async _getAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string }, justification?: string): Promise<void> {
+	private async _getAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string }, justification: string | undefined, silent: boolean | undefined): Promise<boolean> {
 		// This needs to be done in both MainThread & ExtHost ChatProvider
 		const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + to.identifier.value;
 		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true });
-		if (!session) {
-			try {
-				const detail = justification
-					? localize('chatAccessWithJustification', "To allow access to the language models provided by {0}. Justification:\n\n{1}", to.displayName, justification)
-					: localize('chatAccess', "To allow access to the language models provided by {0}", to.displayName);
-				await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail } });
-			} catch (err) {
-				throw new Error('Access to language models has not been granted');
-			}
+
+		if (session) {
+			this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
+			return true;
 		}
 
-		this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
+		if (silent) {
+			return false;
+		}
+
+		try {
+			const detail = justification
+				? localize('chatAccessWithJustification', "To allow access to the language models provided by {0}. Justification:\n\n{1}", to.displayName, justification)
+				: localize('chatAccess', "To allow access to the language models provided by {0}", to.displayName);
+			await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail } });
+			this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
+			return true;
+
+		} catch (err) {
+			// ignore
+			return false;
+		}
 	}
 
 	private _isUsingAuth(from: ExtensionIdentifier, toMetadata: ILanguageModelChatMetadata): toMetadata is ILanguageModelChatMetadata & { auth: NonNullable<ILanguageModelChatMetadata['auth']> } {
