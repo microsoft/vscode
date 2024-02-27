@@ -9,7 +9,8 @@ import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
+import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -18,17 +19,18 @@ import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/cha
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
-	title: localize2('startChat', 'Start Chat'),
+	title: localize2('startChat', 'Start in Terminal'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	f1: true,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalChatContextKeys.agentRegistered
+		CTX_INLINE_CHAT_HAS_PROVIDER
 	),
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
