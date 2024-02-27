@@ -15,17 +15,18 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { Sequencer, timeout } from 'vs/base/common/async';
-import { EditorViewState } from 'vs/workbench/browser/quickaccess';
+import { EditorViewStateManager } from 'vs/workbench/browser/quickaccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 
 	private readonly _editorSequencer = new Sequencer();
-	private readonly _editorViewState: EditorViewState;
+	private readonly _editorViewState: EditorViewStateManager;
 
 	private _instance: ITerminalInstance | IDetachedTerminalInstance | undefined;
 
@@ -36,10 +37,11 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-		this._editorViewState = new EditorViewState(_editorService);
+		this._editorViewState = this.add(this._instantiationService.createInstance(EditorViewStateManager));
 	}
 
 	async show(instance: ITerminalInstance | IDetachedTerminalInstance, links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {

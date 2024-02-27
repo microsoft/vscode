@@ -41,7 +41,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { EditorViewState, IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
+import { EditorViewStateManager, IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
@@ -87,8 +87,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
-		editorViewState: EditorViewState;
-
 		scorerCache: FuzzyScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
 
@@ -100,9 +98,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		isQuickNavigating: boolean | undefined = undefined;
 
-		constructor(private readonly provider: AnythingQuickAccessProvider, editorService: IEditorService) {
-			this.editorViewState = new EditorViewState(editorService);
-		}
+		constructor(private readonly provider: AnythingQuickAccessProvider) { }
 
 		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
 
@@ -127,9 +123,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.lastFilter = undefined;
 			this.lastRange = undefined;
 			this.lastGlobalPicks = undefined;
-			this.editorViewState.reset();
 		}
-	}(this, this.editorService);
+	}(this);
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -138,6 +133,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		return undefined;
 	}
+
+	private readonly editorViewState: EditorViewStateManager;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -164,6 +161,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			canAcceptInBackground: true,
 			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
+		this.editorViewState = this._register(this.instantiationService.createInstance(EditorViewStateManager));
 	}
 
 	private get configuration() {
@@ -186,6 +184,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Update the pick state for this run
 		this.pickState.set(picker);
+		this.editorViewState.reset();
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -207,7 +206,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// could mean the user clicked into the editor directly.
 		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
 			if (reason === QuickInputHideReason.Gesture) {
-				this.pickState.editorViewState.restore();
+				this.editorViewState.restore();
 			}
 		}));
 
@@ -229,7 +228,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// we must remember our curret view state to be able to restore
-		this.pickState.editorViewState.set();
+		this.editorViewState.set();
 
 		// Reveal
 		activeEditorControl.revealRangeInCenter(pick.range.selection, ScrollType.Smooth);
@@ -841,7 +840,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		try {
 
 			// we must remember our curret view state to be able to restore
-			this.pickState.editorViewState.set();
+			this.editorViewState.set();
 
 			// open it
 			await this.editorService.openEditor({
@@ -1009,7 +1008,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Restore any view state if the target is the side group
 		if (targetGroup === SIDE_GROUP) {
-			await this.pickState.editorViewState.restore();
+			await this.editorViewState.restore();
 		}
 
 		// Open editor (typed)
