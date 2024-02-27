@@ -1888,6 +1888,14 @@ export interface CommentThreadChangedEvent<T> {
 	readonly changed: CommentThread<T>[];
 }
 
+/**
+ * @internal
+ */
+export interface CommentingRangeResources {
+	schemes: string[];
+	uris: URI[];
+}
+
 export interface CodeLens {
 	range: IRange;
 	id?: string;
