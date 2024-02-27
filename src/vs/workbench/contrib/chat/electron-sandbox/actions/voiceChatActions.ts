@@ -6,7 +6,7 @@
 import 'vs/css!./media/voiceChatActions';
 import { Event } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize, localize2 } from 'vs/nls';
@@ -46,13 +46,12 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -634,36 +633,13 @@ export class InstallVoiceChatAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const contextKeyService = accessor.get(IContextKeyService);
-		const dialogService = accessor.get(IDialogService);
-		const extensionManagementService = accessor.get(IExtensionsWorkbenchService);
-
-		const extension = firstOrDefault((await extensionManagementService.getExtensions([{ id: InstallVoiceChatAction.SPEECH_EXTENSION_ID }], CancellationToken.None)));
-		if (!extension) {
-			return;
-		}
-
-		if (extension.state === ExtensionState.Installed) {
-			await dialogService.info(
-				localize('enableExtensionMessage', "Microphone support requires an extension. Please enable it."),
-				localize('enableExtensionDetail', "Extension '{0}' is currently disabled.", InstallVoiceChatAction.SPEECH_EXTENSION_ID),
-			);
-
-			return extensionManagementService.open(extension);
-		}
-
-		const { confirmed } = await dialogService.confirm({
-			message: localize('confirmInstallMessage', "Microphone support requires an extension. Would you like to install it now?"),
-			detail: localize('confirmInstallDetail', "This will install the '{0}' extension.", InstallVoiceChatAction.SPEECH_EXTENSION_ID),
-			primaryButton: localize({ key: 'installButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Install")
-		});
-
-		if (!confirmed) {
-			return;
-		}
-
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
-			await extensionManagementService.install(extension, undefined, ProgressLocation.Notification);
+			await extensionsWorkbenchService.install(InstallVoiceChatAction.SPEECH_EXTENSION_ID, {
+				justification: localize('confirmInstallDetail', "Microphone support requires this extension."),
+				enable: true
+			}, ProgressLocation.Notification);
 		} finally {
 			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
 		}

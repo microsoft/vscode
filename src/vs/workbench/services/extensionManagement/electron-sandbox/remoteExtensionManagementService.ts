@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -44,7 +44,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		super(channel, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
 	}
 
-	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+	override async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		const local = await super.install(vsix, options);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
