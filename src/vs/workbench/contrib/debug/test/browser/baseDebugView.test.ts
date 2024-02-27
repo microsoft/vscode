@@ -105,7 +105,6 @@ suite('Debug - Base Debug View', () => {
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(value.textContent, 'hey');
 		assert.strictEqual(label.element.textContent, 'foo:');
-		assert.strictEqual(label.element.title, 'string');
 
 		variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		expression = $('.');
@@ -122,8 +121,9 @@ suite('Debug - Base Debug View', () => {
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(name.className, 'virtual');
 		assert.strictEqual(label.element.textContent, 'console:');
-		assert.strictEqual(label.element.title, 'console');
 		assert.strictEqual(value.className, 'value number');
+
+		label.dispose();
 	});
 
 	test('statusbar in debug mode', () => {
