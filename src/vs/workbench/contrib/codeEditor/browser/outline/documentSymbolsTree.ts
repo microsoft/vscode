@@ -66,6 +66,10 @@ class DocumentSymbolGroupTemplate {
 		readonly labelContainer: HTMLElement,
 		readonly label: HighlightedLabel,
 	) { }
+
+	dispose() {
+		this.label.dispose();
+	}
 }
 
 class DocumentSymbolTemplate {
@@ -107,7 +111,7 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 	}
 
 	disposeTemplate(_template: DocumentSymbolGroupTemplate): void {
-		// nothing
+		_template.dispose();
 	}
 }
 

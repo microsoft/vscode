@@ -81,7 +81,7 @@ export class IconSelectBox extends Disposable {
 		dom.append(iconSelectBoxContainer, this.scrollableElement.getDomNode());
 
 		if (this.options.showIconInfo) {
-			this.iconIdElement = new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label')));
+			this.iconIdElement = this._register(new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label'))));
 		}
 
 		const iconsDisposables = disposables.add(new MutableDisposable());

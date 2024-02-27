@@ -61,5 +61,9 @@ suite('HighlightedLabel', () => {
 		assert.deepStrictEqual(highlights, [{ start: 5, end: 8 }, { start: 10, end: 11 }]);
 	});
 
+	teardown(() => {
+		label.dispose();
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
