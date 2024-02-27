@@ -12,7 +12,7 @@ import { AsyncDataTree, IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/
 import { ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
@@ -22,16 +22,16 @@ import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -43,6 +43,7 @@ import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS
 import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugVisualizer, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -717,15 +718,14 @@ CommandsRegistry.registerCommand({
 			memoryReference = arg.memoryReference;
 		}
 
-		const commandService = accessor.get(ICommandService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const editorService = accessor.get(IEditorService);
-		const notifications = accessor.get(INotificationService);
-		const progressService = accessor.get(IProgressService);
+		const notificationService = accessor.get(INotificationService);
 		const extensionService = accessor.get(IExtensionService);
 		const telemetryService = accessor.get(ITelemetryService);
 
 		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
-		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
+		if (ext || await tryInstallHexEditor(extensionsWorkbenchService, notificationService)) {
 			/* __GDPR__
 				"debug/didViewMemory" : {
 					"owner": "connor4312",
@@ -747,53 +747,17 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function tryInstallHexEditor(notifications: INotificationService, progressService: IProgressService, extensionService: IExtensionService, commandService: ICommandService) {
-	return new Promise<boolean>(resolve => {
-		let installing = false;
-
-		const handle = notifications.prompt(
-			Severity.Info,
-			localize("viewMemory.prompt", "Inspecting binary data requires the Hex Editor extension. Would you like to install it now?"), [
-			{
-				label: localize("cancel", "Cancel"),
-				run: () => resolve(false),
-			},
-			{
-				label: localize("install", "Install"),
-				run: async () => {
-					installing = true;
-					try {
-						await progressService.withProgress(
-							{
-								location: ProgressLocation.Notification,
-								title: localize("viewMemory.install.progress", "Installing the Hex Editor..."),
-							},
-							async () => {
-								await commandService.executeCommand('workbench.extensions.installExtension', HEX_EDITOR_EXTENSION_ID);
-								// it seems like the extension is not registered immediately on install --
-								// wait for it to appear before returning.
-								while (!(await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID))) {
-									await timeout(30);
-								}
-							},
-						);
-						resolve(true);
-					} catch (e) {
-						notifications.error(e as Error);
-						resolve(false);
-					}
-				}
-			},
-		],
-			{ sticky: true },
-		);
-
-		handle.onDidClose(e => {
-			if (!installing) {
-				resolve(false);
-			}
-		});
-	});
+async function tryInstallHexEditor(extensionsWorkbenchService: IExtensionsWorkbenchService, notificationService: INotificationService): Promise<boolean> {
+	try {
+		await extensionsWorkbenchService.install(HEX_EDITOR_EXTENSION_ID, {
+			justification: localize("viewMemory.prompt", "Inspecting binary data requires this extension."),
+			enable: true
+		}, ProgressLocation.Notification);
+		return true;
+	} catch (error) {
+		notificationService.error(error);
+		return false;
+	}
 }
 
 export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
