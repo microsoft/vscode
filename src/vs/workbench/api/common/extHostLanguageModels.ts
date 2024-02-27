@@ -8,6 +8,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLanguageModelsShape, IMainContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { LanguageModelError } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
@@ -232,14 +233,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options.justification);
 
 		if (!metadata || !this._languageModelIds.has(languageModelId)) {
-			throw new Error(`Language model '${languageModelId}' is unknown.`);
+			throw LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
 		}
 
 		if (this._isUsingAuth(from, metadata)) {
 			const success = await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, options.justification, options.silent);
 
 			if (!success || !this._modelAccessList.get(from)?.has(metadata.extension)) {
-				throw new Error(`Language model '${languageModelId}' cannot be used by '${from.value}'.`);
+				throw LanguageModelError.NoPermissions(`Language model '${languageModelId}' cannot be used by '${from.value}'.`);
 			}
 		}
 
@@ -270,7 +271,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		await barrier.wait();
 
 		if (error) {
-			throw new Error(`Language model '${languageModelId}' errored, check cause for more details`, { cause: error });
+			throw new LanguageModelError(
+				`Language model '${languageModelId}' errored, check cause for more details`,
+				'Unknown',
+				error
+			);
 		}
 
 		return res.apiObject;

@@ -4297,6 +4297,26 @@ export class LanguageModelChatAssistantMessage {
 	}
 }
 
+export class LanguageModelError extends Error {
+
+	static NotFound(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NotFound.name);
+	}
+
+	static NoPermissions(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
+	}
+
+	readonly code: string;
+
+	constructor(message?: string, code?: string, cause?: Error) {
+		super(message, { cause });
+		this.name = 'LanguageModelError';
+		this.code = code ?? '';
+	}
+
+}
+
 //#endregion
 
 //#region ai
