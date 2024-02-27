@@ -314,33 +314,9 @@ registerAction2(class ToggleGrouping extends Action2 {
 
 registerSingleton(IBulkEditEditorService, BulkEditEditorService, InstantiationType.Eager);
 
-registerWorkbenchContribution2(
-	BulkEditPreviewContribution.ID, BulkEditPreviewContribution, WorkbenchPhase.BlockRestore
-);
+registerWorkbenchContribution2(BulkEditPreviewContribution.ID, BulkEditPreviewContribution, WorkbenchPhase.BlockRestore);
 
-const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codicon.lightbulb, localize('refactorPreviewViewIcon', 'View icon of the refactor preview view.'));
-
-const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: BulkEditPane.ID,
-	title: localize2('panel', "Refactor Preview"),
-	hideIfEmpty: true,
-	ctorDescriptor: new SyncDescriptor(
-		ViewPaneContainer,
-		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true }]
-	),
-	icon: refactorPreviewViewIcon,
-	storageId: BulkEditPane.ID
-}, ViewContainerLocation.Panel);
-
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-	id: BulkEditPane.ID,
-	name: localize2('panel', "Refactor Preview"),
-	when: BulkEditPreviewContribution.ctxEnabled,
-	ctorDescriptor: new SyncDescriptor(BulkEditPane),
-	containerIcon: refactorPreviewViewIcon,
-}], container);
-
-registerWorkbenchContribution2(BulkEditEditorResolverContribution.ID, BulkEditEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
+registerWorkbenchContribution2(BulkEditEditorResolverContribution.ID, BulkEditEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	.registerEditorPane(

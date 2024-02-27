@@ -81,7 +81,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		));
 		// console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 		// console.log('before getBulkEditPane2');
-		this._refactorViewPane = await getBulkEditPane2(this.instantiationService, this, this._edits);
+		this._refactorViewPane = await getBulkEditPane2(this.instantiationService, this._edits);
 		// console.log('view of getBulkEditPane2: ', this._refactorViewPane);
 		this._renderRefactorPreviewPane();
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -93,8 +93,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		if (this._refactorViewPane && this._refactorViewContainer) {
 			DOM.clearNode(this._refactorViewContainer);
 			this._promiseResolvedEdits = this._refactorViewPane.setInput(this._edits, CancellationToken.None);
-			// console.log('_renderRefactorPreviewPane');
-			// console.log('this._bulkEditEditorInput : ', this._bulkEditEditorInput);
+			// TODO: Do we neeed to save the input in the refactor view pane?
 			// if (this._bulkEditEditorInput) {
 			// 	this._refactorViewPane.input = this._bulkEditEditorInput;
 			// }
@@ -121,6 +120,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
+		// TODO: Needs to be there so that the rendering is done as expected
 		this._renderRefactorPreviewPane();
 		this._reveal(options);
 		// console.log('end of setInput');
@@ -131,14 +131,11 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		this._reveal(options);
 
 		/*
-		// Updating the view model
+		// TODO: We need to update the multi diff editor when the edits changes
+		// TODO: The actual files need to be change in the temporary files for the change to be propagated, how to change the transient files?
 		console.log('this._bulkEditEditorInput : ', this._bulkEditEditorInput);
 		if (this._bulkEditEditorInput) {
-			// TODO: the bulk edit editor edits are not update correctly
-			// TODO: make following set view model work correctly
-			// TODO: The actual files need to be change in the temporary files for the change to be propagated, how to change the transient files?
 			this._viewModel = await this._bulkEditEditorInput.getViewModel();
-
 			console.log('this._viewModel : ', this._viewModel);
 			const items = this._viewModel.items.get();
 			const _item = items[0];

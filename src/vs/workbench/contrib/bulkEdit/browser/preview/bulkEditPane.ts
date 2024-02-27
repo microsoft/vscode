@@ -40,7 +40,6 @@ import { IResourceDiffEditorInput, IResourceEdit } from 'vs/workbench/common/edi
 import { Range } from 'vs/editor/common/core/range';
 import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { BulkEditEditor } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditor';
 
 export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	console.log('inside of getBulkEditPane');
@@ -52,9 +51,9 @@ export async function getBulkEditPane(viewsService: IViewsService): Promise<Bulk
 	return undefined;
 }
 
-export async function getBulkEditPane2(instantiationService: IInstantiationService, editor: BulkEditEditor, edits: ResourceEdit[]): Promise<BulkEditPane | undefined> {
+export async function getBulkEditPane2(instantiationService: IInstantiationService, edits: ResourceEdit[]): Promise<BulkEditPane | undefined> {
 	console.log('inside of getBulkEditPane2');
-	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' }, editor, edits);
+	return instantiationService.createInstance(BulkEditPane, { id: 'refactorPreview', title: 'Refactor Preview' }, edits);
 }
 
 const enum State {
@@ -62,6 +61,7 @@ const enum State {
 	Message = 'message'
 }
 
+// No longer needs to be a view pane. Since it's now just a simple HTML embedded element.
 export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
@@ -75,6 +75,7 @@ export class BulkEditPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _treeDataSource!: BulkEditDataSource;
 	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
+	private _message!: HTMLSpanElement;
 
 	private readonly _ctxHasCategories: IContextKey<boolean>;
 	private readonly _ctxGroupByFile: IContextKey<boolean>;
@@ -92,7 +93,6 @@ export class BulkEditPane extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
-		editor: BulkEditEditor,
 		private edits: ResourceEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -115,13 +115,13 @@ export class BulkEditPane extends ViewPane {
 			keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
 		);
 
-		// this._editor = editor;
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
 		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(contextKeyService);
 		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(contextKeyService);
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(contextKeyService);
 	}
 
+	// Maybe don't need this
 	// set input(input: BulkEditEditorInput) {
 	// 	this._bulkEditEditorInput = input;
 	// }
@@ -190,10 +190,10 @@ export class BulkEditPane extends ViewPane {
 		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
 
 		// message
-		// this._message = document.createElement('span');
-		// this._message.className = 'message';
-		// this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
-		// parent.appendChild(this._message);
+		this._message = document.createElement('span');
+		this._message.className = 'message';
+		this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
+		parent.appendChild(this._message);
 
 		//
 		this._setState(State.Message);
@@ -227,7 +227,6 @@ export class BulkEditPane extends ViewPane {
 		this._sessionDisposables.add(this._currentProvider);
 		this._sessionDisposables.add(input);
 
-		//
 		const hasCategories = input.categories.length > 1;
 		this._ctxHasCategories.set(hasCategories);
 		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
@@ -256,6 +255,7 @@ export class BulkEditPane extends ViewPane {
 				/*
 				// In  the following however we want to open the editor with the edits less than what we wanted
 				// Because we need to update the edits inside of the bulk edit editor
+
 				console.log('input : ', input);
 				console.log('e : ', e);
 
@@ -295,15 +295,13 @@ export class BulkEditPane extends ViewPane {
 
 				console.log('this._editor : ', this._editor);
 				console.log('this._editor.input : ', this._editor?.input);
-				*/
+
 				// Maybe don't need to close the editor
-				/*
 				if (this._editor && this._editor.input) {
 					console.log('before closing the editor');
 					await this._editorService.closeEditor({ editor: this._editor.input, groupId: this.groupService.activeGroup.id });
 				}
-				*/
-				/*
+
 				// Maybe don't need the above
 				console.log('before opening the editor');
 				await this._editorService.openEditor({
@@ -379,7 +377,7 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	toggleChecked() {
-		console.log('inside of toggle checked');
+		// console.log('inside of toggle checked');
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
 			first.setChecked(!first.isChecked());
@@ -489,7 +487,7 @@ export class BulkEditPane extends ViewPane {
 		}
 		this._fileOperations = fileOperations;
 		this._resources = resources;
-		console.log('this._resources inside of _resolvedSource : ', this._resources);
+		// console.log('this._resources inside of _resolvedSource : ', this._resources);
 		return resources;
 	}
 
