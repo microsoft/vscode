@@ -43,6 +43,9 @@ export interface IContextViewDelegate {
 	focus?(): void;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
+
+	// context views with higher layers are rendered over contet views with lower layers
+	layer?: number; // Default: 0
 }
 
 export const IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
