@@ -185,7 +185,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
-				// @ts-ignore
 				clearInterval(this._titleInterval);
 				this._titleInterval = null;
 			}
