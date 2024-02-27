@@ -25,6 +25,8 @@ import { BulkEditPane, getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/br
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkbenchUIElementFactory } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { BulkEditEditorInput } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditorInput';
+import { FileElement, TextEditElement } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
+import { Range } from 'vs/editor/common/core/range';
 
 export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 
@@ -84,6 +86,8 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		this._refactorViewPane = await getBulkEditPane2(this.instantiationService, this._edits);
 		// console.log('view of getBulkEditPane2: ', this._refactorViewPane);
 		this._renderRefactorPreviewPane();
+		this._registerRefactorPreviewPaneListeners();
+
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();
 		}));
@@ -100,6 +104,38 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			this._refactorViewPane.renderBody(this._refactorViewContainer);
 			this._refactorViewPane.focus();
 		}
+	}
+
+	private _registerRefactorPreviewPaneListeners() {
+
+		if (!this._refactorViewPane) {
+			return;
+		}
+		// Need to reveal the appropriate part of the editor on click of the tree element
+		this._store.add(this._refactorViewPane.onDidTreeOpen(e => {
+			const fileOperations = this._refactorViewPane?.currentInput?.fileOperations;
+			if (!fileOperations) {
+				return;
+			}
+			let fileElement: FileElement;
+			if (e.element instanceof TextEditElement) {
+				fileElement = e.element.parent;
+			} else if (e.element instanceof FileElement) {
+				fileElement = e.element;
+			} else {
+				// invalid event
+				return;
+			}
+
+			this._reveal({
+				viewState: {
+					revealData: {
+						resource: { original: fileElement.edit.uri },
+						range: new Range(1, 1, 1, 1)
+					}
+				}
+			});
+		}));
 	}
 
 	override async setInput(input: BulkEditEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
