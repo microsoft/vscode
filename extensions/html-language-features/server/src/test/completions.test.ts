@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { getTestServer, onTestEnd, onTestStart } from './shared';
+import { getTestService } from './shared';
 
 export interface ItemDescription {
 	label: string;
@@ -44,18 +44,17 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 	}
 }
 
-const testUri = 'test://test/test.html';
-
-
-export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri = testUri, workspaceFolder?: WorkspaceFolder): Promise<void> {
+export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri?: string, workspaceFolder?: WorkspaceFolder): Promise<void> {
 	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	const document = TextDocument.create(uri, 'html', 0, value);
+	const { document, languageService } = await getTestService({
+		uri,
+		workspaceFolder: workspaceFolder?.uri,
+		content: value,
+	});
 	const position = document.positionAt(offset);
-	const server = await getTestServer(workspaceFolder?.uri || uri.substr(0, uri.lastIndexOf('/')));
-	await server.openInMemoryDocument(uri, 'html', value);
-	const list = await server.sendCompletionRequest(uri, position);
+	const list = await languageService.doComplete(document.uri, position);
 	assert(!!list);
 
 	if (expected.count) {
@@ -98,8 +97,6 @@ suite('HTML Path Completion', () => {
 	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
 	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
 	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
-
-	onTestStart();
 
 	test('Basics - Correct label/kind/result/command', async () => {
 		await testCompletionFor('<script src="./|">', {
@@ -312,4 +309,4 @@ suite('HTML Path Completion', () => {
 		}, testUri);
 		*/
 	});
-}).afterAll(onTestEnd);
+});

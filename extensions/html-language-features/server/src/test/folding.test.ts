@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { getTestServer, onTestEnd, onTestStart } from './shared';
+import { getTestService } from './shared';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -13,19 +13,18 @@ interface ExpectedIndentRange {
 	kind?: string;
 }
 
-const testUri = 'test://foo/bar.html';
-
 async function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): Promise<void> {
-	const rootUri = testUri.substr(0, testUri.lastIndexOf('/'));
-	const server = await getTestServer(rootUri, nRanges !== undefined ? {
-		textDocument: {
-			foldingRange: {
-				rangeLimit: nRanges,
+	const { languageService, document } = await getTestService({
+		content: lines.join('\n'),
+		clientCapabilities: nRanges ? {
+			textDocument: {
+				foldingRange: {
+					rangeLimit: nRanges,
+				},
 			},
-		},
-	} : undefined);
-	await server.openInMemoryDocument(testUri, 'html', lines.join('\n'));
-	const actual = await server.sendFoldingRangesRequest(testUri);
+		} : undefined,
+	});
+	const actual = await languageService.getFoldingRanges(document.uri);
 	assert(!!actual);
 
 	let actualRanges = [];
@@ -41,8 +40,6 @@ function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRan
 }
 
 suite('HTML Folding', () => {
-
-	onTestStart();
 
 	test('Embedded JavaScript', async () => {
 		const input = [
@@ -216,4 +213,4 @@ suite('HTML Folding', () => {
 		await assertRanges(input, [r(0, 19)], 'limit 1', 1);
 	}).timeout(8000);
 
-}).afterAll(onTestEnd);
+});

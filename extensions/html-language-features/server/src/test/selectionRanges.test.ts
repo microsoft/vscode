@@ -6,9 +6,7 @@
 import type { SelectionRange } from '@volar/language-server';
 import * as assert from 'assert';
 import 'mocha';
-import { getTestServer, onTestEnd, onTestStart } from './shared';
-
-const testUri = 'test://foo/bar.html';
+import { getTestService } from './shared';
 
 async function assertRanges(content: string, expected: (number | string)[][]): Promise<void> {
 	let message = `${content} gives selection range:\n`;
@@ -16,10 +14,8 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 	const offset = content.indexOf('|');
 	content = content.substr(0, offset) + content.substr(offset + 1);
 
-	const rootUri = 'test://foo';
-	const server = await getTestServer(rootUri);
-	const document = await server.openInMemoryDocument(testUri, 'html', content);
-	const actualRanges = await server.sendSelectionRangesRequest(testUri, [document.positionAt(offset)]);
+	const { document, languageService } = await getTestService({ content });
+	const actualRanges = await languageService.getSelectionRanges(document.uri, [document.positionAt(offset)]);
 	assert(!!actualRanges);
 
 	assert.strictEqual(actualRanges.length, 1);
@@ -35,8 +31,6 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 }
 
 suite('HTML SelectionRange', () => {
-
-	onTestStart();
 
 	test('Embedded JavaScript', async () => {
 		await assertRanges('<html><head><script>  function foo() { return ((1|+2)*6) }</script></head></html>', [
@@ -78,4 +72,4 @@ suite('HTML SelectionRange', () => {
 			[0, '<div style="color: red"></div>']
 		]);
 	});
-}).afterAll(onTestEnd);
+});

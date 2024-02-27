@@ -6,16 +6,12 @@ import 'mocha';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as assert from 'assert';
-import { getTestServer, onTestEnd, onTestStart } from './shared';
+import { getTestService } from './shared';
 import { FormattingOptions, Range, TextDocument } from '@volar/language-server';
-
-const testUri = 'test://test/test.html';
 
 suite('HTML Embedded Formatting', () => {
 
 	async function assertFormat(value: string, expected: string, _options?: any, formatOptions?: FormattingOptions, message?: string): Promise<void> {
-		const rootUri = 'test://foo';
-		const server = await getTestServer(rootUri);
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
@@ -28,17 +24,13 @@ suite('HTML Embedded Formatting', () => {
 			rangeStartOffset = 0;
 			rangeEndOffset = value.length;
 		}
-		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const { languageService, document } = await getTestService({ content: value });
 		const range = Range.create(document.positionAt(rangeStartOffset), document.positionAt(rangeEndOffset));
 		if (!formatOptions) {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		await server.openInMemoryDocument(testUri, 'html', value);
-		const result = range
-			? await server.sendDocumentRangeFormattingRequestRequest(testUri, range, formatOptions)
-			: await server.sendDocumentFormattingRequest(testUri, formatOptions);
-
+		const result = await languageService.format(document.uri, formatOptions, range, undefined);
 		const actual = TextDocument.applyEdits(document, result ?? []);
 		assert.strictEqual(actual, expected, message);
 	}
@@ -48,8 +40,6 @@ suite('HTML Embedded Formatting', () => {
 		const expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
 		await assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
-
-	onTestStart();
 
 	test('HTML only', async () => {
 		await assertFormat('<html><body><p>Hello</p></body></html>', '<html>\n\n<body>\n  <p>Hello</p>\n</body>\n\n</html>');
@@ -191,7 +181,7 @@ suite('HTML Embedded Formatting', () => {
 		await assertFormat(content, expected, options);
 	});
 
-}).afterAll(onTestEnd); /*
+}); /*
 content_unformatted: Array(4)["pre", "code", "textarea", …]
 end_with_newline: false
 eol: "\n"

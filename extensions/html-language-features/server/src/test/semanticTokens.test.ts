@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { getTestServer, onTestEnd, onTestStart } from './shared';
+import { getTestService } from './shared';
 import { standardSemanticTokensLegend } from '@volar/language-service';
 import { Range, Position, SemanticTokensLegend } from '@volar/language-server';
 
@@ -16,19 +16,13 @@ interface ExpectedToken {
 	tokenClassifiction: string;
 }
 
-const testUri = 'test://foo/bar.html';
+const legend: SemanticTokensLegend = JSON.parse(JSON.stringify(standardSemanticTokensLegend));
+legend.tokenModifiers.push('local');
 
 async function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range, message?: string): Promise<void> {
-	const rootUri = 'test://foo';
-	const server = await getTestServer(rootUri);
-	await server.openInMemoryDocument(testUri, 'html', lines.join('\n'));
-	const actual = range
-		? await server.sendSemanticTokensRangeRequest(testUri, range)
-		: await server.sendSemanticTokensRequest(testUri);
+	const { document, languageService } = await getTestService({ content: lines.join('\n') });
+	const actual = await languageService.getSemanticTokens(document.uri, range, legend);
 	assert(!!actual);
-
-	const legend: SemanticTokensLegend = JSON.parse(JSON.stringify(standardSemanticTokensLegend));
-	legend.tokenModifiers.push('local');
 
 	const actualRanges = [];
 	let lastLine = 0;
@@ -50,8 +44,6 @@ function t(startLine: number, character: number, length: number, tokenClassifict
 }
 
 suite('HTML Semantic Tokens', () => {
-
-	onTestStart();
 
 	test('Variables', async () => {
 		const input = [
@@ -226,4 +218,4 @@ suite('HTML Semantic Tokens', () => {
 			t(6, 2, 6, 'variable.defaultLibrary'),
 		], Range.create(Position.create(6, 2), Position.create(6, 8)));
 	});
-}).afterAll(onTestEnd);
+});

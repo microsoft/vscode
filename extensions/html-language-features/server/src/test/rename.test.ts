@@ -4,19 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getTestServer, onTestEnd, onTestStart } from './shared';
+import { getTestService } from './shared';
 import { TextDocument } from '@volar/language-server';
-
-const testUri = 'test://test/test.html';
 
 async function testRename(value: string, newName: string, expectedDocContent: string): Promise<void> {
 	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	const server = await getTestServer('test://foo');
-	const document = await server.openInMemoryDocument(testUri, 'html', value);
+	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
-	const workspaceEdit = await server.sendRenameRequest(testUri, position, newName);
+	const workspaceEdit = await languageService.doRename(document.uri, position, newName);
 
 	if (!workspaceEdit || !workspaceEdit.changes) {
 		assert.fail('No workspace edits');
@@ -35,17 +32,14 @@ async function testNoRename(value: string, newName: string): Promise<void> {
 	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	const server = await getTestServer('test://foo');
-	const document = await server.openInMemoryDocument(testUri, 'html', value);
+	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
-	const workspaceEdit = await server.sendRenameRequest(testUri, position, newName);
+	const workspaceEdit = await languageService.doRename(document.uri, position, newName);
 
 	assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
 }
 
 suite('HTML Javascript Rename', () => {
-
-	onTestStart();
 
 	test('Rename Variable', async () => {
 		const input = [
@@ -186,4 +180,4 @@ suite('HTML Javascript Rename', () => {
 		await testNoRename(stringLiteralInput.join('\n'), 'something');
 		await testNoRename(numberLiteralInput.join('\n'), 'hhhh');
 	});
-}).afterAll(onTestEnd);
+});
