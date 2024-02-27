@@ -8,7 +8,7 @@ import { Stats } from 'fs';
 import * as path from 'vs/base/common/path';
 import * as Platform from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
-import { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
+import type { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
 import * as Types from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
