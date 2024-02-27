@@ -29,7 +29,7 @@ registerActiveXtermAction({
 	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focusInAny),
 		CTX_INLINE_CHAT_HAS_PROVIDER
 	),
 	run: (_xterm, _accessor, activeInstance) => {
@@ -59,7 +59,7 @@ registerActiveXtermAction({
 	f1: true,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible)
 	),
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
