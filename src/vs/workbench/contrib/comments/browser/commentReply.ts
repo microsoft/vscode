@@ -30,8 +30,8 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;

@@ -19,7 +19,7 @@ import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ContextViewHandler } from 'vs/platform/contextview/browser/contextViewService';
 
 export class HoverService extends Disposable implements IHoverService {

@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { status } from 'vs/base/browser/ui/aria/aria';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 const $ = dom.$;
 type TargetRect = {

@@ -550,6 +550,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		provider.updateFeatures(features);
 	}
 
+	async $onDidChangeResourcesWithCommentingRanges(handle: number, schemes: string[], uris: UriComponents[]): Promise<void> {
+		const provider = this._commentControllers.get(handle);
+		if (!provider) {
+			return;
+		}
+		this._commentService.setResourcesWithCommentingRanges(provider.id, { schemes, uris: uris.map(uri => URI.revive(uri)) });
+	}
+
 	$createCommentThread(handle: number,
 		commentThreadHandle: number,
 		threadId: string,

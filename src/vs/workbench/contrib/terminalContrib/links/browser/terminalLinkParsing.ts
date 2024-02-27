@@ -277,6 +277,11 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				};
 				path = path.substring(prefix.text.length);
 
+				// Don't allow suffix links to be returned when the link itself is the empty string
+				if (path.trim().length === 0) {
+					continue;
+				}
+
 				// If there are multiple characters in the prefix, trim the prefix if the _first_
 				// suffix character is the same as the last prefix character. For example, for the
 				// text `echo "'foo' on line 1"`:
