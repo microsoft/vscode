@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/0a6648177bdbb91a4e1a38c16e57ede0ccba4f18",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/272e2f89f85073c04b7e15b582257f76d2489970",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -308,7 +308,7 @@
 				},
 				{
 					"name": "keyword.control.dart",
-					"match": "(?<!\\$)\\b(break|case|continue|default|do|else|for|if|in|return|switch|while|when)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(break|case|continue|default|do|else|for|if|in|switch|while|when)\\b(?!\\$)"
 				},
 				{
 					"name": "keyword.control.dart",
@@ -323,8 +323,12 @@
 					"match": "(?<!\\$)\\b(new)\\b(?!\\$)"
 				},
 				{
+					"name": "keyword.control.return.dart",
+					"match": "(?<!\\$)\\b(return)\\b(?!\\$)"
+				},
+				{
 					"name": "keyword.declaration.dart",
-					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|class|enum|extends|extension type|extension|external|factory|implements|get(?!\\()|mixin|native|operator|set(?!\\()|typedef|with|covariant)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|class|enum|extends|extension type|extension|external|factory|implements|get(?![(<])|mixin|native|operator|set(?![(<])|typedef|with|covariant)\\b(?!\\$)"
 				},
 				{
 					"name": "storage.modifier.dart",
