@@ -186,11 +186,9 @@ export function speechLanguageConfigToLanguage(config: unknown, lang = language)
 	if (typeof config === 'string') {
 		if (config === 'auto') {
 			if (lang !== 'en') {
-				const displayLanguage = lang;
-				const displayLanguageParts = displayLanguage.split('-');
-				const displayLocale = `${displayLanguageParts[0]}-${(displayLanguageParts[1] ?? displayLanguageParts[0]).toUpperCase()}`;
+				const langParts = lang.split('-');
 
-				return speechLanguageConfigToLanguage(displayLocale);
+				return speechLanguageConfigToLanguage(`${langParts[0]}-${(langParts[1] ?? langParts[0]).toUpperCase()}`);
 			}
 		} else {
 			if (SPEECH_LANGUAGES[config as keyof typeof SPEECH_LANGUAGES]) {
