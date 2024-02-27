@@ -64,6 +64,12 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "chatParticipant": [
+      {
+        "name": "participant",
+        "description": "test"
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",
