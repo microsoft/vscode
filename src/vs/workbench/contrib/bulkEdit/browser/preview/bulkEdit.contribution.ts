@@ -6,9 +6,8 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IBulkEditEditorService, IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { BulkEditTreeView, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTreeView';
+import { BulkEditTreeView } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTreeView';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { localize, localize2 } from 'vs/nls';
 import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -175,9 +174,8 @@ registerAction2(class ApplyAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<any> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
-		view?.accept();
+		const bulkEditEditorService = accessor.get(IBulkEditEditorService);
+		bulkEditEditorService.accept();
 	}
 });
 
@@ -199,9 +197,8 @@ registerAction2(class DiscardAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
-		view?.discard();
+		const bulkEditEditorService = accessor.get(IBulkEditEditorService);
+		bulkEditEditorService.discard();
 	}
 });
 
@@ -228,9 +225,8 @@ registerAction2(class ToggleAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
-		view?.toggleChecked();
+		const bulkEditEditorService = accessor.get(IBulkEditEditorService);
+		bulkEditEditorService.toggleChecked();
 	}
 });
 
@@ -255,9 +251,8 @@ registerAction2(class GroupByFile extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
-		view?.groupByFile();
+		const bulkEditEditorService = accessor.get(IBulkEditEditorService);
+		bulkEditEditorService.groupByFile();
 	}
 });
 
@@ -280,9 +275,8 @@ registerAction2(class GroupByType extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
-		view?.groupByType();
+		const bulkEditEditorService = accessor.get(IBulkEditEditorService);
+		bulkEditEditorService.groupByType();
 	}
 });
 
@@ -304,9 +298,8 @@ registerAction2(class ToggleGrouping extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = await getBulkEditPane(viewsService);
-		view?.toggleGrouping();
+		const bulkEditEditorService = accessor.get(IBulkEditEditorService);
+		bulkEditEditorService.toggleGrouping();
 	}
 });
 

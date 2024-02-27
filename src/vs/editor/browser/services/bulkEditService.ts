@@ -131,4 +131,16 @@ export interface IBulkEditEditorService {
 	openBulkEditEditor(edits: ResourceEdit[]): Promise<ResourceEdit[] | undefined>;
 
 	hasInput(): boolean;
+
+	accept(): void;
+
+	discard(): void;
+
+	toggleChecked(): void;
+
+	groupByFile(): void;
+
+	groupByType(): void;
+
+	toggleGrouping(): void;
 }

@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
-import { BulkEditTreeView, getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTreeView';
+import { BulkEditTreeView } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTreeView';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkbenchUIElementFactory } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { BulkEditEditorInput } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditorInput';
@@ -67,7 +67,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		);
 	}
 
-	protected async createEditor(parent: HTMLElement): Promise<void> {
+	protected createEditor(parent: HTMLElement): void {
 		// console.log('createEditor of BulkEditEditor');
 		this._refactorViewContainer = document.createElement('div');
 		this._refactorViewContainer.classList.add('bulk-edit-panel', 'show-file-icons');
@@ -83,7 +83,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		));
 		// console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 		// console.log('before getBulkEditPane2');
-		this._refactorViewPane = await getBulkEditPane2(this.instantiationService);
+		this._refactorViewPane = this.instantiationService.createInstance(BulkEditTreeView);
 		// console.log('view of getBulkEditPane2: ', this._refactorViewPane);
 		this._renderRefactorPreviewPane();
 		this._registerRefactorPreviewPaneListeners();
@@ -236,5 +236,29 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	public get promiseResolvedEdits(): Promise<ResourceEdit[] | undefined> | undefined {
 		return this._promiseResolvedEdits;
+	}
+
+	public accept(): void {
+		this._refactorViewPane?.accept();
+	}
+
+	public discard(): void {
+		this._refactorViewPane?.discard();
+	}
+
+	public toggleChecked(): void {
+		this._refactorViewPane?.toggleChecked();
+	}
+
+	public groupByFile(): void {
+		this._refactorViewPane?.groupByFile();
+	}
+
+	public groupByType(): void {
+		this._refactorViewPane?.groupByType();
+	}
+
+	public toggleGrouping(): void {
+		this._refactorViewPane?.toggleGrouping();
 	}
 }

@@ -98,4 +98,28 @@ export class BulkEditEditorService implements IBulkEditEditorService {
 		}
 		return resources;
 	}
+
+	public accept() {
+		this._bulkEditEditor?.accept();
+	}
+
+	public discard() {
+		this._bulkEditEditor?.discard();
+	}
+
+	public toggleChecked() {
+		this._bulkEditEditor?.toggleChecked();
+	}
+
+	public groupByFile() {
+		this._bulkEditEditor?.groupByFile();
+	}
+
+	public groupByType() {
+		this._bulkEditEditor?.groupByType();
+	}
+
+	public toggleGrouping() {
+		this._bulkEditEditor?.toggleGrouping();
+	}
 }

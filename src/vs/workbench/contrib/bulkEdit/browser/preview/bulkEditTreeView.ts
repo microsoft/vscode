@@ -25,22 +25,7 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IResourceEdit } from 'vs/workbench/common/editor';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { Emitter, Event } from 'vs/base/common/event';
-
-export async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditTreeView | undefined> {
-	console.log('inside of getBulkEditPane');
-	const view = await viewsService.openView(BulkEditTreeView.ID, true);
-	console.log('view inside of getBulkEditPane', view);
-	if (view instanceof BulkEditTreeView) {
-		return view;
-	}
-	return undefined;
-}
-
-export async function getBulkEditPane2(instantiationService: IInstantiationService): Promise<BulkEditTreeView | undefined> {
-	return instantiationService.createInstance(BulkEditTreeView);
-}
 
 // No longer needs to be a view pane. Since it's now just a simple HTML embedded element.
 export class BulkEditTreeView extends Disposable {
@@ -174,7 +159,7 @@ export class BulkEditTreeView extends Disposable {
 	}
 
 	async setInput(edit: IResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
-		console.log('inside of setInput of bulk edit pane');
+		console.log('inside of setInput of bulk edit tree view');
 		this._sessionDisposables.clear();
 		this._treeViewStates.clear();
 
