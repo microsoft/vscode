@@ -97,26 +97,21 @@ class BulkEditPreviewContribution {
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		// looks like not registered correctly because of the following bulk edit editor service which is throwing an error
 		@IBulkEditEditorService private readonly _bulkEditEditorService: IBulkEditEditorService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		console.log('inside of constructor of BulkEditPreviewContribution');
 		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
 		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
-		console.log('inside of _previewEdit of BulkEditPreviewContribution');
 		this._ctxEnabled.set(true);
 
 		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
-		console.log('this._bulkEditEditorService : ', this._bulkEditEditorService);
-		const bulkEditEditors = this._bulkEditEditorService.findBulkEditEditors();
 
 		// check for active preview session and let the user decide
-		if (bulkEditEditors.length > 0) {
+		if (this._bulkEditEditorService.hasInput()) {
 			const { confirmed } = await this._dialogService.confirm({
 				type: Severity.Info,
 				message: localize('overlap', "Another refactoring is being previewed."),
@@ -143,10 +138,8 @@ class BulkEditPreviewContribution {
 		// the actual work...
 		try {
 
-			console.log('before set input of bulk edit preview contribution');
-			await this._bulkEditEditorService.setInput(edits, session.cts.token);
-			console.log('after setInput of _previewEdit of BulkEditPreviewContribution');
 			return await this._bulkEditEditorService.openBulkEditEditor(edits) ?? [];
+
 		} finally {
 			// restore UX state
 			if (this._activeSession === session) {
@@ -183,7 +176,6 @@ registerAction2(class ApplyAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<any> {
-		console.log('inside of run of ApplyAction');
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
 		view?.accept();
@@ -347,7 +339,6 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	containerIcon: refactorPreviewViewIcon,
 }], container);
 
-// Refactor preview contribution
 registerWorkbenchContribution2(BulkEditEditorResolver.ID, BulkEditEditorResolver, WorkbenchPhase.BlockStartup /* only registering an editor resolver */);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)

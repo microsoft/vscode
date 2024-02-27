@@ -128,16 +128,7 @@ export interface IBulkEditEditorService {
 
 	readonly _serviceBrand: undefined;
 
-	setInput(edit: ResourceEdit[], token: CancellationToken): Promise<void>;
-
 	openBulkEditEditor(edits: ResourceEdit[]): Promise<ResourceEdit[] | undefined>;
 
-	findBulkEditEditors(): readonly IEditorIdentifier[];
+	hasInput(): boolean;
 }
-
-interface IEditorIdentifier {
-	groupId: number;
-	editor: IEditorInput;
-}
-
-interface IEditorInput { }
