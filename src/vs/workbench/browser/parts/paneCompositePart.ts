@@ -302,11 +302,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		// Global Actions Toolbar
 		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
+			toggleMenuTitle: localize('moreActions', "More Actions..."),
+			hoverDelegate: this.hoverDelegate
 		}));
 
 		this.updateGlobalToolbarActions();
@@ -503,7 +504,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => event,
 					getActions: () => activePaneCompositeActions,
-					getActionViewItem: action => this.actionViewItemProvider(action),
+					getActionViewItem: (action, options) => this.actionViewItemProvider(action, options),
 					actionRunner: activePaneComposite.getActionRunner(),
 					skipTelemetry: true
 				});

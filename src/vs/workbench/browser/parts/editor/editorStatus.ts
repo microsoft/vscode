@@ -366,9 +366,8 @@ class EditorStatus extends Disposable {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: 'changeEditorIndentation', handler: () => this.showIndentationPicker() });
+		CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() });
 	}
-
 
 	private async showIndentationPicker(): Promise<unknown> {
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
@@ -449,6 +448,12 @@ class EditorStatus extends Disposable {
 			return;
 		}
 
+		const editorURI = getCodeEditor(this.editorService.activeTextEditorControl)?.getModel()?.uri;
+		if (editorURI?.scheme === Schemas.vscodeNotebookCell) {
+			this.selectionElement.clear();
+			return;
+		}
+
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.selection', "Editor Selection"),
 			text,
@@ -466,12 +471,18 @@ class EditorStatus extends Disposable {
 			return;
 		}
 
+		const editorURI = getCodeEditor(this.editorService.activeTextEditorControl)?.getModel()?.uri;
+		if (editorURI?.scheme === Schemas.vscodeNotebookCell) {
+			this.indentationElement.clear();
+			return;
+		}
+
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.indentation', "Editor Indentation"),
 			text,
 			ariaLabel: text,
 			tooltip: localize('selectIndentation', "Select Indentation"),
-			command: 'changeEditorIndentation'
+			command: `changeEditorIndentation${this.targetWindowId}`
 		};
 
 		this.updateElement(this.indentationElement, props, 'status.editor.indentation', StatusbarAlignment.RIGHT, 100.4);

@@ -640,6 +640,46 @@ export class ConfigureInlineChatAction extends AbstractInlineChatAction {
 	}
 }
 
+export class MoveToNextHunk extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'inlineChat.moveToNextHunk',
+			title: localize2('moveToNextHunk', 'Move to Next Change'),
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.F7
+			}
+		});
+	}
+
+	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ...args: any[]): void {
+		ctrl.moveHunk(true);
+	}
+}
+
+export class MoveToPreviousHunk extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'inlineChat.moveToPreviousHunk',
+			title: localize2('moveToPreviousHunk', 'Move to Previous Change'),
+			f1: true,
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift | KeyCode.F7
+			}
+		});
+	}
+
+	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ...args: any[]): void {
+		ctrl.moveHunk(false);
+	}
+}
+
 export class CopyRecordings extends AbstractInlineChatAction {
 
 	constructor() {

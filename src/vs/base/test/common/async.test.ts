@@ -651,26 +651,28 @@ suite('Async', () => {
 		});
 
 		test('order is kept', function () {
-			const queue = new async.Queue();
+			return runWithFakedTimers({}, () => {
+				const queue = new async.Queue();
 
-			const res: number[] = [];
+				const res: number[] = [];
 
-			const f1 = () => Promise.resolve(true).then(() => res.push(1));
-			const f2 = () => async.timeout(10).then(() => res.push(2));
-			const f3 = () => Promise.resolve(true).then(() => res.push(3));
-			const f4 = () => async.timeout(20).then(() => res.push(4));
-			const f5 = () => async.timeout(0).then(() => res.push(5));
+				const f1 = () => Promise.resolve(true).then(() => res.push(1));
+				const f2 = () => async.timeout(10).then(() => res.push(2));
+				const f3 = () => Promise.resolve(true).then(() => res.push(3));
+				const f4 = () => async.timeout(20).then(() => res.push(4));
+				const f5 = () => async.timeout(0).then(() => res.push(5));
 
-			queue.queue(f1);
-			queue.queue(f2);
-			queue.queue(f3);
-			queue.queue(f4);
-			return queue.queue(f5).then(() => {
-				assert.strictEqual(res[0], 1);
-				assert.strictEqual(res[1], 2);
-				assert.strictEqual(res[2], 3);
-				assert.strictEqual(res[3], 4);
-				assert.strictEqual(res[4], 5);
+				queue.queue(f1);
+				queue.queue(f2);
+				queue.queue(f3);
+				queue.queue(f4);
+				return queue.queue(f5).then(() => {
+					assert.strictEqual(res[0], 1);
+					assert.strictEqual(res[1], 2);
+					assert.strictEqual(res[2], 3);
+					assert.strictEqual(res[3], 4);
+					assert.strictEqual(res[4], 5);
+				});
 			});
 		});
 

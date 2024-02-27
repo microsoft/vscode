@@ -24,19 +24,6 @@
 	opacity: .8;
 }
 
-.rename-box .new-name-candidates-container {
-	display: flex;
-	flex-direction: row;
-	flex-wrap: wrap;
-	margin-top: 5px;
-}
-
-.rename-box .new-name-candidates-container > .monaco-text-button {
-	width: auto;
-	margin: 2px;
-	padding: 2px;
-}
-
 .monaco-editor .rename-box.preview .rename-label {
 	display: inherit;
 }

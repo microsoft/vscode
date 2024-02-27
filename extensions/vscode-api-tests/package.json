@@ -7,9 +7,10 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
-    "chatAgents2",
-    "chatRequestAccess",
-    "defaultChatAgent",
+    "chatParticipant",
+    "languageModels",
+    "defaultChatParticipant",
+    "chatVariableResolver",
     "contribViewsRemote",
     "contribStatusBarItems",
     "createFileSystemWatcher",

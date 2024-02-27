@@ -30,12 +30,12 @@ import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IParsedChatRequest, chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const $ = dom.$;
 
@@ -72,6 +72,9 @@ export interface IChatWidgetContrib extends IDisposable {
 
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
+
+	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
+	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
@@ -295,7 +298,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private async renderFollowups(items: IChatReplyFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
+	private async renderFollowups(items: IChatFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
 		this.inputPart.renderFollowups(items, response);
 
 		if (this.bodyDimension) {
@@ -443,7 +446,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
-			this.acceptInput(e.followup.message);
+			let msg = '';
+			if (e.followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
+				msg = `${chatAgentLeader}${e.followup.agentId} `;
+				if (e.followup.subCommand) {
+					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
+				}
+			}
+			msg += e.followup.message;
+			this.acceptInput(msg);
 
 			if (!e.response) {
 				// Followups can be shown by the welcome message, then there is no response associated.
@@ -455,7 +466,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				providerId: this.viewModel.providerId,
 				sessionId: this.viewModel.sessionId,
 				requestId: e.response.requestId,
-				agentId: e.response?.agent?.id,
+				agentId: e.response.agent?.id,
+				result: e.response.result,
 				action: {
 					kind: 'followUp',
 					followup: e.followup
@@ -577,6 +589,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				const inputState = this.collectInputState();
 				this.inputPart.acceptInput(isUserQuery ? input : undefined, isUserQuery ? inputState : undefined);
+				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];

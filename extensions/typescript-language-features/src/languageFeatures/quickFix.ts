@@ -363,7 +363,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				const inferFromBody = new VsCodeCodeAction(action, 'Infer types using Copilot', vscode.CodeActionKind.QuickFix);
 				inferFromBody.edit = new vscode.WorkspaceEdit();
 				inferFromBody.diagnostics = [diagnostic];
-				console.log(diagnostic, diagnostic.range);
 				inferFromBody.ranges = [diagnostic.range];
 				inferFromBody.isAI = true;
 				inferFromBody.command = {

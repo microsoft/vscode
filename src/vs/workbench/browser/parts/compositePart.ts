@@ -32,6 +32,9 @@ import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/ser
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export interface ICompositeTitleLabel {
 
@@ -59,6 +62,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected toolBar: WorkbenchToolBar | undefined;
 	protected titleLabelElement: HTMLElement | undefined;
+	protected readonly hoverDelegate: IHoverDelegate;
 
 	private readonly mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private readonly mapActionsBindingToComposite = new Map<string, () => void>();
@@ -92,6 +96,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super(id, options, themeService, storageService, layoutService);
 
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
+		this.hoverDelegate = this._register(getDefaultHoverDelegate('element', true));
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
@@ -396,12 +401,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Toolbar
 		this.toolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, titleActionsContainer, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions..."),
-			telemetrySource: this.nameForTelemetry
+			telemetrySource: this.nameForTelemetry,
+			hoverDelegate: this.hoverDelegate
 		}));
 
 		this.collectCompositeActions()();
@@ -438,14 +444,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		titleLabel.updateStyles();
 	}
 
-	protected actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+	protected actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 
 		// Check Active Composite
 		if (this.activeComposite) {
-			return this.activeComposite.getActionViewItem(action);
+			return this.activeComposite.getActionViewItem(action, options);
 		}
 
-		return createActionViewItem(this.instantiationService, action);
+		return createActionViewItem(this.instantiationService, action, options);
 	}
 
 	protected actionsContextProvider(): unknown {

@@ -44,11 +44,9 @@ import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/edit
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { MarkdownString, MarkdownStringTextNewlineStyle } from 'vs/base/common/htmlContent';
-import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -126,6 +124,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private renderDropdownAsChildElement: boolean;
 
+	private readonly tabsHoverDelegate: IHoverDelegate;
+
 	constructor(
 		protected readonly parent: HTMLElement,
 		protected readonly editorPartsView: IEditorPartsView,
@@ -141,8 +141,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService private readonly hostService: IHostService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(themeService);
 
@@ -165,6 +163,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
 
 		this.renderDropdownAsChildElement = false;
+
+		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
 
 		this.create(parent);
 	}
@@ -209,7 +209,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		// Toolbar Widget
 		this.editorActionsToolbar = this.editorActionsToolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
@@ -235,12 +235,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}));
 	}
 
-	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		const activeEditorPane = this.groupView.activeEditorPane;
 
 		// Check Active Editor
 		if (activeEditorPane instanceof EditorPane) {
-			const result = activeEditorPane.getActionViewItem(action);
+			const result = activeEditorPane.getActionViewItem(action, options);
 
 			if (result) {
 				return result;
@@ -248,7 +248,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 
 		// Check extensions
-		return createActionViewItem(this.instantiationService, action, { menuAsChild: this.renderDropdownAsChildElement });
+		return createActionViewItem(this.instantiationService, action, { ...options, menuAsChild: this.renderDropdownAsChildElement });
 	}
 
 	protected updateEditorActionsToolbar(): void {
@@ -451,39 +451,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return this.groupsView.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
 	}
 
-	protected getHoverTitle(editor: EditorInput): ITooltipMarkdownString {
-		const title = editor.getTitle(Verbosity.LONG);
-		const markdown = new MarkdownString(title);
-
-		if (editor.resource) {
-			const decoration = this.decorationsService.getDecoration(editor.resource, false);
-			if (decoration) {
-				const decorations = decoration.tooltip.split('• ');
-				const decorationString = `• ${decorations.join('\n• ')}`;
-
-				markdown.appendText('\n', MarkdownStringTextNewlineStyle.Paragraph);
-				markdown.appendText(decorationString, MarkdownStringTextNewlineStyle.Break);
-			}
-		}
-
-		return {
-			markdown,
-			markdownNotSupportedFallback: title
-		};
+	protected getHoverTitle(editor: EditorInput): string {
+		return editor.getTitle(Verbosity.LONG);
 	}
 
 	protected getHoverDelegate(): IHoverDelegate {
-		return {
-			delay: 500,
-			showHover: options => {
-				return this.hoverService.showHover({
-					...options,
-					persistence: {
-						hideOnHover: true
-					}
-				});
-			}
-		};
+		return this.tabsHoverDelegate;
 	}
 
 	protected updateTabHeight(): void {

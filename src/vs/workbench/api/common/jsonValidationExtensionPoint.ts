@@ -12,6 +12,7 @@ import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry,
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 interface IJSONValidationExtensionPoint {
 	fileMatch: string | string[];
@@ -109,7 +110,7 @@ class JSONValidationDataRenderer extends Disposable implements IExtensionFeature
 
 		const rows: IRowData[][] = contrib.map(v => {
 			return [
-				{ data: Array.isArray(v.fileMatch) ? v.fileMatch.join(', ') : v.fileMatch, type: 'code' },
+				new MarkdownString().appendMarkdown(`\`${Array.isArray(v.fileMatch) ? v.fileMatch.join(', ') : v.fileMatch}\``),
 				v.url,
 			];
 		});

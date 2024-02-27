@@ -31,6 +31,7 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITo
 }
 
 type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
+type IHoverContentOrFactory = IHoverContent | (() => IHoverContent);
 type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
 
 /**
@@ -162,7 +163,7 @@ class UpdatableHoverWidget implements IDisposable {
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContent, options?: IUpdatableHoverOptions): ICustomHover {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContentOrFactory, options?: IUpdatableHoverOptions): ICustomHover {
 	let hoverPreparation: IDisposable | undefined;
 
 	let hoverWidget: UpdatableHoverWidget | undefined;
@@ -179,6 +180,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		}
 		if (hadHover) {
 			hoverDelegate.onDidHideHover?.();
+			hoverWidget = undefined;
 		}
 	};
 
@@ -186,7 +188,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		return new TimeoutTimer(async () => {
 			if (!hoverWidget || hoverWidget.isDisposed) {
 				hoverWidget = new UpdatableHoverWidget(hoverDelegate, target || htmlElement, delay > 0);
-				await hoverWidget.update(content, focus, options);
+				await hoverWidget.update(typeof content === 'function' ? content() : content, focus, options);
 			}
 		}, delay);
 	};

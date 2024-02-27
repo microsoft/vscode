@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } fr
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { deepClone } from 'vs/base/common/objects';
-import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { ObservableLazyPromise, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { constObservable, mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isObject } from 'vs/base/common/types';
@@ -29,7 +29,6 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOpt
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
 import { ConstResolvedMultiDiffSource, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { ObservableLazyStatefulPromise } from 'vs/workbench/contrib/multiDiffEditor/browser/utils';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -93,7 +92,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			/** @description Updates name */
 			const resources = this._resources.read(reader) ?? [];
 			const label = this.label ?? localize('name', "Multi Diff Editor");
-			this._name = label + localize('files', " ({0} files)", resources?.length ?? 0);
+			this._name = label + localize({
+				key: 'files',
+				comment: ['the number of files being shown']
+			}, " ({0} files)", resources?.length ?? 0);
 			this._onDidChangeLabel.fire();
 		}));
 	}
@@ -132,7 +134,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	});
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
-		const source = await this._resolvedSource.getValue();
+		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
 
 		// Enables delayed disposing
@@ -208,7 +210,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		};
 	}
 
-	private readonly _resolvedSource = new ObservableLazyStatefulPromise(async () => {
+	private readonly _resolvedSource = new ObservableLazyPromise(async () => {
 		const source: IResolvedMultiDiffSource | undefined = this.initialResources
 			? new ConstResolvedMultiDiffSource(this.initialResources)
 			: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource);
@@ -230,7 +232,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		return false;
 	}
 
-	private readonly _resources = derived(this, reader => this._resolvedSource.cachedValue.read(reader)?.value?.resources.read(reader));
+	private readonly _resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
 	private readonly _isDirtyObservables = mapObservableArrayCached(this, this._resources.map(r => r || []), res => {
 		const isModifiedDirty = res.modified ? isUriDirty(this._textFileService, res.modified) : constObservable(false);
 		const isOriginalDirty = res.original ? isUriDirty(this._textFileService, res.original) : constObservable(false);
