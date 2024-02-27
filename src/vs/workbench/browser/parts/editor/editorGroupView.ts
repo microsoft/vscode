@@ -544,6 +544,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Visibility
 		this._register(this.groupsView.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
+
+		// Focus
+		this._register(this.onDidFocus(() => this.onDidGainFocus()));
 	}
 
 	private onDidGroupModelChange(e: IGroupModelChangeEvent): void {
@@ -772,7 +775,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// so when an editor leaves the transient state, we have
 		// to ensure its preview state is also cleared.
 		if (!transient && !this.groupsView.partOptions.enablePreview) {
-			this.model.pin(editor);
+			this.pinEditor(editor);
 		}
 	}
 
@@ -786,6 +789,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to active editor pane
 		this.editorPane.setVisible(visible);
+	}
+
+	private onDidGainFocus(): void {
+		if (this.activeEditor) {
+
+			// We aggressively clear the transient state of editors
+			// as soon as the group gains focus. This is to ensure
+			// that the transient state is not staying around when
+			// the user interacts with the editor.
+
+			this.setTransient(this.activeEditor, false);
+		}
 	}
 
 	//#endregion
