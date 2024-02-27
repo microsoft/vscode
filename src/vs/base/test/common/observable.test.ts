@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState } from 'vs/base/common/observable';
 import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
@@ -18,11 +18,15 @@ suite('observables', () => {
 	suite('tutorial', () => {
 		test('observable + autorun', () => {
 			const log = new Log();
-			// This creates a new observable value. The name is only used for debugging purposes.
+			// This creates a variable that stores a value and whose value changes can be observed.
+			// The name is only used for debugging purposes.
 			// The second arg is the initial value.
 			const myObservable = observableValue('myObservable', 0);
 
-			// This creates an autorun. The @description is only used for debugging purposes.
+			// This creates an autorun: It runs immediately and then again whenever any of the
+			// dependencies change. Dependencies are tracked by reading observables with the `reader` parameter.
+			//
+			// The @description is only used for debugging purposes.
 			// The autorun has to be disposed! This is very important.
 			ds.add(autorun(reader => {
 				/** @description myAutorun */
@@ -31,7 +35,7 @@ suite('observables', () => {
 
 				// Use the `reader` to read observable values and track the dependency to them.
 				// If you use `observable.get()` instead of `observable.read(reader)`, you will just
-				// get the value and not track the dependency.
+				// get the value and not subscribe to it.
 				log.log(`myAutorun.run(myObservable: ${myObservable.read(reader)})`);
 
 				// Now that all dependencies are tracked, the autorun is re-run whenever any of the
@@ -1098,6 +1102,97 @@ suite('observables', () => {
 			'myObservable.set (value 1)',
 			'myObservable.lastObserverRemoved',
 		]);
+	});
+
+	suite('waitForState', () => {
+		test('resolve', async () => {
+			const log = new Log();
+			const myObservable = new LoggingObservableValue('myObservable', { state: 'initializing' as 'initializing' | 'ready' | 'error' }, log);
+
+			const p = waitForState(myObservable, p => p.state === 'ready', p => p.state === 'error').then(r => {
+				log.log(`resolved ${JSON.stringify(r)}`);
+			}, (err) => {
+				log.log(`rejected ${JSON.stringify(err)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.firstObserverAdded',
+				'myObservable.get',
+			]);
+
+			myObservable.set({ state: 'ready' }, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.set (value [object Object])',
+				'myObservable.get',
+				'myObservable.lastObserverRemoved',
+			]);
+
+			await p;
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'resolved {\"state\":\"ready\"}',
+			]);
+		});
+
+		test('resolveImmediate', async () => {
+			const log = new Log();
+			const myObservable = new LoggingObservableValue('myObservable', { state: 'ready' as 'initializing' | 'ready' | 'error' }, log);
+
+			const p = waitForState(myObservable, p => p.state === 'ready', p => p.state === 'error').then(r => {
+				log.log(`resolved ${JSON.stringify(r)}`);
+			}, (err) => {
+				log.log(`rejected ${JSON.stringify(err)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.firstObserverAdded',
+				'myObservable.get',
+				'myObservable.lastObserverRemoved',
+			]);
+
+			myObservable.set({ state: 'error' }, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.set (value [object Object])',
+			]);
+
+			await p;
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'resolved {\"state\":\"ready\"}',
+			]);
+		});
+
+		test('reject', async () => {
+			const log = new Log();
+			const myObservable = new LoggingObservableValue('myObservable', { state: 'initializing' as 'initializing' | 'ready' | 'error' }, log);
+
+			const p = waitForState(myObservable, p => p.state === 'ready', p => p.state === 'error').then(r => {
+				log.log(`resolved ${JSON.stringify(r)}`);
+			}, (err) => {
+				log.log(`rejected ${JSON.stringify(err)}`);
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.firstObserverAdded',
+				'myObservable.get',
+			]);
+
+			myObservable.set({ state: 'error' }, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'myObservable.set (value [object Object])',
+				'myObservable.get',
+				'myObservable.lastObserverRemoved',
+			]);
+
+			await p;
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				'rejected {\"state\":\"error\"}'
+			]);
+		});
 	});
 });
 

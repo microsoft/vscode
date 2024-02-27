@@ -16,10 +16,9 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -73,6 +72,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 //#region Startup Contribution
 class SearchEditorContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.searchEditor';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -98,8 +100,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribution, WorkbenchPhase.BlockStartup);
 //#endregion
 
 //#region Input Serializer
@@ -112,6 +113,10 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 	}
 
 	serialize(input: SearchEditorInput) {
+		if (!this.canSerialize(input)) {
+			return undefined;
+		}
+
 		if (input.isDisposed()) {
 			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
 		}
@@ -303,7 +308,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
+				when: ContextKeyExpr.and(SearchConstants.SearchContext.HasSearchResults, SearchConstants.SearchContext.SearchViewFocusedKey),
 				weight: KeybindingWeight.WorkbenchContrib,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Enter
@@ -424,7 +429,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleCaseSensitiveKeybinding)
 		});
 	}
@@ -443,7 +448,7 @@ registerAction2(class extends Action2 {
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleWholeWordKeybinding)
 		});
 	}
@@ -456,13 +461,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSearchEditorRegexCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorRegex', "Toggle Use Regular Expression"), original: 'Toggle Use Regular Expression"' },
+			title: localize2('searchEditor.action.toggleSearchEditorRegex', "Toggle Use Regular Expression"),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: SearchConstants.SearchInputBoxFocusedKey,
+				when: SearchConstants.SearchContext.SearchInputBoxFocusedKey,
 			}, ToggleRegexKeybinding)
 		});
 	}
@@ -475,7 +480,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SearchEditorConstants.ToggleSearchEditorContextLinesCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorContextLines', "Toggle Context Lines"), original: 'Toggle Context Lines"' },
+			title: localize2('searchEditor.action.toggleSearchEditorContextLines', "Toggle Context Lines"),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -495,7 +500,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: IncreaseSearchEditorContextLinesCommandId,
-			title: { original: 'Increase Context Lines', value: localize('searchEditor.action.increaseSearchEditorContextLines', "Increase Context Lines") },
+			title: localize2('searchEditor.action.increaseSearchEditorContextLines', "Increase Context Lines"),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -512,7 +517,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: DecreaseSearchEditorContextLinesCommandId,
-			title: { original: 'Decrease Context Lines', value: localize('searchEditor.action.decreaseSearchEditorContextLines', "Decrease Context Lines") },
+			title: localize2('searchEditor.action.decreaseSearchEditorContextLines', "Decrease Context Lines"),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -529,7 +534,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SelectAllSearchEditorMatchesCommandId,
-			title: { original: 'Select All Matches', value: localize('searchEditor.action.selectAllSearchEditorMatches', "Select All Matches") },
+			title: localize2('searchEditor.action.selectAllSearchEditorMatches', "Select All Matches"),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -568,6 +573,8 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 //#region Search Editor Working Copy Editor Handler
 class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
+	static readonly ID = 'workbench.contrib.searchEditorWorkingCopyEditorHandler';
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
@@ -597,5 +604,5 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 	}
 }
 
-workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
+registerWorkbenchContribution2(SearchEditorWorkingCopyEditorHandler.ID, SearchEditorWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 //#endregion

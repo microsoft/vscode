@@ -81,7 +81,7 @@ export class ChatEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	override async setInput(input: ChatEditorInput, options: IChatEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, context, token);
 
 		const editorModel = await input.resolve();
@@ -93,12 +93,12 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		this.updateModel(editorModel.model);
+		this.updateModel(editorModel.model, options?.viewState ?? input.options.viewState);
 	}
 
-	private updateModel(model: IChatModel): void {
-		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
-		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
+	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
+		this._memento = new Memento('interactive-session-editor-' + model.providerId, this.storageService);
+		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
 		this.widget.setModel(model, { ...this._viewState });
 	}
 
@@ -107,8 +107,8 @@ export class ChatEditor extends EditorPane {
 
 		if (this._memento && this._viewState) {
 			const widgetViewState = this.widget.getViewState();
-			this._viewState!.inputValue = widgetViewState.inputValue;
-			this._memento!.saveMemento();
+			this._viewState.inputValue = widgetViewState.inputValue;
+			this._memento.saveMemento();
 		}
 	}
 

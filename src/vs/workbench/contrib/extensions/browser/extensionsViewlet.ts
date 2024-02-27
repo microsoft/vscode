@@ -84,7 +84,7 @@ const SearchDeprecatedExtensionsContext = new RawContextKey<boolean>('searchDepr
 export const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', false);
 
-const REMOTE_CATEGORY: ILocalizedString = { value: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"), original: 'Remote' };
+const REMOTE_CATEGORY: ILocalizedString = localize2({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote");
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 
@@ -177,10 +177,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 						super({
 							id: 'workbench.extensions.installLocalExtensions',
 							get title() {
-								return {
-									value: localize('select and install local extensions', "Install Local Extensions in '{0}'...", server.label),
-									original: `Install Local Extensions in '${server.label}'...`,
-								};
+								return localize2('select and install local extensions', "Install Local Extensions in '{0}'...", server.label);
 							},
 							category: REMOTE_CATEGORY,
 							icon: installLocalInRemoteIcon,
@@ -593,7 +590,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			toolbarOptions: {
 				primaryGroup: () => true,
 			},
-			actionViewItemProvider: action => createActionViewItem(this.instantiationService, action)
+			actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options)
 		}));
 
 		// Register DragAndDrop support

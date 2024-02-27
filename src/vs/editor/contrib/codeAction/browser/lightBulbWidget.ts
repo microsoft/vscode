@@ -86,22 +86,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				return;
 			}
 
-			if (
-				this.state.actions.allAIFixes
-				&& this.state.actions.validActions.length === 1
-			) {
-				const action = this.state.actions.validActions[0].action;
-				const id = action.command?.id;
-				if (id) {
-					let args = action.command?.arguments;
-					if (id === 'inlineChat.start' && args && args.length === 1) {
-						args = [{ ...args[0], autoSend: false }];
-					}
-					commandService.executeCommand(id, ...(args || []));
-					e.preventDefault();
-					return;
-				}
-			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
 			e.preventDefault();

@@ -15,7 +15,7 @@ import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from 'vs/p
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from 'vs/platform/configuration/common/configuration';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
@@ -27,7 +27,7 @@ import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -37,7 +37,7 @@ import { delta, distinct, equals as arrayEquals } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { isBoolean, isNumber, isString, isUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
@@ -47,7 +47,6 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { mainWindow } from 'vs/base/browser/window';
 import { runWhenWindowIdle } from 'vs/base/browser/dom';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return (userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings)
@@ -1325,69 +1324,9 @@ class ResetConfigurationDefaultsOverridesCache extends Disposable implements IWo
 	}
 }
 
-class ConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
-
-	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-
-	constructor(
-		@IConfigurationService private readonly configurationService: WorkspaceService,
-		@ITelemetryService telemetryService: ITelemetryService,
-	) {
-		super();
-		const { user, workspace } = configurationService.keys();
-		const updatedUserSettings: { [key: string]: any } = {};
-		for (const k of user) {
-			if (!k.startsWith(`${TASKS_CONFIGURATION_KEY}.`) && !k.startsWith(`${LAUNCH_CONFIGURATION_KEY}.`)) {
-				updatedUserSettings[k] = this.getValueToReport(k, ConfigurationTarget.USER_LOCAL) ?? '';
-			}
-		}
-		const updatedWorkspaceSettings: { [key: string]: any } = {};
-		for (const k of workspace) {
-			if (!k.startsWith(`${TASKS_CONFIGURATION_KEY}.`) && !k.startsWith(`${LAUNCH_CONFIGURATION_KEY}.`)) {
-				updatedWorkspaceSettings[k] = this.getValueToReport(k, ConfigurationTarget.WORKSPACE) ?? '';
-			}
-		}
-		type UpdatedSettingsClassification = {
-			owner: 'sandy081';
-			comment: 'Event reporting updated settings';
-			settings: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'stringified updated settings object' };
-		};
-		type UpdatedSettingsEvent = {
-			settings: string;
-		};
-		telemetryService.publicLog2<UpdatedSettingsEvent, UpdatedSettingsClassification>('updatedsettings:user', { settings: JSON.stringify(updatedUserSettings) });
-		telemetryService.publicLog2<UpdatedSettingsEvent, UpdatedSettingsClassification>('updatedsettings:workspace', { settings: JSON.stringify(updatedWorkspaceSettings) });
-	}
-
-	/**
-	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
-	 */
-	private getValueToReport(key: string, target: ConfigurationTarget): any {
-		const schema = this.configurationRegistry.getConfigurationProperties()[key];
-		if (!schema) {
-			return undefined;
-		}
-		const configurationModel = this.configurationService.getConfigurationModel(target);
-		const value = configurationModel?.getValue(key);
-		if (isNumber(value) || isBoolean(value)) {
-			return value;
-		}
-		if (isString(value)) {
-			if (schema.enum?.includes(value)) {
-				return value;
-			}
-			return undefined;
-		}
-		if (Array.isArray(value)) {
-			if (value.every(v => isNumber(v) || isBoolean(v) || (isString(v) && schema.enum?.includes(v)))) {
-				return value;
-			}
-		}
-		return undefined;
-	}
-}
-
 class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.updateExperimentalSettingsDefaults';
 
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -1428,8 +1367,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(ResetConfigurationDefaultsOverridesCache, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(UpdateExperimentalSettingsDefaults, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ConfigurationTelemetryContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(UpdateExperimentalSettingsDefaults.ID, UpdateExperimentalSettingsDefaults, WorkbenchPhase.BlockRestore);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

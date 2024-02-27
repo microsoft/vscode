@@ -6,25 +6,29 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { CancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { Rejection, RenameLocation, RenameProvider, WorkspaceEdit } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,9 +37,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField } from './renameInputField';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CONTEXT_RENAME_INPUT_FOCUSED, CONTEXT_RENAME_INPUT_VISIBLE, RenameInputField, RenameInputFieldResult } from './renameInputField';
 
 class RenameSkeleton {
 
@@ -148,6 +151,7 @@ class RenameController implements IEditorContribution {
 		@ILogService private readonly _logService: ILogService,
 		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
@@ -159,12 +163,15 @@ class RenameController implements IEditorContribution {
 
 	async run(): Promise<void> {
 
+		const trace = this._logService.trace.bind(this._logService, '[rename]');
+
 		// set up cancellation token to prevent reentrant rename, this
 		// is the parent to the resolve- and rename-tokens
 		this._cts.dispose(true);
 		this._cts = new CancellationTokenSource();
 
 		if (!this.editor.hasModel()) {
+			trace('editor has no model');
 			return undefined;
 		}
 
@@ -172,6 +179,7 @@ class RenameController implements IEditorContribution {
 		const skeleton = new RenameSkeleton(this.editor.getModel(), position, this._languageFeaturesService.renameProvider);
 
 		if (!skeleton.hasProvider()) {
+			trace('skeleton has no provider');
 			return undefined;
 		}
 
@@ -180,12 +188,20 @@ class RenameController implements IEditorContribution {
 
 		let loc: RenameLocation & Rejection | undefined;
 		try {
+			trace('resolving rename location');
 			const resolveLocationOperation = skeleton.resolveRenameLocation(cts1.token);
 			this._progressService.showWhile(resolveLocationOperation, 250);
 			loc = await resolveLocationOperation;
-
-		} catch (e) {
-			MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
+			trace('resolved rename location');
+		} catch (e: unknown) {
+			if (e instanceof CancellationError) {
+				trace('resolve rename location cancelled', JSON.stringify(e, null, '\t'));
+			} else {
+				trace('resolve rename location failed', e instanceof Error ? e : JSON.stringify(e, null, '\t'));
+				if (typeof e === 'string' || isMarkdownString(e)) {
+					MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
+				}
+			}
 			return undefined;
 
 		} finally {
@@ -193,20 +209,31 @@ class RenameController implements IEditorContribution {
 		}
 
 		if (!loc) {
+			trace('returning early - no loc');
 			return undefined;
 		}
 
 		if (loc.rejectReason) {
+			trace(`returning early - rejected with reason: ${loc.rejectReason}`, loc.rejectReason);
 			MessageController.get(this.editor)?.showMessage(loc.rejectReason, position);
 			return undefined;
 		}
 
 		if (cts1.token.isCancellationRequested) {
+			trace('returning early - cts1 cancelled');
 			return undefined;
 		}
 
 		// part 2 - do rename at location
 		const cts2 = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range, this._cts.token);
+
+		const model = this.editor.getModel(); // @ulugbekna: assumes editor still has a model, otherwise, cts1 should've been cancelled
+
+		const renameCandidatesCts = new CancellationTokenSource(cts2.token);
+		const newSymbolNamesProviders = this._languageFeaturesService.newSymbolNamesProvider.all(model);
+		// TODO@ulugbekna: providers should get timeout token (use createTimeoutCancellation(x))
+		const newSymbolNameProvidersResults = newSymbolNamesProviders.map(p => p.provideNewSymbolNames(model, loc.range, renameCandidatesCts.token));
+		trace(`requested new symbol names from ${newSymbolNamesProviders.length} providers`);
 
 		const selection = this.editor.getSelection();
 		let selectionStart = 0;
@@ -217,11 +244,18 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
+		trace('creating rename input field and awaiting its result');
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, cts2.token);
+		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, newSymbolNameProvidersResults, renameCandidatesCts);
+		trace('received response from rename input field');
+
+		if (newSymbolNamesProviders.length > 0) { // @ulugbekna: we're interested only in telemetry for rename suggestions currently
+			this._reportTelemetry(newSymbolNamesProviders.length, model.getLanguageId(), inputFieldResult);
+		}
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
+			trace(`returning early - rename input field response - ${inputFieldResult}`);
 			if (inputFieldResult) {
 				this.editor.focus();
 			}
@@ -231,19 +265,28 @@ class RenameController implements IEditorContribution {
 
 		this.editor.focus();
 
+		trace('requesting rename edits');
 		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, cts2.token), cts2.token).then(async renameResult => {
 
-			if (!renameResult || !this.editor.hasModel()) {
+			if (!renameResult) {
+				trace('returning early - no rename edits result');
+				return;
+			}
+			if (!this.editor.hasModel()) {
+				trace('returning early - no model after rename edits are provided');
 				return;
 			}
 
 			if (renameResult.rejectReason) {
+				trace(`returning early - rejected with reason: ${renameResult.rejectReason}`);
 				this._notificationService.info(renameResult.rejectReason);
 				return;
 			}
 
 			// collapse selection to active end
 			this.editor.setSelection(Range.fromPositions(this.editor.getSelection().getPosition()));
+
+			trace('applying edits');
 
 			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
@@ -253,21 +296,27 @@ class RenameController implements IEditorContribution {
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
 				respectAutoSaveConfig: true
 			}).then(result => {
+				trace('edits applied');
 				if (result.ariaSummary) {
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc.text, inputFieldResult.newName, result.ariaSummary));
 				}
 			}).catch(err => {
+				trace(`error when applying edits ${JSON.stringify(err, null, '\t')}`);
 				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));
 				this._logService.error(err);
 			});
 
 		}, err => {
+			trace('error when providing rename edits', JSON.stringify(err, null, '\t'));
+
 			this._notificationService.error(nls.localize('rename.failed', "Rename failed to compute edits"));
 			this._logService.error(err);
 
 		}).finally(() => {
 			cts2.dispose();
 		});
+
+		trace('returning rename operation');
 
 		this._progressService.showWhile(renameOperation, 250);
 		return renameOperation;
@@ -279,7 +328,62 @@ class RenameController implements IEditorContribution {
 	}
 
 	cancelRenameInput(): void {
-		this._renameInputField.cancelInput(true);
+		this._renameInputField.cancelInput(true, 'cancelRenameInput command');
+	}
+
+	focusNextRenameSuggestion(): void {
+		this._renameInputField.focusNextRenameSuggestion();
+	}
+
+	focusPreviousRenameSuggestion(): void {
+		this._renameInputField.focusPreviousRenameSuggestion();
+	}
+
+	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameInputFieldResult) {
+		type RenameInvokedEvent =
+			{
+				kind: 'accepted' | 'cancelled';
+				languageId: string;
+				nRenameSuggestionProviders: number;
+
+				/** provided only if kind = 'accepted' */
+				source?: RenameInputFieldResult['source'];
+				/** provided only if kind = 'accepted' */
+				nRenameSuggestions?: number;
+				/** provided only if kind = 'accepted' */
+				wantsPreview?: boolean;
+			};
+
+		type RenameInvokedClassification = {
+			owner: 'ulugbekna';
+			comment: 'A rename operation was invoked.';
+
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename operation was cancelled or accepted.' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Document language ID.' };
+			nRenameSuggestionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename providers for this document.'; isMeasurement: true };
+
+			source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new name came from the input field or rename suggestions.' };
+			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got'; isMeasurement: true };
+			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.'; isMeasurement: true };
+		};
+
+		const value: RenameInvokedEvent = typeof inputFieldResult === 'boolean'
+			? {
+				kind: 'cancelled',
+				languageId,
+				nRenameSuggestionProviders,
+			}
+			: {
+				kind: 'accepted',
+				languageId,
+				nRenameSuggestionProviders,
+
+				source: inputFieldResult.source,
+				nRenameSuggestions: inputFieldResult.nRenameSuggestions,
+				wantsPreview: inputFieldResult.wantsPreview,
+			};
+
+		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
 	}
 }
 
@@ -326,10 +430,15 @@ export class RenameAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const logService = accessor.get(ILogService);
+
 		const controller = RenameController.get(editor);
+
 		if (controller) {
+			logService.trace('[RenameAction] got controller, running...');
 			return controller.run();
 		}
+		logService.trace('[RenameAction] returning early - controller missing');
 		return Promise.resolve();
 	}
 }
@@ -372,6 +481,70 @@ registerEditorCommand(new RenameCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+registerAction2(class FocusNextRenameSuggestion extends Action2 {
+	constructor() {
+		super({
+			id: 'focusNextRenameSuggestion',
+			title: {
+				...nls.localize2('focusNextRenameSuggestion', "Focus Next Rename Suggestion"),
+			},
+			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+			keybinding: [
+				{
+					primary: KeyCode.Tab,
+					secondary: [KeyCode.DownArrow],
+					weight: KeybindingWeight.EditorContrib + 99,
+				}
+			]
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const currentEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		if (!currentEditor) { return; }
+
+		const controller = RenameController.get(currentEditor);
+		if (!controller) { return; }
+
+		controller.focusNextRenameSuggestion();
+	}
+});
+
+registerAction2(class FocusPreviousRenameSuggestion extends Action2 {
+	constructor() {
+		super({
+			id: 'focusPreviousRenameSuggestion',
+			title: {
+				...nls.localize2('focusPreviousRenameSuggestion', "Focus Previous Rename Suggestion"),
+			},
+			precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+			keybinding: [
+				{
+					when: CONTEXT_RENAME_INPUT_FOCUSED,
+					primary: KeyCode.Tab | KeyCode.Shift,
+					weight: KeybindingWeight.EditorContrib + 99,
+				},
+				{
+					when: CONTEXT_RENAME_INPUT_FOCUSED.toNegated(),
+					primary: KeyMod.Shift | KeyCode.Tab,
+					secondary: [KeyCode.UpArrow],
+					weight: KeybindingWeight.EditorContrib + 99,
+				}
+			]
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const currentEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		if (!currentEditor) { return; }
+
+		const controller = RenameController.get(currentEditor);
+		if (!controller) { return; }
+
+		controller.focusPreviousRenameSuggestion();
+	}
+});
 
 // ---- api bridge command
 

@@ -505,6 +505,11 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
 	 */
 	readonly resources?: IResourceDiffEditorInput[];
+
+	/**
+	 * Whether the editor should be serialized and stored for subsequent sessions.
+	 */
+	readonly isTransient?: boolean;
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
@@ -559,7 +564,7 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	return candidate?.original !== undefined && candidate.modified !== undefined;
 }
 
-export function isResourceDiffListEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
+export function isResourceMultiDiffEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
@@ -1102,6 +1107,14 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
 
+export interface IWillInstantiateEditorPaneEvent {
+
+	/**
+	 * @see {@link IEditorDescriptor.typeId}
+	 */
+	readonly typeId: string;
+}
+
 export type GroupIdentifier = number;
 
 export const enum GroupModelChangeKind {
@@ -1297,7 +1310,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1366,7 +1379,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

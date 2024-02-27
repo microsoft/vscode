@@ -44,7 +44,7 @@ import { CoverageBarSource, ManagedTestCoverageBars } from 'vs/workbench/contrib
 import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ComputedFileCoverage, FileCoverage, TestCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { CoverageDetails, DetailType, ICoveredCount, IFunctionCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, DetailType, ICoveredCount, IDeclarationCoverage, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum CoverageSortOrder {
@@ -97,10 +97,10 @@ export class TestCoverageView extends ViewPane {
 
 let fnNodeId = 0;
 
-class FunctionCoverageNode {
+class DeclarationCoverageNode {
 	public readonly id = String(fnNodeId++);
 	public readonly containedDetails = new Set<CoverageDetails>();
-	public readonly children: FunctionCoverageNode[] = [];
+	public readonly children: DeclarationCoverageNode[] = [];
 
 	public get hits() {
 		return this.data.count;
@@ -121,7 +121,7 @@ class FunctionCoverageNode {
 
 	constructor(
 		public readonly uri: URI,
-		private readonly data: IFunctionCoverage,
+		private readonly data: IDeclarationCoverage,
 		details: readonly CoverageDetails[],
 	) {
 		if (data.location instanceof Range) {
@@ -158,11 +158,11 @@ class FunctionCoverageNode {
 				continue;
 			}
 
-			statement.covered += detail.count > 0 ? 1 : 0;
+			statement.covered += detail.count ? 1 : 0;
 			statement.total++;
 			if (detail.branches) {
 				for (const { count } of detail.branches) {
-					branch.covered += count > 0 ? 1 : 0;
+					branch.covered += count ? 1 : 0;
 					branch.total++;
 				}
 			}
@@ -172,11 +172,11 @@ class FunctionCoverageNode {
 	}
 }
 
-class RevealUncoveredFunctions {
+class RevealUncoveredDeclarations {
 	public readonly id = String(fnNodeId++);
 
 	public get label() {
-		return localize('functionsWithoutCoverage', "{0} functions without coverage...", this.n);
+		return localize('functionsWithoutCoverage', "{0} declarations without coverage...", this.n);
 	}
 
 	constructor(public readonly n: number) { }
@@ -189,12 +189,12 @@ class LoadingDetails {
 
 /** Type of nodes returned from {@link TestCoverage}. Note: value is *always* defined. */
 type TestCoverageFileNode = IPrefixTreeNode<ComputedFileCoverage | FileCoverage>;
-type CoverageTreeElement = TestCoverageFileNode | FunctionCoverageNode | LoadingDetails | RevealUncoveredFunctions;
+type CoverageTreeElement = TestCoverageFileNode | DeclarationCoverageNode | LoadingDetails | RevealUncoveredDeclarations;
 
 const isFileCoverage = (c: CoverageTreeElement): c is TestCoverageFileNode => typeof c === 'object' && 'value' in c;
-const isFunctionCoverage = (c: CoverageTreeElement): c is FunctionCoverageNode => c instanceof FunctionCoverageNode;
-const shouldShowFunctionDetailsOnExpand = (c: CoverageTreeElement): c is IPrefixTreeNode<FileCoverage> =>
-	isFileCoverage(c) && c.value instanceof FileCoverage && !!c.value.function?.total;
+const isDeclarationCoverage = (c: CoverageTreeElement): c is DeclarationCoverageNode => c instanceof DeclarationCoverageNode;
+const shouldShowDeclDetailsOnExpand = (c: CoverageTreeElement): c is IPrefixTreeNode<FileCoverage> =>
+	isFileCoverage(c) && c.value instanceof FileCoverage && !!c.value.declaration?.total;
 
 class TestCoverageTree extends Disposable {
 	private readonly tree: WorkbenchCompressibleObjectTree<CoverageTreeElement, void>;
@@ -215,7 +215,7 @@ class TestCoverageTree extends Disposable {
 			new TestCoverageTreeListDelegate(),
 			[
 				instantiationService.createInstance(FileCoverageRenderer, labels),
-				instantiationService.createInstance(FunctionCoverageRenderer),
+				instantiationService.createInstance(DeclarationCoverageRenderer),
 				instantiationService.createInstance(BasicRenderer),
 			],
 			{
@@ -256,7 +256,7 @@ class TestCoverageTree extends Disposable {
 		this._register(this.tree);
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const el = e.node.element;
-			if (!e.node.collapsed && !e.node.children.length && el && shouldShowFunctionDetailsOnExpand(el)) {
+			if (!e.node.collapsed && !e.node.children.length && el && shouldShowDeclDetailsOnExpand(el)) {
 				if (el.value!.hasSynchronousDetails) {
 					this.tree.setChildren(el, [{ element: new LoadingDetails(), incompressible: true }]);
 				}
@@ -270,7 +270,7 @@ class TestCoverageTree extends Disposable {
 			if (e.element) {
 				if (isFileCoverage(e.element) && !e.element.children?.size) {
 					resource = e.element.value!.uri;
-				} else if (isFunctionCoverage(e.element)) {
+				} else if (isDeclarationCoverage(e.element)) {
 					resource = e.element.uri;
 					selection = e.element.location;
 				}
@@ -310,7 +310,7 @@ class TestCoverageTree extends Disposable {
 				incompressible: isFile,
 				collapsed: isFile,
 				// directories can be expanded, and items with function info can be expanded
-				collapsible: !isFile || !!file.value?.function?.total,
+				collapsible: !isFile || !!file.value?.declaration?.total,
 				children: file.children && Iterable.map(file.children?.values(), toChild)
 			};
 		};
@@ -327,13 +327,13 @@ class TestCoverageTree extends Disposable {
 			return; // avoid any issues if the tree changes in the meanwhile
 		}
 
-		const functions: FunctionCoverageNode[] = [];
+		const decl: DeclarationCoverageNode[] = [];
 		for (const fn of details) {
-			if (fn.type !== DetailType.Function) {
+			if (fn.type !== DetailType.Declaration) {
 				continue;
 			}
 
-			let arr = functions;
+			let arr = decl;
 			while (true) {
 				const parent = arr.find(p => p.containedDetails.has(fn));
 				if (parent) {
@@ -343,10 +343,10 @@ class TestCoverageTree extends Disposable {
 				}
 			}
 
-			arr.push(new FunctionCoverageNode(el.value!.uri, fn, details));
+			arr.push(new DeclarationCoverageNode(el.value!.uri, fn, details));
 		}
 
-		const makeChild = (fn: FunctionCoverageNode): ICompressedTreeElement<CoverageTreeElement> => ({
+		const makeChild = (fn: DeclarationCoverageNode): ICompressedTreeElement<CoverageTreeElement> => ({
 			element: fn,
 			incompressible: true,
 			collapsed: true,
@@ -354,7 +354,7 @@ class TestCoverageTree extends Disposable {
 			children: fn.children.map(makeChild)
 		});
 
-		this.tree.setChildren(el, functions.map(makeChild));
+		this.tree.setChildren(el, decl.map(makeChild));
 	}
 }
 
@@ -367,10 +367,10 @@ class TestCoverageTreeListDelegate implements IListVirtualDelegate<CoverageTreeE
 		if (isFileCoverage(element)) {
 			return FileCoverageRenderer.ID;
 		}
-		if (isFunctionCoverage(element)) {
-			return FunctionCoverageRenderer.ID;
+		if (isDeclarationCoverage(element)) {
+			return DeclarationCoverageRenderer.ID;
 		}
-		if (element instanceof LoadingDetails || element instanceof RevealUncoveredFunctions) {
+		if (element instanceof LoadingDetails || element instanceof RevealUncoveredDeclarations) {
 			return BasicRenderer.ID;
 		}
 		assertNever(element);
@@ -389,7 +389,7 @@ class Sorter implements ITreeSorter<CoverageTreeElement> {
 				case CoverageSortOrder.Coverage:
 					return b.value!.tpc - a.value!.tpc;
 			}
-		} else if (isFunctionCoverage(a) && isFunctionCoverage(b)) {
+		} else if (isDeclarationCoverage(a) && isDeclarationCoverage(b)) {
 			switch (order) {
 				case CoverageSortOrder.Location:
 					return Position.compare(
@@ -402,7 +402,7 @@ class Sorter implements ITreeSorter<CoverageTreeElement> {
 					const attrA = a.tpc;
 					const attrB = b.tpc;
 					return (attrA !== undefined && attrB !== undefined && attrB - attrA)
-						|| (b.hits - a.hits)
+						|| (+b.hits - +a.hits)
 						|| a.label.localeCompare(b.label);
 				}
 			}
@@ -474,7 +474,7 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 	}
 }
 
-interface FunctionTemplateData {
+interface DeclarationTemplateData {
 	container: HTMLElement;
 	bars: ManagedTestCoverageBars;
 	templateDisposables: DisposableStore;
@@ -482,16 +482,16 @@ interface FunctionTemplateData {
 	label: HTMLElement;
 }
 
-class FunctionCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElement, FuzzyScore, FunctionTemplateData> {
+class DeclarationCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElement, FuzzyScore, DeclarationTemplateData> {
 	public static readonly ID = 'N';
-	public readonly templateId = FunctionCoverageRenderer.ID;
+	public readonly templateId = DeclarationCoverageRenderer.ID;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	/** @inheritdoc */
-	public renderTemplate(container: HTMLElement): FunctionTemplateData {
+	public renderTemplate(container: HTMLElement): DeclarationTemplateData {
 		const templateDisposables = new DisposableStore();
 		container.classList.add('test-coverage-list-item');
 		const icon = dom.append(container, dom.$('.state'));
@@ -507,22 +507,22 @@ class FunctionCoverageRenderer implements ICompressibleTreeRenderer<CoverageTree
 	}
 
 	/** @inheritdoc */
-	public renderElement(node: ITreeNode<CoverageTreeElement, FuzzyScore>, _index: number, templateData: FunctionTemplateData): void {
-		this.doRender(node.element as FunctionCoverageNode, templateData, node.filterData);
+	public renderElement(node: ITreeNode<CoverageTreeElement, FuzzyScore>, _index: number, templateData: DeclarationTemplateData): void {
+		this.doRender(node.element as DeclarationCoverageNode, templateData, node.filterData);
 	}
 
 	/** @inheritdoc */
-	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, _index: number, templateData: FunctionTemplateData): void {
-		this.doRender(node.element.elements[node.element.elements.length - 1] as FunctionCoverageNode, templateData, node.filterData);
+	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, _index: number, templateData: DeclarationTemplateData): void {
+		this.doRender(node.element.elements[node.element.elements.length - 1] as DeclarationCoverageNode, templateData, node.filterData);
 	}
 
-	public disposeTemplate(templateData: FunctionTemplateData) {
+	public disposeTemplate(templateData: DeclarationTemplateData) {
 		templateData.templateDisposables.dispose();
 	}
 
 	/** @inheritdoc */
-	private doRender(element: FunctionCoverageNode, templateData: FunctionTemplateData, _filterData: FuzzyScore | undefined) {
-		const covered = element.hits > 0;
+	private doRender(element: DeclarationCoverageNode, templateData: DeclarationTemplateData, _filterData: FuzzyScore | undefined) {
+		const covered = !!element.hits;
 		const icon = covered ? testingWasCovered : testingStatesToIcons.get(TestResultState.Unset);
 		templateData.container.classList.toggle('not-covered', !covered);
 		templateData.icon.className = `computed-state ${ThemeIcon.asClassName(icon!)}`;
@@ -552,7 +552,7 @@ class BasicRenderer implements ICompressibleTreeRenderer<CoverageTreeElement, Fu
 	}
 
 	private renderInner(element: CoverageTreeElement, container: HTMLElement) {
-		container.innerText = (element as RevealUncoveredFunctions | LoadingDetails).label;
+		container.innerText = (element as RevealUncoveredDeclarations | LoadingDetails).label;
 	}
 }
 
@@ -585,9 +585,9 @@ registerAction2(class TestCoverageChangeSortingAction extends ViewAction<TestCov
 		const disposables = new DisposableStore();
 		const quickInput = disposables.add(accessor.get(IQuickInputService).createQuickPick<Item>());
 		const items: Item[] = [
-			{ label: localize('testing.coverageSortByLocation', 'Sort by Location'), value: CoverageSortOrder.Location, description: localize('testing.coverageSortByLocationDescription', 'Files are sorted alphabetically, functions are sorted by position') },
-			{ label: localize('testing.coverageSortByCoverage', 'Sort by Coverage'), value: CoverageSortOrder.Coverage, description: localize('testing.coverageSortByCoverageDescription', 'Files and functions are sorted by total coverage') },
-			{ label: localize('testing.coverageSortByName', 'Sort by Name'), value: CoverageSortOrder.Name, description: localize('testing.coverageSortByNameDescription', 'Files and functions are sorted alphabetically') },
+			{ label: localize('testing.coverageSortByLocation', 'Sort by Location'), value: CoverageSortOrder.Location, description: localize('testing.coverageSortByLocationDescription', 'Files are sorted alphabetically, declarations are sorted by position') },
+			{ label: localize('testing.coverageSortByCoverage', 'Sort by Coverage'), value: CoverageSortOrder.Coverage, description: localize('testing.coverageSortByCoverageDescription', 'Files and declarations are sorted by total coverage') },
+			{ label: localize('testing.coverageSortByName', 'Sort by Name'), value: CoverageSortOrder.Name, description: localize('testing.coverageSortByNameDescription', 'Files and declarations are sorted alphabetically') },
 		];
 
 		quickInput.placeholder = localize('testing.coverageSortPlaceholder', 'Sort the Test Coverage view...');

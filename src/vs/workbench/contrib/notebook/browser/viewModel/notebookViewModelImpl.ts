@@ -361,9 +361,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._focused = focused;
 	}
 
-	/**
-	 * Empty selection will be turned to `null`
-	 */
 	validateRange(cellRange: ICellRange | null | undefined): ICellRange | null {
 		if (!cellRange) {
 			return null;
@@ -372,11 +369,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const start = clamp(cellRange.start, 0, this.length);
 		const end = clamp(cellRange.end, 0, this.length);
 
-		if (start === end) {
-			return null;
-		}
-
-		if (start < end) {
+		if (start <= end) {
 			return { start, end };
 		} else {
 			return { start: end, end: start };

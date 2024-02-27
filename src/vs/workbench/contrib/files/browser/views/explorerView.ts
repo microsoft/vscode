@@ -276,7 +276,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			const workspace = this.contextService.getWorkspace();
 			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
-			titleElement.title = title;
+			this.updateTitle(title);
 			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
@@ -1026,7 +1026,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.refreshFilesExplorer',
-			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
+			title: nls.localize2('refreshExplorer', "Refresh Explorer"),
 			f1: true,
 			icon: Codicon.refresh,
 			menu: {
@@ -1050,7 +1050,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.collapseExplorerFolders',
-			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
+			title: nls.localize2('collapseExplorerFolders', "Collapse Folders in Explorer"),
 			f1: true,
 			icon: Codicon.collapseAll,
 			menu: {

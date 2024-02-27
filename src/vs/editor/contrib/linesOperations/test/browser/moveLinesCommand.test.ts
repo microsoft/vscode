@@ -19,7 +19,7 @@ function testMoveLinesDownCommand(lines: string[], selection: Selection, expecte
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced, languageConfigurationService!), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 
@@ -28,7 +28,7 @@ function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedL
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced, languageConfigurationService!), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 
@@ -37,7 +37,7 @@ function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[],
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full, languageConfigurationService!), expectedLines, expectedSelection);
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 
@@ -46,7 +46,7 @@ function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], s
 	if (!languageConfigurationService) {
 		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 	}
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full, languageConfigurationService!), expectedLines, expectedSelection);
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
 	disposables.dispose();
 }
 

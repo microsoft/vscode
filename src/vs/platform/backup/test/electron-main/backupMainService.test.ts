@@ -293,7 +293,7 @@ flakySuite('BackupMainService', () => {
 
 		const emptyBackups = service.getEmptyWindowBackups();
 		assert.strictEqual(1, emptyBackups.length);
-		assert.strictEqual(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder!)).length);
+		assert.strictEqual(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder)).length);
 	});
 
 	suite('loadSync', () => {

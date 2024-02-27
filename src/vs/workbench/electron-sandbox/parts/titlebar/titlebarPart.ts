@@ -18,12 +18,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
+import { hasNativeTitlebar, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -72,13 +71,12 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IHoverService hoverService: IHoverService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, targetWindow, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(id, targetWindow, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorGroupService, editorService, menuService, keybindingService);
 
 		this.bigSurOrNewer = isBigSurOrNewer(environmentService.os.release);
 	}
@@ -145,7 +143,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		const targetWindowId = getWindowId(targetWindow);
 
 		// Native menu controller
-		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+		if (isMacintosh || hasNativeTitlebar(this.configurationService)) {
 			this._register(this.instantiationService.createInstance(NativeMenubarControl));
 		}
 
@@ -159,7 +157,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		}
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.primaryWindowControls) {
+		if (!isMacintosh && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.primaryWindowControls) {
 
 			// Minimize
 			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -195,7 +193,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893
-		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
+		if (isWindows && !hasNativeTitlebar(this.configurationService)) {
 			this._register(this.nativeHostService.onDidTriggerWindowSystemContextMenu(({ windowId, x, y }) => {
 				if (targetWindowId !== windowId) {
 					return;
@@ -253,7 +251,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 		if (
 			useWindowControlsOverlay(this.configurationService) ||
-			(isMacintosh && isNative && getTitleBarStyle(this.configurationService) === 'custom')
+			(isMacintosh && isNative && !hasNativeTitlebar(this.configurationService))
 		) {
 
 			// When the user goes into full screen mode, the height of the title bar becomes 0.
@@ -286,13 +284,12 @@ export class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService nativeHostService: INativeHostService,
-		@IHoverService hoverService: IHoverService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
 	}
 }
 
@@ -316,14 +313,13 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService nativeHostService: INativeHostService,
-		@IHoverService hoverService: IHoverService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
 	}
 
 	override get preventZoom(): boolean {

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { Event } from 'vs/base/common/event';
 import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
@@ -20,7 +20,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { URI } from 'vs/base/common/uri';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -45,6 +45,7 @@ export interface IInlineChatRequest {
 	attempt: number;
 	requestId: string;
 	live: boolean;
+	previewDocument: URI;
 	withIntentDetection: boolean;
 }
 
@@ -96,6 +97,23 @@ export const enum InlineChatResponseFeedbackKind {
 	Bug = 4
 }
 
+export interface IInlineChatReplyFollowup {
+	kind: 'reply';
+	message: string;
+	title?: string;
+	tooltip?: string;
+}
+
+export interface IInlineChatCommandFollowup {
+	kind: 'command';
+	commandId: string;
+	args?: any[];
+	title: string; // supports codicon strings
+	when?: string;
+}
+
+export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandFollowup;
+
 export interface IInlineChatSessionProvider {
 
 	debugName: string;
@@ -106,17 +124,22 @@ export interface IInlineChatSessionProvider {
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
 
-	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatFollowup[]>;
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
 
 export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
 
+export interface InlineChatProviderChangeEvent {
+	readonly added?: IInlineChatSessionProvider;
+	readonly removed?: IInlineChatSessionProvider;
+}
+
 export interface IInlineChatService {
 	_serviceBrand: undefined;
 
-	onDidChangeProviders: Event<void>;
+	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
 	addProvider(provider: IInlineChatSessionProvider): IDisposable;
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
@@ -150,7 +173,7 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 
 // --- (select) action identifier
 
-export const ACTION_ACCEPT_CHANGES = 'interactive.acceptChanges';
+export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 
@@ -186,7 +209,6 @@ export const overviewRulerInlineChatDiffRemoved = registerColor('editorOverviewR
 
 export const enum EditMode {
 	Live = 'live',
-	LivePreview = 'livePreview',
 	Preview = 'preview'
 }
 
@@ -203,6 +225,7 @@ export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
+	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -210,13 +233,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		[InlineChatConfigKeys.Mode]: {
 			description: localize('mode', "Configure if changes crafted with inline chat are applied directly to the document or are previewed first."),
-			default: EditMode.LivePreview,
+			default: EditMode.Live,
 			type: 'string',
-			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
+			enum: [EditMode.Live, EditMode.Preview],
 			markdownEnumDescriptions: [
-				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
-				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
+				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 			],
 			tags: ['experimental']
 		},
@@ -234,6 +256,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
 			default: true,
 			type: 'boolean'
+		},
+		[InlineChatConfigKeys.AccessibleDiffView]: {
+			description: localize('accessibleDiffView', "Whether the inline chat also renders an accessible diff viewer for its changes."),
+			default: 'auto',
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			markdownEnumDescriptions: [
+				localize('accessibleDiffView.auto', "The accessible diff viewer is based screen reader mode being enabled."),
+				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
+				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
+			],
 		}
 	}
 });

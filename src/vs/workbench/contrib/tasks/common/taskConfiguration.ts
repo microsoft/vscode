@@ -1668,7 +1668,7 @@ namespace CustomTask {
 		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
 		fillProperty(resultConfigProps, contributedConfigProps, 'detail');
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
-			result.command.presentation!, contributedConfigProps.presentation)!;
+			result.command.presentation, contributedConfigProps.presentation)!;
 		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
 		result.runOptions = RunOptions.fillProperties(result.runOptions, contributedTask.runOptions);
 

@@ -4,49 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { localize } from 'vs/nls';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export interface INotebookScope {
-	type: 'root';
+	kind: 'root';
 	readonly notebook: NotebookTextModel;
 }
 
 export interface INotebookVariableElement {
-	type: 'variable';
-	readonly id: number;
+	kind: 'variable';
+	readonly id: string;
+	readonly extHostId: number;
 	readonly name: string;
 	readonly value: string;
+	readonly type?: string;
+	readonly expression?: string;
+	readonly language?: string;
 	readonly indexedChildrenCount: number;
 	readonly indexStart?: number;
 	readonly hasNamedChildren: boolean;
 	readonly notebook: NotebookTextModel;
+	readonly extensionId?: string;
 }
 
 export class NotebookVariableDataSource implements IAsyncDataSource<INotebookScope, INotebookVariableElement> {
 
-	constructor(private readonly notebookKernelService: INotebookKernelService) { }
+	private cancellationTokenSource: CancellationTokenSource;
+
+	constructor(private readonly notebookKernelService: INotebookKernelService) {
+		this.cancellationTokenSource = new CancellationTokenSource();
+	}
 
 	hasChildren(element: INotebookScope | INotebookVariableElement): boolean {
-		return element.type === 'root' || element.hasNamedChildren || element.indexedChildrenCount > 0;
+		return element.kind === 'root' || element.hasNamedChildren || element.indexedChildrenCount > 0;
+	}
+
+	public cancel(): void {
+		this.cancellationTokenSource.cancel();
+		this.cancellationTokenSource.dispose();
+		this.cancellationTokenSource = new CancellationTokenSource();
 	}
 
 	async getChildren(element: INotebookScope | INotebookVariableElement): Promise<Array<INotebookVariableElement>> {
-		if (element.type === 'root') {
+		if (element.kind === 'root') {
 			return this.getRootVariables(element.notebook);
 		} else {
 			return this.getVariables(element);
 		}
 	}
 
-	async getVariables(parent: INotebookVariableElement): Promise<INotebookVariableElement[]> {
+	private async getVariables(parent: INotebookVariableElement): Promise<INotebookVariableElement[]> {
 		const selectedKernel = this.notebookKernelService.getMatchingKernel(parent.notebook).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
 
 			let children: INotebookVariableElement[] = [];
 			if (parent.hasNamedChildren) {
-				const variables = selectedKernel.provideVariables(parent.notebook.uri, parent.id, 'named', 0, CancellationToken.None);
+				const variables = selectedKernel.provideVariables(parent.notebook.uri, parent.extHostId, 'named', 0, this.cancellationTokenSource.token);
 				const childNodes = await variables
 					.map(variable => { return this.createVariableElement(variable, parent.notebook); })
 					.toPromise();
@@ -62,20 +78,24 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		return [];
 	}
 
-	async getIndexedChildren(parent: INotebookVariableElement, kernel: INotebookKernel) {
+	private async getIndexedChildren(parent: INotebookVariableElement, kernel: INotebookKernel) {
 		const childNodes: INotebookVariableElement[] = [];
 
 		if (parent.indexedChildrenCount > variablePageSize) {
-			for (let start = 0; start < parent.indexedChildrenCount; start += variablePageSize) {
+			// TODO: improve handling of large number of children
+			const indexedChildCountLimit = 100000;
+			const limit = Math.min(parent.indexedChildrenCount, indexedChildCountLimit);
+			for (let start = 0; start < limit; start += variablePageSize) {
 				let end = start + variablePageSize;
-				if (end > parent.indexedChildrenCount) {
-					end = parent.indexedChildrenCount;
+				if (end > limit) {
+					end = limit;
 				}
 
 				childNodes.push({
-					type: 'variable',
+					kind: 'variable',
 					notebook: parent.notebook,
-					id: parent.id,
+					id: parent.id + `${start}`,
+					extHostId: parent.extHostId,
 					name: `[${start}..${end - 1}]`,
 					value: '',
 					indexedChildrenCount: end - start,
@@ -83,9 +103,22 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 					hasNamedChildren: false
 				});
 			}
+
+			if (parent.indexedChildrenCount > indexedChildCountLimit) {
+				childNodes.push({
+					kind: 'variable',
+					notebook: parent.notebook,
+					id: parent.id + `${limit + 1}`,
+					extHostId: parent.extHostId,
+					name: localize('notebook.indexedChildrenLimitReached', "Display limit reached"),
+					value: '',
+					indexedChildrenCount: 0,
+					hasNamedChildren: false
+				});
+			}
 		}
 		else if (parent.indexedChildrenCount > 0) {
-			const variables = kernel.provideVariables(parent.notebook.uri, parent.id, 'indexed', parent.indexStart ?? 0, CancellationToken.None);
+			const variables = kernel.provideVariables(parent.notebook.uri, parent.extHostId, 'indexed', parent.indexStart ?? 0, this.cancellationTokenSource.token);
 
 			for await (const variable of variables) {
 				childNodes.push(this.createVariableElement(variable, parent.notebook));
@@ -98,10 +131,10 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		return childNodes;
 	}
 
-	async getRootVariables(notebook: NotebookTextModel): Promise<INotebookVariableElement[]> {
+	private async getRootVariables(notebook: NotebookTextModel): Promise<INotebookVariableElement[]> {
 		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
-			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, this.cancellationTokenSource.token);
 			return await variables
 				.map(variable => { return this.createVariableElement(variable, notebook); })
 				.toPromise();
@@ -112,9 +145,11 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 	private createVariableElement(variable: VariablesResult, notebook: NotebookTextModel): INotebookVariableElement {
 		return {
-			type: 'variable',
+			...variable,
+			kind: 'variable',
 			notebook,
-			...variable
+			extHostId: variable.id,
+			id: `${variable.id}`
 		};
 	}
 }
