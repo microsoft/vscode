@@ -18,7 +18,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -42,8 +41,7 @@ export class TerminalChatWidget extends Disposable {
 		terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -87,8 +85,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
 	}
 
-	async renderTerminalCommand(command: string, requestId: number, shellType?: string): Promise<void> {
-		this._chatAccessibilityService.acceptResponse(command, requestId);
+	async renderTerminalCommand(command: string, shellType?: string): Promise<void> {
 		this._responseEditor?.show();
 		if (!this._responseEditor) {
 			this._responseEditor = this._instantiationService.createInstance(TerminalChatResponseEditor, command, shellType, this._container, this._instance);
@@ -96,10 +93,9 @@ export class TerminalChatWidget extends Disposable {
 		this._responseEditor.setValue(command);
 	}
 
-	renderMessage(message: string, accessibilityRequestId: number, requestId: string): void {
+	renderMessage(message: string, requestId: string): void {
 		this._responseEditor?.hide();
 		this._inlineChatWidget.updateChatMessage({ message: new MarkdownString(message), requestId, providerId: 'terminal' });
-		this._chatAccessibilityService.acceptResponse(message, accessibilityRequestId);
 	}
 
 	reveal(): void {

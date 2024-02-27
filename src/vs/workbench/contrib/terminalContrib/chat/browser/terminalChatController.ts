@@ -248,7 +248,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					firstCodeBlock = match?.groups?.content.trim();
 					shellType = match?.groups?.language;
 					if (firstCodeBlock) {
-						this._chatWidget?.rawValue?.renderTerminalCommand(firstCodeBlock, accessibilityRequestId, shellType);
+						this._chatWidget?.rawValue?.renderTerminalCommand(firstCodeBlock, shellType);
+						this._chatAccessibilityService.acceptResponse(firstCodeBlock, accessibilityRequestId);
 						this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
 						this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
 						this._messages.fire(Message.ACCEPT_INPUT);
@@ -290,16 +291,17 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (this._currentRequest) {
 				this._model?.completeResponse(this._currentRequest);
 			}
-			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
-			if (supportIssueReporting !== undefined) {
-				this._responseSupportsIssueReportingContextKey.set(supportIssueReporting);
-			}
 			this._lastResponseContent = responseContent;
-			if (!firstCodeBlock) {
-				this._chatWidget?.rawValue?.renderMessage(responseContent, accessibilityRequestId, this._currentRequest!.id);
+			if (!firstCodeBlock && this._currentRequest) {
+				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
+				this._chatWidget?.rawValue?.renderMessage(responseContent, this._currentRequest.id);
 				this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
 				this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
 				this._messages.fire(Message.ACCEPT_INPUT);
+			}
+			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
+			if (supportIssueReporting !== undefined) {
+				this._responseSupportsIssueReportingContextKey.set(supportIssueReporting);
 			}
 		}
 	}
