@@ -188,7 +188,15 @@ export class WebviewEditor extends EditorPane {
 			containsGroup: (group) => this.group?.id === group.id
 		}));
 
-		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(input.webview.codeWindow, () => this.webview));
+		let codeWindow;
+		if (this.group?.windowId) {
+			const windowById = DOM.getWindowById(this.group.windowId);
+			codeWindow = windowById?.window ?? DOM.getWindow(input.webview.container);
+		} else {
+			codeWindow = DOM.getWindow(input.webview.container);
+		}
+
+		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(codeWindow, () => this.webview));
 
 		this.synchronizeWebviewContainerDimensions(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
