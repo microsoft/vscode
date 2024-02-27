@@ -83,7 +83,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		));
 		// console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 		// console.log('before getBulkEditPane2');
-		this._refactorViewPane = await getBulkEditPane2(this.instantiationService, this._edits);
+		this._refactorViewPane = await getBulkEditPane2(this.instantiationService);
 		// console.log('view of getBulkEditPane2: ', this._refactorViewPane);
 		this._renderRefactorPreviewPane();
 		this._registerRefactorPreviewPaneListeners();
@@ -113,6 +113,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		}
 		// Need to reveal the appropriate part of the editor on click of the tree element
 		this._store.add(this._refactorViewPane.onDidTreeOpen(e => {
+			console.log('inside of onDidTreeOpen of _registerRefactorPreviewPaneListeners');
 			const fileOperations = this._refactorViewPane?.currentInput?.fileOperations;
 			if (!fileOperations) {
 				return;
