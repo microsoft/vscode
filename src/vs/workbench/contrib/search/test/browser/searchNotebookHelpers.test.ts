@@ -216,7 +216,7 @@ suite('searchNotebookHelpers', () => {
 			}, searchModel.searchResult, searchModel.searchResult, null);
 			const fileMatch = instantiationService.createInstance(FileMatch, {
 				pattern: ''
-			}, undefined, undefined, folderMatch, rawMatch, null, '');
+			}, undefined, undefined, folderMatch, rawMatch, null, '', false);
 			store.add(folderMatch);
 			store.add(fileMatch);
 

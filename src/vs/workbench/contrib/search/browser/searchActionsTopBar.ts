@@ -205,6 +205,54 @@ registerAction2(class ViewAsListAction extends Action2 {
 	}
 });
 
+registerAction2(class ViewAIResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.ViewAsTreeActionId,
+			title: nls.localize2('ViewAIResultsAction.label', "Show AI Results"),
+			category,
+			icon: searchShowAsList,
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.AIResultsVisibleKey),
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.AIResultsVisibleKey),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (searchView) {
+			searchView.setAIResultsVisible(true);
+		}
+	}
+});
+
+registerAction2(class HideAIResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.ViewAsListActionId,
+			title: nls.localize2('HideAIResultsAction.label', "Hide AI Results"),
+			category,
+			icon: searchShowAsTree,
+			precondition: ContextKeyExpr.and(Constants.SearchContext.HasSearchResults, Constants.SearchContext.AIResultsVisibleKey.toNegated()),
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.AIResultsVisibleKey.toNegated()),
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (searchView) {
+			searchView.setAIResultsVisible(false);
+		}
+	}
+});
+
 //#endregion
 
 //#region Helpers

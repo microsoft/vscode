@@ -158,6 +158,7 @@ export class SearchView extends ViewPane {
 	private treeAccessibilityProvider: SearchAccessibilityProvider;
 
 	private treeViewKey: IContextKey<boolean>;
+	private aiResultsVisibleKey: IContextKey<boolean>;
 
 	private _visibleMatches: number = 0;
 
@@ -218,6 +219,7 @@ export class SearchView extends ViewPane {
 		this.hasFilePatternKey = Constants.SearchContext.ViewHasFilePatternKey.bindTo(this.contextKeyService);
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
+		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -294,6 +296,14 @@ export class SearchView extends ViewPane {
 		this.treeViewKey.set(visible);
 	}
 
+	get areAIResultsVisible(): boolean {
+		return this.aiResultsVisibleKey.get() ?? false;
+	}
+
+	private set areAIResultsVisible(visible: boolean) {
+		this.aiResultsVisibleKey.set(visible);
+	}
+
 	setTreeView(visible: boolean): void {
 		if (visible === this.isTreeLayoutViewVisible) {
 			return;
@@ -302,6 +312,17 @@ export class SearchView extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this.refreshTree();
 	}
+
+	setAIResultsVisible(visible: boolean): void {
+		if (visible === this.areAIResultsVisible) {
+			return;
+		}
+		console.log('visible ', visible);
+		this.areAIResultsVisible = visible;
+		this.refreshTree();
+	}
+
+
 
 	private get state(): SearchUIState {
 		return this.searchStateKey.get() ?? SearchUIState.Idle;

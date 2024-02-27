@@ -76,7 +76,7 @@ suite('Search - Viewlet', () => {
 					endColumn: 1
 				}
 			}]
-		}], '');
+		}], '', false);
 
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
@@ -179,7 +179,7 @@ suite('Search - Viewlet', () => {
 		};
 		const fileMatch = instantiation.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
+		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '', false);
 		store.add(fileMatch);
 		return fileMatch;
 	}
