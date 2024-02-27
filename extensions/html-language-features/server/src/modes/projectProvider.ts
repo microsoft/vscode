@@ -41,6 +41,7 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 					servicePlugins,
 					getLanguagePlugins,
 					() => currentTextDocument!,
+					() => currentTextDocument!.getSnapshot(),
 				);
 			})();
 		}
