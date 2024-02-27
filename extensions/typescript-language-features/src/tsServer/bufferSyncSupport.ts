@@ -275,12 +275,12 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 }
 
 class PendingDiagnostics extends ResourceMap<number> {
-	public getOrderedFileSet(): ResourceMap<void> {
+	public getOrderedFileSet(): ResourceMap<void | vscode.Range[]> {
 		const orderedResources = Array.from(this.entries())
 			.sort((a, b) => a.value - b.value)
 			.map(entry => entry.resource);
 
-		const map = new ResourceMap<void>(this._normalizePath, this.config);
+		const map = new ResourceMap<void | vscode.Range[]>(this._normalizePath, this.config);
 		for (const resource of orderedResources) {
 			map.set(resource, undefined);
 		}
@@ -292,7 +292,7 @@ class GetErrRequest {
 
 	public static executeGetErrRequest(
 		client: ITypeScriptServiceClient,
-		files: ResourceMap<void>,
+		files: ResourceMap<void | vscode.Range[]>,
 		onDone: () => void
 	) {
 		return new GetErrRequest(client, files, onDone);
@@ -303,7 +303,7 @@ class GetErrRequest {
 
 	private constructor(
 		private readonly client: ITypeScriptServiceClient,
-		public readonly files: ResourceMap<void>,
+		public readonly files: ResourceMap<void | vscode.Range[]>,
 		onDone: () => void
 	) {
 		if (!this.isErrorReportingEnabled()) {
@@ -321,11 +321,31 @@ class GetErrRequest {
 			this._done = true;
 			setImmediate(onDone);
 		} else {
-			const request = this.areProjectDiagnosticsEnabled()
+			let request;
+			if (this.areProjectDiagnosticsEnabled()) {
 				// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
 				// too many diagnostics
-				? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
-				: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
+				request = client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token);
+			}
+			else {
+				const regions: Proto.FileRangeRequestArgs[] = coalesce(Array.from(files.entries())
+					.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
+					.map(entry => {
+						const file = client.toTsFilePath(entry.resource);
+						const ranges = entry.value;
+						if (file && ranges) {
+							return typeConverters.Range.toFileRangeRequestArgs(file, ranges[0]);
+						}
+						return undefined;
+					}));
+				/* @ts-ignore-error */
+				request = client.executeAsync('geterr', { delay: 0, files: allFiles, regions }, this._token.token);
+			}
+			// const request = this.areProjectDiagnosticsEnabled()
+			// 	// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
+			// 	// too many diagnostics
+			// 	? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
+			// 	: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
 
 			request.finally(() => {
 				if (this._done) {
@@ -643,6 +663,9 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent): void {
+		// const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === e.document.uri.toString());
+		// const visibleRanges = editors.flatMap(editor => editor.visibleRanges);
+		// // >> TODO: would we need to normalize the ranges? i.e. remove overlaps, etc
 		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
 		if (!syncedBuffer) {
 			return;
@@ -722,7 +745,10 @@ export default class BufferSyncSupport extends Disposable {
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values()) {
-			orderedFileSet.set(buffer.resource, undefined);
+			const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === buffer.resource.toString());
+			const visibleRanges = editors.flatMap(editor => editor.visibleRanges);
+			// >> TODO: would we need to normalize the ranges? i.e. remove overlaps, etc
+			orderedFileSet.set(buffer.resource, visibleRanges.length ? visibleRanges : undefined);
 		}
 
 		if (orderedFileSet.size) {
