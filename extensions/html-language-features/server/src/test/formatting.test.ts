@@ -13,7 +13,7 @@ const testUri = 'test://test/test.html';
 
 suite('HTML Embedded Formatting', () => {
 
-	async function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): Promise<void> {
+	async function assertFormat(value: string, expected: string, _options?: any, formatOptions?: FormattingOptions, message?: string): Promise<void> {
 		const rootUri = 'test://foo';
 		const server = await getTestServer(rootUri);
 

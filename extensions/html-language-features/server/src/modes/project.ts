@@ -1,28 +1,26 @@
 import { ServerProject } from '@volar/language-server';
-import { ServerContext, ServerOptions } from '@volar/language-server/lib/server';
+import { ServerOptions } from '@volar/language-server/lib/server';
 import { LanguageService, ServiceEnvironment, ServicePlugin, createLanguageService } from '@volar/language-service';
 import type { SnapshotDocument } from '@volar/snapshot-document';
 import { createLanguage, createSys } from '@volar/typescript';
 import { createProjectHost } from './projectHost';
+import * as ts from 'typescript';
 
 export async function createProject(
-	context: ServerContext,
 	serviceEnv: ServiceEnvironment,
-	getLanguagePlugins: ServerOptions['getLanguagePlugins'],
 	servicePlugins: ServicePlugin[],
+	getLanguagePlugins: ServerOptions['getLanguagePlugins'],
 	getCurrentTextDocument: () => SnapshotDocument,
 ): Promise<ServerProject> {
 
 	let languageService: LanguageService | undefined;
 
-	const ts = context.ts!;
 	const sys = createSys(ts, serviceEnv, '');
 	const host = createProjectHost(
 		serviceEnv.typescript!,
 		fileName => sys.readFile(fileName),
 		getCurrentTextDocument,
 		() => getCurrentTextDocument().getSnapshot(),
-		context.tsLocalized,
 	)
 	const languagePlugins = await getLanguagePlugins(serviceEnv, {
 		typescript: {
@@ -33,7 +31,6 @@ export async function createProject(
 	});
 
 	return {
-		serviceEnv,
 		getLanguageService,
 		getLanguageServiceDontCreate: () => languageService,
 		dispose,

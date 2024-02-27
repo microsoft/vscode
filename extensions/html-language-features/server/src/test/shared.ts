@@ -1,6 +1,5 @@
 import { ClientCapabilities, DiagnosticModel } from '@volar/language-server';
 import { startLanguageServer } from '@volar/test-utils';
-import * as path from 'path';
 
 export const testServers = new Map<string, ReturnType<typeof startLanguageServer>>();
 
@@ -18,9 +17,7 @@ export async function getTestServer(rootUri: string, capabilities?: ClientCapabi
 	}
 	if (needInit) {
 		await server.initialize(rootUri, {
-			typescript: { tsdk: path.dirname(require.resolve('typescript')) },
 			diagnosticModel: DiagnosticModel.Pull,
-			fullCompletionList: true,
 			semanticTokensLegend: {
 				// fill missing modifiers from standard modifiers
 				tokenModifiers: ['local'],

@@ -2,8 +2,9 @@ import type { ServicePlugin } from '@volar/language-service';
 import { create as createCssServicePlugin } from 'volar-service-css';
 import { create as createHtmlServicePlugin } from 'volar-service-html';
 import { create as createTypeScriptServicePlugin } from 'volar-service-typescript';
+import * as ts from 'typescript';
 
-export function getLanguageServices(ts: typeof import('typescript')) {
+export function getServicePlugins() {
 	const html1ServicePlugins: ServicePlugin[] = [
 		createCssServicePlugin(),
 		createHtmlServicePlugin(),

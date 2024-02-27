@@ -57,7 +57,6 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 			lengths: [snapshot.getLength()],
 			data: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: true },
 		}],
-		embeddedCodes: [],
 	};
 	const documentRegions = getDocumentRegions(htmlLanguageService, snapshot.getText(0, snapshot.getLength()));
 	const languageIdIndexes: Record<string, number> = {};
@@ -67,6 +66,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 		}
 		languageIdIndexes[documentRegion.languageId] ??= 0;
 		const isJsOrTs = documentRegion.languageId === 'javascript' || documentRegion.languageId === 'typescript';
+		root.embeddedCodes ??= [];
 		root.embeddedCodes.push({
 			languageId: documentRegion.languageId,
 			id: documentRegion.languageId + '_' + languageIdIndexes[documentRegion.languageId],
@@ -89,7 +89,6 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 					? { verification: false, completion: true, semantic: true, navigation: true, structure: true, format: false }
 					: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: !isJsOrTs },
 			}],
-			embeddedCodes: [],
 		});
 		if (documentRegion.languageId === 'javascript' || documentRegion.languageId === 'typescript') {
 			let prefix = '{';
@@ -105,6 +104,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 			}
 			const content = `${prefix}${documentRegion.content}${suffix}`
 			const generatedStart = documentRegion.generatedStart + prefix.length;
+			root.embeddedCodes ??= [];
 			root.embeddedCodes.push({
 				languageId: documentRegion.languageId,
 				id: documentRegion.languageId + '_' + languageIdIndexes[documentRegion.languageId] + '_format',
@@ -125,7 +125,6 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 					lengths: [documentRegion.length],
 					data: { verification: false, completion: false, semantic: false, navigation: false, structure: false, format: true },
 				}],
-				embeddedCodes: [],
 			});
 		}
 		languageIdIndexes[documentRegion.languageId]++;

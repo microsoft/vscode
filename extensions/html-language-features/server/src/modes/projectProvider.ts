@@ -1,12 +1,9 @@
 import { ServerProject, ServerProjectProviderFactory } from '@volar/language-server';
 import { createServiceEnvironment, getWorkspaceFolder } from '@volar/language-server/node';
 import type { SnapshotDocument } from '@volar/snapshot-document';
-import { URI } from 'vscode-uri';
 import { createProject } from './project';
 
-export const serverProjectProviderFactory: ServerProjectProviderFactory = (context, serverOptions, servicePlugins) => {
-
-	const { uriToFileName } = context.runtimeEnv;
+export const serverProjectProviderFactory: ServerProjectProviderFactory = (context, servicePlugins, getLanguagePlugins) => {
 
 	let inferredProject: Promise<ServerProject> | undefined;
 	let currentTextDocument: SnapshotDocument | undefined;
@@ -14,7 +11,7 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 	return {
 		async getProject(uri) {
 			currentTextDocument = context.documents.get(uri);
-			const workspaceFolder = getWorkspaceFolder(uri, context.workspaceFolders, uriToFileName);
+			const workspaceFolder = getWorkspaceFolder(uri, context.workspaceFolders);
 			return await getOrCreateProject(workspaceFolder);
 		},
 		async getProjects() {
@@ -30,15 +27,14 @@ export const serverProjectProviderFactory: ServerProjectProviderFactory = (conte
 		},
 	};
 
-	async function getOrCreateProject(workspaceFolder: URI) {
+	async function getOrCreateProject(workspaceFolder: string) {
 		if (!inferredProject) {
 			inferredProject = (async () => {
 				const serviceEnv = createServiceEnvironment(context, workspaceFolder);
 				return createProject(
-					context,
 					serviceEnv,
-					serverOptions.getLanguagePlugins,
 					servicePlugins,
+					getLanguagePlugins,
 					() => currentTextDocument!,
 				);
 			})();

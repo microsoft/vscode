@@ -6,7 +6,7 @@
 import { createServer, createConnection } from '@volar/language-server/node';
 import { htmlLanguagePlugin } from '../modes/languagePlugin';
 import { serverProjectProviderFactory } from '../modes/projectProvider';
-import { getLanguageServices } from '../modes/servicePlugins';
+import { getServicePlugins } from '../modes/servicePlugins';
 
 const connection = createConnection();
 const server = createServer(connection);
@@ -17,7 +17,7 @@ connection.onInitialize(params => {
 			return [htmlLanguagePlugin];
 		},
 		getServicePlugins() {
-			return getLanguageServices(server.modules.typescript!);
+			return getServicePlugins();
 		},
 	});
 });

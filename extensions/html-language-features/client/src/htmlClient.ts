@@ -7,7 +7,7 @@
 import {
 	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel, l10n, env
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel, l10n
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
@@ -16,8 +16,7 @@ import {
 import { getCustomDataSource } from './customData';
 import { activateAutoInsertion, activateServerSys as serveFileSystemRequests } from '@volar/vscode';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
-import type { InitializationOptions } from '@volar/language-server';
-import * as path from 'path';
+import { DiagnosticModel, type InitializationOptions } from '@volar/language-server';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -139,10 +138,17 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 			configurationSection: ['html', 'css', 'javascript', 'js/ts'], // the settings to synchronize
 		},
 		initializationOptions: {
-			typescript: { tsdk: path.join(env.appRoot.replace(/\\/g, '/'), 'extensions/node_modules/typescript/lib') },
+			// volar options
+			diagnosticModel: DiagnosticModel.Pull,
+			semanticTokensLegend: {
+				// fill missing modifiers from standard modifiers
+				tokenModifiers: ['local'],
+				tokenTypes: [],
+			},
+
+			// html options
 			embeddedLanguages,
 			handledSchemas: ['file'],
-			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
 			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
 		} satisfies InitializationOptions & Record<string, any>,
 		middleware: {
