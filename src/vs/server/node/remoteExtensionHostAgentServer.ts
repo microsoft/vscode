@@ -639,7 +639,6 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		if (this.shutdownTimer) {
 			console.log('Cancelling previous shutdown timeout');
 			this._logService.info('Cancelling previous shutdown timeout');
-			// @ts-ignore
 			clearTimeout(this.shutdownTimer);
 			this.shutdownTimer = undefined;
 		}
