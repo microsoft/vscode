@@ -2168,7 +2168,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		if (!/^ extension /.test(uri.path)) {
+		if (!/^extension/.test(uri.path)) {
 			return Promise.resolve(false);
 		}
 
