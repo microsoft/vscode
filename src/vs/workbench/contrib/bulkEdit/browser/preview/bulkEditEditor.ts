@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
-import { BulkEditPane, getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { BulkEditTreeView, getBulkEditPane2 } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTreeView';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkbenchUIElementFactory } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { BulkEditEditorInput } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditorInput';
@@ -35,7 +35,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
 
-	private _refactorViewPane: BulkEditPane | undefined;
+	private _refactorViewPane: BulkEditTreeView | undefined;
 	private _refactorViewContainer: HTMLElement | undefined;
 
 	private _edits: ResourceEdit[] = [];

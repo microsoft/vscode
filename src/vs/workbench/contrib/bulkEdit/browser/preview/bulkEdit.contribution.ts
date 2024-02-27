@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IBulkEditEditorService, IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { BulkEditPane, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
+import { BulkEditTreeView, getBulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTreeView';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
@@ -161,14 +161,14 @@ registerAction2(class ApplyAction extends Action2 {
 			title: localize2('apply', "Apply Refactoring"),
 			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.check,
-			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
+			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditTreeView.ctxHasCheckedChanges),
 			menu: [{
 				id: MenuId.BulkEditContext,
 				order: 1
 			}],
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
-				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, FocusedViewContext.isEqualTo(BulkEditPane.ID)),
+				when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, FocusedViewContext.isEqualTo(BulkEditTreeView.ID)),
 				primary: KeyMod.Shift + KeyCode.Enter,
 			}
 		});
@@ -244,10 +244,10 @@ registerAction2(class GroupByFile extends Action2 {
 			title: localize2('groupByFile', "Group Changes By File"),
 			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.ungroupByRefType,
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
+			precondition: ContextKeyExpr.and(BulkEditTreeView.ctxHasCategories, BulkEditTreeView.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
-				when: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate()),
+				when: ContextKeyExpr.and(BulkEditTreeView.ctxHasCategories, BulkEditTreeView.ctxGroupByFile.negate()),
 				group: 'navigation',
 				order: 3,
 			}]
@@ -269,10 +269,10 @@ registerAction2(class GroupByType extends Action2 {
 			title: localize2('groupByType', "Group Changes By Type"),
 			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.groupByRefType,
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
+			precondition: ContextKeyExpr.and(BulkEditTreeView.ctxHasCategories, BulkEditTreeView.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
-				when: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile),
+				when: ContextKeyExpr.and(BulkEditTreeView.ctxHasCategories, BulkEditTreeView.ctxGroupByFile),
 				group: 'navigation',
 				order: 3
 			}]
@@ -294,8 +294,8 @@ registerAction2(class ToggleGrouping extends Action2 {
 			title: localize2('groupByType', "Group Changes By Type"),
 			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.listTree,
-			toggled: BulkEditPane.ctxGroupByFile.negate(),
-			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
+			toggled: BulkEditTreeView.ctxGroupByFile.negate(),
+			precondition: ContextKeyExpr.and(BulkEditTreeView.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditContext,
 				order: 3
