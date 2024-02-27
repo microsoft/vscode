@@ -34,6 +34,7 @@ import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/mar
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -104,7 +105,8 @@ export class ReleaseNotesManager {
 						localResourceRoots: [],
 						allowScripts: true
 					},
-					extension: undefined
+					extension: undefined,
+					codeWindow: getActiveWindow()
 				},
 				'releaseNotes',
 				title,

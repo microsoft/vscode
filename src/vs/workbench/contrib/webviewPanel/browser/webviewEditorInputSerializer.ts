@@ -12,7 +12,7 @@ import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewI
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService } from './webviewWorkbenchService';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { getWindowById } from 'vs/base/browser/dom';
+import { getWindow, getWindowById } from 'vs/base/browser/dom';
 
 export type SerializedWebviewOptions = WebviewOptions & WebviewContentOptions;
 
@@ -121,7 +121,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 			state: input.webview.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
 			group: input.group,
-			windowId: input.webview.codeWindow.vscodeWindowId
+			windowId: getWindow(input.webview.container).vscodeWindowId
 		};
 	}
 }

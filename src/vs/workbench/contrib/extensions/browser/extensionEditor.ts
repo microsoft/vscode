@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, getWindow, getWindowById, setParentFlowTo } from 'vs/base/browser/dom';
+import { $, Dimension, addDisposableListener, append, getWindow, setParentFlowTo } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
@@ -661,13 +661,7 @@ export class ExtensionEditor extends EditorPane {
 				return Promise.resolve(null);
 			}
 
-			let codeWindow;
-			if (this.group?.windowId) {
-				const windowById = getWindowById(this.group.windowId);
-				codeWindow = windowById?.window ?? getWindow(container);
-			} else {
-				codeWindow = getWindow(container);
-			}
+			const codeWindow = this.getContainingWindow() ?? getWindow(container);
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
 				title,
@@ -683,12 +677,12 @@ export class ExtensionEditor extends EditorPane {
 
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 
-			webview.claim(this, this.scopedContextKeyService);
+			webview.claim(this, codeWindow, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
 			webview.layoutWebviewOverElement(container);
 
 			webview.setHtml(body);
-			webview.claim(this, undefined);
+			webview.claim(this, codeWindow, undefined);
 
 			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
 

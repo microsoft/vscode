@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -174,7 +175,8 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private claimWebview(input: WebviewInput): void {
-		input.webview.claim(this, this.scopedContextKeyService);
+		const codeWindow: CodeWindow = this.getContainingWindow() ?? DOM.getWindow(input.webview.container);
+		input.webview.claim(this, codeWindow, this.scopedContextKeyService);
 
 		if (this._element) {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);
@@ -188,14 +190,6 @@ export class WebviewEditor extends EditorPane {
 			containsGroup: (group) => this.group?.id === group.id
 		}));
 
-		let codeWindow;
-		if (this.group?.windowId) {
-			const windowById = DOM.getWindowById(this.group.windowId);
-			codeWindow = windowById?.window ?? DOM.getWindow(input.webview.container);
-		} else {
-			codeWindow = DOM.getWindow(input.webview.container);
-		}
-
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(codeWindow, () => this.webview));
 
 		this.synchronizeWebviewContainerDimensions(input.webview);
@@ -206,7 +200,9 @@ export class WebviewEditor extends EditorPane {
 		if (!this._element?.isConnected) {
 			return;
 		}
-		const rootContainer = this._workbenchLayoutService.getContainer(webview.codeWindow, Parts.EDITOR_PART);
+
+		const codeWindow: CodeWindow = this.getContainingWindow() ?? DOM.getWindow(this._element);
+		const rootContainer = this._workbenchLayoutService.getContainer(codeWindow, Parts.EDITOR_PART);
 		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
 	}
 

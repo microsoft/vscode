@@ -24,6 +24,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
@@ -39,14 +40,15 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		group: GroupIdentifier | undefined,
-		windowId: number,
 		options?: { readonly customClasses?: string; readonly oldResource?: URI },
 	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
-			const codeWindow = getWindowById(windowId)?.window ?? mainWindow;
+			const editorGroupService = accessor.get(IEditorGroupsService);
+			const windowId = group ? editorGroupService.getGroup(group)?.windowId : undefined;
+			const codeWindow = windowId ? (getWindowById(windowId)?.window ?? mainWindow) : mainWindow;
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: viewType,
 				title: undefined,
@@ -70,7 +72,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private _defaultDirtyState: boolean | undefined;
 
 	private readonly _backupId: string | undefined;
-	private readonly _windowId: number;
 
 	private readonly _untitledDocumentData: VSBuffer | undefined;
 
@@ -97,7 +98,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
 		this._untitledDocumentData = options.untitledDocumentData;
-		this._windowId = webview.codeWindow.vscodeWindowId;
 
 		this.registerListeners();
 	}
@@ -257,7 +257,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override copy(): EditorInput {
-		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this._windowId, this.webview.options);
+		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
 	}
 
 	public override isReadonly(): boolean | IMarkdownString {

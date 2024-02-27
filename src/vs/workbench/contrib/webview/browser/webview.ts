@@ -190,11 +190,6 @@ export interface IWebview extends IDisposable {
 	readonly origin: string;
 
 	/**
-	 * The code window the webview is contained within.
-	 */
-	readonly codeWindow: CodeWindow;
-
-	/**
 	 * Set html content of the webview.
 	 */
 	setHtml(html: string): void;
@@ -313,7 +308,7 @@ export interface IOverlayWebview extends IWebview {
 	 * @param claimant Identifier for the object claiming the webview.
 	 *   This must match the `claimant` passed to {@link IOverlayWebview.release}.
 	 */
-	claim(claimant: any, scopedContextKeyService: IContextKeyService | undefined): void;
+	claim(claimant: any, codeWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void;
 
 	/**
 	 * Release ownership of the webview.

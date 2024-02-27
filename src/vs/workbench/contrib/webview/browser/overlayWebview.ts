@@ -36,6 +36,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _options: WebviewOptions;
 
 	private _owner: any = undefined;
+	public _codeWindow: CodeWindow | undefined = undefined;
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean> | undefined;
@@ -45,7 +46,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	public readonly providedViewType?: string;
 
 	public origin: string;
-	public codeWindow: CodeWindow;
 
 	private _container: FastDomNode<HTMLDivElement> | undefined;
 
@@ -64,7 +64,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._extension = initInfo.extension;
 		this._options = initInfo.options;
 		this._contentOptions = initInfo.contentOptions;
-		this.codeWindow = initInfo.codeWindow;
 	}
 
 	public get isFocused() {
@@ -112,7 +111,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		return this._container.domNode;
 	}
 
-	public claim(owner: any, scopedContextKeyService: IContextKeyService | undefined) {
+	public claim(owner: any, codeWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
 		if (this._isDisposed) {
 			return;
 		}
@@ -120,7 +119,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		const oldOwner = this._owner;
 
 		this._owner = owner;
-		this._show();
+		this._codeWindow = codeWindow;
+		this._show(codeWindow);
 
 		if (oldOwner !== owner) {
 			const contextKeyService = (scopedContextKeyService || this._baseContextKeyService);
@@ -187,7 +187,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	private _show() {
+	private _show(codeWindow: CodeWindow) {
 		if (this._isDisposed) {
 			throw new Error('OverlayWebview is disposed');
 		}
@@ -200,7 +200,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				options: this._options,
 				contentOptions: this._contentOptions,
 				extension: this.extension,
-				codeWindow: this.codeWindow
+				codeWindow: codeWindow
 			});
 			this._webview.value = webview;
 			webview.state = this._state;
