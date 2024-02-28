@@ -34,6 +34,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -263,7 +265,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 			hintElement.appendChild(before);
 
-			const label = new KeybindingLabel(hintElement, OS);
+			const label = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
 			label.set(keybindingHint);
 			label.element.style.width = 'min-content';
 			label.element.style.display = 'inline';
@@ -382,7 +384,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			anchor.style.cursor = 'pointer';
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-			anchor.title = title ?? '';
+			hintHandler.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
 		}
 
 		return { hintElement, ariaLabel };
