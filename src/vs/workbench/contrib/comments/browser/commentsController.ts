@@ -13,7 +13,7 @@ import 'vs/css!./media/review';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { EditorType, IDiffEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorType, IDiffEditor, IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
@@ -462,6 +462,7 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
+		this.globalToDispose.add(this.editor.onWillChangeModel(e => this.onWillChangeModel(e)));
 		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
 		this.globalToDispose.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
@@ -776,6 +777,12 @@ export class CommentController implements IEditorContribution {
 		dispose(this._commentWidgets);
 
 		this.editor = null!; // Strict null override - nulling out in dispose
+	}
+
+	private onWillChangeModel(e: IModelChangedEvent): void {
+		if (e.newModelUrl) {
+			this.tryUpdateReservedSpace(e.newModelUrl);
+		}
 	}
 
 	public onModelChanged(): void {
@@ -1190,7 +1197,7 @@ export class CommentController implements IEditorContribution {
 		});
 	}
 
-	private tryUpdateReservedSpace() {
+	private tryUpdateReservedSpace(uri?: URI) {
 		if (!this.editor) {
 			return;
 		}
@@ -1199,7 +1206,7 @@ export class CommentController implements IEditorContribution {
 			const hasRanges = Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length);
 			return hasRanges || (info.threads.length > 0);
 		});
-		const uri = this.editor.getModel()?.uri;
+		uri = uri ?? this.editor.getModel()?.uri;
 		const resourceHasCommentingRanges = uri ? this.commentService.resourceHasCommentingRanges(uri) : false;
 
 		const hasCommentsOrRanges = hasCommentsOrRangesInInfo || resourceHasCommentingRanges;

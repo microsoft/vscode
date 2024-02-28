@@ -21,6 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -170,7 +171,7 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _commentsModel: CommentsModel = this._register(new CommentsModel());
 	public readonly commentsModel: ICommentsModel = this._commentsModel;
 
-	private _commentingRangeResources = new Map<string, URI[]>();
+	private _commentingRangeResources = new Set<string>(); // URIs
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -178,7 +179,8 @@ export class CommentService extends Disposable implements ICommentService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 		this._handleConfiguration();
@@ -221,6 +223,21 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 			this._saveContinueOnComments(map);
 		}));
+
+		this._register(this.modelService.onModelAdded(model => {
+			// Allows comment providers to cause their commenting ranges to be prefetched by opening text documents in the background.
+			if (!this._commentingRangeResources.has(model.uri.toString())) {
+				this.getDocumentComments(model.uri);
+			}
+		}));
+	}
+
+	private _updateResourcesWithCommentingRanges(resource: URI, commentInfos: (ICommentInfo | null)[]) {
+		for (const comments of commentInfos) {
+			if (comments && (comments.commentingRanges.ranges.length > 0 || comments.threads.length > 0)) {
+				this._commentingRangeResources.add(resource.toString());
+			}
+		}
 	}
 
 	private _handleConfiguration() {
@@ -436,7 +453,9 @@ export class CommentService extends Disposable implements ICommentService {
 				}));
 		}
 
-		return Promise.all(commentControlResult);
+		const commentInfos = await Promise.all(commentControlResult);
+		this._updateResourcesWithCommentingRanges(resource, commentInfos);
+		return commentInfos;
 	}
 
 	async getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]> {
@@ -499,11 +518,6 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	resourceHasCommentingRanges(resource: URI): boolean {
-		for (const resources of this._commentingRangeResources.values()) {
-			if (resources.some(uri => uri.toString() === resource.toString())) {
-				return true;
-			}
-		}
-		return false;
+		return this._commentingRangeResources.has(resource.toString());
 	}
 }
