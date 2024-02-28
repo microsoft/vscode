@@ -1189,7 +1189,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 }
 
 export interface ExtHostLanguageModelsShape {
-	$updateLanguageModels(data: { added?: string[]; removed?: string[] }): void;
+	$updateLanguageModels(data: { added?: ILanguageModelChatMetadata[]; removed?: string[] }): void;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;

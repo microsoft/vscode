@@ -5,10 +5,15 @@
 
 import type * as vscode from 'vscode';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+
+export interface IExtHostAuthentication extends ExtHostAuthentication { }
+export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
 
 interface ProviderWithMetadata {
 	label: string;
@@ -17,6 +22,9 @@ interface ProviderWithMetadata {
 }
 
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
+
+	declare _serviceBrand: undefined;
+
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, ProviderWithMetadata> = new Map<string, ProviderWithMetadata>();
 
@@ -26,8 +34,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _getSessionTaskSingler = new TaskSingler<vscode.AuthenticationSession | undefined>();
 	private _getSessionsTaskSingler = new TaskSingler<ReadonlyArray<vscode.AuthenticationSession>>();
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadAuthentication);
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
