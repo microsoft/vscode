@@ -1021,7 +1021,7 @@ export class FolderMatch extends Disposable {
 		const iterator = this.folderMatchesIterator();
 		for (const elem of iterator) {
 			recursiveChildren = recursiveChildren.concat(elem.allDownstreamFileMatches());
-			if (recursiveChildren.some(fileMatch => !fileMatch.hasDownstreamNonAIResults())) {
+			if (recursiveChildren.some(fileMatch => fileMatch.hasDownstreamNonAIResults())) {
 				return true;
 			}
 		}
