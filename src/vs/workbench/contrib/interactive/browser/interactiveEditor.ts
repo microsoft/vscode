@@ -362,6 +362,8 @@ export class InteractiveEditor extends EditorPane {
 
 		this._widgetDisposableStore.clear();
 
+		const codeWindow = this.group ? DOM.getWindowById(group.windowId, true).window : mainWindow;
+
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
@@ -385,7 +387,8 @@ export class InteractiveEditor extends EditorPane {
 				HoverController.ID,
 				MarkerController.ID
 			]),
-			options: this._notebookOptions
+			options: this._notebookOptions,
+			codeWindow: codeWindow
 		}, undefined, this._rootElement ? DOM.getWindow(this._rootElement) : mainWindow);
 
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
