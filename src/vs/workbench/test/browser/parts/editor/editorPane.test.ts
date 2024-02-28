@@ -118,7 +118,10 @@ suite('EditorPane', () => {
 	});
 
 	test('EditorPane API', async () => {
+		const group = new TestEditorGroupView(1);
 		const editor = new TestEditor();
+		editor.group = group;
+		assert.ok(editor.group);
 		const input = disposables.add(new OtherTestInput());
 		const options = {};
 
@@ -127,13 +130,11 @@ suite('EditorPane', () => {
 
 		await editor.setInput(input, options, Object.create(null), CancellationToken.None);
 		assert.strictEqual(<any>input, editor.input);
-		const group = new TestEditorGroupView(1);
-		editor.setVisible(true, group);
+		editor.setVisible(true);
 		assert(editor.isVisible());
-		assert.strictEqual(editor.group, group);
 		editor.dispose();
 		editor.clearInput();
-		editor.setVisible(false, group);
+		editor.setVisible(false);
 		assert(!editor.isVisible());
 		assert(!editor.input);
 		assert(!editor.getControl());

@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -351,8 +351,9 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		// Create editor pane and make visible
 		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService);
+		editorPane.group = this.group;
 		editorPane.create(container);
-		editorPane.setVisible(this.isVisible(), this.group);
+		editorPane.setVisible(this.isVisible());
 
 		// Track selections if supported
 		if (isEditorPaneWithSelection(editorPane)) {
@@ -396,13 +397,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		this.getLastFocusedEditorPane()?.setOptions(options);
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean): void {
 
 		// Forward to both sides
-		this.primaryEditorPane?.setVisible(visible, group);
-		this.secondaryEditorPane?.setVisible(visible, group);
+		this.primaryEditorPane?.setVisible(visible);
+		this.secondaryEditorPane?.setVisible(visible);
 
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	override clearInput(): void {

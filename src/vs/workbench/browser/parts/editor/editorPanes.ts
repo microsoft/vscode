@@ -353,7 +353,7 @@ export class EditorPanes extends Disposable {
 		show(container);
 
 		// Indicate to editor that it is now visible
-		editorPane.setVisible(true, this.groupView);
+		editorPane.setVisible(true);
 
 		// Layout
 		if (this.pagePosition) {
@@ -394,6 +394,7 @@ export class EditorPanes extends Disposable {
 
 		// Otherwise instantiate new
 		const editorPane = this._register(descriptor.instantiate(this.instantiationService));
+		editorPane.group = this.groupView;
 		this.editorPanes.push(editorPane);
 
 		return editorPane;
@@ -472,7 +473,7 @@ export class EditorPanes extends Disposable {
 		// the DOM to give a chance to persist certain state that
 		// might depend on still being the active DOM element.
 		this.safeRun(() => this._activeEditorPane?.clearInput());
-		this.safeRun(() => this._activeEditorPane?.setVisible(false, this.groupView));
+		this.safeRun(() => this._activeEditorPane?.setVisible(false));
 
 		// Remove editor pane from parent
 		const editorPaneContainer = this._activeEditorPane.getContainer();
@@ -492,7 +493,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
-		this.safeRun(() => this._activeEditorPane?.setVisible(visible, this.groupView));
+		this.safeRun(() => this._activeEditorPane?.setVisible(visible));
 	}
 
 	layout(pagePosition: IDomNodePagePosition): void {

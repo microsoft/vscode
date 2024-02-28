@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ICodeEditorViewState, IDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -26,7 +26,7 @@ import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -108,7 +108,7 @@ export class InteractiveEditor extends EditorPane {
 	private _editorOptions: IEditorOptions;
 	private _notebookOptions: NotebookOptions;
 	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	private _groupListener = this._register(new DisposableStore());
+	private _groupListener = this._register(new MutableDisposable());
 	private _runbuttonToolbar: ToolBar | undefined;
 
 	private _onDidFocusWidget = this._register(new Emitter<void>());
@@ -681,12 +681,9 @@ export class InteractiveEditor extends EditorPane {
 		this._notebookWidget.value!.focus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-		if (group) {
-			this._groupListener.clear();
-			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-		}
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this._groupListener.value = this.group.onWillCloseEditor(e => this._saveEditorViewState(e.editor));
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);

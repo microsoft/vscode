@@ -45,12 +45,12 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		this.viewState = this.getEditorMemento<T>(editorGroupService, textResourceConfigurationService, viewStateStorageKey, 100);
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean): void {
 
 		// Listen to close events to trigger `onWillCloseEditorInGroup`
-		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditor(e));
+		this.groupListener.value = this.group.onWillCloseEditor(e => this.onWillCloseEditor(e));
 
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	private onWillCloseEditor(e: IEditorCloseEvent): void {

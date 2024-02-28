@@ -22,7 +22,6 @@ import { ITerminalEditorService, ITerminalService, terminalEditorId } from 'vs/w
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -199,8 +198,8 @@ export class TerminalEditor extends EditorPane {
 		this._lastDimension = dimension;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
-		super.setVisible(visible, group);
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
 		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, dom.getWindow(this._editorInstanceElement)));
 	}
 

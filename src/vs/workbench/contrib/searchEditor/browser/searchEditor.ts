@@ -658,7 +658,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	private getInput(): SearchEditorInput | undefined {
-		return this._input as SearchEditorInput;
+		return this.input as SearchEditorInput;
 	}
 
 	private priorConfig: Partial<Readonly<SearchConfiguration>> | undefined;

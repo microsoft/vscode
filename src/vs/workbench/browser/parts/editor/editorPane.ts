@@ -14,7 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { isEmptyObject } from 'vs/base/common/types';
+import { assertIsDefined, isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
@@ -71,7 +71,8 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	get options(): IEditorOptions | undefined { return this._options; }
 
 	private _group: IEditorGroup | undefined;
-	get group(): IEditorGroup | undefined { return this._group; }
+	get group(): IEditorGroup { return assertIsDefined(this._group); }
+	set group(group: IEditorGroup) { this._group = group; }
 
 	/**
 	 * Should be overridden by editors that have their own ScopedContextKeyService
@@ -145,22 +146,20 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		this._options = options;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
+	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
 
 		// Propagate to Editor
-		this.setEditorVisible(visible, group);
+		this.setEditorVisible(visible);
 	}
 
 	/**
-	 * Indicates that the editor control got visible or hidden in a specific group. A
-	 * editor instance will only ever be visible in one editor group.
+	 * Indicates that the editor control got visible or hidden.
 	 *
 	 * @param visible the state of visibility of this editor
-	 * @param group the editor group this editor is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		this._group = group;
+	protected setEditorVisible(visible: boolean): void {
+		// Subclasses can implement
 	}
 
 	setBoundarySashes(_sashes: IBoundarySashes) {

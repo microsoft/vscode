@@ -35,7 +35,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NOTEBOOK_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
@@ -150,24 +150,22 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		return this._widget.value;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup | undefined): void {
-		super.setVisible(visible, group);
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
 		if (!visible) {
 			this._widget.value?.onWillHide();
 		}
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-		if (group) {
-			this._groupListener.clear();
-			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-			this._groupListener.add(group.onDidModelChange(() => {
-				if (this._editorGroupService.activeGroup !== group) {
-					this._widget?.value?.updateEditorFocus();
-				}
-			}));
-		}
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this._groupListener.clear();
+		this._groupListener.add(this.group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
+		this._groupListener.add(this.group.onDidModelChange(() => {
+			if (this._editorGroupService.activeGroup !== this.group) {
+				this._widget?.value?.updateEditorFocus();
+			}
+		}));
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);
@@ -545,11 +543,11 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		this._pagePosition = { dimension, position };
 
-		if (!this._widget.value || !(this._input instanceof NotebookEditorInput)) {
+		if (!this._widget.value || !(this.input instanceof NotebookEditorInput)) {
 			return;
 		}
 
-		if (this._input.resource.toString() !== this.textModel?.uri.toString() && this._widget.value?.hasModel()) {
+		if (this.input.resource.toString() !== this.textModel?.uri.toString() && this._widget.value?.hasModel()) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document
