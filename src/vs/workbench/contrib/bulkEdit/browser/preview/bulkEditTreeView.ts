@@ -251,6 +251,7 @@ export class BulkEditTreeView extends Disposable {
 	}
 
 	private _done(accept: boolean): void {
+		console.log('inside of _done, accept : ', accept);
 		this._currentResolve?.(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
 		this._currentInput = undefined;
 		this._sessionDisposables.clear();

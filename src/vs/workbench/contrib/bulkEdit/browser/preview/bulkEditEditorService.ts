@@ -66,7 +66,17 @@ export class BulkEditEditorService implements IBulkEditEditorService {
 			description: label
 		}, ACTIVE_GROUP) as BulkEditEditor;
 
+		// Suppose close before the edits are resolved
+
+		const onDidCloseEditor = this._editorService.onDidCloseEditor(e => {
+			if (e.editor === this._bulkEditEditor?.input) {
+				this.discard();
+			}
+		});
+
 		const resolvedEdits = await this._bulkEditEditor.promiseResolvedEdits;
+		onDidCloseEditor.dispose();
+		console.log('resolvedEdits : ', resolvedEdits);
 		await this._closeBulkEditEditor();
 		return resolvedEdits;
 	}
