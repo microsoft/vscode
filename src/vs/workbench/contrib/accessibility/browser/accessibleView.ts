@@ -40,7 +40,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -127,6 +127,12 @@ export interface IAccessibleViewOptions {
 	id?: AccessibleViewProviderId;
 }
 
+interface ICodeBlock {
+	startLine: number;
+	endLine: number;
+	code: string;
+}
+
 export class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 
@@ -137,6 +143,9 @@ export class AccessibleView extends Disposable {
 	private _accessibleViewVerbosityEnabled: IContextKey<boolean>;
 	private _accessibleViewGoToSymbolSupported: IContextKey<boolean>;
 	private _accessibleViewCurrentProviderId: IContextKey<string>;
+	private _accessibleViewInCodeBlock: IContextKey<boolean>;
+	private _accessibleViewContainsCodeBlocks: IContextKey<boolean>;
+	private _codeBlocks?: ICodeBlock[];
 
 	get editorWidget() { return this._editorWidget; }
 	private _container: HTMLElement;
@@ -169,6 +178,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewVerbosityEnabled = accessibleViewVerbosityEnabled.bindTo(this._contextKeyService);
 		this._accessibleViewGoToSymbolSupported = accessibleViewGoToSymbolSupported.bindTo(this._contextKeyService);
 		this._accessibleViewCurrentProviderId = accessibleViewCurrentProviderId.bindTo(this._contextKeyService);
+		this._accessibleViewInCodeBlock = accessibleViewInCodeBlock.bindTo(this._contextKeyService);
+		this._accessibleViewContainsCodeBlocks = accessibleViewContainsCodeBlocks.bindTo(this._contextKeyService);
 		this._onLastLine = accessibleViewOnLastLine.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
@@ -228,6 +239,13 @@ export class AccessibleView extends Disposable {
 		this._register(this._editorWidget.onDidDispose(() => this._resetContextKeys()));
 		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
 			this._onLastLine.set(this._editorWidget.getPosition()?.lineNumber === this._editorWidget.getModel()?.getLineCount());
+		}));
+		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
+			const cursorPosition = this._editorWidget.getPosition()?.lineNumber;
+			if (this._codeBlocks && cursorPosition !== undefined) {
+				const inCodeBlock = this._codeBlocks.find(c => c.startLine <= cursorPosition && c.endLine >= cursorPosition) !== undefined;
+				this._accessibleViewInCodeBlock.set(inCodeBlock);
+			}
 		}));
 	}
 
@@ -326,6 +344,33 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		this._instantiationService.createInstance(AccessibleViewSymbolQuickPick, this).show(this._currentProvider);
+	}
+
+	calculateCodeBlocks(markdown: string): void {
+		if (!this._currentProvider) {
+			return;
+		}
+		if (this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown') {
+			// Symbols haven't been provided and we cannot parse this language
+			return;
+		}
+		const lines = markdown.split('\n');
+		this._codeBlocks = [];
+		let inBlock = false;
+		let startLine = 0;
+
+		lines.forEach((line, i) => {
+			if (!inBlock && line.startsWith('```')) {
+				inBlock = true;
+				startLine = i + 1;
+			} else if (inBlock && line.startsWith('```')) {
+				inBlock = false;
+				const endLine = i;
+				const code = lines.slice(startLine, endLine).join('\n');
+				this._codeBlocks?.push({ startLine, endLine, code });
+			}
+		});
+		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);
 	}
 
 	getSymbols(): IAccessibleViewSymbol[] | undefined {
@@ -459,7 +504,11 @@ export class AccessibleView extends Disposable {
 		}
 		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
-		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
+		const newContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
+		if (newContent && newContent !== this._currentContent && provider.options.type !== AccessibleViewType.Help && !provider.options.language || provider.options.language === 'markdown') {
+			this.calculateCodeBlocks(newContent);
+		}
+		this._currentContent = newContent;
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
@@ -775,6 +824,7 @@ export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	markdownToParse?: string;
 	firstListItem?: string;
 	lineNumber?: number;
+	endLineNumber?: number;
 }
 
 function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService, configurationService: IConfigurationService): boolean {
