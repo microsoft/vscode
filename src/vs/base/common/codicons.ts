@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ThemeIcon } from 'vs/base/common/themables';
-import { codiconsCore } from 'vs/base/common/codiconsCore';
-import { codiconsExtra } from 'vs/base/common/codiconsExtra';
+import { register } from 'vs/base/common/codiconsUtil';
+import { codiconsLibrary } from 'vs/base/common/codiconsLibrary';
 
 
 /**
@@ -14,6 +14,31 @@ export function getAllCodicons(): ThemeIcon[] {
 	return Object.values(Codicon);
 }
 
+/**
+ * Derived icons, that could become separate icons.
+ * These mappings should be moved into the mapping file in the vscode-codicons repo at some point
+ */
+export const codiconsDerived = {
+	dialogError: register('dialog-error', 'error'),
+	dialogWarning: register('dialog-warning', 'warning'),
+	dialogInfo: register('dialog-info', 'info'),
+	dialogClose: register('dialog-close', 'close'),
+	treeItemExpanded: register('tree-item-expanded', 'chevron-down'), // collapsed is done with rotation
+	treeFilterOnTypeOn: register('tree-filter-on-type-on', 'list-filter'),
+	treeFilterOnTypeOff: register('tree-filter-on-type-off', 'list-selection'),
+	treeFilterClear: register('tree-filter-clear', 'close'),
+	treeItemLoading: register('tree-item-loading', 'loading'),
+	menuSelection: register('menu-selection', 'check'),
+	menuSubmenu: register('menu-submenu', 'chevron-right'),
+	menuBarMore: register('menubar-more', 'more'),
+	scrollbarButtonLeft: register('scrollbar-button-left', 'triangle-left'),
+	scrollbarButtonRight: register('scrollbar-button-right', 'triangle-right'),
+	scrollbarButtonUp: register('scrollbar-button-up', 'triangle-up'),
+	scrollbarButtonDown: register('scrollbar-button-down', 'triangle-down'),
+	toolBarMore: register('toolbar-more', 'more'),
+	quickInputBack: register('quick-input-back', 'arrow-left')
+
+} as const;
 
 /**
  * The Codicon library is a set of default icons that are built-in in VS Code.
@@ -23,7 +48,7 @@ export function getAllCodicons(): ThemeIcon[] {
  * In that call a Codicon can be named as default.
  */
 export const Codicon = {
-	...codiconsCore,
-	...codiconsExtra
+	...codiconsLibrary,
+	...codiconsDerived
 
 } as const;
