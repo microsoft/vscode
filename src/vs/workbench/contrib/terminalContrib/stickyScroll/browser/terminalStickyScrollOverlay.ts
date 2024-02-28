@@ -245,6 +245,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		// Hide sticky scroll if the prompt has been trimmed from the buffer
+		if (command.promptStartMarker?.line === -1) {
+			this._setVisible(false);
+			return;
+		}
+
 		// Determine sticky scroll line count
 		const buffer = xterm.buffer.active;
 		const promptRowCount = command.getPromptRowCount();
