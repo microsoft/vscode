@@ -143,7 +143,7 @@ async fn send_data_or_close_if_none(
 	tx: &mut ServerMessageDestination,
 	msg: Option<RefServerMessageParams<'_>>,
 ) -> Result<(), mpsc::error::SendError<SocketSignal>> {
-	let r = match tx {
+	match tx {
 		ServerMessageDestination::Channel(tx) => {
 			tx.send(SocketSignal::from_message(&ToClientRequest {
 				id: None,
@@ -161,9 +161,7 @@ async fn send_data_or_close_if_none(
 			};
 			Ok(())
 		}
-	};
-
-	r
+	}
 }
 
 impl Drop for ServerMessageSink {
