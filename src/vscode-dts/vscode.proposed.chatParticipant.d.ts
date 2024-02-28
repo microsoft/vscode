@@ -216,11 +216,6 @@ declare module 'vscode' {
 		requestHandler: ChatRequestHandler;
 
 		/**
-		 * This provider will be called to retrieve the participant's commands.
-		 */
-		// commandProvider?: ChatCommandProvider;
-
-		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
 		followupProvider?: ChatFollowupProvider;
