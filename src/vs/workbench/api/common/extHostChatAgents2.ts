@@ -513,10 +513,6 @@ class ExtHostChatAgent {
 			},
 			set helpTextPrefix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				if (!that._isDefault) {
-					throw new Error('helpTextPrefix is only available on the default chat agent');
-				}
-
 				that._helpTextPrefix = v;
 				updateMetadataSoon();
 			},
@@ -526,10 +522,6 @@ class ExtHostChatAgent {
 			},
 			set helpTextVariablesPrefix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				if (!that._isDefault) {
-					throw new Error('helpTextVariablesPrefix is only available on the default chat agent');
-				}
-
 				that._helpTextVariablesPrefix = v;
 				updateMetadataSoon();
 			},
@@ -539,10 +531,6 @@ class ExtHostChatAgent {
 			},
 			set helpTextPostfix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				if (!that._isDefault) {
-					throw new Error('helpTextPostfix is only available on the default chat agent');
-				}
-
 				that._helpTextPostfix = v;
 				updateMetadataSoon();
 			},

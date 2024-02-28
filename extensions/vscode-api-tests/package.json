@@ -67,7 +67,13 @@
     "chatParticipant": [
       {
         "name": "participant",
-        "description": "test"
+        "description": "test",
+        "commands": [
+          {
+            "name": "hello",
+            "description": "Hello"
+          }
+        ]
       }
     ],
     "configuration": {

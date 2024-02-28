@@ -19,13 +19,12 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionCh
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 type AgentData = {
 	dispose: () => void;
@@ -50,7 +49,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatContributionService private readonly _chatContributionService: IChatContributionService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -84,9 +82,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			throw new Error(`chatParticipant must be declared in package.json: ${name}`);
 		}
 
-		const d = this._chatAgentService.registerAgent(name, {
+		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
-				await this._extensionService.activateByEvent(`onChatParticipant:${request.agentId}`);
 				this._pendingProgress.set(request.requestId, progress);
 				try {
 					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};
@@ -107,10 +104,25 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			provideSampleQuestions: (token: CancellationToken) => {
 				return this._proxy.$provideSampleQuestions(handle, token);
 			}
-		});
+		};
+
+		let disposable: IDisposable;
+		if (!staticAgentRegistration && allowDynamic) {
+			disposable = this._chatAgentService.registerDynamicAgent(
+				{
+					id: name,
+					extensionId: extension,
+					metadata: revive(metadata),
+					slashCommands: [],
+				},
+				impl);
+		} else {
+			disposable = this._chatAgentService.registerAgent(name, impl);
+		}
+
 		this._agents.set(handle, {
 			name,
-			dispose: d.dispose,
+			dispose: disposable.dispose,
 			hasFollowups: metadata.hasFollowups
 		});
 	}

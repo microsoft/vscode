@@ -428,9 +428,9 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getActivatedAgents();
+				const agents = this.chatAgentService.getRegisteredAgents();
 				const justAgents: CompletionItem[] = agents
-					.filter(a => !a.data.isDefault)
+					.filter(a => !a.isDefault)
 					.map(agent => {
 						const agentLabel = `${chatAgentLeader}${agent.id}`;
 						return {

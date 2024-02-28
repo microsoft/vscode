@@ -6,7 +6,7 @@
 import { revive } from 'vs/base/common/marshalling';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatAgent, IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 

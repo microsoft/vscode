@@ -11,7 +11,7 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IChatAgent, IChatAgentCommand, IChatAgentHistoryEntry, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatProgress, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
@@ -47,7 +47,8 @@ suite('VoiceChat', () => {
 	class TestChatAgentService implements IChatAgentService {
 		_serviceBrand: undefined;
 		readonly onDidChangeAgents = Event.None;
-		registerAgent(agent: IChatAgent): IDisposable { throw new Error(); }
+		registerAgent(name: string, agent: IChatAgentImplementation): IDisposable { throw new Error(); }
+		registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable { throw new Error('Method not implemented.'); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
 		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
 		getRegisteredAgents(): Array<IChatAgent> { return agents; }

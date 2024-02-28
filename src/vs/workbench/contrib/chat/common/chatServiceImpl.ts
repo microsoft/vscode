@@ -531,6 +531,7 @@ export class ChatService extends Disposable implements IChatService {
 				const defaultAgent = this.chatAgentService.getDefaultAgent();
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const agent = (agentPart?.agent ?? defaultAgent)!;
+					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
 					const history = getHistoryEntriesFromModel(model);
 
 					const initVariableData: IChatRequestVariableData = { variables: [] };
