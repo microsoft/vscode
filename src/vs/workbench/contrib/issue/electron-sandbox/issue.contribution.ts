@@ -19,9 +19,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
-// eslint-disable-next-line local/code-import-patterns
-import { IssueQuickAccess } from 'vs/code/electron-sandbox/issue/issueQuickAccess';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 
 //#region Issue Contribution
 
