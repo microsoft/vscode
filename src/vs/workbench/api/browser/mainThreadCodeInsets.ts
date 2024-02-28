@@ -44,7 +44,7 @@ class EditorWebviewZone implements IViewZone {
 		this.heightInLines = height;
 
 		editor.changeViewZones(accessor => this._id = accessor.addZone(this));
-		webview.mountTo(this.domNode);
+		webview.mountTo(this.domNode, getWindow(editor.getDomNode()));
 	}
 
 	dispose(): void {
@@ -96,8 +96,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 				enableFindWidget: false,
 			},
 			contentOptions: reviveWebviewContentOptions(options),
-			extension: { id: extensionId, location: URI.revive(extensionLocation) },
-			codeWindow: getWindow(editor.getDomNode())
+			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		});
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);

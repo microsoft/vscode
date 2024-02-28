@@ -181,8 +181,7 @@ export class WebviewViewPane extends ViewPane {
 			title: this.title,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
-			extension: this.extensionId ? { id: this.extensionId } : undefined,
-			codeWindow: codeWindow
+			extension: this.extensionId ? { id: this.extensionId } : undefined
 		});
 		webview.state = this.viewState[storageKeys.webviewState];
 		this._webview.value = webview;

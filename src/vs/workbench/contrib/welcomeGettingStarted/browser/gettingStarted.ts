@@ -539,11 +539,11 @@ export class GettingStartedPage extends EditorPane {
 
 			const codeWindow = getWindowById(this.group?.windowId, true).window;
 			if (stepToExpand.media.type === 'svg') {
-				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: { disableServiceWorker: true }, contentOptions: {}, extension: undefined, codeWindow }));
-				this.webview.mountTo(this.stepMediaComponent);
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: { disableServiceWorker: true }, contentOptions: {}, extension: undefined }));
+				this.webview.mountTo(this.stepMediaComponent, codeWindow);
 			} else if (stepToExpand.media.type === 'markdown') {
-				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined, codeWindow }));
-				this.webview.mountTo(this.stepMediaComponent);
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined }));
+				this.webview.mountTo(this.stepMediaComponent, codeWindow);
 			}
 		}
 

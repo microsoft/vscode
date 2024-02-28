@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
@@ -101,7 +100,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 	}
 }
 
-function reviveWebview(webviewService: IWebviewService, data: { origin: string | undefined; viewType: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription; codeWindow: CodeWindow }) {
+function reviveWebview(webviewService: IWebviewService, data: { origin: string | undefined; viewType: string; state: any; webviewOptions: WebviewOptions; contentOptions: WebviewContentOptions; extension?: WebviewExtensionDescription }) {
 	const webview = webviewService.createWebviewOverlay({
 		providedViewType: data.viewType,
 		origin: data.origin,
@@ -112,8 +111,7 @@ function reviveWebview(webviewService: IWebviewService, data: { origin: string |
 			retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden,
 		},
 		contentOptions: data.contentOptions,
-		extension: data.extension,
-		codeWindow: data.codeWindow
+		extension: data.extension
 	});
 	webview.state = data.state;
 	return webview;
@@ -186,8 +184,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 			webviewOptions: restoreWebviewOptions(backupData.webview.options),
 			contentOptions: restoreWebviewContentOptions(backupData.webview.options),
 			state: backupData.webview.state,
-			extension,
-			codeWindow: mainWindow
+			extension
 		});
 
 		const editor = this._instantiationService.createInstance(CustomEditorInput, { resource: URI.revive(backupData.editorResource), viewType: backupData.viewType }, webview, { backupId: backupData.backupId });

@@ -551,13 +551,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		];
 	}
 
-	private _initialize(content: string, codeWindow: CodeWindow): Promise<void> {
+	private async _initialize(content: string, codeWindow: CodeWindow): Promise<void> {
 		if (!getWindow(this.element).document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
 
-		this.webview = this._createInset(this.webviewService, content, codeWindow);
-		this.webview.mountTo(this.element);
+		this.webview = this._createInset(this.webviewService, content);
+		this.webview.mountTo(this.element, codeWindow);
 		this._register(this.webview);
 
 		this._register(new WebviewWindowDragMonitor(codeWindow, () => this.webview));
@@ -1123,7 +1123,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		await this.openerService.open(newFileUri);
 	}
 
-	private _createInset(webviewService: IWebviewService, content: string, codeWindow: CodeWindow) {
+	private _createInset(webviewService: IWebviewService, content: string) {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
 			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
@@ -1139,8 +1139,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				localResourceRoots: this.localResourceRootsCache,
 			},
 			extension: undefined,
-			providedViewType: 'notebook.output',
-			codeWindow: codeWindow
+			providedViewType: 'notebook.output'
 		});
 
 		webview.setHtml(content);

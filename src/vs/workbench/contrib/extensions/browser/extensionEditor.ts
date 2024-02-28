@@ -671,8 +671,7 @@ export class ExtensionEditor extends EditorPane {
 					disableServiceWorker: true,
 				},
 				contentOptions: {},
-				extension: undefined,
-				codeWindow
+				extension: undefined
 			}));
 
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowById } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -24,7 +22,6 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
@@ -46,16 +43,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
 			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
-			const editorGroupService = accessor.get(IEditorGroupsService);
-			const windowId = group ? editorGroupService.getGroup(group)?.windowId : undefined;
-			const codeWindow = windowId ? (getWindowById(windowId)?.window ?? mainWindow) : mainWindow;
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: viewType,
 				title: undefined,
 				options: { customClasses: options?.customClasses },
 				contentOptions: {},
-				extension: undefined,
-				codeWindow
+				extension: undefined
 			});
 			const input = instantiationService.createInstance(CustomEditorInput, { resource, viewType }, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
@@ -142,7 +135,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		let capabilities = EditorInputCapabilities.None;
 
 		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
-		capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
+		// capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;

@@ -105,7 +105,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this.
-			this._layoutService.mainContainer.appendChild(node);
+			const layoutContainer = this._codeWindow ? this._layoutService.getContainer(this._codeWindow) : this._layoutService.mainContainer;
+			layoutContainer.appendChild(node);
 		}
 
 		return this._container.domNode;
@@ -117,6 +118,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 
 		const oldOwner = this._owner;
+
+		if (this._codeWindow && this._codeWindow?.vscodeWindowId !== codeWindow.vscodeWindowId) {
+			// moving to a new window
+			this.release(oldOwner);
+			this._container?.domNode.remove();
+			this._container = undefined;
+		}
 
 		this._owner = owner;
 		this._codeWindow = codeWindow;
@@ -199,8 +207,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				title: this._title,
 				options: this._options,
 				contentOptions: this._contentOptions,
-				extension: this.extension,
-				codeWindow: codeWindow
+				extension: this.extension
 			});
 			this._webview.value = webview;
 			webview.state = this._state;
@@ -219,7 +226,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			this._findWidgetEnabled?.set(!!this.options.enableFindWidget);
 
-			webview.mountTo(this.container);
+			webview.mountTo(this.container, codeWindow);
 
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();

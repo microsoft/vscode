@@ -78,7 +78,6 @@ export interface WebviewInitInfo {
 	readonly contentOptions: WebviewContentOptions;
 
 	readonly extension: WebviewExtensionDescription | undefined;
-	readonly codeWindow: CodeWindow;
 }
 
 export const enum WebviewContentPurpose {
@@ -278,7 +277,7 @@ export interface IWebviewElement extends IWebview {
 	 *
 	 * @param parent Element to append the webview to.
 	 */
-	mountTo(parent: HTMLElement): void;
+	mountTo(parent: HTMLElement, codeWindow: CodeWindow): void;
 }
 
 /**
