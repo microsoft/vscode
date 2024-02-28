@@ -532,6 +532,7 @@ suite('SearchResult', () => {
 		const fileMatch = instantiationService.createInstance(FileMatch, {
 			pattern: ''
 		}, undefined, undefined, root, rawMatch, null, '');
+		fileMatch.createMatches(false);
 
 		store.add(fileMatch);
 		return fileMatch;

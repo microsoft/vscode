@@ -125,6 +125,7 @@ suite('Search Actions', () => {
 		const fileMatch = instantiationService.createInstance(FileMatch, {
 			pattern: ''
 		}, undefined, undefined, folderMatch, rawMatch, null, '');
+		fileMatch.createMatches(false);
 		store.add(fileMatch);
 		return fileMatch;
 	}

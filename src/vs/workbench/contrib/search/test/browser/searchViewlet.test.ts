@@ -180,6 +180,7 @@ suite('Search - Viewlet', () => {
 		const fileMatch = instantiation.createInstance(FileMatch, {
 			pattern: ''
 		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
+		fileMatch.createMatches(false);
 		store.add(fileMatch);
 		return fileMatch;
 	}
