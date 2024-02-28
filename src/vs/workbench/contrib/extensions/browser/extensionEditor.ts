@@ -661,8 +661,6 @@ export class ExtensionEditor extends EditorPane {
 				return Promise.resolve(null);
 			}
 
-			const codeWindow = getWindowById(this.group?.windowId, true).window;
-
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
 				title,
 				options: {
@@ -671,11 +669,12 @@ export class ExtensionEditor extends EditorPane {
 					disableServiceWorker: true,
 				},
 				contentOptions: {},
-				extension: undefined
+				extension: undefined,
 			}));
 
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 
+			const codeWindow = getWindowById(this.group?.windowId, true).window;
 			webview.claim(this, codeWindow, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
 			webview.layoutWebviewOverElement(container);

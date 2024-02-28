@@ -48,7 +48,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				title: undefined,
 				options: { customClasses: options?.customClasses },
 				contentOptions: {},
-				extension: undefined
+				extension: undefined,
 			});
 			const input = instantiationService.createInstance(CustomEditorInput, { resource, viewType }, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
@@ -135,7 +135,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		let capabilities = EditorInputCapabilities.None;
 
 		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
-		// capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;

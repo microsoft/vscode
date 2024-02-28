@@ -111,7 +111,7 @@ function reviveWebview(webviewService: IWebviewService, data: { origin: string |
 			retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden,
 		},
 		contentOptions: data.contentOptions,
-		extension: data.extension
+		extension: data.extension,
 	});
 	webview.state = data.state;
 	return webview;
@@ -184,7 +184,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 			webviewOptions: restoreWebviewOptions(backupData.webview.options),
 			contentOptions: restoreWebviewContentOptions(backupData.webview.options),
 			state: backupData.webview.state,
-			extension
+			extension,
 		});
 
 		const editor = this._instantiationService.createInstance(CustomEditorInput, { resource: URI.revive(backupData.editorResource), viewType: backupData.viewType }, webview, { backupId: backupData.backupId });
