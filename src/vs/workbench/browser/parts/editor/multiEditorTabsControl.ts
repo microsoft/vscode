@@ -2011,6 +2011,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Reset dimensions if hidden
 		if (!this.visible && this.dimensions) {
+			this.groupView.relayout();
 			this.dimensions.used = undefined;
 		}
 	}
