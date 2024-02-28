@@ -256,7 +256,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const buffer = xterm.buffer.active;
 		const promptRowCount = command.getPromptRowCount();
 		const commandRowCount = command.getCommandRowCount();
-		let stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
+		const stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
 
 		// Calculate the row offset, this is the number of rows that will be clipped from the top
 		// of the sticky overlay because we do not want to show any content above the bounds of the
@@ -265,18 +265,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const isPartialCommand = !('getOutput' in command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
 		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
-		let stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
-
-		// TODO: This needs to not be throttled
-		// Adjust sticky scroll content if it would below the end of the command, obscuring the
-		// following command.
-		if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
-			if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
-				const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
-				stickyScrollLineStart += diff;
-				stickyScrollLineCount -= diff;
-			}
-		}
+		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
 		if (buffer.viewportY <= stickyScrollLineStart) {
@@ -336,7 +325,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				const termBox = xterm.element.getBoundingClientRect();
 				const rowHeight = termBox.height / xterm.rows;
 				const overlayHeight = stickyScrollLineCount * rowHeight;
-				this._element.style.bottom = `${termBox.height - overlayHeight + 1}px`;
+
+				// Adjust sticky scroll content if it would below the end of the command, obscuring the
+				// following command.
+				let endMarkerOffset = 0;
+				if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
+					if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
+						const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+						endMarkerOffset = diff * rowHeight;
+					}
+				}
+
+				this._element.style.bottom = `${termBox.height - overlayHeight + 1 + endMarkerOffset}px`;
 			}
 		} else {
 			this._setVisible(false);
