@@ -33,6 +33,8 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./media/tree';
 import { localize } from 'vs/nls';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -679,6 +681,7 @@ export interface ITreeFindToggleOpts {
 	readonly inputActiveOptionBorder: string | undefined;
 	readonly inputActiveOptionForeground: string | undefined;
 	readonly inputActiveOptionBackground: string | undefined;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export class ModeToggle extends Toggle {
@@ -687,6 +690,7 @@ export class ModeToggle extends Toggle {
 			icon: Codicon.listFilter,
 			title: localize('filter', "Filter"),
 			isChecked: opts.isChecked ?? false,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -700,6 +704,7 @@ export class FuzzyToggle extends Toggle {
 			icon: Codicon.searchFuzzy,
 			title: localize('fuzzySearch', "Fuzzy Match"),
 			isChecked: opts.isChecked ?? false,
+			hoverDelegate: opts.hoverDelegate ?? getDefaultHoverDelegate('element'),
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
@@ -802,8 +807,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 			this.elements.root.style.boxShadow = `0 0 8px 2px ${styles.listFilterWidgetShadow}`;
 		}
 
-		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter }));
-		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy }));
+		const toggleHoverDelegate = this._register(createInstantHoverDelegate());
+		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter, hoverDelegate: toggleHoverDelegate }));
+		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy, hoverDelegate: toggleHoverDelegate }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
 		this.onDidChangeMatchType = Event.map(this.matchTypeToggle.onChange, () => this.matchTypeToggle.checked ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous, this._store);
 
@@ -1602,7 +1608,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		const isVisible = !!state && state.count > 0;
 
 		// If state has not changed, do nothing
-		if ((!wasVisible && !isVisible) || (wasVisible && isVisible && this._previousState!.equal(state!))) {
+		if ((!wasVisible && !isVisible) || (wasVisible && isVisible && this._previousState!.equal(state))) {
 			return;
 		}
 
@@ -2551,7 +2557,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.findController = new FindController(this, this.model, this.view, filter!, _options.contextViewProvider, opts);
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
-			this.disposables.add(this.findController!);
+			this.disposables.add(this.findController);
 			this.onDidChangeFindMode = this.findController.onDidChangeMode;
 			this.onDidChangeFindMatchType = this.findController.onDidChangeMatchType;
 		} else {
@@ -2960,7 +2966,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			const node = queue.shift()!;
 
 			if (node !== root && node.collapsible) {
-				state.expanded[getId(node.element!)] = node.collapsed ? 0 : 1;
+				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
 			}
 
 			queue.push(...node.children);

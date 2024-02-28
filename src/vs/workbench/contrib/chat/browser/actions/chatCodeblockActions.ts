@@ -17,7 +17,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -28,7 +28,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, IDocumentContext, ChatAgentCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -81,10 +81,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.copyCodeBlock',
-				title: {
-					value: localize('interactive.copyCodeBlock.label', "Copy"),
-					original: 'Copy'
-				},
+				title: localize2('interactive.copyCodeBlock.label', "Copy"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.copy,
@@ -111,10 +108,11 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'copy',
 						codeBlockIndex: context.codeBlockIndex,
-						copyKind: ChatAgentCopyKind.Toolbar,
+						copyKind: ChatCopyKind.Toolbar,
 						copiedCharacters: context.code.length,
 						totalCharacters: context.code.length,
 						copiedText: context.code,
@@ -154,10 +152,11 @@ export function registerChatCodeBlockActions() {
 			agentId: context.element.agent?.id,
 			sessionId: context.element.sessionId,
 			requestId: context.element.requestId,
+			result: context.element.result,
 			action: {
 				kind: 'copy',
 				codeBlockIndex: context.codeBlockIndex,
-				copyKind: ChatAgentCopyKind.Action,
+				copyKind: ChatCopyKind.Action,
 				copiedText,
 				copiedCharacters: copiedText.length,
 				totalCharacters,
@@ -177,10 +176,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
-				title: {
-					value: localize('interactive.insertCodeBlock.label', "Insert at Cursor"),
-					original: 'Insert at Cursor'
-				},
+				title: localize2('interactive.insertCodeBlock.label', "Insert at Cursor"),
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -331,6 +327,7 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'insert',
 						codeBlockIndex: context.codeBlockIndex,
@@ -346,10 +343,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
-				title: {
-					value: localize('interactive.insertIntoNewFile.label', "Insert into New File"),
-					original: 'Insert into New File'
-				},
+				title: localize2('interactive.insertIntoNewFile.label', "Insert into New File"),
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -379,6 +373,7 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'insert',
 						codeBlockIndex: context.codeBlockIndex,
@@ -391,17 +386,19 @@ export function registerChatCodeBlockActions() {
 	});
 
 	const shellLangIds = [
+		'fish',
+		'ps1',
+		'pwsh',
 		'powershell',
-		'shellscript'
+		'sh',
+		'shellscript',
+		'zsh'
 	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
-				title: {
-					value: localize('interactive.runInTerminal.label', "Insert into Terminal"),
-					original: 'Insert into Terminal'
-				},
+				title: localize2('interactive.runInTerminal.label', "Insert into Terminal"),
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -474,6 +471,7 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
+					result: context.element.result,
 					action: {
 						kind: 'runInTerminal',
 						codeBlockIndex: context.codeBlockIndex,
@@ -518,10 +516,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.nextCodeBlock',
-				title: {
-					value: localize('interactive.nextCodeBlock.label', "Next Code Block"),
-					original: 'Next Code Block'
-				},
+				title: localize2('interactive.nextCodeBlock.label', "Next Code Block"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
@@ -543,10 +538,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.previousCodeBlock',
-				title: {
-					value: localize('interactive.previousCodeBlock.label', "Previous Code Block"),
-					original: 'Previous Code Block'
-				},
+				title: localize2('interactive.previousCodeBlock.label', "Previous Code Block"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },

@@ -7,20 +7,23 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { IDebugService, IExpression, IExpressionValue } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
 import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -145,6 +148,37 @@ export interface IExpressionTemplateData {
 	currentElement: IExpression | undefined;
 }
 
+export abstract class AbstractExpressionDataSource<Input, Element extends IExpression> implements IAsyncDataSource<Input, Element> {
+	constructor(
+		@IDebugService protected debugService: IDebugService,
+		@IDebugVisualizerService protected debugVisualizer: IDebugVisualizerService,
+	) { }
+
+	public abstract hasChildren(element: Input | Element): boolean;
+
+	public async getChildren(element: Input | Element): Promise<Element[]> {
+		const vm = this.debugService.getViewModel();
+		const children = await this.doGetChildren(element);
+		return Promise.all(children.map(async r => {
+			const vizOrTree = vm.getVisualizedExpression(r as IExpression);
+			if (typeof vizOrTree === 'string') {
+				const viz = await this.debugVisualizer.getVisualizedNodeFor(vizOrTree, r);
+				if (viz) {
+					vm.setVisualizedExpression(r, viz);
+					return viz as IExpression as Element;
+				}
+			} else if (vizOrTree) {
+				return vizOrTree as Element;
+			}
+
+
+			return r;
+		}));
+	}
+
+	protected abstract doGetChildren(element: Input | Element): Promise<Element[]>;
+}
+
 export abstract class AbstractExpressionsRenderer<T = IExpression> implements ITreeRenderer<T, FuzzyScore, IExpressionTemplateData> {
 
 	constructor(
@@ -155,18 +189,17 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	abstract get templateId(): string;
 
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
+		const templateDisposable = new DisposableStore();
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
-		lazyButton.title = localize('debug.lazyButton.tooltip', "Click to expand");
+		templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
 		const value = dom.append(expression, $('span.value'));
 
-		const label = new HighlightedLabel(name);
+		const label = templateDisposable.add(new HighlightedLabel(name));
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
-
-		const templateDisposable = new DisposableStore();
 
 		let actionBar: ActionBar | undefined;
 		if (this.renderActionBar) {

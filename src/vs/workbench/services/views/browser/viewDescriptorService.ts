@@ -18,7 +18,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 
@@ -839,10 +839,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			constructor() {
 				super({
 					id: `${viewContainer.id}.resetViewContainerLocation`,
-					title: {
-						original: 'Reset Location',
-						value: localize('resetViewLocation', "Reset Location")
-					},
+					title: localize2('resetViewLocation', "Reset Location"),
 					menu: [{
 						id: MenuId.ViewContainerTitleContext,
 						when: ContextKeyExpr.or(

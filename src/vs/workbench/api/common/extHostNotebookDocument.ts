@@ -7,7 +7,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { NotebookRange } from 'vs/workbench/api/common/extHostTypes';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -33,15 +33,14 @@ class RawContentChangeEvent {
 
 export class ExtHostCell {
 
-	static asModelAddData(notebook: vscode.NotebookDocument, cell: extHostProtocol.NotebookCellDto): IExtHostModelAddedData {
+	static asModelAddData(cell: extHostProtocol.NotebookCellDto): extHostProtocol.IModelAddedData {
 		return {
 			EOL: cell.eol,
 			lines: cell.source,
 			languageId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
-			versionId: 1,
-			notebook
+			versionId: 1
 		};
 	}
 
@@ -356,7 +355,7 @@ export class ExtHostNotebookDocument {
 		}
 
 		const contentChangeEvents: RawContentChangeEvent[] = [];
-		const addedCellDocuments: IExtHostModelAddedData[] = [];
+		const addedCellDocuments: extHostProtocol.IModelAddedData[] = [];
 		const removedCellDocuments: URI[] = [];
 
 		splices.reverse().forEach(splice => {
@@ -365,7 +364,7 @@ export class ExtHostNotebookDocument {
 
 				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
 				if (!initialization) {
-					addedCellDocuments.push(ExtHostCell.asModelAddData(this.apiNotebook, cell));
+					addedCellDocuments.push(ExtHostCell.asModelAddData(cell));
 				}
 				return extCell;
 			});
@@ -443,7 +442,17 @@ export class ExtHostNotebookDocument {
 		return this._cells[index];
 	}
 
-	getCell(cellHandle: number): ExtHostCell | undefined {
+	getCell(cellHandle: number | URI): ExtHostCell | undefined {
+		if (URI.isUri(cellHandle)) {
+			const data = notebookCommon.CellUri.parse(cellHandle);
+			if (!data) {
+				return undefined;
+			}
+			if (data.notebook.toString() !== this.uri.toString()) {
+				return undefined;
+			}
+			cellHandle = data.handle;
+		}
 		return this._cells.find(cell => cell.handle === cellHandle);
 	}
 

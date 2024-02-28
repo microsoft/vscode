@@ -86,7 +86,7 @@ suite('Debug - Base Debug View', () => {
 		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined!, endColumn: undefined! }, 0, true);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined!, 0, 0, undefined, {}, 'string');
+		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, undefined, {}, 'string');
 		let expression = $('.');
 		let name = $('.');
 		let value = $('.');
@@ -105,7 +105,6 @@ suite('Debug - Base Debug View', () => {
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(value.textContent, 'hey');
 		assert.strictEqual(label.element.textContent, 'foo:');
-		assert.strictEqual(label.element.title, 'string');
 
 		variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		expression = $('.');
@@ -122,8 +121,9 @@ suite('Debug - Base Debug View', () => {
 		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(name.className, 'virtual');
 		assert.strictEqual(label.element.textContent, 'console:');
-		assert.strictEqual(label.element.title, 'console');
 		assert.strictEqual(value.className, 'value number');
+
+		label.dispose();
 	});
 
 	test('statusbar in debug mode', () => {

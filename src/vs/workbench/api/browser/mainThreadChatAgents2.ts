@@ -13,12 +13,14 @@ import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -59,9 +61,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				for (const [handle, agent] of this._agents) {
 					if (agent.name === e.agentId) {
 						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.sessionId, e.requestId, e.action.direction);
+							this._proxy.$acceptFeedback(handle, e.result ?? {}, e.action.direction);
 						} else {
-							this._proxy.$acceptAction(handle, e.sessionId, e.requestId, e);
+							this._proxy.$acceptAction(handle, e.result || {}, e);
 						}
 						break;
 					}
@@ -74,9 +76,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void {
+	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata): void {
+		const lastSlashCommands: WeakMap<IChatModel, IChatAgentCommand[]> = new WeakMap();
 		const d = this._chatAgentService.registerAgent({
 			id: name,
+			extensionId: extension,
 			metadata: revive(metadata),
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
@@ -86,18 +90,32 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
-			provideFollowups: async (sessionId, token): Promise<IChatFollowup[]> => {
+			provideFollowups: async (request, result, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(handle, sessionId, token);
+				return this._proxy.$provideFollowups(request, handle, result, token);
 			},
-			provideSlashCommands: async (token) => {
+			getLastSlashCommands: (model: IChatModel) => {
+				return lastSlashCommands.get(model);
+			},
+			provideSlashCommands: async (model, history, token) => {
 				if (!this._agents.get(handle)?.hasSlashCommands) {
 					return []; // save an IPC call
 				}
-				return this._proxy.$provideSlashCommands(handle, token);
+				const commands = await this._proxy.$provideSlashCommands(handle, { history }, token);
+				if (model) {
+					lastSlashCommands.set(model, commands);
+				}
+
+				return commands;
+			},
+			provideWelcomeMessage: (token: CancellationToken) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
+			provideSampleQuestions: (token: CancellationToken) => {
+				return this._proxy.$provideSampleQuestions(handle, token);
 			}
 		});
 		this._agents.set(handle, {
@@ -141,7 +159,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = (await this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 				const thisAgentName = this._agents.get(handle)?.name;
 				if (agentPart?.agent.id !== thisAgentName) {

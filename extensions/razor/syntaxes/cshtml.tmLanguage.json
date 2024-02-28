@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/razor/commit/b44d0a906d054d2d343adc3f58cbea11d97d7488",
+	"version": "https://github.com/dotnet/razor/commit/f01e110af179981942987384d2b5d4e489eab014",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"patterns": [
@@ -527,6 +527,15 @@
 				},
 				{
 					"include": "#using-directive"
+				},
+				{
+					"include": "#rendermode-directive"
+				},
+				{
+					"include": "#preservewhitespace-directive"
+				},
+				{
+					"include": "#typeparam-directive"
 				}
 			]
 		},
@@ -848,6 +857,75 @@
 				},
 				"4": {
 					"name": "entity.name.variable.property.cs"
+				}
+			}
+		},
+		"rendermode-directive": {
+			"name": "meta.directive",
+			"match": "(@)(rendermode)\\s+([^$]+)?",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.razor.directive.rendermode"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "source.cs#type"
+						}
+					]
+				}
+			}
+		},
+		"preservewhitespace-directive": {
+			"name": "meta.directive",
+			"match": "(@)(preservewhitespace)\\s+([^$]+)?",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.razor.directive.preservewhitespace"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "source.cs#boolean-literal"
+						}
+					]
+				}
+			}
+		},
+		"typeparam-directive": {
+			"name": "meta.directive",
+			"match": "(@)(typeparam)\\s+([^$]+)?",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#transition"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.control.razor.directive.typeparam"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "source.cs#type"
+						}
+					]
 				}
 			}
 		},

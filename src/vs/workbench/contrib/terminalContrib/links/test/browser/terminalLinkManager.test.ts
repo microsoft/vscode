@@ -99,6 +99,14 @@ suite('TerminalLinkManager', () => {
 		} as Partial<ITerminalCapabilityStore> as any, instantiationService.createInstance(TerminalLinkResolver)));
 	});
 
+	suite('registerExternalLinkProvider', () => {
+		test('should not leak disposables if the link manager is already disposed', () => {
+			linkManager.externalProvideLinksCb = async () => undefined;
+			linkManager.dispose();
+			linkManager.externalProvideLinksCb = async () => undefined;
+		});
+	});
+
 	suite('getLinks and open recent link', () => {
 		test('should return no links', async () => {
 			const links = await linkManager.getLinks();

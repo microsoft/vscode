@@ -61,7 +61,7 @@
   "dependencies": {
     "node-fetch": "2.6.7",
     "@vscode/extension-telemetry": "^0.9.0",
-    "vscode-tas-client": "^0.1.47"
+    "vscode-tas-client": "^0.1.84"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",

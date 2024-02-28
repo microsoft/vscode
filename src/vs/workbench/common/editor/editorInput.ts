@@ -5,7 +5,6 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
@@ -37,6 +36,23 @@ export interface IEditorCloseHandler {
 	 * to show a combined dialog.
 	 */
 	confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+}
+
+export interface IUntypedEditorOptions {
+
+	/**
+	 * Implementations should try to preserve as much
+	 * view state as possible from the typed input based
+	 * on the group the editor is opened.
+	 */
+	readonly preserveViewState?: GroupIdentifier;
+
+	/**
+	 * Implementations should preserve the original
+	 * resource of the typed input and not alter
+	 * it.
+	 */
+	readonly preserveResource?: boolean;
 }
 
 /**
@@ -218,7 +234,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * The `options` parameter are passed down from the editor when the
 	 * input is resolved as part of it.
 	 */
-	async resolve(options?: IEditorOptions): Promise<IDisposable | null> {
+	async resolve(): Promise<IDisposable | null> {
 		return null;
 	}
 
@@ -310,13 +326,8 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * editor input into a form that it can be restored.
 	 *
 	 * May return `undefined` if an untyped representation is not supported.
-	 *
-	 * @param options additional configuration for the expected return type.
-	 * When `preserveViewState` is provided, implementations should try to
-	 * preserve as much view state as possible from the typed input based on
-	 * the group the editor is opened.
 	 */
-	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined {
+	toUntyped(options?: IUntypedEditorOptions): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 

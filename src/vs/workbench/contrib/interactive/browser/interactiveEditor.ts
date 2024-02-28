@@ -10,7 +10,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ICodeEditorViewState, IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -160,7 +160,7 @@ export class InteractiveEditor extends EditorPane {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group?.windowId, true).window ?? mainWindow, configurationService, notebookExecutionStateService, codeEditorService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
@@ -201,8 +201,8 @@ export class InteractiveEditor extends EditorPane {
 		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputExecute, this._contextKeyService));
 		this._runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this._contextMenuService, {
 			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: action => {
-				return createActionViewItem(this._instantiationService, action);
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this._instantiationService, action, options);
 			},
 			renderDropdownAsChildElement: true
 		}));
@@ -362,6 +362,8 @@ export class InteractiveEditor extends EditorPane {
 
 		this._widgetDisposableStore.clear();
 
+		const codeWindow = this.group ? DOM.getWindowById(group.windowId, true).window : mainWindow;
+
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
@@ -385,7 +387,8 @@ export class InteractiveEditor extends EditorPane {
 				HoverController.ID,
 				MarkerController.ID
 			]),
-			options: this._notebookOptions
+			options: this._notebookOptions,
+			codeWindow: codeWindow
 		}, undefined, this._rootElement ? DOM.getWindow(this._rootElement) : mainWindow);
 
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
@@ -526,7 +529,7 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
-			const value = editorModel!.getValue();
+			const value = editorModel.getValue();
 			if (this.input?.resource && value !== '') {
 				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
 			}

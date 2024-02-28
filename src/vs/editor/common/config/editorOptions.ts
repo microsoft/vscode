@@ -428,6 +428,7 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	inlineSuggest?: IInlineSuggestOptions;
+	experimentalInlineEdit?: IInlineEditOptions;
 	/**
 	 * Smart select options.
 	 */
@@ -2003,7 +2004,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 		}
 		const input = _input as IGotoLocationOptions;
 		return {
-			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple!, ['peek', 'gotoAndPeek', 'goto']),
+			multiple: stringSet<GoToLocationValues>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto']),
 			multipleDefinitions: input.multipleDefinitions ?? stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleTypeDefinitions: input.multipleTypeDefinitions ?? stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleDeclarations: input.multipleDeclarations ?? stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
@@ -2810,7 +2811,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
+		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -2824,7 +2825,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 					type: 'number',
 					default: defaults.maxLineCount,
 					minimum: 1,
-					maximum: 10,
+					maximum: 20,
 					description: nls.localize('editor.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show.")
 				},
 				'editor.stickyScroll.defaultModel': {
@@ -2849,7 +2850,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 		const input = _input as IEditorStickyScrollOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
+			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 20),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
 			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
 		};
@@ -4072,6 +4073,90 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 
 //#endregion
 
+//#region inlineEdit
+
+export interface IInlineEditOptions {
+	/**
+	 * Enable or disable the rendering of automatic inline edit.
+	*/
+	enabled?: boolean;
+	showToolbar?: 'always' | 'onHover' | 'never';
+	/**
+	 * Font family for inline suggestions.
+	 */
+	fontFamily?: string | 'default';
+
+	/**
+	 * Does not clear active inline suggestions when the editor loses focus.
+	 */
+	keepOnBlur?: boolean;
+
+	backgroundColoring?: boolean;
+}
+
+/**
+ * @internal
+ */
+export type InternalInlineEditOptions = Readonly<Required<IInlineEditOptions>>;
+
+class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInlineEditOptions, InternalInlineEditOptions> {
+	constructor() {
+		const defaults: InternalInlineEditOptions = {
+			enabled: false,
+			showToolbar: 'onHover',
+			fontFamily: 'default',
+			keepOnBlur: false,
+			backgroundColoring: false,
+		};
+
+		super(
+			EditorOption.inlineEdit, 'experimentalInlineEdit', defaults,
+			{
+				'editor.experimentalInlineEdit.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineEdit.enabled', "Controls whether to show inline edits in the editor.")
+				},
+				'editor.experimentalInlineEdit.showToolbar': {
+					type: 'string',
+					default: defaults.showToolbar,
+					enum: ['always', 'onHover', 'never'],
+					enumDescriptions: [
+						nls.localize('inlineEdit.showToolbar.always', "Show the inline edit toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineEdit.showToolbar.onHover', "Show the inline edit toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineEdit.showToolbar.never', "Never show the inline edit toolbar."),
+					],
+					description: nls.localize('inlineEdit.showToolbar', "Controls when to show the inline edit toolbar."),
+				},
+				'editor.experimentalInlineEdit.fontFamily': {
+					type: 'string',
+					default: defaults.fontFamily,
+					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
+				},
+				'editor.experimentalInlineEdit.backgroundColoring': {
+					type: 'boolean',
+					default: defaults.backgroundColoring,
+					description: nls.localize('inlineEdit.backgroundColoring', "Controls whether to color the background of inline edits.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalInlineEditOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IInlineEditOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
+			backgroundColoring: boolean(input.backgroundColoring, this.defaultValue.backgroundColoring)
+		};
+	}
+}
+
 //#region bracketPairColorization
 
 export interface IBracketPairColorizationOptions {
@@ -5132,6 +5217,7 @@ export const enum EditorOption {
 	hover,
 	inDiffEditor,
 	inlineSuggest,
+	inlineEdit,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -5835,6 +5921,7 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
+	inlineEdit: register(new InlineEditorEdit()),
 	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
 		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(

@@ -16,14 +16,15 @@ import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/edi
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { AccessibleDiffViewer, AccessibleDiffViewerModelFromEditors } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
 import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditor/components/diffEditorDecorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditor/components/diffEditorSash';
-import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
 import { DiffEditorViewZones } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones';
+import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
 import { MovedBlocksLinesFeature } from 'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature';
 import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
+import { RevertButtonsFeature } from 'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature';
 import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, bindContextKey, readHotReloadableExport, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
@@ -31,20 +32,19 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorEditors } from './components/diffEditorEditors';
+import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
-import { RevertButtonsFeature } from 'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -97,7 +97,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
 		super();
@@ -233,7 +233,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				this._rootSizeObserver.width,
 				this._rootSizeObserver.height,
 				this._diffModel.map((m, r) => m?.diff.read(r)?.mappings.map(m => m.lineRangeMapping)),
-				this._editors,
+				new AccessibleDiffViewerModelFromEditors(this._editors),
 			)
 		).recomputeInitiallyAndOnChange(this._store);
 
@@ -271,11 +271,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			if (e?.reason === CursorChangeReason.Explicit) {
 				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
 				if (diff?.lineRangeMapping.modified.isEmpty) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
 				} else if (diff?.lineRangeMapping.original.isEmpty) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
 				} else if (diff) {
-					this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 				}
 			}
 		}));
@@ -477,12 +477,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		};
 	}
 
-	revert(diff: DetailedLineRangeMapping): void {
-		if (diff.innerChanges) {
-			this.revertRangeMappings(diff.innerChanges);
-			return;
-		}
-
+	revert(diff: LineRangeMapping): void {
 		const model = this._diffModel.get();
 		if (!model || !model.isDiffUpToDate.get()) { return; }
 
@@ -528,11 +523,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._goTo(diff);
 
 		if (diff.lineRangeMapping.modified.isEmpty) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { source: 'diffEditor.goToDiff' });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'diffEditor.goToDiff' });
 		} else if (diff.lineRangeMapping.original.isEmpty) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { source: 'diffEditor.goToDiff' });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'diffEditor.goToDiff' });
 		} else if (diff) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineModified, { source: 'diffEditor.goToDiff' });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.goToDiff' });
 		}
 	}
 

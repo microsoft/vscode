@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -183,12 +183,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		throw new Error('Cannot download extension');
 	}
 
-	async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+	async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		const manifest = await this.getManifest(vsix);
 		return this.installVSIX(vsix, manifest, options);
 	}
 
-	async installVSIX(vsix: URI, manifest: IExtensionManifest, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+	async installVSIX(vsix: URI, manifest: IExtensionManifest, options?: InstallOptions): Promise<ILocalExtension> {
 		const serversToInstall = this.getServersToInstall(manifest);
 		if (serversToInstall?.length) {
 			await this.checkForWorkspaceTrust(manifest);
@@ -239,7 +239,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.installFromLocation(location, this.userDataProfileService.currentProfile.extensionsResource);
 	}
 
-	protected installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	protected installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallOptions | undefined): Promise<ILocalExtension> {
 		return server.extensionManagementService.install(vsix, options);
 	}
 

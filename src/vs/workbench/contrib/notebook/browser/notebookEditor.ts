@@ -47,6 +47,7 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -137,10 +138,10 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		this._rootElement.id = `notebook-editor-element-${generateUuid()}`;
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
-			return this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this);
+			return this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this, options);
 		}
 		return undefined;
 	}
@@ -308,16 +309,16 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
 			// We might be moving the notebook widget between groups, and these services are tied to the group
-			this._widget.value!.setParentContextKeyService(this._contextKeyService);
-			this._widget.value!.setEditorProgressService(this._editorProgressService);
+			this._widget.value.setParentContextKeyService(this._contextKeyService);
+			this._widget.value.setEditorProgressService(this._editorProgressService);
 
-			await this._widget.value!.setModel(model.notebook, viewState, perf);
+			await this._widget.value.setModel(model.notebook, viewState, perf);
 			const isReadOnly = !!input.isReadonly();
-			await this._widget.value!.setOptions({ ...options, isReadOnly });
-			this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
-			this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
+			await this._widget.value.setOptions({ ...options, isReadOnly });
+			this._widgetDisposableStore.add(this._widget.value.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
+			this._widgetDisposableStore.add(this._widget.value.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
 
-			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value!.getDomNode(), {
+			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value.getDomNode(), {
 				containsGroup: (group) => this.group?.id === group.id
 			}));
 
