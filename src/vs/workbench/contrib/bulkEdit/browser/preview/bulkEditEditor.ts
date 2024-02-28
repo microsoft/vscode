@@ -68,7 +68,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		// console.log('createEditor of BulkEditEditor');
+		console.log('createEditor of BulkEditEditor');
 		this._refactorViewContainer = document.createElement('div');
 		this._refactorViewContainer.classList.add('bulk-edit-panel', 'show-file-icons');
 		const multiDiffEditorHTMLNode = document.createElement('div');
@@ -108,11 +108,15 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	private _registerRefactorPreviewPaneListeners() {
 
+		console.log('inside of _registerRefactorPreviewPaneListeners');
 		if (!this._refactorViewPane) {
 			return;
 		}
+		console.log('before adding listeners');
+
 		// Need to reveal the appropriate part of the editor on click of the tree element
-		this._store.add(this._refactorViewPane.onDidTreeOpen(e => {
+		this._refactorViewPane.onDidTreeOpen(e => {
+
 			console.log('inside of onDidTreeOpen of _registerRefactorPreviewPaneListeners');
 			const fileOperations = this._refactorViewPane?.currentInput?.fileOperations;
 			if (!fileOperations) {
@@ -136,17 +140,20 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 					}
 				}
 			});
-		}));
+		});
 	}
 
 	override async setInput(input: BulkEditEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
-		// console.log('setInput');
+		console.log('setInput of bulkEditEditor');
 		// console.log('input : ', input);
 		// console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
 		// this._bulkEditEditorInput = input;
 
+		// TODO: how much of the following code do we need?
 		this._edits = input.inputEdits;
+		console.log('input.inputEdits : ', input.inputEdits);
+
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		// console.log('this._viewModel : ', this._viewModel);
@@ -160,7 +167,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		// TODO: Needs to be there so that the rendering is done as expected
 		this._renderRefactorPreviewPane();
 		this._reveal(options);
-		// console.log('end of setInput');
+		console.log('end of setInput of bulkEditEditor');
 	}
 
 	override async setOptions(options: IMultiDiffEditorOptions | undefined): Promise<void> {
@@ -187,6 +194,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	}
 
 	private _reveal(options: IMultiDiffEditorOptions | undefined): void {
+		console.log('inside of _reveal, options : ', options);
 		const viewState = options?.viewState;
 		if (!viewState || !viewState.revealData) {
 			return;
@@ -198,10 +206,11 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		return this._refactorViewPane?.hasInput() ?? false;
 	}
 
-	override async clearInput(): Promise<void> {
-		await super.clearInput();
+	override clearInput(): void {
+		console.log('inside of clearInput');
+		super.clearInput();
 		this._multiDiffEditorWidget!.setViewModel(undefined);
-		this._refactorViewPane?.dispose();
+		console.log('at the end of clearInput');
 	}
 
 	layout(dimension: DOM.Dimension): void {

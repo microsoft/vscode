@@ -124,7 +124,10 @@ export class BulkEditTreeView extends Disposable {
 		this._tree.layout(500, 500);
 
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
-		this._disposables.add(this._tree.onDidOpen(e => this._onDidTreeOpen.fire(e)));
+		this._disposables.add(this._tree.onDidOpen(e => {
+			console.log('inside of tree on did open, with e : ', e);
+			this._onDidTreeOpen.fire(e);
+		}));
 
 		// buttons
 		const buttonsContainer = document.createElement('div');
