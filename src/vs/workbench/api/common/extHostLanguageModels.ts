@@ -5,8 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostLanguageModelsShape, IMainContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { LanguageModelError } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
@@ -14,13 +13,21 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource, Barrier } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
+import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { CancellationError } from 'vs/base/common/errors';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
+import { ILogService } from 'vs/platform/log/common/log';
+
+export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
+
+export const IExtHostLanguageModels = createDecorator<IExtHostLanguageModels>('IExtHostLanguageModels');
 
 type LanguageModelData = {
+	readonly languageModelId: string;
 	readonly extension: ExtensionIdentifier;
 	readonly provider: vscode.ChatResponseProvider;
 };
@@ -106,6 +113,8 @@ class LanguageModelResponse {
 
 export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
+	declare _serviceBrand: undefined;
+
 	private static _idPool = 1;
 
 	private readonly _proxy: MainThreadLanguageModelsShape;
@@ -114,17 +123,16 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
 	private readonly _languageModels = new Map<number, LanguageModelData>();
-	private readonly _languageModelIds = new Set<string>(); // these are ALL models, not just the one in this EH
+	private readonly _allLanguageModelData = new Map<string, ILanguageModelChatMetadata>(); // these are ALL models, not just the one in this EH
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 
-
 	constructor(
-		mainContext: IMainContext,
-		private readonly _logService: ILogService,
-		private readonly _extHostAuthentication: ExtHostAuthentication,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService private readonly _logService: ILogService,
+		@IExtHostAuthentication private readonly _extHostAuthentication: IExtHostAuthentication,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModels);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadLanguageModels);
 	}
 
 	dispose(): void {
@@ -135,7 +143,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	registerLanguageModel(extension: IExtensionDescription, identifier: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata): IDisposable {
 
 		const handle = ExtHostLanguageModels._idPool++;
-		this._languageModels.set(handle, { extension: extension.identifier, provider });
+		this._languageModels.set(handle, { extension: extension.identifier, provider, languageModelId: identifier });
 		let auth;
 		if (metadata.auth) {
 			auth = {
@@ -145,6 +153,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 		this._proxy.$registerLanguageModelProvider(handle, identifier, {
 			extension: extension.identifier,
+			identifier: identifier,
 			model: metadata.name ?? '',
 			auth
 		});
@@ -173,19 +182,19 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	//#region --- making request
 
-	$updateLanguageModels(data: { added?: string[] | undefined; removed?: string[] | undefined }): void {
+	$updateLanguageModels(data: { added?: ILanguageModelChatMetadata[] | undefined; removed?: string[] | undefined }): void {
 		const added: string[] = [];
 		const removed: string[] = [];
 		if (data.added) {
-			for (const id of data.added) {
-				this._languageModelIds.add(id);
-				added.push(id);
+			for (const metadata of data.added) {
+				this._allLanguageModelData.set(metadata.identifier, metadata);
+				added.push(metadata.model);
 			}
 		}
 		if (data.removed) {
 			for (const id of data.removed) {
 				// clean up
-				this._languageModelIds.delete(id);
+				this._allLanguageModelData.delete(id);
 				removed.push(id);
 
 				// cancel pending requests for this model
@@ -202,10 +211,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			added: Object.freeze(added),
 			removed: Object.freeze(removed)
 		}));
+
+		// TODO@jrieken@TylerLeonhardt - this is a temporary hack to populate the auth providers
+		data.added?.forEach(this._fakeAuthPopulate, this);
 	}
 
 	getLanguageModelIds(): string[] {
-		return Array.from(this._languageModelIds);
+		return Array.from(this._allLanguageModelData.keys());
 	}
 
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void {
@@ -232,7 +244,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const from = extension.identifier;
 		const metadata = await this._proxy.$prepareChatAccess(from, languageModelId, options.justification);
 
-		if (!metadata || !this._languageModelIds.has(languageModelId)) {
+		if (!metadata || !this._allLanguageModelData.has(languageModelId)) {
 			throw LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
 		}
 
@@ -322,5 +334,51 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return !!toMetadata.auth
 			// And we're asking from a different extension
 			&& !ExtensionIdentifier.equals(toMetadata.extension, from);
+	}
+
+	private async _fakeAuthPopulate(metadata: ILanguageModelChatMetadata): Promise<void> {
+
+		for (const from of this._languageAccessInformationExtensions) {
+			try {
+				await this._getAuthAccess(from, { identifier: metadata.extension, displayName: '' }, undefined, true);
+			} catch (err) {
+				this._logService.error('Fake Auth request failed');
+				this._logService.error(err);
+			}
+		}
+
+	}
+
+	private readonly _languageAccessInformationExtensions = new Set<Readonly<IExtensionDescription>>();
+
+	createLanguageModelAccessInformation(from: Readonly<IExtensionDescription>): vscode.LanguageModelAccessInformation {
+
+		this._languageAccessInformationExtensions.add(from);
+
+		const that = this;
+		const _onDidChangeAccess = Event.signal(Event.filter(this._onDidChangeModelAccess.event, e => ExtensionIdentifier.equals(e.from, from.identifier)));
+		const _onDidAddRemove = Event.signal(this._onDidChangeProviders.event);
+
+		return {
+			get onDidChange() {
+				return Event.any(_onDidChangeAccess, _onDidAddRemove);
+			},
+			canSendRequest(languageModelId: string): boolean | undefined {
+
+				const data = that._allLanguageModelData.get(languageModelId);
+				if (!data) {
+					return undefined;
+				}
+				if (!that._isUsingAuth(from.identifier, data)) {
+					return true;
+				}
+
+				const list = that._modelAccessList.get(from.identifier);
+				if (!list) {
+					return undefined;
+				}
+				return list.has(data.extension);
+			}
+		};
 	}
 }
