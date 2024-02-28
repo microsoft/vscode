@@ -11,10 +11,11 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 
 @extHostNamedCustomer(MainContext.MainThreadChatVariables)
 export class MainThreadChatVariables implements MainThreadChatVariablesShape {
+	private static NextRequestId = 0;
 
 	private readonly _proxy: ExtHostChatVariablesShape;
 	private readonly _variables = new DisposableMap<number>();
-	private readonly _pendingProgress = new Map<string, (part: IChatVariableResolverProgress) => void>();
+	private readonly _pendingProgress = new Map<number, (part: IChatVariableResolverProgress) => void>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -28,8 +29,8 @@ export class MainThreadChatVariables implements MainThreadChatVariablesShape {
 	}
 
 	$registerVariable(handle: number, data: IChatVariableData): void {
-		const registration = this._chatVariablesService.registerVariable(data, async (messageText, _arg, model, progress, token) => {
-			const varRequestId = `${model.sessionId}-${handle}`;
+		const registration = this._chatVariablesService.registerVariable(data, async (messageText, _arg, progress, token) => {
+			const varRequestId = MainThreadChatVariables.NextRequestId++;
 			this._pendingProgress.set(varRequestId, progress);
 			const result = revive<IChatRequestVariableValue[]>(await this._proxy.$resolveVariable(handle, varRequestId, messageText, token));
 
@@ -39,7 +40,7 @@ export class MainThreadChatVariables implements MainThreadChatVariablesShape {
 		this._variables.set(handle, registration);
 	}
 
-	async $handleProgressChunk(requestId: string, progress: IChatVariableResolverProgressDto): Promise<number | void> {
+	async $handleProgressChunk(requestId: number, progress: IChatVariableResolverProgressDto): Promise<number | void> {
 		const revivedProgress = revive(progress);
 		this._pendingProgress.get(requestId)?.(revivedProgress as IChatVariableResolverProgress);
 	}

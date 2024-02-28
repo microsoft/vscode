@@ -18,14 +18,14 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 
 	private static _idPool = 0;
 
-	private readonly _resolver = new Map<number, { extension: IExtensionDescription; data: IChatVariableData; resolver: vscode.ChatVariableResolver }>();
+	private readonly _resolver = new Map<number, { extension: IExtensionDescription; data: IChatVariableData; resolver: vscode.ChatVariableValueResolver }>();
 	private readonly _proxy: MainThreadChatVariablesShape;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatVariables);
 	}
 
-	async $resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined> {
+	async $resolveVariable(handle: number, requestId: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined> {
 		const item = this._resolver.get(handle);
 		if (!item) {
 			return undefined;
@@ -50,7 +50,7 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		return undefined;
 	}
 
-	registerVariableResolver(extension: IExtensionDescription, name: string, description: string, resolver: vscode.ChatVariableResolver): IDisposable {
+	registerVariableResolver(extension: IExtensionDescription, name: string, description: string, resolver: vscode.ChatVariableValueResolver): IDisposable {
 		const handle = ExtHostChatVariables._idPool++;
 		this._resolver.set(handle, { extension, data: { name, description }, resolver: resolver });
 		this._proxy.$registerVariable(handle, { name, description });
@@ -68,7 +68,7 @@ class ChatVariableResolverResponseStream {
 	private _apiObject: vscode.ChatVariableResolverResponseStream | undefined;
 
 	constructor(
-		private readonly _requestId: string,
+		private readonly _requestId: number,
 		private readonly _proxy: MainThreadChatVariablesShape,
 	) { }
 

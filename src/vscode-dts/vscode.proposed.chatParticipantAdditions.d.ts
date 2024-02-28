@@ -158,7 +158,7 @@ declare module 'vscode' {
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
+	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, variableResolver: ChatVariableResolver, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
 
 	export namespace chat {
 		/**
@@ -276,7 +276,7 @@ declare module 'vscode' {
 
 	export type ChatVariableResolverResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
 
-	export interface ChatVariableResolver {
+	export interface ChatVariableValueResolver {
 		/**
 		 * A callback to resolve the value of a chat variable.
 		 * @param name The name of the variable.

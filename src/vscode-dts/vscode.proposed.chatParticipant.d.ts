@@ -33,7 +33,7 @@ declare module 'vscode' {
 		/**
 		 * The variables that were referenced in this message.
 		 */
-		readonly variables: ChatResolvedVariable[];
+		readonly variables: [ChatVariableIdentifier, { value: any } | undefined][];
 
 		private constructor(prompt: string, command: string | undefined, variables: ChatResolvedVariable[], participant: { extensionId: string; name: string });
 	}
@@ -224,10 +224,33 @@ declare module 'vscode' {
 		provideFollowups(result: ChatResult, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
+	export interface ChatVariableIdentifier {
+		/**
+		 * The name of the variable.
+		 *
+		 * *Note* that the name doesn't include the leading `#`-character,
+		 * e.g `selection` for `#selection`.
+		 */
+		readonly name: string;
+
+		/**
+		 * The start and end index of the variable in the {@link ChatAgentRequest.prompt prompt}.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
+		readonly range: [start: number, end: number];
+	}
+
+	export interface ChatVariableResolver {
+		// Could go on the Request? But Context will be used by commands and other places
+		resolveVariable(variable: ChatVariableIdentifier, level: ChatVariableLevel): { value: string | Uri | any | undefined };
+	}
+
 	/**
 	 * A chat request handler is a callback that will be invoked when a request is made to a chat participant.
 	 */
-	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
+	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, variableResolver: ChatVariableResolver, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult>;
 
 	/**
 	 * A chat participant can be invoked by the user in a chat session, using the `@` prefix. When it is invoked, it handles the chat request and is solely
@@ -318,8 +341,8 @@ declare module 'vscode' {
 		 */
 		readonly range: [start: number, end: number];
 
-		// TODO@API decouple of resolve API, use `value: string | Uri | (maybe) unknown?`
-		readonly values: ChatVariableValue[];
+		// This type is just used in history, and `values` is set if the participant resolved this variable.
+		readonly values?: ChatVariableValue[];
 	}
 
 	export interface ChatRequest {
@@ -347,8 +370,7 @@ declare module 'vscode' {
 		 * in the prompt. That means the last variable in the prompt is the first in this list. This simplifies
 		 * string-manipulation of the prompt.
 		 */
-		// TODO@API Q? are there implicit variables that are not part of the prompt?
-		readonly variables: readonly ChatResolvedVariable[];
+		readonly variables: readonly ChatVariableIdentifier[];
 	}
 
 	/**
