@@ -194,16 +194,16 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			commentController?.$deleteCommentThread(commentThreadHandle);
 		}
 
-		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined> {
+		async $provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined> {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
 			if (!commentController || !commentController.commentingRangeProvider) {
 				return Promise.resolve(undefined);
 			}
 
-			const document = documents.getDocument(URI.revive(uriComponents));
+			const document = await documents.ensureDocumentData(URI.revive(uriComponents));
 			return asPromise(async () => {
-				const rangesResult = await (commentController.commentingRangeProvider as vscode.CommentingRangeProvider2).provideCommentingRanges(document, token);
+				const rangesResult = await (commentController.commentingRangeProvider as vscode.CommentingRangeProvider2).provideCommentingRanges(document.document, token);
 				let ranges: { ranges: vscode.Range[]; fileComments: boolean } | undefined;
 				if (Array.isArray(rangesResult)) {
 					ranges = {
@@ -563,17 +563,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return this._commentingRangeProvider;
 		}
 
-		private _commentingRangeProviderResourcesChanged: vscode.Disposable | undefined;
 		set commentingRangeProvider(provider: vscode.CommentingRangeProvider | undefined) {
 			this._commentingRangeProvider = provider;
-			this._commentingRangeProviderResourcesChanged?.dispose();
-			this._commentingRangeProviderResourcesChanged = undefined;
-			if (this._commentingRangeProvider?.onDidChangeResourcesWithCommentingRanges) {
-				checkProposedApiEnabled(this._extension, 'commentingRangeResourcesChanged');
-				this._commentingRangeProviderResourcesChanged = this._commentingRangeProvider.onDidChangeResourcesWithCommentingRanges(e => {
-					proxy.$onDidChangeResourcesWithCommentingRanges(this.handle, e.schemes, e.resources);
-				});
-			}
 			proxy.$updateCommentingRanges(this.handle);
 		}
 
@@ -704,7 +695,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			this._threads.forEach(value => {
 				value.dispose();
 			});
-			this._commentingRangeProviderResourcesChanged?.dispose();
+
 			this._localDisposables.forEach(disposable => disposable.dispose());
 		}
 	}
