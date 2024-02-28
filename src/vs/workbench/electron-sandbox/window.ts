@@ -77,6 +77,9 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { getWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { DynamicWorkbenchSecurityConfiguration } from 'vs/workbench/common/configuration';
+import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export class NativeWindow extends BaseWindow {
 
@@ -301,7 +304,7 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Allow to update security settings around allowed UNC Host
-		ipcRenderer.on('vscode:configureAllowedUNCHost', (event: unknown, host: string) => {
+		ipcRenderer.on('vscode:configureAllowedUNCHost', async (event: unknown, host: string) => {
 			if (!isWindows) {
 				return; // only supported on Windows
 			}
@@ -320,6 +323,7 @@ export class NativeWindow extends BaseWindow {
 			if (!allowedUncHosts.has(host)) {
 				allowedUncHosts.add(host);
 
+				await getWorkbenchContribution<DynamicWorkbenchSecurityConfiguration>(DynamicWorkbenchSecurityConfiguration.ID).ready; // ensure this setting is registered
 				this.configurationService.updateValue('security.allowedUNCHosts', [...allowedUncHosts.values()], ConfigurationTarget.USER);
 			}
 		});
@@ -1073,9 +1077,9 @@ export class NativeWindow extends BaseWindow {
 
 			let text: string | undefined = undefined;
 			if (currentZoomLevel < this.configuredWindowZoomLevel) {
-				text = localize('zoomedOut', "$(zoom-out)");
+				text = '$(zoom-out)';
 			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
-				text = localize('zoomedIn', "$(zoom-in)");
+				text = '$(zoom-in)';
 			}
 
 			entry.updateZoomEntry(text ?? false, targetWindowId);
@@ -1160,7 +1164,7 @@ class ZoomStatusEntry extends Disposable {
 		this.zoomLevelLabel = zoomLevelLabel;
 		disposables.add(toDisposable(() => this.zoomLevelLabel = undefined));
 
-		const actionBarLeft = disposables.add(new ActionBar(left));
+		const actionBarLeft = disposables.add(new ActionBar(left, { hoverDelegate: nativeHoverDelegate }));
 		actionBarLeft.push(zoomOutAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomOutAction.id)?.getLabel() });
 		actionBarLeft.push(this.zoomLevelLabel, { icon: false, label: true });
 		actionBarLeft.push(zoomInAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomInAction.id)?.getLabel() });
@@ -1169,7 +1173,7 @@ class ZoomStatusEntry extends Disposable {
 		right.classList.add('zoom-status-right');
 		container.appendChild(right);
 
-		const actionBarRight = disposables.add(new ActionBar(right));
+		const actionBarRight = disposables.add(new ActionBar(right, { hoverDelegate: nativeHoverDelegate }));
 
 		actionBarRight.push(zoomResetAction, { icon: false, label: true });
 		actionBarRight.push(zoomSettingsAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomSettingsAction.id)?.getLabel() });
@@ -1187,7 +1191,7 @@ class ZoomStatusEntry extends Disposable {
 
 	private updateZoomLevelLabel(targetWindowId: number): void {
 		if (this.zoomLevelLabel) {
-			const targetWindow = getWindowById(targetWindowId)?.window ?? mainWindow;
+			const targetWindow = getWindowById(targetWindowId, true).window;
 			const zoomFactor = Math.round(getZoomFactor(targetWindow) * 100);
 			const zoomLevel = getZoomLevel(targetWindow);
 

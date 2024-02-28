@@ -53,7 +53,7 @@ export class ResourceWithCommentThreads {
 
 	public static createCommentNode(owner: string, resource: URI, commentThread: CommentThread): CommentNode {
 		const { threadId, comments, range } = commentThread;
-		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owner, threadId!, resource, comment, range, commentThread.state));
+		const commentNodes: CommentNode[] = comments!.map(comment => new CommentNode(owner, threadId, resource, comment, range, commentThread.state));
 		if (commentNodes.length > 1) {
 			commentNodes[0].replies = commentNodes.slice(1, commentNodes.length);
 		}

@@ -466,7 +466,7 @@ export abstract class EditorAction2 extends Action2 {
 				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
 				return;
 			}
-			return this.runEditorCommand(editorAccessor, editor!, ...args);
+			return this.runEditorCommand(editorAccessor, editor, ...args);
 		});
 	}
 

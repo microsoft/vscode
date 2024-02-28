@@ -19,7 +19,7 @@ suite('LanguageSelector', function () {
 
 	test('score, invalid selector', function () {
 		assert.strictEqual(score({}, model.uri, model.language, true, undefined, undefined), 0);
-		assert.strictEqual(score(undefined!, model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score(undefined, model.uri, model.language, true, undefined, undefined), 0);
 		assert.strictEqual(score(null!, model.uri, model.language, true, undefined, undefined), 0);
 		assert.strictEqual(score('', model.uri, model.language, true, undefined, undefined), 0);
 	});

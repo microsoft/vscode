@@ -52,11 +52,11 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatDynamicRequest, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { DebugConfigurationProviderTriggerKind, MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugVisualization, IDebugVisualizationContext } from 'vs/workbench/contrib/debug/common/debug';
-import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
+import { IChatDynamicRequest, IChatProgress, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { DebugConfigurationProviderTriggerKind, MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
+import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatFollowup, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -78,7 +78,7 @@ import { Dto, IRPCProtocol, SerializableObjectWithBuffers, createProxyIdentifier
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
-import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -146,6 +146,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number): void;
+	$onDidChangeResourcesWithCommentingRanges(handle: number, schemes: string[], uris: UriComponents[]): Promise<void>;
 }
 
 export interface AuthenticationForceNewSessionOptions {
@@ -392,6 +393,10 @@ export interface IdentifiableInlineCompletion extends languages.InlineCompletion
 	idx: number;
 }
 
+export interface IdentifiableInlineEdit extends languages.IInlineEdit {
+	pid: number;
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
@@ -416,11 +421,13 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number, supportsResolve: boolean): void;
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportsResolveInitialValues: boolean): void;
+	$registerNewSymbolNamesProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void;
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, yieldsToExtensionIds: string[]): void;
+	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
 	$emitInlayHintsEvent(eventHandle: number): void;
@@ -494,6 +501,7 @@ export interface TerminalLaunchConfig {
 	strictEnv?: boolean;
 	hideFromUser?: boolean;
 	isExtensionCustomPtyTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
@@ -1118,8 +1126,10 @@ export interface VariablesResult {
 	id: number;
 	name: string;
 	value: string;
+	type?: string;
 	hasNamedChildren: boolean;
 	indexedChildrenCount: number;
+	extensionId: string;
 }
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
@@ -1163,24 +1173,26 @@ export interface MainThreadSpeechShape extends IDisposable {
 }
 
 export interface ExtHostSpeechShape {
-	$createSpeechToTextSession(handle: number, session: number): Promise<void>;
+	$createSpeechToTextSession(handle: number, session: number, language?: string): Promise<void>;
 	$cancelSpeechToTextSession(session: number): Promise<void>;
 
 	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
 }
 
-export interface MainThreadChatProviderShape extends IDisposable {
-	$registerProvider(handle: number, identifier: string, metadata: IChatResponseProviderMetadata): void;
+export interface MainThreadLanguageModelsShape extends IDisposable {
+	$registerLanguageModelProvider(handle: number, identifier: string, metadata: ILanguageModelChatMetadata): void;
 	$unregisterProvider(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 
-	$prepareChatAccess(providerId: string): Promise<IChatResponseProviderMetadata | undefined>;
+	$prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined>;
 	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
 }
 
-export interface ExtHostChatProviderShape {
-	$provideChatResponse(handle: number, requestId: number, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
+export interface ExtHostLanguageModelsShape {
+	$updateLanguageModels(data: { added?: string[]; removed?: string[] }): void;
+	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
+	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 }
 
@@ -1190,7 +1202,7 @@ export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
 }
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
-	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void;
+	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata): void;
 	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1217,23 +1229,29 @@ export type IChatAgentHistoryEntryDto = {
 
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
-	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
-	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
-	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void;
+	$provideSlashCommands(handle: number, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentCommand[]>;
+	$provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
+	$acceptFeedback(handle: number, result: IChatAgentResult, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
+	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
+	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined>;
+	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$releaseSession(sessionId: string): void;
 }
 
+export type IChatVariableResolverProgressDto =
+	| Dto<IChatVariableResolverProgress>;
+
 export interface MainThreadChatVariablesShape extends IDisposable {
 	$registerVariable(handle: number, data: IChatVariableData): void;
+	$handleProgressChunk(requestId: string, progress: IChatVariableResolverProgressDto): Promise<number | void>;
 	$unregisterVariable(handle: number): void;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
 
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
+	$resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
@@ -1247,7 +1265,7 @@ export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineC
 export interface ExtHostInlineChatShape {
 	$prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
 	$provideResponse(handle: number, session: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInlineChatResponseDto | undefined>;
-	$provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
+	$provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IInlineChatFollowup[] | undefined>;
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void;
 	$releaseSession(handle: number, sessionId: number): void;
 }
@@ -1305,8 +1323,6 @@ export interface MainThreadChatShape extends IDisposable {
 
 export interface ExtHostChatShape {
 	$prepareChat(handle: number, token: CancellationToken): Promise<IChatDto | undefined>;
-	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
-	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$releaseSession(sessionId: number): void;
 }
 
@@ -1339,7 +1355,7 @@ export interface ITextSearchComplete {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string | null, includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null>;
+	$startFileSearch(includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
 	$save(uri: UriComponents, options: { saveAs: boolean }): Promise<UriComponents | undefined>;
@@ -1388,6 +1404,7 @@ export interface MainThreadLabelServiceShape extends IDisposable {
 
 export interface MainThreadSearchShape extends IDisposable {
 	$registerFileSearchProvider(handle: number, scheme: string): void;
+	$registerAITextSearchProvider(handle: number, scheme: string): void;
 	$registerTextSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
@@ -1560,6 +1577,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void>;
 	$registerDebugVisualizer(extensionId: string, id: string): void;
 	$unregisterDebugVisualizer(extensionId: string, id: string): void;
+	$registerDebugVisualizerTree(treeId: string, canEdit: boolean): void;
+	$unregisterDebugVisualizerTree(treeId: string): void;
 }
 
 export interface IOpenUriOptions {
@@ -1799,6 +1818,7 @@ export interface ExtHostSecretStateShape {
 export interface ExtHostSearchShape {
 	$enableExtensionHostSearch(): void;
 	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
+	$provideAITextSearchResults(handle: number, session: number, query: search.IRawAITextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$clearCache(cacheKey: string): Promise<void>;
 }
@@ -2101,6 +2121,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<IWorkspaceEditDto & { rejectReason?: string } | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined>;
+	$provideNewSymbolNames(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined>;
 	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
 	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void;
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null>;
@@ -2134,6 +2155,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentOnDropEditDto | undefined>;
 	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
+	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
+	$freeInlineEdit(handle: number, pid: number): void;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -2265,11 +2288,13 @@ export interface IBreakpointDto {
 	condition?: string;
 	hitCondition?: string;
 	logMessage?: string;
+	mode?: string;
 }
 
 export interface IFunctionBreakpointDto extends IBreakpointDto {
 	type: 'function';
 	functionName: string;
+	mode?: string;
 }
 
 export interface IDataBreakpointDto extends IBreakpointDto {
@@ -2279,6 +2304,7 @@ export interface IDataBreakpointDto extends IBreakpointDto {
 	label: string;
 	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
 	accessType: DebugProtocol.DataBreakpointAccessType;
+	mode?: string;
 }
 
 export interface ISourceBreakpointDto extends IBreakpointDto {
@@ -2305,6 +2331,7 @@ export interface ISourceMultiBreakpointDto {
 		logMessage?: string;
 		line: number;
 		character: number;
+		mode?: string;
 	}[];
 }
 
@@ -2354,6 +2381,10 @@ export interface ExtHostDebugServiceShape {
 	$resolveDebugVisualizer(id: number, token: CancellationToken): Promise<MainThreadDebugVisualization>;
 	$executeDebugVisualizerCommand(id: number): Promise<void>;
 	$disposeDebugVisualizers(ids: number[]): void;
+	$getVisualizerTreeItem(treeId: string, element: IDebugVisualizationContext): Promise<IDebugVisualizationTreeItem.Serialized | undefined>;
+	$getVisualizerTreeItemChildren(treeId: string, element: number): Promise<IDebugVisualizationTreeItem.Serialized[]>;
+	$editVisualizerTreeItem(element: number, value: string): Promise<IDebugVisualizationTreeItem.Serialized | undefined>;
+	$disposeVisualizedTree(element: number): void;
 }
 
 
@@ -2401,6 +2432,7 @@ export interface ExtHostCommentsShape {
 	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined>;
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: languages.Comment, reaction: languages.CommentReaction): Promise<void>;
+	$setActiveComment(controllerHandle: number, commentInfo: { commentThreadHandle: number; uniqueIdInThread?: number } | undefined): Promise<void>;
 }
 
 export interface INotebookSelectionChangeEvent {
@@ -2737,7 +2769,7 @@ export interface MainThreadTestingShape {
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
-	MainThreadChatProvider: createProxyIdentifier<MainThreadChatProviderShape>('MainThreadChatProvider'),
+	MainThreadLanguageModels: createProxyIdentifier<MainThreadLanguageModelsShape>('MainThreadLanguageModels'),
 	MainThreadChatAgents2: createProxyIdentifier<MainThreadChatAgentsShape2>('MainThreadChatAgents2'),
 	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
@@ -2862,7 +2894,7 @@ export const ExtHostContext = {
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
 	ExtHostChatAgents2: createProxyIdentifier<ExtHostChatAgentsShape2>('ExtHostChatAgents'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
-	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
+	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),
 	ExtHostAiEmbeddingVector: createProxyIdentifier<ExtHostAiEmbeddingVectorShape>('ExtHostAiEmbeddingVector'),

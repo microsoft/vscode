@@ -357,7 +357,7 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(edit.newText, '');
 		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
-		edit = new types.TextEdit(range, null!);
+		edit = new types.TextEdit(range, null);
 		assert.strictEqual(edit.newText, '');
 
 		edit = new types.TextEdit(range, '');

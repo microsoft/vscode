@@ -24,9 +24,10 @@ import { IExtensionService, nullExtensionDescription as extensionDescription } f
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestEnvironmentService, TestQuickInputService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestActivityService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestActivityService, TestExtensionService, TestProductService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { AuthenticationProvider, AuthenticationSession } from 'vscode';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 class AuthQuickPick {
 	private listener: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
@@ -111,6 +112,7 @@ suite('ExtHostAuthentication', () => {
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IProductService, TestProductService);
 		const rpcProtocol = new TestRPCProtocol();
 
 		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));

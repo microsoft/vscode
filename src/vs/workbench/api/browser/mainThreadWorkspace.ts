@@ -19,7 +19,7 @@ import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorksp
 import { IWorkspace, IWorkspaceContextService, WorkbenchState, isUntitledWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IEditorService, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -140,21 +140,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
+	$startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 
 		const query = this._queryBuilder.file(
 			includeFolder ? [includeFolder] : workspace.folders,
-			{
-				maxResults: maxResults ?? undefined,
-				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
-				disregardSearchExcludeSettings: true,
-				disregardIgnoreFiles: true,
-				includePattern: includePattern ?? undefined,
-				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
-				_reason: 'startFileSearch'
-			});
+			options
+		);
 
 		return this._searchService.fileSearch(query, token).then(result => {
 			return result.results.map(m => m.resource);

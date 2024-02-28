@@ -144,7 +144,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
 		const delegate = new DocumentSymbolVirtualDelegate();
-		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true)];
+		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true, target)];
 		const treeDataSource: IDataSource<this, DocumentSymbolItem> = {
 			getChildren: (parent) => {
 				if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
@@ -433,7 +433,7 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor!, target, firstLoadBarrier));
+		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier));
 		await firstLoadBarrier.wait();
 		return result;
 	}

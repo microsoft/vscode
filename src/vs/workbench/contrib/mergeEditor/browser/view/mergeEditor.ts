@@ -746,6 +746,8 @@ export class MergeEditorOpenHandlerContribution extends Disposable {
 
 export class MergeEditorResolverContribution extends Disposable {
 
+	static readonly ID = 'workbench.contrib.mergeEditorResolver';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,

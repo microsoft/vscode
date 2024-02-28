@@ -22,7 +22,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		if [ -r /etc/profile ]; then
 			. /etc/profile
 		fi
-		# exceute the first that exists
+		# execute the first that exists
 		if [ -r ~/.bash_profile ]; then
 			. ~/.bash_profile
 		elif [ -r ~/.bash_login ]; then

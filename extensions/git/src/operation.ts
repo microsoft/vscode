@@ -146,7 +146,7 @@ export const Operation = {
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
 	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
 	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
-	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as DiffOperation,
+	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as DiffOperation,
 	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
 	FindTrackingBranches: { kind: OperationKind.FindTrackingBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as FindTrackingBranchesOperation,
 	GetBranch: { kind: OperationKind.GetBranch, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchOperation,

@@ -1056,10 +1056,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	cursor: default;
 }
 
-.monaco-menu .monaco-action-bar.animated .action-item.active {
-	transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
-}
-
 .monaco-menu .monaco-action-bar .action-item .icon,
 .monaco-menu .monaco-action-bar .action-item .codicon {
 	display: inline-block;

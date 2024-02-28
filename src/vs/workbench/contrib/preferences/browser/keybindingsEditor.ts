@@ -57,6 +57,7 @@ import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const $ = DOM.$;
 
@@ -397,9 +398,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 		const actions = [this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction];
 		const toolBar = this._register(new ToolBar(this.actionsContainer, this.contextMenuService, {
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === this.sortByPrecedenceAction.id || action.id === this.recordKeysAction.id) {
-					return new ToggleActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel(), toggleStyles: defaultToggleStyles });
+					return new ToggleActionViewItem(null, action, { ...options, keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel(), toggleStyles: defaultToggleStyles });
 				}
 				return undefined;
 			},
@@ -851,7 +852,7 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
 		const element = DOM.append(container, $('.actions'));
-		const actionBar = new ActionBar(element, { animated: false });
+		const actionBar = new ActionBar(element);
 		return { actionBar };
 	}
 
@@ -954,7 +955,11 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 		}
 	}
 
-	disposeTemplate(templateData: ICommandColumnTemplateData): void { }
+	disposeTemplate(templateData: ICommandColumnTemplateData): void {
+		templateData.commandDefaultLabel.dispose();
+		templateData.commandIdLabel.dispose();
+		templateData.commandLabel.dispose();
+	}
 }
 
 interface IKeybindingColumnTemplateData {
@@ -1058,6 +1063,8 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	disposeTemplate(templateData: ISourceColumnTemplateData): void {
 		templateData.disposables.dispose();
+		templateData.sourceLabel.dispose();
+		templateData.extensionId.dispose();
 	}
 }
 
@@ -1130,10 +1137,12 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 	) { }
 
 	renderTemplate(container: HTMLElement): IWhenColumnTemplateData {
+		const disposables = new DisposableStore();
+
 		const element = DOM.append(container, $('.when'));
 
 		const whenLabelContainer = DOM.append(element, $('div.when-label'));
-		const whenLabel = new HighlightedLabel(whenLabelContainer);
+		const whenLabel = disposables.add(new HighlightedLabel(whenLabelContainer));
 
 		const whenInputContainer = DOM.append(element, $('div.when-input-container'));
 
@@ -1142,7 +1151,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			whenLabelContainer,
 			whenLabel,
 			whenInputContainer,
-			disposables: new DisposableStore(),
+			disposables,
 		};
 	}
 
@@ -1183,12 +1192,10 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		templateData.whenLabelContainer.classList.toggle('empty', !keybindingItemEntry.keybindingItem.when);
 
 		if (keybindingItemEntry.keybindingItem.when) {
-			templateData.whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
-			templateData.whenLabel.element.title = keybindingItemEntry.keybindingItem.when;
+			templateData.whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches, keybindingItemEntry.keybindingItem.when);
 			templateData.element.title = keybindingItemEntry.keybindingItem.when;
 		} else {
 			templateData.whenLabel.set('-');
-			templateData.whenLabel.element.title = '';
 			templateData.element.title = '';
 		}
 

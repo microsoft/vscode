@@ -35,8 +35,8 @@ const newUntitledFileMacOnly: WatermarkEntry = { text: localize('watermark.newUn
 const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
 const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
 const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
-const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
-const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
+const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen' };
+const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings' };
 
 const noFolderEntries = [
 	showCommands,
@@ -131,14 +131,15 @@ export class EditorGroupWatermark extends Disposable {
 		const selected = (folder ? folderEntries : noFolderEntries)
 			.filter(entry => !('when' in entry) || this.contextKeyService.contextMatchesRules(entry.when))
 			.filter(entry => !('mac' in entry) || entry.mac === (isMacintosh && !isWeb))
-			.filter(entry => !!CommandsRegistry.getCommand(entry.id));
+			.filter(entry => !!CommandsRegistry.getCommand(entry.id))
+			.filter(entry => !!this.keybindingService.lookupKeybinding(entry.id));
 
 		const update = () => {
 			clearNode(box);
-			selected.map(entry => {
+			for (const entry of selected) {
 				const keys = this.keybindingService.lookupKeybinding(entry.id);
 				if (!keys) {
-					return;
+					continue;
 				}
 				const dl = append(box, $('dl'));
 				const dt = append(dl, $('dt'));
@@ -146,7 +147,7 @@ export class EditorGroupWatermark extends Disposable {
 				const dd = append(dl, $('dd'));
 				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
 				keybinding.set(keys);
-			});
+			}
 		};
 
 		update();

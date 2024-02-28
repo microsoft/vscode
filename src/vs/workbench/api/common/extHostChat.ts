@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostChatShape, IChatDto, IMainContext, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import type * as vscode from 'vscode';
 
 class ChatProviderWrapper<T> {
@@ -87,49 +84,6 @@ export class ExtHostChat implements ExtHostChatShape {
 			responderAvatarIconUri: session.responder?.icon,
 			inputPlaceholder: session.inputPlaceholder,
 		};
-	}
-
-	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined> {
-		const entry = this._chatProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		if (!entry.provider.provideWelcomeMessage) {
-			return undefined;
-		}
-
-		const content = await entry.provider.provideWelcomeMessage(token);
-		if (!content) {
-			return undefined;
-		}
-		return content.map(item => {
-			if (typeof item === 'string') {
-				return item;
-			} else if (Array.isArray(item)) {
-				return item.map(f => typeConvert.ChatReplyFollowup.from(f));
-			} else {
-				return typeConvert.MarkdownString.from(item);
-			}
-		});
-	}
-
-	async $provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
-		const entry = this._chatProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		if (!entry.provider.provideSampleQuestions) {
-			return undefined;
-		}
-
-		const rawFollowups = await entry.provider.provideSampleQuestions(token);
-		if (!rawFollowups) {
-			return undefined;
-		}
-
-		return rawFollowups?.map(f => typeConvert.ChatReplyFollowup.from(f));
 	}
 
 	$releaseSession(sessionId: number) {

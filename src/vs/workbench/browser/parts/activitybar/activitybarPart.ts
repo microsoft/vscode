@@ -380,8 +380,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.activityBarLocation.side',
 			title: {
-				value: localize('positionActivityBarSide', 'Move Activity Bar to Side'),
-				original: 'Move Activity Bar to Side',
+				...localize2('positionActivityBarSide', 'Move Activity Bar to Side'),
 				mnemonicTitle: localize({ key: 'miSideActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Side"),
 			},
 			shortTitle: localize('side', "Side"),
@@ -407,8 +406,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.activityBarLocation.top',
 			title: {
-				value: localize('positionActivityBarTop', 'Move Activity Bar to Top'),
-				original: 'Move Activity Bar to Top',
+				...localize2('positionActivityBarTop', 'Move Activity Bar to Top'),
 				mnemonicTitle: localize({ key: 'miTopActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Top"),
 			},
 			shortTitle: localize('top', "Top"),
@@ -434,8 +432,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.activityBarLocation.hide',
 			title: {
-				value: localize('hideActivityBar', 'Hide Activity Bar'),
-				original: 'Hide Activity Bar',
+				...localize2('hideActivityBar', 'Hide Activity Bar'),
 				mnemonicTitle: localize({ key: 'miHideActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Hidden"),
 			},
 			shortTitle: localize('hide', "Hidden"),

@@ -32,7 +32,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
 import { ResourceMap } from 'vs/base/common/map';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
@@ -479,7 +479,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportResolveLocation: boolean): void {
-		this._registrations.set(handle, this._languageFeaturesService.renameProvider.register(selector, <languages.RenameProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.renameProvider.register(selector, {
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken) => {
 				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(data => reviveWorkspaceEditDto(data, this._uriIdentService));
 			},
@@ -487,6 +487,14 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
 				: undefined
 		}));
+	}
+
+	$registerNewSymbolNamesProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageFeaturesService.newSymbolNamesProvider.register(selector, {
+			provideNewSymbolNames: (model: ITextModel, range: IRange, token: CancellationToken): Promise<languages.NewSymbolName[] | undefined> => {
+				return this._proxy.$provideNewSymbolNames(handle, model.uri, range, token);
+			}
+		} satisfies languages.NewSymbolNamesProvider));
 	}
 
 	// --- semantic tokens
@@ -608,6 +616,19 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			}
 		};
 		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
+	}
+
+	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void {
+		const provider: languages.InlineEditProvider<IdentifiableInlineEdit> = {
+			provideInlineEdit: async (model: ITextModel, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined> => {
+				return this._proxy.$provideInlineEdit(handle, model.uri, context, token);
+			},
+			freeInlineEdit: (edit: IdentifiableInlineEdit): void => {
+				this._proxy.$freeInlineEdit(handle, edit.pid);
+			}
+
+		};
+		this._registrations.set(handle, this._languageFeaturesService.inlineEditProvider.register(selector, provider));
 	}
 
 	// --- parameter hints

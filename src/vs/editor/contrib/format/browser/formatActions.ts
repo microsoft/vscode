@@ -21,7 +21,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
 import * as nls from 'vs/nls';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -40,7 +40,7 @@ export class FormatOnType implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		this._disposables.add(_languageFeaturesService.onTypeFormattingEditProvider.onDidChange(this._update, this));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -143,7 +143,7 @@ export class FormatOnType implements IEditorContribution {
 				return;
 			}
 			if (isNonEmptyArray(edits)) {
-				this._audioCueService.playAudioCue(AudioCue.format, { userGesture: false });
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.format, { userGesture: false });
 				FormattingEdit.execute(this._editor, edits, true);
 			}
 		}).finally(() => {

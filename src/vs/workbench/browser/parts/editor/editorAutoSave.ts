@@ -21,6 +21,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.editorAutoSave';
+
 	// Auto save: after delay
 	private readonly scheduledAutoSavesAfterDelay = new Map<IWorkingCopy, IDisposable>();
 

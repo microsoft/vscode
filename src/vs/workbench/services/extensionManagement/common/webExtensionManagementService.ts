@@ -102,8 +102,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	async install(location: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', location.toString());
 		const manifest = await this.webExtensionsScannerService.scanExtensionManifest(location);
-		if (!manifest) {
-			throw new Error(`Cannot find packageJSON from the location ${location.toString()}`);
+		if (!manifest || !manifest.name || !manifest.version) {
+			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
 		}
 		const result = await this.installExtensions([{ manifest, extension: location, options }]);
 		if (result[0]?.local) {

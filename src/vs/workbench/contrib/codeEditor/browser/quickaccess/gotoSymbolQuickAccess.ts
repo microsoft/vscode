@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -20,7 +20,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/languages';
-import { fuzzyScore, createMatches } from 'vs/base/common/filters';
+import { fuzzyScore } from 'vs/base/common/filters';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -33,6 +33,7 @@ import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -194,14 +195,22 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 						item.highlights = undefined;
 						return true;
 					}
-					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/, item.label, item.label.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+
+					const trimmedQuery = picker.value.substring(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim();
+					const parsedLabel = parseLabelWithIcons(item.label);
+					const score = fuzzyScore(trimmedQuery, trimmedQuery.toLowerCase(), 0,
+						parsedLabel.text, parsedLabel.text.toLowerCase(), 0,
+						{ firstMatchCanBeWeak: true, boostFullMatch: true });
+
 					if (!score) {
 						return false;
 					}
+
 					item.score = score[1];
-					item.highlights = { label: createMatches(score) };
+					item.highlights = { label: matchesFuzzyIconAware(trimmedQuery, parsedLabel) ?? undefined };
 					return true;
 				});
+
 				if (filteredItems.length === 0) {
 					const label = localize('empty', 'No matching entries');
 					picker.items = [{ label, index: -1, kind: SymbolKind.String }];
@@ -244,9 +253,8 @@ class GotoSymbolAction extends Action2 {
 		super({
 			id: GotoSymbolAction.ID,
 			title: {
-				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				...localize2('gotoSymbol', "Go to Symbol in Editor..."),
 				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
-				original: 'Go to Symbol in Editor...'
 			},
 			f1: true,
 			keybinding: {

@@ -11,7 +11,6 @@ import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ElectronRemoteResourceLoader } from 'vs/platform/remote/electron-sandbox/electronRemoteResourceLoader';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
@@ -33,7 +32,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._canonicalURIRequests = new Map();
 		this._canonicalURIProvider = null;
 
-		RemoteAuthorities.setServerRootPath(getRemoteServerRootPath(productService));
+		RemoteAuthorities.setServerRootPath(productService, undefined); // on the desktop we don't support custom server base paths
 	}
 
 	resolveAuthority(authority: string): Promise<ResolverResult> {

@@ -359,7 +359,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting
-					newProcess!.input(this._preLaunchInputQueue.join(''));
+					newProcess.input(this._preLaunchInputQueue.join(''));
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
@@ -575,7 +575,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		// The child process could already be terminated
 		try {
-			this._process!.resize(cols, rows);
+			this._process.resize(cols, rows);
 		} catch (error) {
 			// We tried to write to a closed pipe / channel.
 			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {

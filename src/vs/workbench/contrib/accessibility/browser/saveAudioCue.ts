@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class SaveAudioCueContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saveAudioCues';
+
 	constructor(
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
 		super();
 		this._register(this._workingCopyService.onDidSave((e) => {
-			this._audioCueService.playAudioCue(AudioCue.save, { userGesture: e.reason === SaveReason.EXPLICIT });
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.save, { userGesture: e.reason === SaveReason.EXPLICIT });
 		}));
 	}
 }
