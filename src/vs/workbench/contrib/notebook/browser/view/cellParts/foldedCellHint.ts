@@ -15,8 +15,12 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 
 export class FoldedCellHint extends CellContentPart {
+
+	private readonly _runButtonListener = this._register(new MutableDisposable());
+	private readonly _cellExecutionListener = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -32,10 +36,14 @@ export class FoldedCellHint extends CellContentPart {
 
 	private update(element: MarkupCellViewModel) {
 		if (!this._notebookEditor.hasModel()) {
+			this._cellExecutionListener.clear();
+			this._runButtonListener.clear();
 			return;
 		}
 
 		if (element.isInputCollapsed || element.getEditState() === CellEditState.Editing) {
+			this._cellExecutionListener.clear();
+			this._runButtonListener.clear();
 			DOM.hide(this._container);
 		} else if (element.foldingState === CellFoldingState.Collapsed) {
 			const idx = this._notebookEditor.getViewModel().getCellIndex(element);
@@ -47,6 +55,8 @@ export class FoldedCellHint extends CellContentPart {
 			const foldHintTop = element.layoutInfo.previewHeight;
 			this._container.style.top = `${foldHintTop}px`;
 		} else {
+			this._cellExecutionListener.clear();
+			this._runButtonListener.clear();
 			DOM.hide(this._container);
 		}
 	}
@@ -87,11 +97,11 @@ export class FoldedCellHint extends CellContentPart {
 			Codicon.play;
 		runAllContainer.classList.add(...ThemeIcon.asClassNameArray(runAllIcon));
 
-		this._register(DOM.addDisposableListener(runAllContainer, DOM.EventType.CLICK, () => {
+		this._runButtonListener.value = DOM.addDisposableListener(runAllContainer, DOM.EventType.CLICK, () => {
 			this._notebookEditor.executeNotebookCells(cells);
-		}));
+		});
 
-		this._register(this._notebookExecutionStateService.onDidChangeExecution(() => {
+		this._cellExecutionListener.value = this._notebookExecutionStateService.onDidChangeExecution(() => {
 			const isRunning = cells.some(cell => {
 				const cellExecution = this._notebookExecutionStateService.getCellExecution(cell.uri);
 				return cellExecution && cellExecution.state === NotebookCellExecutionState.Executing;
@@ -102,7 +112,7 @@ export class FoldedCellHint extends CellContentPart {
 				Codicon.play;
 			runAllContainer.className = '';
 			runAllContainer.classList.add('folded-cell-run-section-button', ...ThemeIcon.asClassNameArray(runAllIcon));
-		}));
+		});
 
 		return runAllContainer;
 	}
