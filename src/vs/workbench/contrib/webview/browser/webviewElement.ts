@@ -90,12 +90,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	private readonly _codeWindow: CodeWindow;
 
-	/**
-	 * The code window the webview is contained within.
-	 */
-	public get codeWindow(): CodeWindow { return this._codeWindow; }
-
-
 	private readonly _encodedWebviewOriginPromise: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
 

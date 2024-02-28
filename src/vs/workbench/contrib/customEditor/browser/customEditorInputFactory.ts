@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { CodeWindow } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
@@ -188,7 +187,7 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 			contentOptions: restoreWebviewContentOptions(backupData.webview.options),
 			state: backupData.webview.state,
 			extension,
-			codeWindow: getActiveWindow()
+			codeWindow: mainWindow
 		});
 
 		const editor = this._instantiationService.createInstance(CustomEditorInput, { resource: URI.revive(backupData.editorResource), viewType: backupData.viewType }, webview, { backupId: backupData.backupId });
