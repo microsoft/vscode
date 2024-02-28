@@ -58,6 +58,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = DOM.$;
 
@@ -897,6 +899,7 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 
 interface ICommandColumnTemplateData {
 	commandColumn: HTMLElement;
+	commandColumnHover: ICustomHover;
 	commandLabelContainer: HTMLElement;
 	commandLabel: HighlightedLabel;
 	commandDefaultLabelContainer: HTMLElement;
@@ -913,13 +916,14 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 
 	renderTemplate(container: HTMLElement): ICommandColumnTemplateData {
 		const commandColumn = DOM.append(container, $('.command'));
+		const commandColumnHover = setupCustomHover(getDefaultHoverDelegate('mouse'), commandColumn, '');
 		const commandLabelContainer = DOM.append(commandColumn, $('.command-label'));
 		const commandLabel = new HighlightedLabel(commandLabelContainer);
 		const commandDefaultLabelContainer = DOM.append(commandColumn, $('.command-default-label'));
 		const commandDefaultLabel = new HighlightedLabel(commandDefaultLabelContainer);
 		const commandIdLabelContainer = DOM.append(commandColumn, $('.command-id.code'));
 		const commandIdLabel = new HighlightedLabel(commandIdLabelContainer);
-		return { commandColumn, commandLabelContainer, commandLabel, commandDefaultLabelContainer, commandDefaultLabel, commandIdLabelContainer, commandIdLabel };
+		return { commandColumn, commandColumnHover, commandLabelContainer, commandLabel, commandDefaultLabelContainer, commandDefaultLabel, commandIdLabelContainer, commandIdLabel };
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: ICommandColumnTemplateData, height: number | undefined): void {
@@ -928,7 +932,9 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 
 		templateData.commandColumn.classList.toggle('vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
-		templateData.commandColumn.title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
+		const title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
+		templateData.commandColumn.setAttribute('aria-label', title);
+		templateData.commandColumnHover.update(title);
 
 		if (keybindingItem.commandLabel) {
 			templateData.commandLabelContainer.classList.remove('hide');
@@ -956,6 +962,7 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 	}
 
 	disposeTemplate(templateData: ICommandColumnTemplateData): void {
+		templateData.commandColumnHover.dispose();
 		templateData.commandDefaultLabel.dispose();
 		templateData.commandIdLabel.dispose();
 		templateData.commandLabel.dispose();
@@ -989,11 +996,13 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 	}
 
 	disposeTemplate(templateData: IKeybindingColumnTemplateData): void {
+		templateData.keybindingLabel.dispose();
 	}
 }
 
 interface ISourceColumnTemplateData {
 	sourceColumn: HTMLElement;
+	sourceColumnHover: ICustomHover;
 	sourceLabel: HighlightedLabel;
 	extensionContainer: HTMLElement;
 	extensionLabel: HTMLAnchorElement;
@@ -1027,11 +1036,12 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	renderTemplate(container: HTMLElement): ISourceColumnTemplateData {
 		const sourceColumn = DOM.append(container, $('.source'));
+		const sourceColumnHover = setupCustomHover(getDefaultHoverDelegate('mouse'), sourceColumn, '');
 		const sourceLabel = new HighlightedLabel(DOM.append(sourceColumn, $('.source-label')));
 		const extensionContainer = DOM.append(sourceColumn, $('.extension-container'));
 		const extensionLabel = DOM.append<HTMLAnchorElement>(extensionContainer, $('a.extension-label', { tabindex: 0 }));
 		const extensionId = new HighlightedLabel(DOM.append(extensionContainer, $('.extension-id-container.code')));
-		return { sourceColumn, sourceLabel, extensionLabel, extensionContainer, extensionId, disposables: new DisposableStore() };
+		return { sourceColumn, sourceColumnHover, sourceLabel, extensionLabel, extensionContainer, extensionId, disposables: new DisposableStore() };
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: ISourceColumnTemplateData, height: number | undefined): void {
@@ -1039,14 +1049,14 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 		if (isString(keybindingItemEntry.keybindingItem.source)) {
 			templateData.extensionContainer.classList.add('hide');
 			templateData.sourceLabel.element.classList.remove('hide');
-			templateData.sourceColumn.title = '';
+			templateData.sourceColumnHover.update('');
 			templateData.sourceLabel.set(keybindingItemEntry.keybindingItem.source || '-', keybindingItemEntry.sourceMatches);
 		} else {
 			templateData.extensionContainer.classList.remove('hide');
 			templateData.sourceLabel.element.classList.add('hide');
 			const extension = keybindingItemEntry.keybindingItem.source;
 			const extensionLabel = extension.displayName ?? extension.identifier.value;
-			templateData.sourceColumn.title = localize('extension label', "Extension ({0})", extensionLabel);
+			templateData.sourceColumnHover.update(localize('extension label', "Extension ({0})", extensionLabel));
 			templateData.extensionLabel.textContent = extensionLabel;
 			templateData.disposables.add(onClick(templateData.extensionLabel, () => {
 				this.extensionsWorkbenchService.open(extension.identifier.value);
@@ -1062,6 +1072,7 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 	}
 
 	disposeTemplate(templateData: ISourceColumnTemplateData): void {
+		templateData.sourceColumnHover.dispose();
 		templateData.disposables.dispose();
 		templateData.sourceLabel.dispose();
 		templateData.extensionId.dispose();
@@ -1137,12 +1148,10 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 	) { }
 
 	renderTemplate(container: HTMLElement): IWhenColumnTemplateData {
-		const disposables = new DisposableStore();
-
 		const element = DOM.append(container, $('.when'));
 
 		const whenLabelContainer = DOM.append(element, $('div.when-label'));
-		const whenLabel = disposables.add(new HighlightedLabel(whenLabelContainer));
+		const whenLabel = new HighlightedLabel(whenLabelContainer);
 
 		const whenInputContainer = DOM.append(element, $('div.when-input-container'));
 
@@ -1151,7 +1160,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			whenLabelContainer,
 			whenLabel,
 			whenInputContainer,
-			disposables,
+			disposables: new DisposableStore(),
 		};
 	}
 
@@ -1193,16 +1202,15 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 
 		if (keybindingItemEntry.keybindingItem.when) {
 			templateData.whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches, keybindingItemEntry.keybindingItem.when);
-			templateData.element.title = keybindingItemEntry.keybindingItem.when;
+			templateData.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.element, keybindingItemEntry.keybindingItem.when));
 		} else {
 			templateData.whenLabel.set('-');
-			templateData.element.title = '';
 		}
-
 	}
 
 	disposeTemplate(templateData: IWhenColumnTemplateData): void {
 		templateData.disposables.dispose();
+		templateData.whenLabel.dispose();
 	}
 }
 
