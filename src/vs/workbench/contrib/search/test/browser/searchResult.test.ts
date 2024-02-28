@@ -66,7 +66,7 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		const fileMatch = aFileMatch('folder/file.txt', null!);
-		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5));
+		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5), false);
 		assert.strictEqual(lineMatch.text(), '0 foo bar');
 		assert.strictEqual(lineMatch.range().startLineNumber, 2);
 		assert.strictEqual(lineMatch.range().endLineNumber, 2);
@@ -174,7 +174,7 @@ suite('SearchResult', () => {
 		const searchResult = instantiationService.createInstance(SearchResult, searchModel);
 		store.add(searchResult);
 		const fileMatch = aFileMatch('far/boo', searchResult);
-		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
+		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3), false);
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult.folderMatches()[0]);
@@ -531,7 +531,7 @@ suite('SearchResult', () => {
 		const root = searchResult?.folderMatches()[0];
 		const fileMatch = instantiationService.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, root, rawMatch, null, '', false);
+		}, undefined, undefined, root, rawMatch, null, '');
 
 		store.add(fileMatch);
 		return fileMatch;

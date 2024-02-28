@@ -296,11 +296,11 @@ export class SearchView extends ViewPane {
 		this.treeViewKey.set(visible);
 	}
 
-	get areAIResultsVisible(): boolean {
+	get aiResultsVisible(): boolean {
 		return this.aiResultsVisibleKey.get() ?? false;
 	}
 
-	private set areAIResultsVisible(visible: boolean) {
+	private set aiResultsVisible(visible: boolean) {
 		this.aiResultsVisibleKey.set(visible);
 	}
 
@@ -314,15 +314,13 @@ export class SearchView extends ViewPane {
 	}
 
 	setAIResultsVisible(visible: boolean): void {
-		if (visible === this.areAIResultsVisible) {
+		if (visible === this.aiResultsVisible) {
 			return;
 		}
-		console.log('visible ', visible);
-		this.areAIResultsVisible = visible;
+		this.model._aiResultsEnabled = visible;
+		this.aiResultsVisible = visible;
 		this.refreshTree();
 	}
-
-
 
 	private get state(): SearchUIState {
 		return this.searchStateKey.get() ?? SearchUIState.Idle;
@@ -748,7 +746,11 @@ export class SearchView extends ViewPane {
 	}
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const matches = fileMatch.matches().sort(searchMatchComparer);
+		let matches = fileMatch.matches().sort(searchMatchComparer);
+
+		if (!this.aiResultsVisible) {
+			matches = matches.filter(e => !e.aiContributed);
+		}
 		return Iterable.map(matches, r => (<ICompressedTreeElement<RenderableMatch>>{ element: r, incompressible: true }));
 	}
 

@@ -124,7 +124,7 @@ suite('Search Actions', () => {
 		store.add(folderMatch);
 		const fileMatch = instantiationService.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, folderMatch, rawMatch, null, '', false);
+		}, undefined, undefined, folderMatch, rawMatch, null, '');
 		store.add(fileMatch);
 		return fileMatch;
 	}
@@ -145,7 +145,8 @@ suite('Search Actions', () => {
 				startColumn: 0,
 				endLineNumber: line,
 				endColumn: 2
-			}
+			},
+			false
 		);
 		fileMatch.add(match);
 		return match;
