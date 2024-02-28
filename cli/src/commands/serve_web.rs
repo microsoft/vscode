@@ -6,13 +6,14 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use const_format::concatcp;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
+use tempfile::{tempdir, TempDir};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::pin;
 
@@ -76,16 +77,21 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
-
-	if !args.without_connection_token {
+	let token_file = if !args.without_connection_token {
 		// Ensure there's a defined connection token, since if multiple server versions
 		// are excuted, they will need to have a single shared token.
-		args.connection_token = Some(
-			args.connection_token
-				.clone()
-				.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
-		);
-	}
+		let connection_token = args
+			.connection_token
+			.clone()
+			.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+		let tf = ConnectionTokenFile::new(&connection_token)
+			.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
+		args.connection_token = Some(connection_token);
+		args.connection_token_file = Some(tf.path().to_string_lossy().to_string());
+		Some(tf)
+	} else {
+		None
+	};
 
 	let cm = ConnectionManager::new(&ctx, platform, args.clone());
 	let key = get_server_key_half(&ctx.paths);
@@ -137,6 +143,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	};
 
 	r.map_err(CodeError::CouldNotListenOnInterface)?;
+	drop(token_file); // ensure it lives long enough
 
 	Ok(0)
 }
@@ -704,8 +711,10 @@ impl ConnectionManager {
 		if args.args.without_connection_token {
 			cmd.arg("--without-connection-token");
 		}
-		if let Some(ct) = &args.args.connection_token {
-			cmd.arg("--connection-token");
+		// Note: intentional that we don't pass --connection-token here, we always
+		// convert it into the file variant.
+		if let Some(ct) = &args.args.connection_token_file {
+			cmd.arg("--connection-token-file");
 			cmd.arg(ct);
 		}
 
@@ -778,4 +787,22 @@ struct StartArgs {
 	args: ServeWebArgs,
 	release: Release,
 	opener: BarrierOpener<Result<StartData, String>>,
+}
+
+struct ConnectionTokenFile {
+	path: PathBuf,
+	_dir: TempDir, // implements Drop to delete the dir
+}
+
+impl ConnectionTokenFile {
+	fn new(connection_token: &str) -> std::io::Result<Self> {
+		let d = tempdir()?;
+		let path = d.path().join("connection-token");
+		std::fs::write(&path, connection_token)?;
+		Ok(ConnectionTokenFile { path, _dir: d })
+	}
+
+	fn path(&self) -> &Path {
+		&self.path
+	}
 }
