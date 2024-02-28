@@ -77,6 +77,42 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					description: localize('chatParticipantDescription', "A description of this Chat Participant, shown in the UI."),
 					type: 'string'
 				},
+				isDefault: {
+					markdownDescription: localize('chatParticipantIsDefaultDescription', "**Only** allowed for extensions that have the `defaultChatParticipant` proposal."),
+					type: 'boolean',
+				},
+				commands: {
+					markdownDescription: localize('chatCommandsDescription', "Commands available for this Chat Participant, which the user can invoke with a `/`."),
+					type: 'array',
+					items: {
+						additionalProperties: false,
+						type: 'object',
+						defaultSnippets: [{ body: { name: '', description: '' } }],
+						required: ['name', 'description'],
+						properties: {
+							name: {
+								description: localize('chatCommand', "A short name by which this command is referred to in the UI, e.g. `fix` or * `explain` for commands that fix an issue or explain code. The name should be unique among the commands provided by this participant."),
+								type: 'string'
+							},
+							description: {
+								description: localize('chatCommandDescription', "A description of this command."),
+								type: 'string'
+							},
+							when: {
+								description: localize('chatCommandDescription', "A description of this command."),
+								type: 'string'
+							},
+							sampleRequest: {
+								description: localize('chatCommandDescription', "A description of this command."),
+								type: 'string'
+							},
+							isSticky: {
+								description: localize('chatCommandDescription', "A description of this command."),
+								type: 'boolean'
+							},
+						}
+					}
+				}
 			}
 		}
 	},

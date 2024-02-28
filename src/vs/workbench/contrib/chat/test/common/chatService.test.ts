@@ -60,12 +60,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
 	metadata: {},
-	getLastSlashCommands() {
-		return undefined;
-	},
-	async provideSlashCommands() {
-		return [];
-	},
+	slashCommands: [],
 	async invoke(request, progress, history, token) {
 		progress({
 			documents: [
@@ -117,14 +112,12 @@ suite('Chat', () => {
 			id: 'testAgent',
 			extensionId: nullExtensionDescription.identifier,
 			metadata: { isDefault: true },
+			slashCommands: [],
 			async invoke(request, progress, history, token) {
 				return {};
 			},
 			getLastSlashCommands() {
 				return undefined;
-			},
-			async provideSlashCommands(token) {
-				return [];
 			},
 		} as IChatAgent;
 		testDisposables.add(chatAgentService.registerAgent(agent));

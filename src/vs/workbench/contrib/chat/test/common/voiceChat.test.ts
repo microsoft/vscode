@@ -28,10 +28,8 @@ suite('VoiceChat', () => {
 
 		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
 
-		constructor(readonly id: string, private readonly lastSlashCommands: IChatAgentCommand[]) { }
-		getLastSlashCommands(model: IChatModel): IChatAgentCommand[] | undefined { return this.lastSlashCommands; }
+		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) { }
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
-		provideSlashCommands(model: IChatModel | undefined, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentCommand[]> { throw new Error('Method not implemented.'); }
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
 		metadata = {};
 	}
@@ -52,12 +50,11 @@ suite('VoiceChat', () => {
 		registerAgent(agent: IChatAgent): IDisposable { throw new Error(); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
 		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
-		getAgents(): Array<IChatAgent> { return agents; }
+		getRegisteredAgents(): Array<IChatAgent> { return agents; }
 		getActivatedAgents(): IChatAgent[] { return agents; }
-		getAgent(id: string): IChatAgent | undefined { throw new Error(); }
+		getRegisteredAgent(id: string): IChatAgent | undefined { throw new Error(); }
 		getDefaultAgent(): IChatAgent | undefined { throw new Error(); }
 		getSecondaryAgent(): IChatAgent | undefined { throw new Error(); }
-		hasAgent(id: string): boolean { throw new Error(); }
 		updateAgent(id: string, updateMetadata: IChatAgentMetadata): void { throw new Error(); }
 	}
 

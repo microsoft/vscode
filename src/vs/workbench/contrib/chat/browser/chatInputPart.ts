@@ -423,7 +423,7 @@ class SubmitButtonActionViewItem extends ActionViewItem {
 		if (secondaryAgent) {
 			const secondaryKeybinding = keybindingService.lookupKeybinding(ChatSubmitSecondaryAgentEditorAction.ID)?.getLabel();
 			if (secondaryKeybinding) {
-				tooltip += `\n${chatAgentLeader}${secondaryAgent.id} (${secondaryKeybinding})`;
+				tooltip += `\n${chatAgentLeader}${secondaryAgent.data.id} (${secondaryKeybinding})`;
 			}
 		}
 

@@ -32,9 +32,19 @@ export interface IRawChatProviderContribution {
 	when?: string;
 }
 
+export interface IRawChatCommandContribution {
+	name: string;
+	description: string;
+	sampleRequest?: string;
+	isSticky?: boolean;
+	when?: string;
+}
+
 export interface IRawChatParticipantContribution {
 	name: string;
 	description?: string;
+	isDefault?: boolean;
+	commands?: IRawChatCommandContribution[];
 }
 
 export interface IChatParticipantContribution extends IRawChatParticipantContribution {
