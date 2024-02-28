@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { CodeWindow } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -175,7 +174,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private claimWebview(input: WebviewInput): void {
-		const codeWindow: CodeWindow = this.getContainingWindow() ?? DOM.getWindow(input.webview.container);
+		const codeWindow = DOM.getWindowById(this.group?.windowId, true).window;
 		input.webview.claim(this, codeWindow, this.scopedContextKeyService);
 
 		if (this._element) {
@@ -201,7 +200,7 @@ export class WebviewEditor extends EditorPane {
 			return;
 		}
 
-		const codeWindow: CodeWindow = this.getContainingWindow() ?? DOM.getWindow(this._element);
+		const codeWindow = DOM.getWindowById(this.group?.windowId, true).window;
 		const rootContainer = this._workbenchLayoutService.getContainer(codeWindow, Parts.EDITOR_PART);
 		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
 	}

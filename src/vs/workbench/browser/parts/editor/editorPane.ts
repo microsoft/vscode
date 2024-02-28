@@ -24,7 +24,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { getWindowById } from 'vs/base/browser/dom';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -162,16 +161,6 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 */
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
-	}
-
-	getContainingWindow() {
-		let codeWindow;
-		if (this.group?.windowId) {
-			const windowById = getWindowById(this.group.windowId);
-			codeWindow = windowById?.window;
-		}
-
-		return codeWindow;
 	}
 
 	setBoundarySashes(_sashes: IBoundarySashes) {

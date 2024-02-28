@@ -89,7 +89,6 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		}
 
 		const disposables = new DisposableStore();
-		const codeWindow = getWindow(editor.getDomNode());
 
 		const webview = this._webviewService.createWebviewElement({
 			title: undefined,
@@ -98,7 +97,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 			},
 			contentOptions: reviveWebviewContentOptions(options),
 			extension: { id: extensionId, location: URI.revive(extensionLocation) },
-			codeWindow: codeWindow
+			codeWindow: getWindow(editor.getDomNode())
 		});
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
