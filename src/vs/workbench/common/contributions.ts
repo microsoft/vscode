@@ -385,7 +385,7 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 			}
 		}
 
-		if (typeof contribution.id === 'string' || !environmentService.isBuilt /* only log out of sources where we have good ctor names (TODO@bpasero remove when adopted IDs) */) {
+		if (typeof contribution.id === 'string' || !environmentService.isBuilt /* only log out of sources where we have good ctor names */) {
 			const time = Date.now() - now;
 			if (time > (phase < LifecyclePhase.Restored ? WorkbenchContributionsRegistry.BLOCK_BEFORE_RESTORE_WARN_THRESHOLD : WorkbenchContributionsRegistry.BLOCK_AFTER_RESTORE_WARN_THRESHOLD)) {
 				logService.warn(`Creation of workbench contribution '${contribution.id ?? contribution.ctor.name}' took ${time}ms.`);

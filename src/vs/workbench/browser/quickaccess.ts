@@ -75,12 +75,19 @@ export class EditorViewState {
 		}
 	}
 
-	async restore(): Promise<void> {
+	async restore(shouldCloseCurrEditor = false): Promise<void> {
 		if (this._editorViewState) {
 			const options: IEditorOptions = {
 				viewState: this._editorViewState.state,
 				preserveFocus: true /* import to not close the picker as a result */
 			};
+			if (shouldCloseCurrEditor) {
+				const activeEditorPane = this.editorService.activeEditorPane;
+				const currEditor = activeEditorPane?.input;
+				if (currEditor && currEditor !== this._editorViewState.editor && activeEditorPane?.group.isPinned(currEditor) !== true) {
+					await activeEditorPane.group.closeEditor(currEditor);
+				}
+			}
 
 			await this._editorViewState.group.openEditor(this._editorViewState.editor, options);
 		}

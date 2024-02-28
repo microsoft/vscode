@@ -21,6 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -112,6 +113,7 @@ export interface ICommentService {
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
 	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
+	resourceHasCommentingRanges(resource: URI): boolean;
 }
 
 const CONTINUE_ON_COMMENTS = 'comments.continueOnComments';
@@ -169,13 +171,16 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _commentsModel: CommentsModel = this._register(new CommentsModel());
 	public readonly commentsModel: ICommentsModel = this._commentsModel;
 
+	private _commentingRangeResources = new Set<string>(); // URIs
+
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 		this._handleConfiguration();
@@ -218,6 +223,21 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 			this._saveContinueOnComments(map);
 		}));
+
+		this._register(this.modelService.onModelAdded(model => {
+			// Allows comment providers to cause their commenting ranges to be prefetched by opening text documents in the background.
+			if (!this._commentingRangeResources.has(model.uri.toString())) {
+				this.getDocumentComments(model.uri);
+			}
+		}));
+	}
+
+	private _updateResourcesWithCommentingRanges(resource: URI, commentInfos: (ICommentInfo | null)[]) {
+		for (const comments of commentInfos) {
+			if (comments && (comments.commentingRanges.ranges.length > 0 || comments.threads.length > 0)) {
+				this._commentingRangeResources.add(resource.toString());
+			}
+		}
 	}
 
 	private _handleConfiguration() {
@@ -433,7 +453,9 @@ export class CommentService extends Disposable implements ICommentService {
 				}));
 		}
 
-		return Promise.all(commentControlResult);
+		const commentInfos = await Promise.all(commentControlResult);
+		this._updateResourcesWithCommentingRanges(resource, commentInfos);
+		return commentInfos;
 	}
 
 	async getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]> {
@@ -493,5 +515,9 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}
 		return changedOwners;
+	}
+
+	resourceHasCommentingRanges(resource: URI): boolean {
+		return this._commentingRangeResources.has(resource.toString());
 	}
 }

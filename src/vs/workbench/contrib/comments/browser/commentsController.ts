@@ -13,7 +13,7 @@ import 'vs/css!./media/review';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { EditorType, IDiffEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorType, IDiffEditor, IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
@@ -25,7 +25,7 @@ import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commen
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
@@ -462,6 +462,7 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
+		this.globalToDispose.add(this.editor.onWillChangeModel(e => this.onWillChangeModel(e)));
 		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
 		this.globalToDispose.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
@@ -778,8 +779,15 @@ export class CommentController implements IEditorContribution {
 		this.editor = null!; // Strict null override - nulling out in dispose
 	}
 
+	private onWillChangeModel(e: IModelChangedEvent): void {
+		if (e.newModelUrl) {
+			this.tryUpdateReservedSpace(e.newModelUrl);
+		}
+	}
+
 	public onModelChanged(): void {
 		this.localToDispose.clear();
+		this.tryUpdateReservedSpace();
 
 		this.removeCommentWidgetsAndStoreCache();
 		if (!this.editor) {
@@ -1189,15 +1197,19 @@ export class CommentController implements IEditorContribution {
 		});
 	}
 
-	private tryUpdateReservedSpace() {
+	private tryUpdateReservedSpace(uri?: URI) {
 		if (!this.editor) {
 			return;
 		}
 
-		const hasCommentsOrRanges = this._commentInfos.some(info => {
+		const hasCommentsOrRangesInInfo = this._commentInfos.some(info => {
 			const hasRanges = Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length);
 			return hasRanges || (info.threads.length > 0);
 		});
+		uri = uri ?? this.editor.getModel()?.uri;
+		const resourceHasCommentingRanges = uri ? this.commentService.resourceHasCommentingRanges(uri) : false;
+
+		const hasCommentsOrRanges = hasCommentsOrRangesInInfo || resourceHasCommentingRanges;
 
 		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
 			this._commentingRangeSpaceReserved = true;

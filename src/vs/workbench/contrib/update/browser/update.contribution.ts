@@ -17,7 +17,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { isWindows } from 'vs/base/common/platform';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from 'vs/workbench/contrib/update/common/update';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -59,7 +59,7 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 
 		try {
-			await showReleaseNotesInEditor(instantiationService, productService.version);
+			await showReleaseNotesInEditor(instantiationService, productService.version, false);
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));
@@ -70,7 +70,35 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 	}
 }
 
+export class ShowCurrentReleaseNotesFromCurrentFileAction extends Action2 {
+
+	constructor() {
+		super({
+			id: ShowCurrentReleaseNotesFromCurrentFileActionId,
+			title: {
+				...localize2('showReleaseNotesCurrentFile', "Open Current File as Release Notes"),
+				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
+			},
+			category: localize2('developerCategory', "Developer"),
+			f1: true,
+			precondition: RELEASE_NOTES_URL
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const productService = accessor.get(IProductService);
+
+		try {
+			await showReleaseNotesInEditor(instantiationService, productService.version, true);
+		} catch (err) {
+			throw new Error(localize('releaseNotesFromFileNone', "Cannot open the current file as Release Notes"));
+		}
+	}
+}
+
 registerAction2(ShowCurrentReleaseNotesAction);
+registerAction2(ShowCurrentReleaseNotesFromCurrentFileAction);
 
 // Update
 

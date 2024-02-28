@@ -147,6 +147,11 @@ export const tocData: ITOCEntry<string> = {
 			label: localize('features', "Features"),
 			children: [
 				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signals.*', 'audioCues.*']
+				},
+				{
 					id: 'features/accessibility',
 					label: localize('accessibility', "Accessibility"),
 					settings: ['accessibility.*']
@@ -220,21 +225,6 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/notebook',
 					label: localize('notebook', 'Notebook'),
 					settings: ['notebook.*', 'interactiveWindow.*']
-				},
-				{
-					id: 'features/signals',
-					label: localize('signals', 'Signals'),
-					settings: ['signals.*']
-				},
-				{
-					id: 'features/accessibilitySignals',
-					label: localize('accessibility.signals', 'Accessibility Signals'),
-					settings: ['accessibility.signals.*']
-				},
-				{
-					id: 'features/accessibilitySignals',
-					label: localize('accessibility.signals', 'Accessibility Signals'),
-					settings: ['accessibility.signals.*']
 				},
 				{
 					id: 'features/mergeEditor',

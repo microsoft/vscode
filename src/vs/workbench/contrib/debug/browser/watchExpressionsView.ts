@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeMouseEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_CAN_VIEW_MEMORY } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Codicon } from 'vs/base/common/codicons';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAction } from 'vs/base/common/actions';
-import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { watchExpressionsRemoveAll, watchExpressionsAdd } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { watchExpressionsAdd, watchExpressionsRemoveAll } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { VariablesRenderer, VisualizedVariableRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugService, IExpression, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { Expression, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
@@ -86,9 +86,14 @@ export class WatchExpressionsView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
-		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(), [expressionsRenderer, this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
-			new WatchExpressionsDataSource(), {
+		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
+			[
+				expressionsRenderer,
+				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
+				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
+			],
+			this.instantiationService.createInstance(WatchExpressionsDataSource), {
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression) => element.getId() },
 			keyboardNavigationLabelProvider: {
@@ -109,6 +114,7 @@ export class WatchExpressionsView extends ViewPane {
 		this.tree.setInput(this.debugService);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
+		this._register(VisualizedVariableRenderer.rendererOnVisualizationRange(this.debugService.getViewModel(), this.tree));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this._register(this.debugService.getModel().onDidChangeWatchExpressions(async we => {
@@ -151,7 +157,7 @@ export class WatchExpressionsView extends ViewPane {
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			const expression = e?.expression;
-			if (expression instanceof Expression || (expression instanceof Variable && e?.settingWatch)) {
+			if (expression && this.tree.hasElement(expression)) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
@@ -198,7 +204,7 @@ export class WatchExpressionsView extends ViewPane {
 		const element = e.element;
 		// double click on primitive value: open input box to be able to select and copy value.
 		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
-		if (element instanceof Expression && element !== selectedExpression?.expression) {
+		if ((element instanceof Expression && element !== selectedExpression?.expression) || (element instanceof VisualizedExpression && element.treeItem.canEdit)) {
 			this.debugService.getViewModel().setSelectedExpression(element, false);
 		} else if (!element) {
 			// Double click in watch panel triggers to add a new watch expression
@@ -234,6 +240,10 @@ class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 			return WatchExpressionsRenderer.ID;
 		}
 
+		if (element instanceof VisualizedExpression) {
+			return VisualizedVariableRenderer.ID;
+		}
+
 		// Variable
 		return VariablesRenderer.ID;
 	}
@@ -243,13 +253,13 @@ function isDebugService(element: any): element is IDebugService {
 	return typeof element.getConfigurationManager === 'function';
 }
 
-class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExpression> {
+class WatchExpressionsDataSource extends AbstractExpressionDataSource<IDebugService, IExpression> {
 
-	hasChildren(element: IExpression | IDebugService): boolean {
+	public override hasChildren(element: IExpression | IDebugService): boolean {
 		return isDebugService(element) || element.hasChildren;
 	}
 
-	getChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
+	protected override doGetChildren(element: IDebugService | IExpression): Promise<Array<IExpression>> {
 		if (isDebugService(element)) {
 			const debugService = element as IDebugService;
 			const watchExpressions = debugService.getModel().getWatchExpressions();

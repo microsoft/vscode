@@ -9,6 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { RemoteAuthorities } from 'vs/base/common/network';
 import * as performance from 'vs/base/common/performance';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -17,7 +18,6 @@ import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/ba
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteAuthorityResolverError, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -232,7 +232,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 
 	let socket: ISocket;
 	try {
-		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, getRemoteServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
+		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, RemoteAuthorities.getServerRootPath(), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
 	} catch (error) {
 		options.logService.error(`${logPrefix} socketFactory.connect() failed or timed out. Error:`);
 		options.logService.error(error);

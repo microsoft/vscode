@@ -9,6 +9,7 @@
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 	content: "\ec1c";
+	font-family: 'codicon';
 }
 
 /*
@@ -25,4 +26,5 @@
 .monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
 .monaco-workbench.reduce-motion .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 	content: "\ead7";
+	font-family: 'codicon';
 }

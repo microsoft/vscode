@@ -307,7 +307,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 
 				// Support diffMode
-				if (options?.diffMode && fileOpenables.length === 2) {
+				else if (options?.diffMode && fileOpenables.length === 2) {
 					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
 					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources

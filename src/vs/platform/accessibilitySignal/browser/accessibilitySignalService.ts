@@ -129,7 +129,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			return;
 		}
 		this.playingSounds.add(sound);
-		const url = FileAccess.asBrowserUri(`vs/platform/accessibilitySignals/browser/media/${sound.fileName}`).toString(true);
+		const url = FileAccess.asBrowserUri(`vs/platform/accessibilitySignal/browser/media/${sound.fileName}`).toString(true);
 
 		try {
 			const sound = this.sounds.get(url);

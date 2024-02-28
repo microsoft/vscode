@@ -7,7 +7,9 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -19,12 +21,14 @@ export class ChatRequestParser {
 	constructor(
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
-		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService
+		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
+		@IChatService private readonly chatService: IChatService
 	) { }
 
 	parseChatRequest(sessionId: string, message: string): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
+		const model = this.chatService.getSession(sessionId)!;
 
 		let lineNumber = 1;
 		let column = 1;
@@ -38,7 +42,7 @@ export class ChatRequestParser {
 				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts);
 				} else if (char === chatSubcommandLeader) {
-					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts);
+					newPart = this.tryToParseSlashCommand(model, message.slice(i), message, i, new Position(lineNumber, column), parts);
 				}
 
 				if (!newPart) {
@@ -138,7 +142,7 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
+	private tryToParseSlashCommand(model: IChatModel, remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
 		const nextSlashMatch = remainingMessage.match(slashReg);
 		if (!nextSlashMatch) {
 			return;
@@ -167,7 +171,7 @@ export class ChatRequestParser {
 				return;
 			}
 
-			const subCommands = usedAgent.agent.lastSlashCommands;
+			const subCommands = usedAgent.agent.getLastSlashCommands(model);
 			const subCommand = subCommands?.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.87.0",
-  "distro": "cee7e51a2bc638aa4fe4bc62668aec6d46ac94dc",
+  "version": "1.88.0",
+  "distro": "de07f23454d5352cc3711ca34d51278767e6eb0a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -103,7 +103,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.0.0",
-    "yauzl": "^2.9.2",
+    "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
   "devDependencies": {
@@ -127,7 +127,7 @@
     "@types/wicg-file-system-access": "^2020.9.6",
     "@types/windows-foreground-love": "^0.3.0",
     "@types/winreg": "^1.2.30",
-    "@types/yauzl": "^2.9.1",
+    "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/eslint-plugin": "^5.57.0",
     "@typescript-eslint/experimental-utils": "^5.57.0",
@@ -149,7 +149,7 @@
     "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "27.3.2",
+    "electron": "28.2.2",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
@@ -209,7 +209,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.4.0-dev.20240206",
+    "typescript": "^5.5.0-dev.20240226",
     "typescript-formatter": "7.1.0",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",

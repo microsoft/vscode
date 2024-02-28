@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -17,6 +18,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 
 	constructor(
 		action: IAction,
+		options: IActionViewItemOptions,
 		actionRunner: IActionRunner | undefined,
 		private readonly searchWidget: SuggestEnabledInput,
 		@IContextMenuService contextMenuService: IContextMenuService
@@ -25,6 +27,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			{ getActions: () => this.getActions() },
 			contextMenuService,
 			{
+				...options,
 				actionRunner,
 				classNames: action.class,
 				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,

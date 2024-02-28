@@ -284,28 +284,33 @@ export class NotebookOptions extends Disposable {
 				return;
 			}
 
-			const options = this.codeEditorService.resolveDecorationOptions(e, true);
-			if (options.afterContentClassName || options.beforeContentClassName) {
-				const cssRules = this.codeEditorService.resolveDecorationCSSRules(e);
-				if (cssRules !== null) {
-					for (let i = 0; i < cssRules.length; i++) {
-						// The following ways to index into the list are equivalent
-						if (
-							((cssRules[i] as CSSStyleRule).selectorText.endsWith('::after') || (cssRules[i] as CSSStyleRule).selectorText.endsWith('::after'))
-							&& (cssRules[i] as CSSStyleRule).cssText.indexOf('top:') > -1
-						) {
-							// there is a `::before` or `::after` text decoration whose position is above or below current line
-							// we at least make sure that the editor top padding is at least one line
-							const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value).lineHeight + 2);
-							decorationTriggeredAdjustment = true;
-							break;
+			try {
+				const options = this.codeEditorService.resolveDecorationOptions(e, true);
+				if (options.afterContentClassName || options.beforeContentClassName) {
+					const cssRules = this.codeEditorService.resolveDecorationCSSRules(e);
+					if (cssRules !== null) {
+						for (let i = 0; i < cssRules.length; i++) {
+							// The following ways to index into the list are equivalent
+							if (
+								((cssRules[i] as CSSStyleRule).selectorText.endsWith('::after') || (cssRules[i] as CSSStyleRule).selectorText.endsWith('::after'))
+								&& (cssRules[i] as CSSStyleRule).cssText.indexOf('top:') > -1
+							) {
+								// there is a `::before` or `::after` text decoration whose position is above or below current line
+								// we at least make sure that the editor top padding is at least one line
+								const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+								updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value).lineHeight + 2);
+								decorationTriggeredAdjustment = true;
+								break;
+							}
 						}
 					}
 				}
+
+				decorationCheckSet.add(e);
+			} catch (_ex) {
+				// do not throw and break notebook
 			}
 
-			decorationCheckSet.add(e);
 		};
 		this._register(this.codeEditorService.onDecorationTypeRegistered(onDidAddDecorationType));
 		this.codeEditorService.listDecorationTypes().forEach(onDidAddDecorationType);

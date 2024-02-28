@@ -95,6 +95,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			this._stickyScrollOverlay = this._register(new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,

@@ -43,10 +43,10 @@
 		"--vscode-charts-yellow",
 		"--vscode-chat-avatarBackground",
 		"--vscode-chat-avatarForeground",
+		"--vscode-chat-requestBackground",
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
-		"--vscode-chat-list-background",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-foreground",
@@ -693,7 +693,6 @@
 		"--vscode-terminalOverviewRuler-findMatchForeground",
 		"--vscode-terminalStickyScroll-background",
 		"--vscode-terminalStickyScrollHover-background",
-		"--vscode-testing-coverage-lineHeight",
 		"--vscode-testing-coverCountBadgeBackground",
 		"--vscode-testing-coverCountBadgeForeground",
 		"--vscode-testing-coveredBackground",
@@ -749,8 +748,7 @@
 		"--vscode-widget-border",
 		"--vscode-widget-shadow",
 		"--vscode-window-activeBorder",
-		"--vscode-window-inactiveBorder",
-		"--vscode-multiDiffEditor-headerBackground"
+		"--vscode-window-inactiveBorder"
 	],
 	"others": [
 		"--background-dark",
@@ -795,6 +793,8 @@
 		"--vscode-inline-chat-expanded",
 		"--vscode-inline-chat-quick-voice-height",
 		"--vscode-inline-chat-quick-voice-width",
+		"--vscode-editor-dictation-widget-height",
+		"--vscode-editor-dictation-widget-width",
 		"--vscode-interactive-session-foreground",
 		"--vscode-interactive-result-editor-background-color",
 		"--vscode-repl-font-family",

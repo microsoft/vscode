@@ -807,5 +807,48 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
+	test('transient editors suspends editor change tracking', async () => {
+		const [part, historyService, editorService, , instantiationService] = await createServices();
+
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID));
+		const input4 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID));
+		const input5 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar5'), TEST_EDITOR_INPUT_ID));
+
+		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
+		await part.activeGroup.openEditor(input1, { pinned: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		await editorChangePromise;
+
+		await part.activeGroup.openEditor(input2, { transient: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input2);
+		await part.activeGroup.openEditor(input3, { transient: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input3);
+
+		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange)
+			.then(() => Event.toPromise(editorService.onDidActiveEditorChange));
+
+		await part.activeGroup.openEditor(input4, { pinned: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input4);
+		await part.activeGroup.openEditor(input5, { pinned: true });
+		assert.strictEqual(part.activeGroup.activeEditor, input5);
+
+		// stack should be [input1, input4, input5]
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.activeEditor, input4);
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.activeEditor, input1);
+
+		await historyService.goForward();
+		assert.strictEqual(part.activeGroup.activeEditor, input4);
+		await historyService.goForward();
+		assert.strictEqual(part.activeGroup.activeEditor, input5);
+
+		return workbenchTeardown(instantiationService);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

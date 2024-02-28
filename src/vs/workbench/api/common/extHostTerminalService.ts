@@ -63,6 +63,7 @@ interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableColle
 export interface ITerminalInternalOptions {
 	cwd?: string | URI;
 	isFeatureTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	useShellEnvironment?: boolean;
 	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
 	/**
@@ -165,6 +166,7 @@ export class ExtHostTerminal {
 			initialText: options.message ?? undefined,
 			strictEnv: options.strictEnv ?? undefined,
 			hideFromUser: options.hideFromUser ?? undefined,
+			forceShellIntegration: internalOptions?.forceShellIntegration ?? undefined,
 			isFeatureTerminal: internalOptions?.isFeatureTerminal ?? undefined,
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: internalOptions?.useShellEnvironment ?? undefined,

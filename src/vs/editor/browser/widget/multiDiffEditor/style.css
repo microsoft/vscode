@@ -1,0 +1,124 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-component.multiDiffEditor {
+	background: var(--vscode-multiDiffEditor-background);
+	overflow-y: hidden;
+
+	.focused {
+		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
+	}
+
+	.multiDiffEntry {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		overflow: hidden;
+
+
+		.collapse-button {
+			margin: 0 5px;
+			cursor: pointer;
+
+			a {
+				display: block;
+			}
+		}
+
+		.header {
+			z-index: 1000;
+			background: var(--vscode-editor-background);
+
+			&:not(.collapsed) .header-content {
+				border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+			}
+
+			.header-content {
+				margin: 8px 8px 0px 8px;
+				padding: 8px 5px;
+
+				border-top: 1px solid var(--vscode-multiDiffEditor-border);
+				border-right: 1px solid var(--vscode-multiDiffEditor-border);
+				border-left: 1px solid var(--vscode-multiDiffEditor-border);
+				border-top-left-radius: 2px;
+				border-top-right-radius: 2px;
+
+				display: flex;
+				align-items: center;
+
+				color: var(--vscode-foreground);
+				background: var(--vscode-multiDiffEditor-headerBackground);
+
+				&.shadow {
+					box-shadow: var(--vscode-scrollbar-shadow) 0px 6px 6px -6px;
+				}
+
+				.file-path {
+					display: flex;
+					flex: 1;
+					min-width: 0;
+
+					.title {
+						font-size: 14px;
+						line-height: 22px;
+
+						&.original {
+							flex: 1;
+							min-width: 0;
+							text-overflow: ellipsis;
+						}
+					}
+
+					.status {
+						font-weight: 600;
+						opacity: 0.75;
+						margin: 0px 10px;
+						line-height: 22px;
+
+						/*
+							TODO@hediet: move colors from git extension to core!
+						&.renamed {
+							color: v ar(--vscode-gitDecoration-renamedResourceForeground);
+						}
+
+						&.deleted {
+							color: v ar(--vscode-gitDecoration-deletedResourceForeground);
+						}
+
+						&.added {
+							color: v ar(--vscode-gitDecoration-addedResourceForeground);
+						}
+						*/
+					}
+				}
+
+				.actions {
+					padding: 0 8px;
+				}
+			}
+
+
+		}
+
+		.editorParent {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+
+			margin-right: 8px;
+			margin-left: 8px;
+
+			border-right: 1px solid var(--vscode-multiDiffEditor-border);
+			border-left: 1px solid var(--vscode-multiDiffEditor-border);
+			border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+			border-radius: 2px;
+			overflow: hidden;
+		}
+
+		.editorContainer {
+			flex: 1;
+		}
+	}
+}
