@@ -285,6 +285,6 @@ function isFocused(editor: ICodeEditor): IObservable<boolean> {
 			store.add(editor.onDidBlurEditorWidget(() => h(false)));
 			return store;
 		},
-		() => editor.hasWidgetFocus()
+		() => editor.hasTextFocus()
 	);
 }
