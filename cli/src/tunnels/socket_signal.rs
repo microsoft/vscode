@@ -255,7 +255,7 @@ where
 				Ok(flate2::Status::Ok | flate2::Status::BufError) => {
 					let processed_len = in_offset + (self.flate.total_in() - in_before) as usize;
 					let output_len = out_offset + (self.flate.total_out() - out_before) as usize;
-					if processed_len < contents.len() {
+					if processed_len < contents.len() || output_len == self.output.len() {
 						// If we filled the output buffer but there's more data to compress,
 						// extend the output buffer and keep compressing.
 						out_offset = output_len;
