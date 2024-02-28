@@ -32,7 +32,7 @@ export interface IChatAgentData {
 	/** The agent invoked when no agent is specified */
 	isDefault?: boolean;
 	metadata: IChatAgentMetadata;
-	readonly slashCommands: IChatAgentCommand[];
+	slashCommands: IChatAgentCommand[];
 }
 
 export interface IChatAgentImplementation {

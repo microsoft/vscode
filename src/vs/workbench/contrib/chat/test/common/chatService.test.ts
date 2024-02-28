@@ -32,6 +32,7 @@ import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
+import { MockChatContributionService } from 'vs/workbench/contrib/chat/test/common/mockChatContributionService';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
 	private static sessionId = 0;
@@ -104,6 +105,11 @@ suite('Chat', () => {
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatContributionService, new MockChatContributionService(
+			[
+				{ extensionId: nullExtensionDescription.identifier, name: 'testAgent', isDefault: true },
+				{ extensionId: nullExtensionDescription.identifier, name: chatAgentWithUsedContextId, isDefault: true },
+			]));
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
