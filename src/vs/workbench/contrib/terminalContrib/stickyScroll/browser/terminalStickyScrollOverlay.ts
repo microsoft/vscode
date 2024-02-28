@@ -382,6 +382,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 		}));
 
+		// Forward mouse events to the terminal
+		this._register(addStandardDisposableListener(hoverOverlay, 'wheel', e => this._xterm?.raw.element?.dispatchEvent(new WheelEvent(e.type, e))));
+
 		// Context menu - stop propagation on mousedown because rightClickBehavior listens on
 		// mousedown, not contextmenu
 		this._register(addDisposableListener(hoverOverlay, 'mousedown', e => {
