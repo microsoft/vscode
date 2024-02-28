@@ -57,9 +57,9 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	public async playSignal(signal: AccessibilitySignal, options: IAccessbilitySignalOptions = {}): Promise<void> {
-		const alertMessage = signal.announcementMessage;
-		if (this.isAnnouncementEnabled(signal, options.userGesture) && alertMessage) {
-			this.accessibilityService.status(alertMessage);
+		const announcementMessage = signal.announcementMessage;
+		if (this.isAnnouncementEnabled(signal, options.userGesture) && announcementMessage) {
+			this.accessibilityService.status(announcementMessage);
 		}
 
 		if (this.isSoundEnabled(signal, options.userGesture)) {
@@ -73,9 +73,9 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			this.sendSignalTelemetry('signal' in signal ? signal.signal : signal, 'source' in signal ? signal.source : undefined);
 		}
 		const signalArray = signals.map(s => 'signal' in s ? s.signal : s);
-		const alerts = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
-		if (alerts.length) {
-			this.accessibilityService.status(alerts.join(', '));
+		const announcements = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
+		if (announcements.length) {
+			this.accessibilityService.status(announcements.join(', '));
 		}
 
 		// Some sounds are reused. Don't play the same sound twice.
@@ -214,7 +214,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			() => event.signal.announcementMessage ? this.configurationService.getValue<'auto' | 'off' | 'userGesture' | 'always' | 'never'>(event.signal.settingsKey + '.announcement') : false
 		);
 		return derived(reader => {
-			/** @description alert enabled */
+			/** @description announcement enabled */
 			const setting = settingObservable.read(reader);
 			if (
 				!this.screenReaderAttached.read(reader)
