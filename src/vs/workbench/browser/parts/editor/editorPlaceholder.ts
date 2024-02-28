@@ -234,7 +234,6 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 
 	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
 		const resource = input.resource;
-		const group = this.group;
 		const error = options.error;
 		const isFileNotFound = (<FileOperationError | undefined>error)?.fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
@@ -274,20 +273,20 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 					}
 				};
 			});
-		} else if (group) {
+		} else {
 			actions = [
 				{
 					label: localize('retry', "Try Again"),
-					run: () => group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
+					run: () => this.group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
 				}
 			];
 		}
 
 		// Auto-reload when file is added
-		if (group && isFileNotFound && resource && this.fileService.hasProvider(resource)) {
+		if (isFileNotFound && resource && this.fileService.hasProvider(resource)) {
 			disposables.add(this.fileService.onDidFilesChange(e => {
 				if (e.contains(resource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-					group.openEditor(input, options);
+					this.group.openEditor(input, options);
 				}
 			}));
 		}

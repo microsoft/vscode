@@ -161,9 +161,7 @@ export class WebviewEditor extends EditorPane {
 		}
 
 		if (input instanceof WebviewInput) {
-			if (this.group) {
-				input.updateGroup(this.group.id);
-			}
+			input.updateGroup(this.group.id);
 
 			if (!alreadyOwnsWebview) {
 				this.claimWebview(input);
@@ -186,7 +184,7 @@ export class WebviewEditor extends EditorPane {
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
 		this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
-			containsGroup: (group) => this.group?.id === group.id
+			containsGroup: (group) => this.group.id === group.id
 		}));
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(() => this.webview));

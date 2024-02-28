@@ -398,7 +398,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private restoreCachedState(): ISettingsEditor2State | null {
-		const cachedState = this.group && this.input && this.editorMemento.loadEditorState(this.group, this.input);
+		const cachedState = this.input && this.editorMemento.loadEditorState(this.group, this.input);
 		if (cachedState && typeof cachedState.target === 'object') {
 			cachedState.target = URI.revive(cachedState.target);
 		}
@@ -1830,10 +1830,10 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.isVisible()) {
 			const searchQuery = this.searchWidget.getValue().trim();
 			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;
-			if (this.group && this.input) {
+			if (this.input) {
 				this.editorMemento.saveEditorState(this.group, this.input, { searchQuery, target });
 			}
-		} else if (this.group && this.input) {
+		} else if (this.input) {
 			this.editorMemento.clearEditorState(this.input, this.group);
 		}
 

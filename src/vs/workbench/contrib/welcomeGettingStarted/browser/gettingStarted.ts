@@ -1170,7 +1170,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private focusSideEditorGroup() {
-		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
+		const fullSize = this.groupsService.getPart(this.group).contentDimension;
 		if (!fullSize || fullSize.width <= 700) { return; }
 		if (this.groupsService.count === 1) {
 			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);

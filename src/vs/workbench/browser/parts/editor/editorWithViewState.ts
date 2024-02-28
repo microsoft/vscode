@@ -110,7 +110,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		// - the user configured to not restore view state unless the editor is still opened in the group
 		if (
 			(input.isDisposed() && !this.tracksDisposedEditorViewState()) ||
-			(!this.shouldRestoreEditorViewState(input) && (!this.group || !this.group.contains(input)))
+			(!this.shouldRestoreEditorViewState(input) && !this.group.contains(input))
 		) {
 			this.clearEditorViewState(resource, this.group);
 		}
@@ -147,10 +147,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	}
 
 	private saveEditorViewState(resource: URI): void {
-		if (!this.group) {
-			return;
-		}
-
 		const editorViewState = this.computeEditorViewState(resource);
 		if (!editorViewState) {
 			return;
@@ -160,7 +156,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	}
 
 	protected loadEditorViewState(input: EditorInput | undefined, context?: IEditorOpenContext): T | undefined {
-		if (!input || !this.group) {
+		if (!input) {
 			return undefined; // we need valid input
 		}
 

@@ -201,7 +201,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			const perf = new NotebookPerfMarks();
 			perf.mark('startTime');
-			const group = this.group!;
 
 			this._inputListener.value = input.onDidChangeCapabilities(() => this._onDidChangeInputCapabilities(input));
 
@@ -211,7 +210,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(group.windowId, true).window);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(this.group.windowId, true).window);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');
@@ -317,7 +316,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this._widgetDisposableStore.add(this._widget.value.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
 
 			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value.getDomNode(), {
-				containsGroup: (group) => this.group?.id === group.id
+				containsGroup: (group) => this.group.id === group.id
 			}));
 
 			perf.mark('editorLoaded');
@@ -336,7 +335,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 
 			// Handle case where a file is too large to open without confirmation
-			if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+			if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				let message: string;
 				if (e instanceof TooLargeFileOperationError) {
 					message = localize('notebookTooLargeForHeapErrorWithSize', "The notebook is not displayed in the notebook editor because it is very large ({0}).", ByteSize.formatSize(e.size));
@@ -510,7 +509,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
+		if (this._widget.value && input instanceof NotebookEditorInput) {
 			if (this._widget.value.isDisposed) {
 				return;
 			}
@@ -521,10 +520,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 	}
 
 	private _loadNotebookEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
-		let result: INotebookEditorViewState | undefined;
-		if (this.group) {
-			result = this._editorMemento.loadEditorState(this.group, input.resource);
-		}
+		const result = this._editorMemento.loadEditorState(this.group, input.resource);
 		if (result) {
 			return result;
 		}

@@ -441,22 +441,18 @@ export class WalkThroughPart extends EditorPane {
 	private saveTextEditorViewState(input: WalkThroughInput): void {
 		const scrollPosition = this.scrollbar.getScrollPosition();
 
-		if (this.group) {
-			this.editorMemento.saveEditorState(this.group, input, {
-				viewState: {
-					scrollTop: scrollPosition.scrollTop,
-					scrollLeft: scrollPosition.scrollLeft
-				}
-			});
-		}
+		this.editorMemento.saveEditorState(this.group, input, {
+			viewState: {
+				scrollTop: scrollPosition.scrollTop,
+				scrollLeft: scrollPosition.scrollLeft
+			}
+		});
 	}
 
 	private loadTextEditorViewState(input: WalkThroughInput) {
-		if (this.group) {
-			const state = this.editorMemento.loadEditorState(this.group, input);
-			if (state) {
-				this.scrollbar.setScrollPosition(state.viewState);
-			}
+		const state = this.editorMemento.loadEditorState(this.group, input);
+		if (state) {
+			this.scrollbar.setScrollPosition(state.viewState);
 		}
 	}
 

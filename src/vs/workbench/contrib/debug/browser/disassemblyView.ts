@@ -133,7 +133,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private createFontInfo() {
-		const window = getWindowById(this.group?.windowId, true).window;
+		const window = getWindowById(this.group.windowId, true).window; //TODO@bpasero might crash
 		return BareFontInfo.createFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(window).value);
 	}
 

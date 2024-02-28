@@ -119,7 +119,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	readonly group: IEditorGroup;
 
 	/**
 	 * The minimum width of this editor.
@@ -327,7 +327,6 @@ export function findViewStateForEditor(input: EditorInput, group: GroupIdentifie
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: EditorInput;
-	readonly group: IEditorGroup;
 }
 
 /**

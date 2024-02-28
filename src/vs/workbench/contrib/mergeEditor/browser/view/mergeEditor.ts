@@ -354,7 +354,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				// all empty -> replace this editor with a normal editor for result
 				that.editorService.replaceEditors(
 					[{ editor: input, replacement: { resource: input.result, options: { preserveFocus: true } }, forceReplaceDirty: true }],
-					that.group ?? that.editorGroupService.activeGroup
+					that.group
 				);
 			}
 		});

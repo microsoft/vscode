@@ -160,7 +160,7 @@ export class InteractiveEditor extends EditorPane {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group?.windowId, true).window ?? mainWindow, configurationService, notebookExecutionStateService, codeEditorService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group.windowId, true).window ?? mainWindow, configurationService, notebookExecutionStateService, codeEditorService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false }); //TODO@bpasero might crash
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
@@ -313,7 +313,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this._notebookWidget.value && input instanceof InteractiveEditorInput) {
+		if (this._notebookWidget.value && input instanceof InteractiveEditorInput) {
 			if (this._notebookWidget.value.isDisposed) {
 				return;
 			}
@@ -328,10 +328,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
-		let result: InteractiveEditorViewState | undefined;
-		if (this.group) {
-			result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
-		}
+		const result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
 		if (result) {
 			return result;
 		}
@@ -351,7 +348,6 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override async setInput(input: InteractiveEditorInput, options: InteractiveEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const group = this.group!;
 		const notebookInput = input.notebookEditorInput;
 
 		// there currently is a widget which we still own so
@@ -362,9 +358,9 @@ export class InteractiveEditor extends EditorPane {
 
 		this._widgetDisposableStore.clear();
 
-		const codeWindow = this.group ? DOM.getWindowById(group.windowId, true).window : mainWindow;
+		const codeWindow = DOM.getWindowById(this.group.windowId, true).window;
 
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, notebookInput, {
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([

@@ -153,7 +153,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group?.windowId, true).window ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, false);
+		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group.windowId, true).window ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, false);//TODO@bpasero will crash
 		this._register(this._notebookOptions);
 		this._revealFirst = true;
 	}
@@ -167,7 +167,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private createFontInfo() {
-		const window = DOM.getWindowById(this.group?.windowId, true).window;
+		const window = DOM.getWindowById(this.group.windowId, true).window;
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		return FontMeasurements.readFontInfo(window, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(window).value));
 	}
