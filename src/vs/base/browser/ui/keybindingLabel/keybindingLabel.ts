@@ -111,6 +111,7 @@ export class KeybindingLabel extends Disposable {
 			}
 			const title = (this.options.disableTitle ?? false) ? undefined : this.keybinding.getAriaLabel() || undefined;
 			this.hover.update(title);
+			this.domNode.setAttribute('aria-label', title || '');
 		} else if (this.options && this.options.renderUnboundKeybindings) {
 			this.renderUnbound(this.domNode);
 		}

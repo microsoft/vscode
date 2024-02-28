@@ -932,7 +932,9 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 
 		templateData.commandColumn.classList.toggle('vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
-		templateData.commandColumnHover.update(keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command);
+		const title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
+		templateData.commandColumn.setAttribute('aria-label', title);
+		templateData.commandColumnHover.update(title);
 
 		if (keybindingItem.commandLabel) {
 			templateData.commandLabelContainer.classList.remove('hide');
