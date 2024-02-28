@@ -1222,11 +1222,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[], overrideReadOnly: boolean = true): boolean {
 		if (!this._modelData) {
 			return false;
 		}
-		if (this._configuration.options.get(EditorOption.readOnly)) {
+		if (this._configuration.options.get(EditorOption.readOnly) && overrideReadOnly) {
 			// read only editor => sorry!
 			return false;
 		}
@@ -1240,7 +1240,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			cursorStateComputer = endCursorState;
 		}
 
-		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
+		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer, overrideReadOnly);
 		return true;
 	}
 

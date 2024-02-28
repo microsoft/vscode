@@ -22,11 +22,14 @@ import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { BulkEditTreeView } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTreeView';
-import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkbenchUIElementFactory } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { BulkEditEditorInput } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditEditorInput';
 import { FileElement, TextEditElement } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
 import { Range } from 'vs/editor/common/core/range';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 
 export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 
@@ -40,6 +43,8 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	private _edits: ResourceEdit[] = [];
 	private _promiseResolvedEdits: Promise<ResourceEdit[] | undefined> | undefined;
+	private _mapOfReverseEdits: Map<string, Map<DetailedLineRangeMapping, ISingleEditOperation>> = new Map();
+	private _lineRangeMapping: readonly DetailedLineRangeMapping[] | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -168,29 +173,80 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		this._renderRefactorPreviewPane();
 		this._reveal(options);
 		console.log('end of setInput of bulkEditEditor');
+
+		this._refactorViewPane?.onToggleChecked((e) => {
+			console.log('e of setInput : ', e);
+			if (!(e instanceof ResourceTextEdit)) {
+				return;
+			}
+
+			const codeEditor = this._multiDiffEditorWidget?.tryGetCodeEditor(e.resource);
+			// put in modified resource to get modified resource
+			const diffEditor = codeEditor?.diffEditor as DiffEditorWidget;
+
+			if (!this._lineRangeMapping) {
+				const computationalResult = diffEditor.getDiffComputationResult()?.changes2;
+				console.log('computationalResult : ', computationalResult);
+				if (!computationalResult) {
+					return;
+				}
+				this._lineRangeMapping = computationalResult;
+			}
+
+			const range = e.textEdit.range;
+			const rangeMappingToRevert = this._lineRangeMapping.find((res) => {
+				const innerChanges = res.innerChanges;
+				if (!innerChanges) {
+					return false;
+				}
+				return innerChanges[0].originalRange.startLineNumber === range.startLineNumber && innerChanges[0].originalRange.endLineNumber === range.endLineNumber;
+			});
+
+			if (!rangeMappingToRevert) {
+				return;
+			}
+
+			// Resource has been removed now, so need to revert the change and save it to the array
+			if (!this._refactorViewPane?.isResourceChecked(e)) {
+				console.log('inside of the first if statement');
+				const rangeMapping = rangeMappingToRevert.innerChanges?.[0];
+				if (!rangeMapping) {
+					return;
+				}
+
+				console.log('rangeMappingToRevert : ', rangeMappingToRevert);
+				const reverseEdit = {
+					range: rangeMapping.originalRange,
+					text: diffEditor.getValueInRangeInModifiedEditor(rangeMapping.modifiedRange)
+				};
+
+				let currentMap: Map<DetailedLineRangeMapping, ISingleEditOperation>;
+				if (this._mapOfReverseEdits.has(e.resource.toString())) {
+					currentMap = this._mapOfReverseEdits.get(e.resource.toString())!;
+				} else {
+					currentMap = new Map();
+					this._mapOfReverseEdits.set(e.resource.toString(), currentMap);
+				}
+				currentMap.set(rangeMappingToRevert, reverseEdit);
+
+				diffEditor.revert(rangeMappingToRevert);
+				console.log('diffEditor : ', diffEditor);
+			} else {
+
+				console.log('inside of else statement');
+				const edit = this._mapOfReverseEdits.get(e.resource.toString())?.get(rangeMappingToRevert);
+				console.log('edit : ', edit);
+				if (edit) {
+					diffEditor.executeEditsOnModifiedEditor([edit]);
+				}
+			}
+			console.log('this._mapOfReverseEdits : ', this._mapOfReverseEdits);
+		});
 	}
 
 	override async setOptions(options: IMultiDiffEditorOptions | undefined): Promise<void> {
 		console.log('setOptions options : ', options);
 		this._reveal(options);
-
-		/*
-		// TODO: We need to update the multi diff editor when the edits changes
-		// TODO: The actual files need to be change in the temporary files for the change to be propagated, how to change the transient files?
-		console.log('this._bulkEditEditorInput : ', this._bulkEditEditorInput);
-		if (this._bulkEditEditorInput) {
-			this._viewModel = await this._bulkEditEditorInput.getViewModel();
-			console.log('this._viewModel : ', this._viewModel);
-			const items = this._viewModel.items.get();
-			const _item = items[0];
-			console.log('_item.lastTemplateData.get().selections : ', _item.lastTemplateData.get().selections);
-			console.log('this._viewModel.items.get() : ', items);
-			console.log('this._viewModel.model : ', this._viewModel.model);
-			console.log('this._multiDiffEditorWidget :', this._multiDiffEditorWidget);
-			this._multiDiffEditorWidget!.setViewModel(this._viewModel);
-
-		}
-		*/
 	}
 
 	private _reveal(options: IMultiDiffEditorOptions | undefined): void {

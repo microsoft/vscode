@@ -1034,16 +1034,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._withViewEventsCollector(eventsCollector => this._cursor.restoreState(eventsCollector, states));
 	}
 
-	private _executeCursorEdit(callback: (eventsCollector: ViewModelEventsCollector) => void): void {
-		if (this._cursor.context.cursorConfig.readOnly) {
+	private _executeCursorEdit(callback: (eventsCollector: ViewModelEventsCollector) => void, overrideReadOnly: boolean = true): void {
+		if (this._cursor.context.cursorConfig.readOnly && overrideReadOnly) {
 			// we cannot edit when read only...
 			this._eventDispatcher.emitOutgoingEvent(new ReadOnlyEditAttemptEvent());
 			return;
 		}
 		this._withViewEventsCollector(callback);
 	}
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer));
+	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, overrideReadOnly: boolean = true): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer), overrideReadOnly);
 	}
 	public startComposition(): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.startComposition(eventsCollector));

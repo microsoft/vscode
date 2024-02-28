@@ -467,6 +467,7 @@ export class CursorsController extends Disposable {
 		}
 		const autoClosedCharactersRanges: Range[] = [];
 		const autoClosedEnclosingRanges: Range[] = [];
+		console.log('before pushEditOperations');
 		const selections = this._model.pushEditOperations(this.getSelections(), edits, (undoEdits) => {
 			if (autoClosingIndices) {
 				for (let i = 0, len = autoClosingIndices.length; i < len; i++) {

@@ -57,6 +57,9 @@ export class BulkEditTreeView extends Disposable {
 	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
 
+	private _onToggleChecked = this._register(new Emitter<ResourceEdit>());
+	readonly onToggleChecked: Event<ResourceEdit> = this._onToggleChecked.event;
+
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -191,12 +194,17 @@ export class BulkEditTreeView extends Disposable {
 			this._currentResolve = resolve;
 			this._setTreeInput(input);
 
-			this._sessionDisposables.add(input.checked.onDidChange(() => {
+			this._sessionDisposables.add(input.checked.onDidChange(async (e) => {
 				console.log('when input checked state changed');
 				this._tree.updateChildren();
 				this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
+				this._onToggleChecked.fire(e);
 			}));
 		});
+	}
+
+	isResourceChecked(e: ResourceEdit): boolean {
+		return this._currentInput?.checked.isChecked(e) ?? false;
 	}
 
 	hasInput(): boolean {

@@ -460,12 +460,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	 * @deprecated Use `this.getDiffComputationResult().changes2` instead.
 	 */
 	getLineChanges(): ILineChange[] | null {
+		// get line changes
 		const diffState = this._diffModel.get()?.diff.get();
 		if (!diffState) { return null; }
 		return toLineChanges(diffState);
 	}
 
 	getDiffComputationResult(): IDiffComputationResult | null {
+		// taking the diff model
 		const diffState = this._diffModel.get()?.diff.get();
 		if (!diffState) { return null; }
 
@@ -478,13 +480,17 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	revert(diff: DetailedLineRangeMapping): void {
+		console.log('diff inside of revert:', diff);
 		if (diff.innerChanges) {
 			this.revertRangeMappings(diff.innerChanges);
 			return;
 		}
 
 		const model = this._diffModel.get();
-		if (!model || !model.isDiffUpToDate.get()) { return; }
+		if (!model || !model.isDiffUpToDate.get()) {
+			console.log('early return');
+			return;
+		}
 
 		this._editors.modified.executeEdits('diffEditor', [
 			{
@@ -494,16 +500,28 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		]);
 	}
 
+	getValueInRangeInModifiedEditor(range: Range): string {
+		return this._diffModel.get()?.model.modified.getValueInRange(range) ?? '';
+	}
+
+	executeEditsOnModifiedEditor(edits: IIdentifiedSingleEditOperation[]) {
+		this._editors.modified.executeEdits('diffEditor', edits, undefined, false);
+	}
+
 	revertRangeMappings(diffs: RangeMapping[]): void {
 		const model = this._diffModel.get();
-		if (!model || !model.isDiffUpToDate.get()) { return; }
+		if (!model || !model.isDiffUpToDate.get()) {
+			console.log('early return in revertRangeMappings');
+			return;
+		}
 
 		const changes: IIdentifiedSingleEditOperation[] = diffs.map<IIdentifiedSingleEditOperation>(c => ({
 			range: c.modifiedRange,
 			text: model.model.original.getValueInRange(c.originalRange)
 		}));
+		console.log('changes:', changes);
 
-		this._editors.modified.executeEdits('diffEditor', changes);
+		this._editors.modified.executeEdits('diffEditor', changes, undefined, false);
 	}
 
 	private _goTo(diff: DiffMapping): void {
