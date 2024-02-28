@@ -1710,6 +1710,14 @@ export interface CommentInfo {
 	commentingRanges: CommentingRanges;
 }
 
+
+/**
+ * @internal
+ */
+export interface CommentingRangeResourceHint {
+	schemes: readonly string[];
+}
+
 /**
  * @internal
  */

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from 'vs/base/common/uuid';
-import { ILocalExtension, IExtensionGalleryService, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -45,7 +45,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		super(extensionManagementServerService, extensionGalleryService, userDataProfileService, configurationService, productService, downloadService, userDataSyncEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService, fileService, logService, instantiationService);
 	}
 
-	protected override async installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	protected override async installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallOptions | undefined): Promise<ILocalExtension> {
 		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 			await this.downloadService.download(vsix, downloadedLocation);

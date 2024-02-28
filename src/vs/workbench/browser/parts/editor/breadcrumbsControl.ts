@@ -517,7 +517,7 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 		} else {
-			element.outline.reveal(element, { pinned }, group === SIDE_GROUP);
+			element.outline.reveal(element, { pinned }, group === SIDE_GROUP, false);
 		}
 	}
 
@@ -860,7 +860,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return (<IOutline<any>>input).reveal(element, {
 				pinned: true,
 				preserveFocus: false
-			}, true);
+			}, true, false);
 		}
 	}
 });

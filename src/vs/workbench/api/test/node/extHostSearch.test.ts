@@ -43,6 +43,10 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 		this.lastHandle = handle;
 	}
 
+	$registerAITextSearchProvider(handle: number, scheme: string): void {
+		this.lastHandle = handle;
+	}
+
 	$unregisterProvider(handle: number): void {
 	}
 

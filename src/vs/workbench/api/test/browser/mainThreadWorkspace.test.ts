@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -41,7 +41,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: 'foo', disregardSearchExcludeSettings: true }, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: 'foo', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 
 	test('exclude defaults', () => {
@@ -63,7 +63,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true }, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 
 	test('disregard excludes', () => {
@@ -84,7 +84,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true, disregardExcludeSettings: true }, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true, disregardExcludeSettings: true }, CancellationToken.None);
 	});
 
 	test('do not disregard anything if disregardExcludeSettings is true', () => {
@@ -106,7 +106,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardExcludeSettings: true, disregardSearchExcludeSettings: false }, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardExcludeSettings: true, disregardSearchExcludeSettings: false }, CancellationToken.None);
 	});
 
 	test('exclude string', () => {
@@ -120,6 +120,6 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
-		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: 'exclude/**', disregardSearchExcludeSettings: true }, new CancellationTokenSource().token);
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: 'exclude/**', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 });

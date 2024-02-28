@@ -643,6 +643,14 @@ yauzl@^2.9.2:
     buffer-crc32 "~0.2.3"
     fd-slicer "~1.1.0"
 
+yauzl@^3.0.0:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-3.1.1.tgz#d85503cc34933c0bcb3646ee2b97afedbebe32e7"
+  integrity sha512-MPxA7oN5cvGV0wzfkeHKF2/+Q4TkMpHSWGRy/96I4Cozljmx0ph91+Muxh6HegEtDC4GftJ8qYDE51vghFiEYA==
+  dependencies:
+    buffer-crc32 "~0.2.3"
+    pend "~1.2.0"
+
 yazl@^2.4.3:
   version "2.4.3"
   resolved "https://registry.yarnpkg.com/yazl/-/yazl-2.4.3.tgz#ec26e5cc87d5601b9df8432dbdd3cd2e5173a071"

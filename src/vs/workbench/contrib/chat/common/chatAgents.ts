@@ -107,7 +107,10 @@ export const IChatAgentService = createDecorator<IChatAgentService>('chatAgentSe
 
 export interface IChatAgentService {
 	_serviceBrand: undefined;
-	readonly onDidChangeAgents: Event<void>;
+	/**
+	 * undefined when an agent was removed
+	 */
+	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
 	registerAgent(agent: IChatAgent): IDisposable;
 	invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
@@ -127,8 +130,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _agents = new Map<string, { agent: IChatAgent }>();
 
-	private readonly _onDidChangeAgents = this._register(new Emitter<void>());
-	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
+	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
+	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
 
 	override dispose(): void {
 		super.dispose();
@@ -140,11 +143,11 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			throw new Error(`Already registered an agent with id ${agent.id}`);
 		}
 		this._agents.set(agent.id, { agent });
-		this._onDidChangeAgents.fire();
+		this._onDidChangeAgents.fire(agent);
 
 		return toDisposable(() => {
 			if (this._agents.delete(agent.id)) {
-				this._onDidChangeAgents.fire();
+				this._onDidChangeAgents.fire(undefined);
 			}
 		});
 	}
@@ -155,7 +158,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			throw new Error(`No agent with id ${id} registered`);
 		}
 		data.agent.metadata = { ...data.agent.metadata, ...updateMetadata };
-		this._onDidChangeAgents.fire();
+		this._onDidChangeAgents.fire(data.agent);
 	}
 
 	getDefaultAgent(): IChatAgent | undefined {

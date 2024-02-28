@@ -277,6 +277,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		// Keybinding
 		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
 		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS);
+		data.toDisposeTemplate.push(data.keybinding);
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
