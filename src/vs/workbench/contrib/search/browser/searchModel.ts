@@ -2033,17 +2033,6 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	// set aiResultsEnabled(enabled: boolean) {
-	// 	if (enabled === this._aiResultsEnabled) {
-	// 		return;
-	// 	}
-	// 	if (enabled) {
-	// 		// disable -> enable, need AI results now
-	// 		this.addAIResults();
-	// 	}
-	// 	this._aiResultsEnabled = enabled;
-	// }
-
 	async disableAIResults() {
 		this._aiResultsEnabled = false;
 	}
