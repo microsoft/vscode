@@ -8,7 +8,7 @@ import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXte
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { debounce, memoize, throttle } from 'vs/base/common/decorators';
+import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -193,17 +193,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (command && this._currentStickyCommand !== command) {
 			this._throttledRefresh();
 		} else {
-			this._debouncedRefresh();
+			// If it's the same command, do not throttle as the sticky scroll overlay height may
+			// need to be adjusted. This would cause a flicker if throttled.
+			this._refreshNow();
 		}
-	}
-
-	@debounce(20)
-	private _debouncedRefresh(): void {
-		this._throttledRefresh();
 	}
 
 	@throttle(0)
 	private _throttledRefresh(): void {
+		this._refreshNow();
+	}
+
+	private _refreshNow(): void {
 		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
 
 		// The command from viewportY + 1 is used because this one will not be obscured by sticky
@@ -255,7 +256,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const buffer = xterm.buffer.active;
 		const promptRowCount = command.getPromptRowCount();
 		const commandRowCount = command.getCommandRowCount();
-		const stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
+		let stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
 
 		// Calculate the row offset, this is the number of rows that will be clipped from the top
 		// of the sticky overlay because we do not want to show any content above the bounds of the
@@ -264,7 +265,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const isPartialCommand = !('getOutput' in command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
 		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
-		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
+		let stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
+
+		// TODO: This needs to not be throttled
+		// Adjust sticky scroll content if it would below the end of the command, obscuring the
+		// following command.
+		if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
+			if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
+				const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+				stickyScrollLineStart += diff;
+				stickyScrollLineCount -= diff;
+			}
+		}
 
 		// Hide sticky scroll if it's currently on a line that contains it
 		if (buffer.viewportY <= stickyScrollLineStart) {
@@ -287,7 +299,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 		}
 
-		// Clear attrs, reset cursor position, clear right
+		// Get the line content of the command from the terminal
 		const content = this._serializeAddon.serialize({
 			range: {
 				start: stickyScrollLineStart + rowOffset,
@@ -305,6 +317,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// Write content if it differs
 		if (content && this._currentContent !== content) {
 			this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
+			// Clear attrs, reset cursor position, clear right
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
 			this._currentContent = content;
