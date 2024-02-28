@@ -376,6 +376,7 @@ export class CommentController implements IEditorContribution {
 	private _commentThreadRangeDecorator!: CommentThreadRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
+	private _commentingRangeAmountReserved = 0;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
 	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
@@ -1179,15 +1180,20 @@ export class CommentController implements IEditorContribution {
 		return { extraEditorClassName, lineDecorationsWidth };
 	}
 
-	private getWithCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
+	private getWithCommentsLineDecorationWidth(editor: ICodeEditor, startingLineDecorationsWidth: number) {
 		let lineDecorationsWidth = startingLineDecorationsWidth;
 		const options = editor.getOptions();
 		if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
 			lineDecorationsWidth -= 11;
 		}
 		lineDecorationsWidth += 24;
+		this._commentingRangeAmountReserved = lineDecorationsWidth;
+		return this._commentingRangeAmountReserved;
+	}
+
+	private getWithCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
 		extraEditorClassName.push('inline-comment');
-		return { lineDecorationsWidth, extraEditorClassName };
+		return { lineDecorationsWidth: this.getWithCommentsLineDecorationWidth(editor, startingLineDecorationsWidth), extraEditorClassName };
 	}
 
 	private updateEditorLayoutOptions(editor: ICodeEditor, extraEditorClassName: string[], lineDecorationsWidth: number) {
@@ -1195,6 +1201,15 @@ export class CommentController implements IEditorContribution {
 			extraEditorClassName: extraEditorClassName.join(' '),
 			lineDecorationsWidth: lineDecorationsWidth
 		});
+	}
+
+	private ensureCommentingRangeReservedAmount(editor: ICodeEditor) {
+		const existing = this.getExistingCommentEditorOptions(editor);
+		if (existing.lineDecorationsWidth !== this._commentingRangeAmountReserved) {
+			editor.updateOptions({
+				lineDecorationsWidth: this.getWithCommentsLineDecorationWidth(editor, existing.lineDecorationsWidth)
+			});
+		}
 	}
 
 	private tryUpdateReservedSpace(uri?: URI) {
@@ -1211,11 +1226,15 @@ export class CommentController implements IEditorContribution {
 
 		const hasCommentsOrRanges = hasCommentsOrRangesInInfo || resourceHasCommentingRanges;
 
-		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
-			this._commentingRangeSpaceReserved = true;
-			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
-			const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
-			this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
+		if (hasCommentsOrRanges && this.commentService.isCommentingEnabled) {
+			if (!this._commentingRangeSpaceReserved) {
+				this._commentingRangeSpaceReserved = true;
+				const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
+				const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
+				this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
+			} else {
+				this.ensureCommentingRangeReservedAmount(this.editor);
+			}
 		} else if ((!hasCommentsOrRanges || !this.commentService.isCommentingEnabled) && this._commentingRangeSpaceReserved) {
 			this._commentingRangeSpaceReserved = false;
 			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread } from 'vs/editor/common/languages';
+import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread, CommentingRangeResourceHint } from 'vs/editor/common/languages';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -104,7 +104,7 @@ export interface ICommentService {
 	disposeCommentThread(ownerId: string, threadId: string): void;
 	getDocumentComments(resource: URI): Promise<(ICommentInfo | null)[]>;
 	getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]>;
-	updateCommentingRanges(ownerId: string): void;
+	updateCommentingRanges(ownerId: string, resourceHints?: CommentingRangeResourceHint): void;
 	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread<IRange | ICellRange>, comment: Comment, reaction: CommentReaction): Promise<void>;
 	setActiveEditingCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
@@ -172,6 +172,7 @@ export class CommentService extends Disposable implements ICommentService {
 	public readonly commentsModel: ICommentsModel = this._commentsModel;
 
 	private _commentingRangeResources = new Set<string>(); // URIs
+	private _commentingRangeResourceHintSchemes = new Set<string>(); // schemes
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -406,7 +407,12 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidUpdateNotebookCommentThreads.fire(evt);
 	}
 
-	updateCommentingRanges(ownerId: string) {
+	updateCommentingRanges(ownerId: string, resourceHints?: CommentingRangeResourceHint) {
+		if (resourceHints?.schemes && resourceHints.schemes.length > 0) {
+			for (const scheme of resourceHints.schemes) {
+				this._commentingRangeResourceHintSchemes.add(scheme);
+			}
+		}
 		this._workspaceHasCommenting.set(true);
 		this._onDidUpdateCommentingRanges.fire({ owner: ownerId });
 	}
@@ -518,6 +524,6 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	resourceHasCommentingRanges(resource: URI): boolean {
-		return this._commentingRangeResources.has(resource.toString());
+		return this._commentingRangeResourceHintSchemes.has(resource.scheme) || this._commentingRangeResources.has(resource.toString());
 	}
 }
