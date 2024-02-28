@@ -461,9 +461,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this.matches().some(m => m instanceof MatchInNotebook && m.isReadonly());
 	}
 
+	hasDownstreamNonAIResults(): boolean {
+		return this.matches().some(m => !m.aiContributed);
+	}
+
 	createMatches(isAiContributed: boolean): void {
 		const model = this.modelService.getModel(this._resource);
-		if (model) {
+		if (model && !isAiContributed) {
+			// todo: handle better when ai contributed results has model, currently, createMatches does not work for this
 			this.bindModel(model);
 			this.updateMatchesForModel();
 		} else {
@@ -1009,6 +1014,19 @@ export class FolderMatch extends Disposable {
 			const match = folderMatch?.getDownstreamFileMatch(model.uri);
 			match?.bindModel(model);
 		}
+	}
+
+	hasDownstreamNonAIResults(): boolean {
+		let recursiveChildren: FileMatch[] = [];
+		const iterator = this.folderMatchesIterator();
+		for (const elem of iterator) {
+			recursiveChildren = recursiveChildren.concat(elem.allDownstreamFileMatches());
+			if (recursiveChildren.some(fileMatch => !fileMatch.hasDownstreamNonAIResults())) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	async bindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI) {
@@ -1952,7 +1970,7 @@ export class SearchModel extends Disposable {
 	private _preserveCase: boolean = false;
 	private _startStreamDelay: Promise<void> = Promise.resolve();
 	private readonly _resultQueue: IFileMatch[] = [];
-	public _aiResultsEnabled = false;
+	private _aiResultsEnabled = false;
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -2026,6 +2044,9 @@ export class SearchModel extends Disposable {
 	// 	this._aiResultsEnabled = enabled;
 	// }
 
+	async disableAIResults() {
+		this._aiResultsEnabled = false;
+	}
 	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
 		if (this._aiResultsEnabled) {
 			return;
@@ -2084,7 +2105,7 @@ export class SearchModel extends Disposable {
 			{ ...searchQuery, contentPattern: searchQuery.contentPattern.pattern, type: QueryType.aiText },
 			this.currentCancelTokenSource.token, async (p: ISearchProgressItem) => {
 				progressEmitter.fire();
-				this.onSearchProgress(p, searchInstanceID, true, false);
+				this.onSearchProgress(p, searchInstanceID, false, true);
 				onProgress?.(p);
 			}) : Promise.resolve(undefined);
 

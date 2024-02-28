@@ -313,12 +313,16 @@ export class SearchView extends ViewPane {
 		this.refreshTree();
 	}
 
-	setAIResultsVisible(visible: boolean): void {
+	async setAIResultsVisible(visible: boolean): Promise<void> {
 		if (visible === this.aiResultsVisible) {
 			return;
 		}
-		this.model._aiResultsEnabled = visible;
 		this.aiResultsVisible = visible;
+		if (visible) {
+			this.model.addAIResults();
+		} else {
+			this.model.disableAIResults();
+		}
 		this.refreshTree();
 	}
 
@@ -712,7 +716,7 @@ export class SearchView extends ViewPane {
 
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const folderMatches = this.searchResult.folderMatches()
-			.filter(fm => !fm.isEmpty())
+			.filter(fm => !fm.isEmpty() && (this.aiResultsVisible || fm.hasDownstreamNonAIResults()))
 			.sort(searchMatchComparer);
 
 		if (folderMatches.length === 1) {
@@ -731,7 +735,11 @@ export class SearchView extends ViewPane {
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
-		return Iterable.map(matches, match => {
+		return Iterable.filter(Iterable.map(matches, match => {
+
+			if (!this.aiResultsVisible && !match.hasDownstreamNonAIResults()) {
+				return undefined;
+			}
 			let children;
 			if (match instanceof FileMatch) {
 				children = this.createFileIterator(match);
@@ -742,7 +750,7 @@ export class SearchView extends ViewPane {
 			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
 			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
-		});
+		}), (item): item is ICompressedTreeElement<RenderableMatch> => !!item);
 	}
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ICompressedTreeElement<RenderableMatch>> {

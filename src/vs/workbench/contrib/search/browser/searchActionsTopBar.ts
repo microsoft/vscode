@@ -217,7 +217,7 @@ registerAction2(class ViewAIResultsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.AIResultsVisibleKey.toNegated()),
+				when: ContextKeyExpr.false(), // disabled for now
 			}]
 		});
 	}
@@ -241,7 +241,7 @@ registerAction2(class HideAIResultsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.AIResultsVisibleKey),
+				when: ContextKeyExpr.false(), // disabled for now
 			}]
 		});
 	}
