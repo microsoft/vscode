@@ -428,7 +428,6 @@ export class InlineCompletionsModel extends Disposable {
 					text.length,
 					{
 						kind,
-						acceptedLength: text.length,
 					}
 				);
 			}
@@ -449,7 +448,6 @@ export class InlineCompletionsModel extends Disposable {
 			itemEdit.text.length,
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
-				acceptedLength: itemEdit.text.length
 			}
 		);
 	}

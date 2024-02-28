@@ -552,7 +552,6 @@ export interface CompletionList {
  */
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
-	acceptedLength: number;
 }
 
 /**

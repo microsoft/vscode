@@ -64,7 +64,6 @@ declare module 'vscode' {
 
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
-		acceptedLength: number;
 	}
 
 	export enum PartialAcceptTriggerKind {
