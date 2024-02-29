@@ -198,7 +198,7 @@
 	"config.openAfterClone.prompt": "Always prompt for action.",
 	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
 	"config.showPushSuccessNotification": "Controls whether to show a notification when a push is successful.",
-	"config.inputValidation": "Controls when to show commit message input validation.",
+	"config.inputValidation": "Controls whether to show commit message input validation diagnostics.",
 	"config.inputValidationLength": "Controls the commit message length threshold for showing a warning.",
 	"config.inputValidationSubjectLength": "Controls the commit message subject length threshold for showing a warning. Unset it to inherit the value of `#git.inputValidationLength#`.",
 	"config.detectSubmodules": "Controls whether to automatically detect Git submodules.",

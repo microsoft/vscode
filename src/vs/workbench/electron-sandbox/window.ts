@@ -79,6 +79,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { getWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DynamicWorkbenchSecurityConfiguration } from 'vs/workbench/common/configuration';
+import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 export class NativeWindow extends BaseWindow {
 
@@ -1163,7 +1164,7 @@ class ZoomStatusEntry extends Disposable {
 		this.zoomLevelLabel = zoomLevelLabel;
 		disposables.add(toDisposable(() => this.zoomLevelLabel = undefined));
 
-		const actionBarLeft = disposables.add(new ActionBar(left));
+		const actionBarLeft = disposables.add(new ActionBar(left, { hoverDelegate: nativeHoverDelegate }));
 		actionBarLeft.push(zoomOutAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomOutAction.id)?.getLabel() });
 		actionBarLeft.push(this.zoomLevelLabel, { icon: false, label: true });
 		actionBarLeft.push(zoomInAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomInAction.id)?.getLabel() });
@@ -1172,7 +1173,7 @@ class ZoomStatusEntry extends Disposable {
 		right.classList.add('zoom-status-right');
 		container.appendChild(right);
 
-		const actionBarRight = disposables.add(new ActionBar(right));
+		const actionBarRight = disposables.add(new ActionBar(right, { hoverDelegate: nativeHoverDelegate }));
 
 		actionBarRight.push(zoomResetAction, { icon: false, label: true });
 		actionBarRight.push(zoomSettingsAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomSettingsAction.id)?.getLabel() });

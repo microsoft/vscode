@@ -137,7 +137,6 @@ export class CodeCell extends Disposable {
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 
 		this._cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
-		this._register(this._cellEditorOptions.onDidChange(() => this.updateCodeCellOptions(templateData)));
 		templateData.editor.updateOptions(this._cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 	}
 
@@ -231,6 +230,8 @@ export class CodeCell extends Disposable {
 
 				focusEditorIfNeeded();
 			}
+
+			this._register(this._cellEditorOptions.onDidChange(() => this.updateCodeCellOptions(this.templateData)));
 		});
 	}
 

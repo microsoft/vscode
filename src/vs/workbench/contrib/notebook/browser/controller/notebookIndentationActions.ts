@@ -24,7 +24,7 @@ export class NotebookIndentUsingTabs extends Action2 {
 
 	constructor() {
 		super({
-			id: NotebookIndentUsingSpaces.ID,
+			id: NotebookIndentUsingTabs.ID,
 			title: nls.localize('indentUsingTabs', "Indent Using Tabs"),
 			precondition: undefined,
 		});
@@ -56,7 +56,7 @@ export class NotebookChangeTabDisplaySize extends Action2 {
 
 	constructor() {
 		super({
-			id: NotebookIndentUsingSpaces.ID,
+			id: NotebookChangeTabDisplaySize.ID,
 			title: nls.localize('changeTabDisplaySize', "Change Tab Display Size"),
 			precondition: undefined,
 		});
@@ -72,7 +72,7 @@ export class NotebookIndentationToSpacesAction extends Action2 {
 
 	constructor() {
 		super({
-			id: NotebookIndentUsingSpaces.ID,
+			id: NotebookIndentationToSpacesAction.ID,
 			title: nls.localize('convertIndentationToSpaces', "Convert Indentation to Spaces"),
 			precondition: undefined,
 		});
@@ -80,7 +80,6 @@ export class NotebookIndentationToSpacesAction extends Action2 {
 
 	override run(accessor: ServicesAccessor, ...args: any[]): void {
 		convertNotebookIndentation(accessor, true);
-
 	}
 }
 
@@ -89,7 +88,7 @@ export class NotebookIndentationToTabsAction extends Action2 {
 
 	constructor() {
 		super({
-			id: NotebookIndentUsingSpaces.ID,
+			id: NotebookIndentationToTabsAction.ID,
 			title: nls.localize('convertIndentationToTabs', "Convert Indentation to Tabs"),
 			precondition: undefined,
 		});
@@ -194,8 +193,7 @@ function convertNotebookIndentation(accessor: ServicesAccessor, tabsToSpaces: bo
 
 			bulkEditService.apply(edits, { label: nls.localize('convertIndentation', "Convert Indentation"), code: 'undoredo.convertIndentation', });
 
-		})).then((notebookEdits) => {
-
+		})).then(() => {
 			// store the initial values of the configuration
 			const initialConfig = configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations) as any;
 			const initialIndentSize = initialConfig['editor.indentSize'];
@@ -255,3 +253,7 @@ function getIndentationEditOperations(model: ITextModel, tabSize: number, tabsTo
 }
 
 registerAction2(NotebookIndentUsingSpaces);
+registerAction2(NotebookIndentUsingTabs);
+registerAction2(NotebookChangeTabDisplaySize);
+registerAction2(NotebookIndentationToSpacesAction);
+registerAction2(NotebookIndentationToTabsAction);

@@ -13,8 +13,10 @@ import { DefaultSettings } from 'vs/workbench/services/preferences/common/prefer
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAction } from 'vs/base/common/actions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
-const codeSettingRegex = /^<span (codesetting|codefeature)="([^\s"\:]+)(?::([^\s"]+))?">/;
+const codeSettingRegex = /^<code (codesetting)="([^\s"\:]+)(?::([^"]+))?">/;
 
 export class SimpleSettingRenderer {
 	private _defaultSettings: DefaultSettings;
@@ -25,7 +27,9 @@ export class SimpleSettingRenderer {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
 	}
@@ -43,7 +47,7 @@ export class SimpleSettingRenderer {
 			const match = codeSettingRegex.exec(html);
 			if (match && match.length === 4) {
 				const settingId = match[2];
-				const rendered = this.render(settingId, match[3], match[1] === 'codefeature');
+				const rendered = this.render(settingId, match[3]);
 				if (rendered) {
 					html = html.replace(codeSettingRegex, rendered);
 				}
@@ -54,10 +58,6 @@ export class SimpleSettingRenderer {
 
 	settingToUriString(settingId: string, value?: any): string {
 		return `${Schemas.codeSetting}://${settingId}${value ? `/${value}` : ''}`;
-	}
-
-	featureToUriString(settingId: string, value?: any): string {
-		return `${Schemas.codeFeature}://${settingId}${value ? `/${value}` : ''}`;
 	}
 
 	private settingsGroups: ISettingsGroup[] | undefined = undefined;
@@ -101,16 +101,13 @@ export class SimpleSettingRenderer {
 		}
 	}
 
-	private render(settingId: string, newValue: string, asFeature: boolean): string | undefined {
+	private render(settingId: string, newValue: string): string | undefined {
 		const setting = this.getSetting(settingId);
 		if (!setting) {
 			return '';
 		}
-		if (asFeature) {
-			return this.renderFeature(setting, newValue);
-		} else {
-			return this.renderSetting(setting, newValue);
-		}
+
+		return this.renderSetting(setting, newValue);
 	}
 
 	private viewInSettingsMessage(settingId: string, alreadyDisplayed: boolean) {
@@ -164,17 +161,11 @@ export class SimpleSettingRenderer {
 
 	private renderSetting(setting: ISetting, newValue: string | undefined): string | undefined {
 		const href = this.settingToUriString(setting.key, newValue);
-		const title = nls.localize('changeSettingTitle', "Try feature");
-		return `<span><a href="${href}" class="codesetting" title="${title}" aria-role="button"><svg width="14" height="14" viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.3h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM9.4 1l.5 2.4L12 2.1l2 2-1.4 2.1 2.4.4v2.8l-2.4.5L14 12l-2 2-2.1-1.4-.5 2.4H6.6l-.5-2.4L4 13.9l-2-2 1.4-2.1L1 9.4V6.6l2.4-.5L2.1 4l2-2 2.1 1.4.4-2.4h2.8zm.6 7c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zM8 9c.6 0 1-.4 1-1s-.4-1-1-1-1 .4-1 1 .4 1 1 1z"/></svg></a>`;
-	}
-
-	private renderFeature(setting: ISetting, newValue: string): string | undefined {
-		const href = this.featureToUriString(setting.key, newValue);
-		const parsedValue = this.parseValue(setting.key, newValue);
-		const isChecked = this._configurationService.getValue(setting.key) === parsedValue;
-		this._featuredSettings.set(setting.key, parsedValue);
-		const title = nls.localize('changeFeatureTitle', "Toggle feature with setting {0}", setting.key);
-		return `<span><div class="codefeature-container"><input id="${setting.key}" class="hiddenCheck" type="checkbox" ${isChecked ? 'checked' : ''}><span class="codefeature"><a href="${href}" class="toggle" title="${title}" role="checkbox" aria-checked="${isChecked ? 'true' : 'false'}"></a></span><span class="title"></span></div>`;
+		const title = nls.localize('changeSettingTitle', "View or change setting");
+		return `<code tabindex="0"><a href="${href}" class="codesetting" title="${title}" aria-role="button"><svg width="14" height="14" viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.3h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM9.4 1l.5 2.4L12 2.1l2 2-1.4 2.1 2.4.4v2.8l-2.4.5L14 12l-2 2-2.1-1.4-.5 2.4H6.6l-.5-2.4L4 13.9l-2-2 1.4-2.1L1 9.4V6.6l2.4-.5L2.1 4l2-2 2.1 1.4.4-2.4h2.8zm.6 7c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zM8 9c.6 0 1-.4 1-1s-.4-1-1-1-1 .4-1 1 .4 1 1 1z"/></svg>
+			<span class="separator"></span>
+			<span class="setting-name">${setting.key}</span>
+		</a></code><code>`;
 	}
 
 	private getSettingMessage(setting: ISetting, newValue: boolean | string | number): string | undefined {
@@ -252,6 +243,17 @@ export class SimpleSettingRenderer {
 			}
 		});
 
+		actions.push({
+			class: undefined,
+			enabled: true,
+			id: 'copySettingId',
+			tooltip: nls.localize('copySettingId', "Copy Setting ID"),
+			label: nls.localize('copySettingId', "Copy Setting ID"),
+			run: () => {
+				this._clipboardService.writeText(settingId);
+			}
+		});
+
 		return actions;
 	}
 
@@ -270,26 +272,20 @@ export class SimpleSettingRenderer {
 		});
 	}
 
-	private async setFeatureState(uri: URI) {
-		const settingId = uri.authority;
-		const newSettingValue = this.parseValue(uri.authority, uri.path.substring(1));
-		let valueToSetSetting: any;
-		if (this._updatedSettings.has(settingId)) {
-			valueToSetSetting = this._updatedSettings.get(settingId);
-			this._updatedSettings.delete(settingId);
-		} else if (newSettingValue !== this._configurationService.getValue(settingId)) {
-			valueToSetSetting = newSettingValue;
-		} else {
-			valueToSetSetting = undefined;
-		}
-		await this._configurationService.updateValue(settingId, valueToSetSetting, ConfigurationTarget.USER);
-	}
-
 	async updateSetting(uri: URI, x: number, y: number) {
 		if (uri.scheme === Schemas.codeSetting) {
+			type ReleaseNotesSettingUsedClassification = {
+				owner: 'alexr00';
+				comment: 'Used to understand if the the action to update settings from the release notes is used.';
+				settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the setting that was clicked on in the release notes' };
+			};
+			type ReleaseNotesSettingUsed = {
+				settingId: string;
+			};
+			this._telemetryService.publicLog2<ReleaseNotesSettingUsed, ReleaseNotesSettingUsedClassification>('releaseNotesSettingAction', {
+				settingId: uri.authority
+			});
 			return this.showContextMenu(uri, x, y);
-		} else if (uri.scheme === Schemas.codeFeature) {
-			return this.setFeatureState(uri);
 		}
 	}
 }

@@ -85,7 +85,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				}
 			}
 			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
-			ipcRenderer.send('vscode:triggerReporterStatusResponse', result);
+			ipcRenderer.send(`vscode:triggerReporterStatusResponse`, result);
 		});
 		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
 			const extensionId = arg.extensionId;
@@ -106,11 +106,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				}
 			});
 
-			if (this.extensionIdentifierSet.size === 0) {
+			if (!this.extensionIdentifierSet.has(extensionId)) {
 				// send undefined to indicate no action was taken
-				ipcRenderer.send('vscode:triggerReporterMenuResponse', undefined);
+				ipcRenderer.send(`vscode:triggerReporterMenuResponse:${extensionId}`, undefined);
 			}
-
 			menu.dispose();
 		});
 	}
@@ -186,8 +185,15 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			githubAccessToken
 		}, dataOverrides);
 
+		if (issueReporterData.extensionId) {
+			const extensionExists = extensionData.some(extension => extension.id === issueReporterData.extensionId);
+			if (!extensionExists) {
+				console.error(`Extension with ID ${issueReporterData.extensionId} does not exist.`);
+			}
+		}
+
 		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
-			ipcRenderer.send('vscode:triggerReporterMenuResponse', issueReporterData);
+			ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
 			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
 		}
 		return this.issueMainService.openReporter(issueReporterData);

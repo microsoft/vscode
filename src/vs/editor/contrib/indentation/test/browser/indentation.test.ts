@@ -373,16 +373,23 @@ suite('Editor Contrib - Auto Dedent On Type', () => {
 					['(', ')']
 				],
 				indentationRules: {
-					decreaseIndentPattern: /\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b)|((in|when)\s)/,
+					decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif)\b|(in|when)\s)/,
 					increaseIndentPattern: /^\s*((begin|class|(private|protected)\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|in|while|case)|([^#]*\sdo\b)|([^#]*=\s*(case|if|unless)))\b([^#\{;]|(\"|'|\/).*\4)*(#.*)?$/,
 				},
 			});
+
 			viewModel.model.setValue("");
 			viewModel.type("def foo\n        i");
 			viewModel.type("n", 'keyboard');
 			assert.strictEqual(model.getValue(), "def foo\n        in");
 			viewModel.type(" ", 'keyboard');
 			assert.strictEqual(model.getValue(), "def foo\nin ");
+
+			viewModel.model.setValue("");
+			viewModel.type("  # in");
+			assert.strictEqual(model.getValue(), "  # in");
+			viewModel.type(" ", 'keyboard');
+			assert.strictEqual(model.getValue(), "  # in ");
 			improvedLanguageModel.dispose();
 		});
 	});

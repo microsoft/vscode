@@ -5,8 +5,8 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
-import { IResourceLabel, IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
+import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
+import { IResourceLabel, IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -22,10 +22,11 @@ import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/brows
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
-import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
+import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
@@ -80,19 +81,22 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (viewState) {
 			this._multiDiffEditorWidget!.setViewState(viewState);
 		}
-		this._reveal(options);
+		this._applyOptions(options);
 	}
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
-		this._reveal(options);
+		this._applyOptions(options);
 	}
 
-	private _reveal(options: IMultiDiffEditorOptions | undefined): void {
+	private _applyOptions(options: IMultiDiffEditorOptions | undefined): void {
 		const viewState = options?.viewState;
 		if (!viewState || !viewState.revealData) {
 			return;
 		}
-		this._multiDiffEditorWidget?.reveal(viewState.revealData.resource, viewState.revealData.range);
+		this._multiDiffEditorWidget?.reveal(viewState.revealData.resource, {
+			range: viewState.revealData.range ? Range.lift(viewState.revealData.range) : undefined,
+			highlight: true
+		});
 	}
 
 	override async clearInput(): Promise<void> {

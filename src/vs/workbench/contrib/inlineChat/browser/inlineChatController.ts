@@ -27,7 +27,6 @@ import { ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -42,7 +41,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IInlineChatSavingService } from './inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ExpansionState, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from './inlineChatSessionService';
-import { EditModeStrategy, IEditObserver, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { EditModeStrategy, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -145,7 +144,6 @@ export class InlineChatController implements IEditorContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -235,13 +233,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getMode(): EditMode {
-		const editMode = this._configurationService.inspect<EditMode>(InlineChatConfigKeys.Mode);
-		let editModeValue = editMode.value;
-		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
-			// By default, use preview mode for screen reader users
-			editModeValue = EditMode.Preview;
-		}
-		return editModeValue!;
+		return this._configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode);
 	}
 
 	getWidgetPosition(): Position | undefined {
@@ -349,9 +341,6 @@ export class InlineChatController implements IEditorContribution {
 		switch (session.editMode) {
 			case EditMode.Preview:
 				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._editor, this._zone.value);
-				break;
-			case EditMode.LivePreview:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value);
 				break;
 			case EditMode.Live:
 			default:
@@ -532,7 +521,7 @@ export class InlineChatController implements IEditorContribution {
 				const cts = new CancellationTokenSource();
 				this._sessionStore.add(cts);
 				for (const agent of this._chatAgentService.getAgents()) {
-					const commands = await agent.provideSlashCommands(cts.token);
+					const commands = await agent.provideSlashCommands(undefined, [], cts.token);
 					if (commands.find((command) => withoutSubCommandLeader.startsWith(command.name))) {
 						massagedInput = `${chatAgentLeader}${agent.id} ${input}`;
 						break;
@@ -939,6 +928,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.show(widgetPosition);
 		} else {
+			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.updatePositionAndHeight(widgetPosition);
 		}
 	}

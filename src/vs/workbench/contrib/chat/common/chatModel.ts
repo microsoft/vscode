@@ -14,8 +14,8 @@ import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -842,4 +842,38 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	public get avatarIconUri(): URI | undefined {
 		return this.session.responderAvatarIconUri;
 	}
+}
+
+export function getHistoryEntriesFromModel(model: IChatModel): IChatAgentHistoryEntry[] {
+	const history: IChatAgentHistoryEntry[] = [];
+	for (const request of model.getRequests()) {
+		if (!request.response) {
+			continue;
+		}
+
+		const promptTextResult = getPromptText(request.message);
+		const historyRequest: IChatAgentRequest = {
+			sessionId: model.sessionId,
+			requestId: request.id,
+			agentId: request.response.agent?.id ?? '',
+			message: promptTextResult.message,
+			command: request.response.slashCommand?.name,
+			variables: updateRanges(request.variableData, promptTextResult.diff) // TODO bit of a hack
+		};
+		history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
+	}
+
+	return history;
+}
+
+export function updateRanges(variableData: IChatRequestVariableData, diff: number): IChatRequestVariableData {
+	return {
+		variables: variableData.variables.map(v => ({
+			...v,
+			range: {
+				start: v.range.start - diff,
+				endExclusive: v.range.endExclusive - diff
+			}
+		}))
+	};
 }

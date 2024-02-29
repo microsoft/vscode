@@ -12,7 +12,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { dispose, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,6 +35,21 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { mainWindow } from 'vs/base/browser/window';
 
+interface ISerializedEditorHistoryEntry {
+	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
+}
+
+interface IRecentlyClosedEditor {
+	readonly editorId: string | undefined;
+	readonly editor: IUntypedEditorInput;
+
+	readonly resource: URI | undefined;
+	readonly associatedResources: URI[];
+
+	readonly index: number;
+	readonly sticky: boolean;
+}
+
 export class HistoryService extends Disposable implements IHistoryService {
 
 	declare readonly _serviceBrand: undefined;
@@ -47,8 +62,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
 
-
-
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -59,7 +72,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -73,31 +87,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private trackingSuspended = false;
-	suspendTracking(): IDisposable {
-		this.trackingSuspended = true;
-
-		return toDisposable(() => this.trackingSuspended = false);
-	}
-
 	private registerListeners(): void {
 
 		// Mouse back/forward support
 		this.registerMouseNavigationListener();
 
 		// Editor changes
-		this._register(this.editorService.onDidActiveEditorChange((e) => {
-			if (!this.trackingSuspended) {
-				this.onDidActiveEditorChange();
-			}
-		}));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
-		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => {
-			if (!this.trackingSuspended) {
-				this.handleEditorEventInRecentEditorsStack();
-			}
-		}));
+		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
 
 		// Editor group changes
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e)));
@@ -188,15 +187,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
-		// Handle editor change
-		this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+		// Handle editor change unless the editor is transient
+		if (!activeEditorPane?.group.isTransient(activeEditorPane.input)) {
+			this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+		} else {
+			this.logService.trace(`[History]: ignoring transient editor change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+		}
 
-		// Listen to selection changes if the editor pane
-		// is having a selection concept.
+		// Listen to selection changes unless the editor is transient
 		if (isEditorPaneWithSelection(activeEditorPane)) {
 			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
-				if (!this.trackingSuspended) {
+				if (!activeEditorPane.group.isTransient(activeEditorPane.input)) {
 					this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e);
+				} else {
+					this.logService.trace(`[History]: ignoring transient editor selection change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
 				}
 			}));
 		}
@@ -2090,19 +2094,4 @@ class EditorHelper {
 			mapEditorToDispose.delete(editor);
 		}
 	}
-}
-
-interface ISerializedEditorHistoryEntry {
-	editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
-}
-
-interface IRecentlyClosedEditor {
-	editorId: string | undefined;
-	editor: IUntypedEditorInput;
-
-	resource: URI | undefined;
-	associatedResources: URI[];
-
-	index: number;
-	sticky: boolean;
 }

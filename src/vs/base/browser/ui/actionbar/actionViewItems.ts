@@ -9,9 +9,9 @@ import { addDisposableListener, EventHelper, EventLike, EventType } from 'vs/bas
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -226,12 +226,16 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		const title = this.getTooltip() ?? '';
 		this.updateAriaLabel();
 
-		if (!this.customHover) {
-			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-			this.customHover = setupCustomHover(hoverDelegate, this.element, title);
-			this._store.add(this.customHover);
+		if (this.options.hoverDelegate?.showNativeHover) {
+			/* While custom hover is not inside custom hover */
+			this.element.title = title;
 		} else {
-			this.customHover.update(title);
+			if (!this.customHover && title !== '') {
+				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+				this.customHover = this._store.add(setupCustomHover(hoverDelegate, this.element, title));
+			} else if (this.customHover) {
+				this.customHover.update(title);
+			}
 		}
 	}
 

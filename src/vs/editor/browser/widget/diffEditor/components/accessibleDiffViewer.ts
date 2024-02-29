@@ -354,7 +354,7 @@ class View extends Disposable {
 		super();
 
 		this.domNode = this._element;
-		this.domNode.className = 'diff-review monaco-editor-background';
+		this.domNode.className = 'monaco-component diff-review monaco-editor-background';
 
 		const actionBarContainer = document.createElement('div');
 		actionBarContainer.className = 'diff-review-actions';
@@ -380,6 +380,12 @@ class View extends Disposable {
 		this._content.setAttribute('role', 'code');
 		this._scrollbar = this._register(new DomScrollableElement(this._content, {}));
 		reset(this.domNode, this._scrollbar.getDomNode(), actionBarContainer);
+
+		this._register(autorun(r => {
+			this._height.read(r);
+			this._width.read(r);
+			this._scrollbar.scanDomNode();
+		}));
 
 		this._register(toDisposable(() => { reset(this.domNode); }));
 

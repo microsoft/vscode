@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight } from 'vs/base/browser/dom';
+import { addDisposableListener, getClientArea, getDomNodePagePosition, getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -25,6 +26,7 @@ import { NewSymbolName, NewSymbolNameTag, ProviderResult } from 'vs/editor/commo
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
 import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import {
 	editorWidgetBackground,
@@ -48,6 +50,8 @@ export const CONTEXT_RENAME_INPUT_FOCUSED = new RawContextKey<boolean>('renameIn
 export interface RenameInputFieldResult {
 	newName: string;
 	wantsPreview?: boolean;
+	source: 'inputField' | 'renameSuggestion';
+	nRenameSuggestions: number;
 }
 
 export class RenameInputField implements IContentWidget {
@@ -72,6 +76,7 @@ export class RenameInputField implements IContentWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 		this._focusedContextKey = CONTEXT_RENAME_INPUT_FOCUSED.bindTo(contextKeyService);
@@ -105,15 +110,15 @@ export class RenameInputField implements IContentWidget {
 			this._input.className = 'rename-input';
 			this._input.type = 'text';
 			this._input.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
-			// TODO@ulugbekna: is using addDisposableListener's right way to do it?
 			this._disposables.add(addDisposableListener(this._input, 'focus', () => { this._focusedContextKey.set(true); }));
 			this._disposables.add(addDisposableListener(this._input, 'blur', () => { this._focusedContextKey.reset(); }));
 			this._domNode.appendChild(this._input);
 
-			this._candidatesView = new CandidatesView(this._domNode, {
-				fontInfo: this._editor.getOption(EditorOption.fontInfo),
-				onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
-			});
+			this._candidatesView = this._disposables.add(
+				new CandidatesView(this._domNode, {
+					fontInfo: this._editor.getOption(EditorOption.fontInfo),
+					onSelectionChange: () => this.acceptInput(false) // we don't allow preview with mouse click for now
+				}));
 
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
@@ -177,9 +182,10 @@ export class RenameInputField implements IContentWidget {
 
 		const bodyBox = getClientArea(this.getDomNode().ownerDocument.body);
 		const editorBox = getDomNodePagePosition(this._editor.getDomNode());
-		const cursorBox = this._editor.getScrolledVisiblePosition(this._position!);
 
-		this._nPxAvailableAbove = cursorBox.top + editorBox.top;
+		const cursorBoxTop = this._getTopForPosition();
+
+		this._nPxAvailableAbove = cursorBoxTop + editorBox.top;
 		this._nPxAvailableBelow = bodyBox.height - this._nPxAvailableAbove;
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
@@ -199,16 +205,16 @@ export class RenameInputField implements IContentWidget {
 		const [accept, preview] = this._acceptKeybindings;
 		this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
 
-		this._domNode!.style.minWidth = `250px`; // to prevent from widening when candidates come in
-		this._domNode!.style.maxWidth = `400px`; // TODO@ulugbekna: what if we have a very long name?
+		this._domNode!.style.minWidth = `200px`; // to prevent from widening when candidates come in
 
 		return null;
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null): void {
+		this._trace('invoking afterRender, position: ', position ? 'not null' : 'null');
 		if (position === null) {
 			// cancel rename when input widget isn't rendered anymore
-			this.cancelInput(true);
+			this.cancelInput(true, 'afterRender (because position is null)');
 			return;
 		}
 
@@ -233,7 +239,10 @@ export class RenameInputField implements IContentWidget {
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._candidatesView!.layout({ height: totalHeightAvailable - labelHeight - inputBoxHeight });
+		this._candidatesView!.layout({
+			height: totalHeightAvailable - labelHeight - inputBoxHeight,
+			width: getTotalWidth(this._input!),
+		});
 	}
 
 
@@ -241,10 +250,12 @@ export class RenameInputField implements IContentWidget {
 	private _currentCancelInput?: (focusEditor: boolean) => void;
 
 	acceptInput(wantsPreview: boolean): void {
+		this._trace(`invoking acceptInput`);
 		this._currentAcceptInput?.(wantsPreview);
 	}
 
-	cancelInput(focusEditor: boolean): void {
+	cancelInput(focusEditor: boolean, caller: string): void {
+		this._trace(`invoking cancelInput, caller: ${caller}, _currentCancelInput: ${this._currentAcceptInput ? 'not undefined' : 'undefined'}`);
 		this._currentCancelInput?.(focusEditor);
 	}
 
@@ -280,6 +291,7 @@ export class RenameInputField implements IContentWidget {
 		return new Promise<RenameInputFieldResult | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
+				this._trace('invoking _currentCancelInput');
 				this._currentAcceptInput = undefined;
 				this._currentCancelInput = undefined;
 				this._candidatesView?.clearCandidates();
@@ -288,12 +300,27 @@ export class RenameInputField implements IContentWidget {
 			};
 
 			this._currentAcceptInput = (wantsPreview) => {
+				this._trace('invoking _currentAcceptInput');
 				assertType(this._input !== undefined);
 				assertType(this._candidatesView !== undefined);
 
-				const candidateName = this._candidatesView.focusedCandidate;
-				if ((candidateName === undefined && this._input.value === value) || this._input.value.trim().length === 0) {
-					this.cancelInput(true);
+				const nRenameSuggestions = this._candidatesView.nCandidates;
+
+				let newName: string;
+				let source: 'inputField' | 'renameSuggestion';
+				const focusedCandidate = this._candidatesView.focusedCandidate;
+				if (focusedCandidate !== undefined) {
+					this._trace('using new name from renameSuggestion');
+					newName = focusedCandidate;
+					source = 'renameSuggestion';
+				} else {
+					this._trace('using new name from inputField');
+					newName = this._input.value;
+					source = 'inputField';
+				}
+
+				if (newName === value || newName.trim().length === 0 /* is just whitespace */) {
+					this.cancelInput(true, '_currentAcceptInput (because newName === value || newName.trim().length === 0)');
 					return;
 				}
 
@@ -302,14 +329,16 @@ export class RenameInputField implements IContentWidget {
 				this._candidatesView.clearCandidates();
 
 				resolve({
-					newName: candidateName ?? this._input.value,
-					wantsPreview: supportPreview && wantsPreview
+					newName,
+					wantsPreview: supportPreview && wantsPreview,
+					source,
+					nRenameSuggestions,
 				});
 			};
 
-			disposeOnDone.add(cts.token.onCancellationRequested(() => this.cancelInput(true)));
+			disposeOnDone.add(cts.token.onCancellationRequested(() => this.cancelInput(true, 'cts.token.onCancellationRequested')));
 			if (!_sticky) {
-				disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!this._domNode?.ownerDocument.hasFocus())));
+				disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!this._domNode?.ownerDocument.hasFocus(), 'editor.onDidBlurEditorWidget')));
 			}
 
 			this._show();
@@ -321,6 +350,7 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private _show(): void {
+		this._trace('invoking _show');
 		this._editor.revealLineInCenterIfOutsideViewport(this._position!.lineNumber, ScrollType.Smooth);
 		this._visible = true;
 		this._visibleContextKey.set(true);
@@ -335,9 +365,13 @@ export class RenameInputField implements IContentWidget {
 	}
 
 	private async _updateRenameCandidates(candidates: ProviderResult<NewSymbolName[]>[], currentName: string, token: CancellationToken) {
+		const trace = (...args: any[]) => this._trace('_updateRenameCandidates', ...args);
+
+		trace('start');
 		const namesListResults = await raceCancellation(Promise.allSettled(candidates), token);
 
 		if (namesListResults === undefined) {
+			trace('returning early - received updateRenameCandidates results - undefined');
 			return;
 		}
 
@@ -346,42 +380,74 @@ export class RenameInputField implements IContentWidget {
 				? namesListResult.value
 				: []
 		);
+		trace(`received updateRenameCandidates results - total (unfiltered) ${newNames.length} candidates.`);
 
 		// deduplicate and filter out the current value
 		const distinctNames = arrays.distinct(newNames, v => v.newSymbolName);
+		trace(`distinct candidates - ${distinctNames.length} candidates.`);
+
 		const validDistinctNames = distinctNames.filter(({ newSymbolName }) => newSymbolName.trim().length > 0 && newSymbolName !== this._input?.value && newSymbolName !== currentName);
+		trace(`valid distinct candidates - ${newNames.length} candidates.`);
 
 		if (validDistinctNames.length < 1) {
+			trace('returning early - no valid distinct candidates');
 			return;
 		}
 
 		// show the candidates
+		trace('setting candidates');
 		this._candidatesView!.setCandidates(validDistinctNames);
 
 		// ask editor to re-layout given that the widget is now of a different size after rendering rename candidates
+		trace('asking editor to re-layout');
 		this._editor.layoutContentWidget(this);
 	}
 
 	private _hide(): void {
+		this._trace('invoked _hide');
 		this._visible = false;
 		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
 	}
+
+	private _getTopForPosition(): number {
+		const visibleRanges = this._editor.getVisibleRanges();
+		let firstLineInViewport: number;
+		if (visibleRanges.length > 0) {
+			firstLineInViewport = visibleRanges[0].startLineNumber;
+		} else {
+			this._logService.warn('RenameInputField#_getTopForPosition: this should not happen - visibleRanges is empty');
+			firstLineInViewport = Math.max(1, this._position!.lineNumber - 5); // @ulugbekna: fallback to current line minus 5
+		}
+		return this._editor.getTopForLineNumber(this._position!.lineNumber) - this._editor.getTopForLineNumber(firstLineInViewport);
+	}
+
+	private _trace(...args: any[]) {
+		this._logService.trace('RenameInputField', ...args);
+	}
 }
 
-export class CandidatesView {
+class CandidatesView {
 
 	private readonly _listWidget: List<NewSymbolName>;
 	private readonly _listContainer: HTMLDivElement;
 
 	private _lineHeight: number;
 	private _availableHeight: number;
+	private _minimumWidth: number;
+	private _typicalHalfwidthCharacterWidth: number;
+
+	private _disposables: DisposableStore;
 
 	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo; onSelectionChange: () => void }) {
 
+		this._disposables = new DisposableStore();
+
 		this._availableHeight = 0;
+		this._minimumWidth = 0;
 
 		this._lineHeight = opts.fontInfo.lineHeight;
+		this._typicalHalfwidthCharacterWidth = opts.fontInfo.typicalHalfwidthCharacterWidth;
 
 		this._listContainer = document.createElement('div');
 		this._listContainer.style.fontFamily = opts.fontInfo.fontFamily;
@@ -397,7 +463,7 @@ export class CandidatesView {
 			}
 
 			getHeight(element: NewSymbolName): number {
-				return that.candidateViewHeight;
+				return that._candidateViewHeight;
 			}
 		};
 
@@ -429,47 +495,56 @@ export class CandidatesView {
 			}
 		);
 
-		this._listWidget.onDidChangeSelection(e => {
+		this._disposables.add(this._listWidget.onDidChangeSelection(e => {
 			if (e.elements.length > 0) {
 				opts.onSelectionChange();
 			}
-		});
+		}));
+
+		this._disposables.add(this._listWidget.onDidBlur(e => {
+			this._listWidget.setFocus([]);
+		}));
 
 		this._listWidget.style(defaultListStyles);
 	}
 
-	public get candidateViewHeight(): number {
-		const { totalHeight } = CandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
-		return totalHeight;
+	dispose() {
+		this._listWidget.dispose();
+		this._disposables.dispose();
 	}
 
 	// height - max height allowed by parent element
-	public layout({ height }: { height: number }): void {
+	public layout({ height, width }: { height: number; width: number }): void {
 		this._availableHeight = height;
-		if (this._listWidget.length > 0) { // candidates have been set
-			this._listWidget.layout(this._pickListHeight(this._listWidget.length));
-		}
-	}
-
-	private _pickListHeight(nCandidates: number) {
-		const heightToFitAllCandidates = this.candidateViewHeight * nCandidates;
-		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this.candidateViewHeight * 7 /* max # of candidates we want to show at once */);
-		return height;
+		this._minimumWidth = width;
 	}
 
 	public setCandidates(candidates: NewSymbolName[]): void {
-		const height = this._pickListHeight(candidates.length);
 
+		// insert candidates into list widget
 		this._listWidget.splice(0, 0, candidates);
 
-		this._listWidget.layout(height);
+		// adjust list widget layout
+		const height = this._pickListHeight(candidates.length);
+		const width = this._pickListWidth(candidates);
 
+		this._listWidget.layout(height, width);
+
+		// adjust list container layout
 		this._listContainer.style.height = `${height}px`;
+		this._listContainer.style.width = `${width}px`;
+
+		aria.status(localize('renameSuggestionsReceivedAria', "Received {0} rename suggestions", candidates.length));
 	}
 
 	public clearCandidates(): void {
 		this._listContainer.style.height = '0px';
+		this._listContainer.style.width = '0px';
 		this._listWidget.splice(0, this._listWidget.length, []);
+	}
+
+	public get nCandidates() {
+		return this._listWidget.length;
 	}
 
 	public get focusedCandidate(): string | undefined {
@@ -525,9 +600,31 @@ export class CandidatesView {
 		}
 		return focusedIx > 0;
 	}
+
+	private get _candidateViewHeight(): number {
+		const { totalHeight } = CandidateView.getLayoutInfo({ lineHeight: this._lineHeight });
+		return totalHeight;
+	}
+
+	private _pickListHeight(nCandidates: number) {
+		const heightToFitAllCandidates = this._candidateViewHeight * nCandidates;
+		const MAX_N_CANDIDATES = 7;  // @ulugbekna: max # of candidates we want to show at once
+		const height = Math.min(heightToFitAllCandidates, this._availableHeight, this._candidateViewHeight * MAX_N_CANDIDATES);
+		return height;
+	}
+
+	private _pickListWidth(candidates: NewSymbolName[]): number {
+		const longestCandidateWidth = Math.ceil(Math.max(...candidates.map(c => c.newSymbolName.length)) * this._typicalHalfwidthCharacterWidth);
+		const width = Math.max(
+			this._minimumWidth,
+			4 /* padding */ + 16 /* sparkle icon */ + 5 /* margin-left */ + longestCandidateWidth + 10 /* (possibly visible) scrollbar width */ // TODO@ulugbekna: approximate calc - clean this up
+		);
+		return width;
+	}
+
 }
 
-export class CandidateView { // TODO@ulugbekna: remove export
+class CandidateView {
 
 	// TODO@ulugbekna: accessibility
 

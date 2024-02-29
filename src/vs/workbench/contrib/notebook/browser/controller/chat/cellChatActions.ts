@@ -382,6 +382,7 @@ registerAction2(class extends NotebookAction {
 						}
 					]
 				},
+				f1: false,
 				menu: [
 					{
 						id: MenuId.NotebookCellBetween,
@@ -454,6 +455,7 @@ registerAction2(class extends NotebookAction {
 					original: '$(sparkle) Generate',
 				},
 				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+				f1: false,
 				menu: [
 					{
 						id: MenuId.NotebookCellListTop,
