@@ -43,7 +43,7 @@ export class SignalLineFeatureContribution
 	));
 
 	private readonly modalities: SignalModality[] = [SignalModality.Sound, SignalModality.Announcement];
-	private pendingAccessibilitySignals: Map<SignalModality, NodeJS.Timeout | null> = new Map();
+	private pendingAccessibilitySignals: Map<SignalModality, any | null> = new Map();
 
 	private cancelAccessibilitySignals(modality: SignalModality) {
 		const pendingSignal = this.pendingAccessibilitySignals.get(modality);
