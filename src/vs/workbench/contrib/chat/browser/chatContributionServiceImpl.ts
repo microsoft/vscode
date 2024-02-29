@@ -59,7 +59,7 @@ const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 });
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
-	extensionPoint: 'chatParticipant',
+	extensionPoint: 'chatParticipants',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a Chat Participant'),
 		type: 'array',
