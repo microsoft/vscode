@@ -112,6 +112,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._register(this._themeService.onDidColorThemeChange(() => {
 				this._syncOptions();
 			}));
+			this._register(this._xterm.raw.onResize(() => {
+				this._syncOptions();
+				this._throttledRefresh();
+			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
 				this._serializeAddon = this._register(new SerializeAddon());
@@ -150,7 +154,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					this._xterm.raw.onLineFeed,
 					// Rarely an update may be required after just a cursor move, like when
 					// scrolling horizontally in a pager
-					this._xterm.raw.onCursorMove
+					this._xterm.raw.onCursorMove,
 				)(() => this._refresh()),
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
@@ -304,7 +308,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 
 		// Write content if it differs
-		if (content && this._currentContent !== content) {
+		if (
+			content && this._currentContent !== content ||
+			this._stickyScrollOverlay.cols !== xterm.cols ||
+			this._stickyScrollOverlay.rows !== stickyScrollLineCount
+		) {
 			this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
 			// Clear attrs, reset cursor position, clear right
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
