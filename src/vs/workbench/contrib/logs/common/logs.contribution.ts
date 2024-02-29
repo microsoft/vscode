@@ -36,8 +36,8 @@ registerAction2(class extends Action2 {
 			f1: true
 		});
 	}
-	run(servicesAccessor: ServicesAccessor, channelId?: string): Promise<void> {
-		return servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value).run(channelId);
+	run(servicesAccessor: ServicesAccessor): Promise<void> {
+		return servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value).run();
 	}
 });
 

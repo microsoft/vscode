@@ -9,11 +9,11 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE } from 'vs/workbench/services/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from 'vs/workbench/services/output/common/output';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutputChannelModel } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -22,6 +22,7 @@ import { IOutputChannelModelService } from 'vs/workbench/contrib/output/common/o
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
+import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -76,15 +77,19 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private readonly activeOutputChannelContext: IContextKey<string>;
 	private readonly activeFileOutputChannelContext: IContextKey<boolean>;
 	private readonly activeOutputChannelLevelSettableContext: IContextKey<boolean>;
+	private readonly activeOutputChannelLevelContext: IContextKey<string>;
+	private readonly activeOutputChannelLevelIsDefaultContext: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerService private readonly loggerService: ILoggerService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDefaultLogLevelsService private readonly defaultLogLevelsService: IDefaultLogLevelsService
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, '');
@@ -94,6 +99,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 		this.activeFileOutputChannelContext = CONTEXT_ACTIVE_FILE_OUTPUT.bindTo(contextKeyService);
 		this.activeOutputChannelLevelSettableContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE.bindTo(contextKeyService);
+		this.activeOutputChannelLevelContext = CONTEXT_ACTIVE_OUTPUT_LEVEL.bindTo(contextKeyService);
+		this.activeOutputChannelLevelIsDefaultContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.bindTo(contextKeyService);
 
 		// Register as text model content provider for output
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
@@ -202,6 +209,29 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		const descriptor = channel?.outputChannelDescriptor;
 		this.activeFileOutputChannelContext.set(!!descriptor?.file);
 		this.activeOutputChannelLevelSettableContext.set(descriptor !== undefined && SetLogLevelAction.isLevelSettable(descriptor));
+		const setLevelContext = (): void => {
+			const channelLogLevel = descriptor?.log ? this.loggerService.getLogLevel(descriptor.file) : undefined;
+			this.activeOutputChannelLevelContext.set(channelLogLevel !== undefined ? LogLevelToString(channelLogLevel) : '');
+		};
+		const setLevelIsDefaultContext = async (): Promise<void> => {
+			const descriptor = this.activeChannel?.outputChannelDescriptor;
+			if (descriptor?.log) {
+				const channelLogLevel = this.loggerService.getLogLevel(descriptor.file);
+				const channelDefaultLogLevel = await this.defaultLogLevelsService.getDefaultLogLevel(descriptor.extensionId);
+				this.activeOutputChannelLevelIsDefaultContext.set(channelDefaultLogLevel === channelLogLevel);
+			} else {
+				this.activeOutputChannelLevelIsDefaultContext.set(false);
+			}
+		};
+		this._register(this.defaultLogLevelsService.onDidChangeDefaultLogLevels(() => {
+			setLevelIsDefaultContext();
+		}));
+		setLevelIsDefaultContext();
+		this._register(this.loggerService.onDidChangeLogLevel(_level => {
+			setLevelContext();
+			setLevelIsDefaultContext();
+		}));
+		setLevelContext();
 
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
