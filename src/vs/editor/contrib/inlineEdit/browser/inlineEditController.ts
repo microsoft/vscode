@@ -121,7 +121,7 @@ export class InlineEditController extends Disposable {
 			if (this._configurationService.getValue('editor.experimentalInlineEdit.keepOnBlur') || editor.getOption(EditorOption.inlineEdit).keepOnBlur) {
 				return;
 			}
-			this._currentRequestCts?.dispose();
+			this._currentRequestCts?.dispose(true);
 			this._currentRequestCts = undefined;
 			this.clear(false);
 		}));

@@ -197,7 +197,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 		templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
 		const value = dom.append(expression, $('span.value'));
 
-		const label = new HighlightedLabel(name);
+		const label = templateDisposable.add(new HighlightedLabel(name));
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
 

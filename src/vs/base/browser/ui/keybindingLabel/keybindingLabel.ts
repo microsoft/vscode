@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import 'vs/css!./keybindingLabel';
@@ -50,18 +53,21 @@ export const unthemedKeybindingLabelOptions: KeybindingLabelOptions = {
 	keybindingLabelShadow: undefined
 };
 
-export class KeybindingLabel {
+export class KeybindingLabel extends Disposable {
 
 	private domNode: HTMLElement;
 	private options: KeybindingLabelOptions;
 
 	private readonly keyElements = new Set<HTMLSpanElement>();
 
+	private hover: ICustomHover;
 	private keybinding: ResolvedKeybinding | undefined;
 	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
 	constructor(container: HTMLElement, private os: OperatingSystem, options?: KeybindingLabelOptions) {
+		super();
+
 		this.options = options || Object.create(null);
 
 		const labelForeground = this.options.keybindingLabelForeground;
@@ -70,6 +76,8 @@ export class KeybindingLabel {
 		if (labelForeground) {
 			this.domNode.style.color = labelForeground;
 		}
+
+		this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.domNode, ''));
 
 		this.didEverRender = false;
 		container.appendChild(this.domNode);
@@ -102,11 +110,8 @@ export class KeybindingLabel {
 				this.renderChord(this.domNode, chords[i], this.matches ? this.matches.chordPart : null);
 			}
 			const title = (this.options.disableTitle ?? false) ? undefined : this.keybinding.getAriaLabel() || undefined;
-			if (title !== undefined) {
-				this.domNode.title = title;
-			} else {
-				this.domNode.removeAttribute('title');
-			}
+			this.hover.update(title);
+			this.domNode.setAttribute('aria-label', title || '');
 		} else if (this.options && this.options.renderUnboundKeybindings) {
 			this.renderUnbound(this.domNode);
 		}

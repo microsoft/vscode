@@ -145,7 +145,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange | undefined, extensionId: ExtensionIdentifier, isTemplate: boolean): languages.CommentThread<IRange | ICellRange> | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
-	$updateCommentingRanges(handle: number): void;
+	$updateCommentingRanges(handle: number, resourceHints?: languages.CommentingRangeResourceHint): void;
 }
 
 export interface AuthenticationForceNewSessionOptions {
@@ -1189,7 +1189,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 }
 
 export interface ExtHostLanguageModelsShape {
-	$updateLanguageModels(data: { added?: string[]; removed?: string[] }): void;
+	$updateLanguageModels(data: { added?: ILanguageModelChatMetadata[]; removed?: string[] }): void;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
@@ -1403,6 +1403,7 @@ export interface MainThreadLabelServiceShape extends IDisposable {
 
 export interface MainThreadSearchShape extends IDisposable {
 	$registerFileSearchProvider(handle: number, scheme: string): void;
+	$registerAITextSearchProvider(handle: number, scheme: string): void;
 	$registerTextSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
@@ -1816,6 +1817,7 @@ export interface ExtHostSecretStateShape {
 export interface ExtHostSearchShape {
 	$enableExtensionHostSearch(): void;
 	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
+	$provideAITextSearchResults(handle: number, session: number, query: search.IRawAITextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$clearCache(cacheKey: string): Promise<void>;
 }

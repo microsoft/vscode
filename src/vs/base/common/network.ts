@@ -117,11 +117,6 @@ export namespace Schemas {
 	 * Scheme used for special rendering of settings in the release notes
 	 */
 	export const codeSetting = 'code-setting';
-
-	/**
-	 * Scheme used for special rendering of features in the release notes
-	 */
-	export const codeFeature = 'code-feature';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {

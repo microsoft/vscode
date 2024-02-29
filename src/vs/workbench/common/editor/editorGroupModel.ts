@@ -22,7 +22,8 @@ const EditorOpenPositioning = {
 
 export interface IEditorOpenOptions {
 	readonly pinned?: boolean;
-	sticky?: boolean;
+	readonly sticky?: boolean;
+	readonly transient?: boolean;
 	active?: boolean;
 	readonly index?: number;
 	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
@@ -180,6 +181,7 @@ export interface IReadonlyEditorGroupModel {
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 	isPinned(editorOrIndex: EditorInput | number): boolean;
 	isSticky(editorOrIndex: EditorInput | number): boolean;
+	isTransient(editorOrIndex: EditorInput | number): boolean;
 	isFirst(editor: EditorInput, editors?: EditorInput[]): boolean;
 	isLast(editor: EditorInput, editors?: EditorInput[]): boolean;
 	findEditor(editor: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
@@ -217,6 +219,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	private preview: EditorInput | null = null; // editor in preview state
 	private active: EditorInput | null = null;  // editor in active state
 	private sticky = -1; 						// index of first editor in sticky state
+	private transient = new Set<EditorInput>(); // editors in transient state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
@@ -295,6 +298,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult {
 		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
+		const makeTransient = !!options?.transient;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
 		const existingEditorAndIndex = this.findEditor(candidate, options);
@@ -381,6 +385,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.preview = newEditor;
 			}
 
+			// Handle transient
+			if (makeTransient) {
+				this.doSetTransient(newEditor, targetIndex, true);
+			}
+
 			// Listeners
 			this.registerEditorListeners(newEditor);
 
@@ -411,6 +420,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			if (makePinned) {
 				this.doPin(existingEditor, existingEditorIndex);
 			}
+
+			// Update transient
+			this.doSetTransient(existingEditor, existingEditorIndex, makeTransient);
 
 			// Activate it
 			if (makeActive) {
@@ -562,6 +574,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		if (this.matches(this.preview, editor)) {
 			this.preview = null;
 		}
+
+		// Remove from transient
+		this.transient.delete(editor);
 
 		// Remove from arrays
 		this.splice(index, true);
@@ -860,6 +875,62 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return index <= this.sticky;
 	}
 
+	setTransient(candidate: EditorInput, transient: boolean): EditorInput | undefined {
+		if (!transient && this.transient.size === 0) {
+			return; // no transient editor
+		}
+
+		const res = this.findEditor(candidate);
+		if (!res) {
+			return; // not found
+		}
+
+		const [editor, editorIndex] = res;
+
+		this.doSetTransient(editor, editorIndex, transient);
+
+		return editor;
+	}
+
+	private doSetTransient(editor: EditorInput, editorIndex: number, transient: boolean): void {
+		if (transient) {
+			if (this.transient.has(editor)) {
+				return;
+			}
+
+			this.transient.add(editor);
+		} else {
+			if (!this.transient.has(editor)) {
+				return;
+			}
+
+			this.transient.delete(editor);
+		}
+
+		// Event
+		const event: IGroupEditorChangeEvent = {
+			kind: GroupModelChangeKind.EDITOR_TRANSIENT,
+			editor,
+			editorIndex
+		};
+		this._onDidModelChange.fire(event);
+	}
+
+	isTransient(editorOrIndex: EditorInput | number): boolean {
+		if (this.transient.size === 0) {
+			return false; // no transient editor
+		}
+
+		let editor: EditorInput | undefined;
+		if (typeof editorOrIndex === 'number') {
+			editor = this.editors[editorOrIndex];
+		} else {
+			editor = this.findEditor(editorOrIndex)?.[0];
+		}
+
+		return !!editor && this.transient.has(editor);
+	}
+
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
 		const editorToDeleteOrReplace = this.editors[index];
 
@@ -1123,6 +1194,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	override dispose(): void {
 		dispose(Array.from(this.editorListeners));
 		this.editorListeners.clear();
+
+		this.transient.clear();
 
 		super.dispose();
 	}

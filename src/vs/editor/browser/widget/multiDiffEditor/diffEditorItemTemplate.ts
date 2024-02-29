@@ -236,7 +236,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		});
 	}
 
-	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 48;
+	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 40;
 
 	private _lastScrollTop = -1;
 	private _isSettingScrollTop = false;
@@ -285,6 +285,6 @@ function isFocused(editor: ICodeEditor): IObservable<boolean> {
 			store.add(editor.onDidBlurEditorWidget(() => h(false)));
 			return store;
 		},
-		() => editor.hasWidgetFocus()
+		() => editor.hasTextFocus()
 	);
 }

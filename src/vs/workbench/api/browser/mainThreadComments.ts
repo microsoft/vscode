@@ -370,8 +370,8 @@ export class MainThreadCommentController implements ICommentController {
 		}
 	}
 
-	updateCommentingRanges() {
-		this._commentService.updateCommentingRanges(this._uniqueId);
+	updateCommentingRanges(resourceHints?: languages.CommentingRangeResourceHint) {
+		this._commentService.updateCommentingRanges(this._uniqueId, resourceHints);
 	}
 
 	private getKnownThread(commentThreadHandle: number): MainThreadCommentThread<IRange | ICellRange> {
@@ -591,14 +591,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return provider.deleteCommentThread(commentThreadHandle);
 	}
 
-	$updateCommentingRanges(handle: number) {
+	$updateCommentingRanges(handle: number, resourceHints?: languages.CommentingRangeResourceHint) {
 		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
 			return;
 		}
 
-		provider.updateCommentingRanges();
+		provider.updateCommentingRanges(resourceHints);
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {
