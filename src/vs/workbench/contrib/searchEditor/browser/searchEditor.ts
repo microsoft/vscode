@@ -248,7 +248,17 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	private registerEditorListeners() {
 		this.searchResultEditor.onMouseUp(e => {
-			if (e.event.detail === 2) {
+			if (e.event.detail === 1) {
+				const behaviour = this.searchConfig.searchEditor.singleClickBehaviour;
+				const position = e.target.position;
+				if (position && behaviour === 'peekDefinition') {
+					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
+					if (line.match(FILE_LINE_REGEX) || line.match(RESULT_LINE_REGEX)) {
+						this.searchResultEditor.setSelection(Range.fromPositions(position));
+						this.commandService.executeCommand('editor.action.peekDefinition');
+					}
+				}
+			} else if (e.event.detail === 2) {
 				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
 				const position = e.target.position;
 				if (position && behaviour !== 'selectWord') {
