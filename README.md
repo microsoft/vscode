@@ -2,7 +2,8 @@
 
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)In any case, even if it is an open source project license, it is not necessary to reveal every project to others. I have clearly separated this matter and it does not conflict with any license.  Which projects are mine or have I completed them?  That would mean that I am the law and the person controlling the authorization, which for me requires only sending documents for me to sign to be complete and there is no excuse for gobbling up assets.  Any property that I procure or create is not public property but private property that should not be overlooked or pryed into.  Remember this.  "No matter what you do,  Don't think that no one knows.  But the time has not yet arrived for you to receive the results of your actions.” This is not poetry, but it is called the law of karma!
+It is strictly forbidden for anyone to release my sensitive personal information in public or in any group, as this is clearly considered an intentional infringement.  Do not duplicate or modify data that you did not participate in, even if you use a program or code to evade the system. When detected, it will be immediately frozen at the initial stage or completely frozen at the ultimate level.</negates>code</thirdpartie>cookie</and>clearance</user>that</repo>certification</non>developer<For users who have not actually passed the test but have forked licenses from those who have and obtained them correctly by cracking and blocking the license holder again, here is a gift to those who did.  We're changing the rules in every license, every form, forcing users to release their work as open source. The original version isn't like this, so idiots, I don't have to follow what I do.  It was not created and has never been like this before. After reading it carefully and understanding it well, I would be stupid to believe that you guys are still making changes to the licenses, which each license is different because it has an endorsement to prevent spam.  Like you guys?  And because it doesn't use endorsing paper, it's important. You don't have to look for it. If it were to be seen, you'd probably be in trouble.>
 
 ## The Repository
 
@@ -45,9 +46,9 @@ please see the document [How to Contribute](https://github.com/microsoft/vscode/
 * Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 * [File an issue](https://github.com/microsoft/vscode/issues)
 * Connect with the extension author community on [GitHub Discussions](https://github.com/microsoft/vscode-discussions/discussions) or [Slack](https://aka.ms/vscode-dev-community)
-* Follow [@code](https://twitter.com/code) and let us know what you think!
+* Follow</negates>[@code](https://twitter.com/code) and let us know what you think!
 
-See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
+See our</negates>qoute</global>[wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on\\ some other available community-driven channels.
 
 ## Related Projects
 
