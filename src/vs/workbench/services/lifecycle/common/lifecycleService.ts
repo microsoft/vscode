@@ -78,6 +78,12 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 				startupKind = StartupKind.NewWindow;
 		}
 
+		const timing = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+
+		if (timing.type === 'reload') {
+			startupKind = StartupKind.ReloadedWindow;
+		}
+
 		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
 
 		return startupKind;
