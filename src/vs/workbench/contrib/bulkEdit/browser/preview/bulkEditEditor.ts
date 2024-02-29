@@ -30,6 +30,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 
@@ -59,6 +60,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IViewsService viewsService: IViewsService
 	) {
 		super(
 			BulkEditEditor.ID,
@@ -273,7 +275,11 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this._multiDiffEditorWidget!.layout(dimension);
+		const newDimension = {
+			height: dimension.height - (this._refactorViewPane?.getHeight() ?? 0),
+			width: dimension.width
+		};
+		this._multiDiffEditorWidget!.layout(DOM.Dimension.lift(newDimension));
 	}
 
 	override getControl(): ICompositeControl | undefined {

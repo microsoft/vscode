@@ -63,6 +63,9 @@ export class BulkEditTreeView extends Disposable {
 	private _onToggleChecked = this._register(new Emitter<ResourceEdit>());
 	readonly onToggleChecked: Event<ResourceEdit> = this._onToggleChecked.event;
 
+	private _onSashMoved = this._register(new Emitter<void>());
+	readonly onSashMoved: Event<void> = this._onSashMoved.event;
+
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -88,6 +91,10 @@ export class BulkEditTreeView extends Disposable {
 
 	public focus(): void {
 		this._parent?.focus();
+	}
+
+	public getHeight(): number {
+		return this._parent?.clientHeight ?? 0;
 	}
 
 	public renderBody(parent: HTMLElement): void {
@@ -181,6 +188,7 @@ export class BulkEditTreeView extends Disposable {
 					treeContainer.style.height = `${heightOfParent - 36}px`;
 					this._tree.layout(heightOfParent - 36, parent.clientWidth);
 					this._sash?.layout();
+					this._onSashMoved.fire();
 				}
 			}
 		});
