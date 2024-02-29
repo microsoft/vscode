@@ -13,12 +13,14 @@ import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { IChatAgentCommand, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -74,10 +76,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._agents.deleteAndDispose(handle);
 	}
 
-	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void {
-		let lastSlashCommands: IChatAgentCommand[] | undefined;
+	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata): void {
+		const lastSlashCommands: WeakMap<IChatModel, IChatAgentCommand[]> = new WeakMap();
 		const d = this._chatAgentService.registerAgent({
 			id: name,
+			extensionId: extension,
 			metadata: revive(metadata),
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
@@ -87,22 +90,26 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
-			provideFollowups: async (result, token): Promise<IChatFollowup[]> => {
+			provideFollowups: async (request, result, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
 				}
 
-				return this._proxy.$provideFollowups(handle, result, token);
+				return this._proxy.$provideFollowups(request, handle, result, token);
 			},
-			get lastSlashCommands() {
-				return lastSlashCommands;
+			getLastSlashCommands: (model: IChatModel) => {
+				return lastSlashCommands.get(model);
 			},
-			provideSlashCommands: async (token) => {
+			provideSlashCommands: async (model, history, token) => {
 				if (!this._agents.get(handle)?.hasSlashCommands) {
 					return []; // save an IPC call
 				}
-				lastSlashCommands = await this._proxy.$provideSlashCommands(handle, token);
-				return lastSlashCommands;
+				const commands = await this._proxy.$provideSlashCommands(handle, { history }, token);
+				if (model) {
+					lastSlashCommands.set(model, commands);
+				}
+
+				return commands;
 			},
 			provideWelcomeMessage: (token: CancellationToken) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);

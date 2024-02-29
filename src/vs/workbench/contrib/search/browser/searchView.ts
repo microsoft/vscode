@@ -23,7 +23,7 @@ import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -80,7 +80,9 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -192,7 +194,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -405,7 +407,8 @@ export class SearchView extends ViewPane {
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
+			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -901,6 +904,7 @@ export class SearchView extends ViewPane {
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
 		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
+		this._register(this.tree.onDidChangeModel(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
 			if (options.element instanceof Match) {
@@ -1279,7 +1283,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		this.audioCueService.playAudioCue(AudioCue.clear);
+		this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		this.reLayout();
 	}
 
@@ -2132,7 +2136,8 @@ class SearchLinkButton extends Disposable {
 
 	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
 		super();
-		this.element = $('a.pointer', { tabindex: 0, title: tooltip }, label);
+		this.element = $('a.pointer', { tabindex: 0 }, label);
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 

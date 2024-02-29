@@ -6,7 +6,7 @@
 import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { distinct, flatten } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { visit } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
 import * as env from 'vs/base/common/platform';
@@ -217,6 +217,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private altListener = new MutableDisposable();
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();
+	private displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
 
@@ -237,7 +238,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	) {
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
-		this.toDispose = [this.defaultHoverLockout, this.altListener];
+		this.toDispose = [this.defaultHoverLockout, this.altListener, this.displayedStore];
 		this.registerListeners();
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
@@ -639,7 +640,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get removeInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
 			() => {
-				this.oldDecorations.clear();
+				this.displayedStore.clear();
 			},
 			100
 		);
@@ -670,9 +671,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		this.removeInlineValuesScheduler.cancel();
+		this.displayedStore.clear();
 
 		const viewRanges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 		let allDecorations: IModelDeltaDecoration[];
+
+		const cts = new CancellationTokenSource();
+		this.displayedStore.add(toDisposable(() => cts.dispose(true)));
 
 		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
 
@@ -693,14 +698,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				frameId: stackFrame.frameId,
 				stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1)
 			};
-			const token = new CancellationTokenSource().token;
 
 			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
 
 			allDecorations = [];
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
-			const promises = flatten(providers.map(provider => viewRanges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
+			const promises = providers.flatMap(provider => viewRanges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, cts.token)).then(async (result) => {
 				if (result) {
 					for (const iv of result) {
 
@@ -753,7 +757,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			}, err => {
 				onUnexpectedExternalError(err);
-			}))));
+			})));
 
 			const startTime = Date.now();
 
@@ -794,12 +798,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				return createInlineValueDecorationsInsideRange(variables, ownRanges, model, this._wordToLineNumbersMap.value);
 			}));
 
-			allDecorations = distinct(decorationsPerScope.reduce((previous, current) => previous.concat(current), []),
+			allDecorations = distinct(decorationsPerScope.flat(),
 				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
 				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
 		}
 
-		this.oldDecorations.set(allDecorations);
+		if (!cts.token.isCancellationRequested) {
+			this.oldDecorations.set(allDecorations);
+			this.displayedStore.add(toDisposable(() => this.oldDecorations.clear()));
+		}
 	}
 
 	dispose(): void {
@@ -810,8 +817,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.configurationWidget.dispose();
 		}
 		this.toDispose = dispose(this.toDispose);
-
-		this.oldDecorations.clear();
 	}
 }
 

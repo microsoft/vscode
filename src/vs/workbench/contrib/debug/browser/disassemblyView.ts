@@ -690,7 +690,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 					if (currentElement.element.isBreakpointSet) {
 						this._debugService.removeInstructionBreakpoints(reference, offset);
 					} else if (currentElement.element.allowBreakpoint && !currentElement.element.isBreakpointSet) {
-						this._debugService.addInstructionBreakpoint(reference, offset, currentElement.element.address);
+						this._debugService.addInstructionBreakpoint({ instructionReference: reference, offset, address: currentElement.element.address, canPersist: false });
 					}
 				}
 			})
