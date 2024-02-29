@@ -168,7 +168,10 @@ export class BulkEditTreeView extends Disposable {
 		this._sash.onDidChange(e => {
 			if (this._currentHeight) {
 				const deltaY = e.currentY - e.startY;
-				parent.style.height = `${this._currentHeight + deltaY}px`;
+				const heightOfParent = this._currentHeight + deltaY;
+				parent.style.height = `${heightOfParent}px`;
+				contentContainer.style.height = `${heightOfParent}px`;
+				treeContainer.style.height = `${heightOfParent - 30}px`;
 				this._sash?.layout();
 			}
 		});
