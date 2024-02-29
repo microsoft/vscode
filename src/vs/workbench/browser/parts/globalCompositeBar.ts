@@ -42,6 +42,7 @@ import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userD
 import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -71,15 +72,16 @@ export class GlobalCompositeBar extends Disposable {
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL
 		});
 		this.globalActivityActionBar = this._register(new ActionBar(this.element, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === GLOBAL_ACTIVITY_ID) {
-					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, { colors: this.colors, hoverOptions: this.activityHoverOptions }, contextMenuAlignmentOptions);
+					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, { ...options, colors: this.colors, hoverOptions: this.activityHoverOptions }, contextMenuAlignmentOptions);
 				}
 
 				if (action.id === ACCOUNTS_ACTIVITY_ID) {
 					return this.instantiationService.createInstance(AccountsActivityActionViewItem,
 						this.contextMenuActionsProvider,
 						{
+							...options,
 							colors: this.colors,
 							hoverOptions: this.activityHoverOptions
 						},
@@ -96,7 +98,6 @@ export class GlobalCompositeBar extends Disposable {
 			},
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('manage', "Manage"),
-			animated: false,
 			preventLoopNavigation: true
 		}));
 
@@ -612,6 +613,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 
 	constructor(
 		hoverOptions: IActivityHoverOptions,
+		options: IBaseActionViewItemOptions,
 		@IThemeService themeService: IThemeService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IHoverService hoverService: IHoverService,
@@ -629,6 +631,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(() => [], {
+			...options,
 			colors: theme => ({
 				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
@@ -643,6 +646,7 @@ export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionView
 
 	constructor(
 		hoverOptions: IActivityHoverOptions,
+		options: IBaseActionViewItemOptions,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
@@ -656,6 +660,7 @@ export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionView
 		@IActivityService activityService: IActivityService,
 	) {
 		super(() => [], {
+			...options,
 			colors: theme => ({
 				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),

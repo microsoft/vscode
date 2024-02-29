@@ -207,13 +207,6 @@
 	color: var(--vscode-textPreformat-foreground);
 }
 
-.hc-black .interactive-item-container .value .rendered-markdown a:hover,
-.hc-black .interactive-item-container .value .rendered-markdown a:active,
-.hc-light .interactive-item-container .value .rendered-markdown a:hover,
-.hc-light .interactive-item-container .value .rendered-markdown a:active {
-	color: var(--vscode-textPreformat-foreground);
-}
-
 .interactive-list {
 	overflow: hidden;
 }

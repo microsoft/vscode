@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
@@ -15,7 +15,7 @@ export const chatRequestBorder = registerColor(
 
 export const chatRequestBackground = registerColor(
 	'chat.requestBackground',
-	{ dark: editorBackground, light: editorBackground, hcDark: editorWidgetBackground, hcLight: null },
+	{ dark: transparent(editorBackground, 0.62), light: transparent(editorBackground, 0.62), hcDark: editorWidgetBackground, hcLight: null },
 	localize('chat.requestBackground', 'The background color of a chat request.')
 );
 

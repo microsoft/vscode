@@ -201,14 +201,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof CompositeOverflowActivityAction) {
 					return this.compositeOverflowActionViewItem;
 				}
 				const item = this.model.findItem(action.id);
 				return item && this.instantiationService.createInstance(
 					CompositeActionViewItem,
-					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions, compact: this.options.compact },
+					{ ...options, draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions, compact: this.options.compact },
 					action as CompositeBarAction,
 					item.pinnedAction,
 					item.toggleBadgeAction,
@@ -221,7 +221,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			orientation: this.options.orientation,
 			ariaLabel: localize('activityBarAriaLabel', "Active View Switcher"),
 			ariaRole: 'tablist',
-			animated: false,
 			preventLoopNavigation: this.options.preventLoopNavigation,
 			triggerKeys: { keyDown: true }
 		}));

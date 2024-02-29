@@ -645,7 +645,12 @@ export class GettingStartedPage extends EditorPane {
 
 			this.stepDisposables.add(this.webview.onDidClickLink(link => {
 				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
-					this.openerService.open(link, { allowCommands: true });
+					const toSide = link.startsWith('command:toSide:');
+					if (toSide) {
+						link = link.replace('command:toSide:', 'command:');
+						this.focusSideEditorGroup();
+					}
+					this.openerService.open(link, { allowCommands: true, openToSide: toSide });
 				}
 			}));
 
@@ -1164,6 +1169,25 @@ export class GettingStartedPage extends EditorPane {
 		return widget;
 	}
 
+	private focusSideEditorGroup() {
+		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
+		if (!fullSize || fullSize.width <= 700) { return; }
+		if (this.groupsService.count === 1) {
+			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
+			this.groupsService.activateGroup(sideGroup);
+
+			const gettingStartedSize = Math.floor(fullSize.width / 2);
+
+			const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
+			this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+		}
+
+		const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
+		if (nonGettingStartedGroup) {
+			this.groupsService.activateGroup(nonGettingStartedGroup);
+			nonGettingStartedGroup.focus();
+		}
+	}
 	private runStepCommand(href: string) {
 
 		const isCommand = href.startsWith('command:');
@@ -1172,24 +1196,8 @@ export class GettingStartedPage extends EditorPane {
 
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
-		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
-
-		if (toSide && fullSize && fullSize.width > 700) {
-			if (this.groupsService.count === 1) {
-				const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
-				this.groupsService.activateGroup(sideGroup);
-
-				const gettingStartedSize = Math.floor(fullSize.width / 2);
-
-				const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-				this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
-			}
-
-			const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
-			if (nonGettingStartedGroup) {
-				this.groupsService.activateGroup(nonGettingStartedGroup);
-				nonGettingStartedGroup.focus();
-			}
+		if (toSide) {
+			this.focusSideEditorGroup();
 		}
 		if (isCommand) {
 			const commandURI = URI.parse(command);

@@ -217,14 +217,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 						column: l.character > 0 ? l.character + 1 : undefined, // a column value of 0 results in an omitted column attribute; see #46784
 						condition: l.condition,
 						hitCondition: l.hitCondition,
-						logMessage: l.logMessage
+						logMessage: l.logMessage,
+						mode: l.mode,
 					}
 				);
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
-				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
+				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id, dto.mode);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType, dto.mode);
 			}
 		}
 		return Promise.resolve();

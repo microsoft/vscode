@@ -276,9 +276,14 @@ export class NotebookCellListView<T> extends ListView<T> {
 	insertWhitespace(afterPosition: number, size: number): string {
 		const scrollTop = this.scrollTop;
 		const id = `${++this._lastWhitespaceId}`;
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const elementPosition = this.elementTop(afterPosition);
+		const aboveScrollTop = scrollTop > elementPosition;
 		this.notebookRangeMap.insertWhitespace(id, afterPosition, size);
 
-		this._rerender(scrollTop, this.renderHeight, false);
+		const newScrolltop = aboveScrollTop ? scrollTop + size : scrollTop;
+		this.render(previousRenderRange, newScrolltop, this.lastRenderHeight, undefined, undefined, false);
+		this._rerender(newScrolltop, this.renderHeight, false);
 		this.eventuallyUpdateScrollDimensions();
 
 		return id;

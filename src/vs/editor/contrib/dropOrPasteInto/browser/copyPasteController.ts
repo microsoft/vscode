@@ -56,12 +56,19 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		return editor.getContribution<CopyPasteController>(CopyPasteController.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-
-	private _currentCopyOperation?: {
+	/**
+	 * Global tracking the last copy operation.
+	 *
+	 * This is shared across all editors so that you can copy and paste between groups.
+	 *
+	 * TODO: figure out how to make this work with multiple windows
+	 */
+	private static _currentCopyOperation?: {
 		readonly handle: string;
 		readonly dataTransferPromise: CancelablePromise<VSDataTransfer>;
 	};
+
+	private readonly _editor: ICodeEditor;
 
 	private _currentPasteOperation?: CancelablePromise<void>;
 	private _pasteAsActionContext?: { readonly preferredId: string | undefined };
@@ -204,8 +211,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return dataTransfer;
 		});
 
-		this._currentCopyOperation?.dataTransferPromise.cancel();
-		this._currentCopyOperation = { handle: handle, dataTransferPromise: promise };
+		CopyPasteController._currentCopyOperation?.dataTransferPromise.cancel();
+		CopyPasteController._currentCopyOperation = { handle: handle, dataTransferPromise: promise };
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
@@ -436,8 +443,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async mergeInDataFromCopy(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken): Promise<void> {
-		if (metadata?.id && this._currentCopyOperation?.handle === metadata.id) {
-			const toMergeDataTransfer = await this._currentCopyOperation.dataTransferPromise;
+		if (metadata?.id && CopyPasteController._currentCopyOperation?.handle === metadata.id) {
+			const toMergeDataTransfer = await CopyPasteController._currentCopyOperation.dataTransferPromise;
 			if (token.isCancellationRequested) {
 				return;
 			}

@@ -119,7 +119,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
-	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager();
+	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager(model);
 	disposables.push(diagnosticsManager);
 
 	const codeActionsProvider = new GitCommitInputBoxCodeActionsProvider(diagnosticsManager);

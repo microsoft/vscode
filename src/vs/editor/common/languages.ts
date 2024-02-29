@@ -1710,6 +1710,14 @@ export interface CommentInfo {
 	commentingRanges: CommentingRanges;
 }
 
+
+/**
+ * @internal
+ */
+export interface CommentingRangeResourceHint {
+	schemes: readonly string[];
+}
+
 /**
  * @internal
  */
@@ -2142,4 +2150,25 @@ export interface MappedEditsProvider {
 		context: MappedEditsContext,
 		token: CancellationToken
 	): Promise<WorkspaceEdit | null>;
+}
+
+export interface IInlineEdit {
+	text: string;
+	range: IRange;
+	accepted?: Command;
+	rejected?: Command;
+}
+
+export interface IInlineEditContext {
+	triggerKind: InlineEditTriggerKind;
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
+	freeInlineEdit(edit: T): void;
 }

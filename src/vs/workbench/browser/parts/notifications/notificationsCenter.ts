@@ -173,7 +173,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		const notificationsToolBar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
 			actionRunner,
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === ConfigureDoNotDisturbAction.ID) {
 					return this._register(this.instantiationService.createInstance(DropdownMenuActionViewItem, action, {
 						getActions() {
@@ -208,6 +208,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 							return actions;
 						},
 					}, this.contextMenuService, {
+						...options,
 						actionRunner,
 						classNames: action.class,
 						keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)

@@ -27,6 +27,7 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { SelectAndInsertFileAction, dynamicVariableDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { getHistoryEntriesFromModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -237,8 +238,7 @@ class InputEditorSlashCommandMode extends Disposable {
 	public readonly id = 'InputEditorSlashCommandMode';
 
 	constructor(
-		private readonly widget: IChatWidget,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+		private readonly widget: IChatWidget
 	) {
 		super();
 		this._register(this.widget.onDidSubmitAgent(e => {
@@ -248,10 +248,9 @@ class InputEditorSlashCommandMode extends Disposable {
 
 	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
 		let value: string | undefined;
-		if (slashCommand && slashCommand.shouldRepopulate) {
+		if (slashCommand && slashCommand.isSticky) {
 			value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
-		} else if (agent.id !== this._chatAgentService.getDefaultAgent()?.id) {
-			// Agents always repopulate, and slash commands fall back to the agent if they don't repopulate
+		} else if (agent.metadata.isSticky) {
 			value = `${chatAgentLeader}${agent.id} `;
 		}
 
@@ -400,7 +399,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
-				const commands = await usedAgent.agent.provideSlashCommands(token); // Refresh the cache here
+				const commands = await usedAgent.agent.provideSlashCommands(widget.viewModel.model, getHistoryEntriesFromModel(widget.viewModel.model), token); // Refresh the cache here
 
 				return <CompletionList>{
 					suggestions: commands.map((c, i) => {
@@ -423,7 +422,8 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
+				const viewModel = widget?.viewModel;
+				if (!widget || !viewModel) {
 					return;
 				}
 
@@ -433,7 +433,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents();
-				const all = agents.map(agent => agent.provideSlashCommands(token));
+				const all = agents.map(agent => agent.provideSlashCommands(viewModel.model, getHistoryEntriesFromModel(viewModel.model), token));
 				const commands = await raceCancellation(Promise.all(all), token);
 
 				if (!commands) {

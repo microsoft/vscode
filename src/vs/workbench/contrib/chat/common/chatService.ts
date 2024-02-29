@@ -177,7 +177,7 @@ export interface IChatVoteAction {
 	reportIssue?: boolean;
 }
 
-export enum ChatAgentCopyKind {
+export enum ChatCopyKind {
 	// Keyboard shortcut or context menu
 	Action = 1,
 	Toolbar = 2
@@ -186,7 +186,7 @@ export enum ChatAgentCopyKind {
 export interface IChatCopyAction {
 	kind: 'copy';
 	codeBlockIndex: number;
-	copyKind: ChatAgentCopyKind;
+	copyKind: ChatCopyKind;
 	copiedCharacters: number;
 	totalCharacters: number;
 	copiedText: string;
