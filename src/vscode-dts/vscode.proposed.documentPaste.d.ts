@@ -7,8 +7,32 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/30066/
 
-	export interface DocumentPasteContext {
-		// TODO: include trigger info
+	/**
+	 * The reason why paste edits were requested.
+	 */
+	export enum DocumentPasteTriggerKind {
+		/**
+		 * Pasting was requested as part of a normal paste operation.
+		 */
+		Automatic = 0,
+
+		/**
+		 * Pasting was requested by the user with the 'paste as' command.
+		 */
+		PasteAs = 1,
+	}
+
+	/**
+	 * Additional information about the paste operation.
+	 */
+
+	export interface DocumentPasteEditContext {
+		readonly only: DocumentPasteEditKind | undefined;
+
+		/**
+		 * The reason why paste edits were requested.
+		 */
+		readonly triggerKind: DocumentPasteTriggerKind;
 	}
 
 	/**
@@ -45,7 +69,7 @@ declare module 'vscode' {
 		 *
 		 * @return Set of potential {@link DocumentPasteEdit edits} that apply the paste. Return `undefined` to use standard pasting.
 		 */
-		provideDocumentPasteEdits?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, context: DocumentPasteContext, token: CancellationToken): ProviderResult<T[]>;
+		provideDocumentPasteEdits?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, context: DocumentPasteEditContext, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.

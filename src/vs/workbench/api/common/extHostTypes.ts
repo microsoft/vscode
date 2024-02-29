@@ -2792,6 +2792,11 @@ export class DocumentDropEdit {
 	}
 }
 
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
 export class DocumentPasteEditKind {
 	static Empty: DocumentPasteEditKind;
 

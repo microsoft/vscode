@@ -1040,7 +1040,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 						return;
 					}
 
-					const edits = await this._proxy.$providePasteEdits(this._handle, request.id, model.uri, selections, dataTransferDto, token);
+					const edits = await this._proxy.$providePasteEdits(this._handle, request.id, model.uri, selections, dataTransferDto, {
+						only: context.only?.value,
+						triggerKind: context.triggerKind,
+					}, token);
 					if (!edits) {
 						return;
 					}

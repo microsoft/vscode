@@ -54,7 +54,7 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 		document: vscode.TextDocument,
 		_ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
-		_context: vscode.DocumentPasteContext,
+		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
 		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('pasteImagesAsAttachments.enabled', true);

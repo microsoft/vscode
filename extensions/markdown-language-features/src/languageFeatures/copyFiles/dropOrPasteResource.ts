@@ -62,6 +62,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
+		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
 		const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.filePaste.enabled', true);

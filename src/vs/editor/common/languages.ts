@@ -817,9 +817,17 @@ export interface DocumentPasteEdit {
 /**
  * @internal
  */
+export enum DocumentPasteTriggerKind {
+	Automatic = 0,
+	PasteAs = 1,
+}
+
+/**
+ * @internal
+ */
 export interface DocumentPasteContext {
 	readonly only?: HierarchicalKind;
-	readonly trigger: 'explicit' | 'implicit';
+	readonly triggerKind: DocumentPasteTriggerKind;
 }
 
 /**
