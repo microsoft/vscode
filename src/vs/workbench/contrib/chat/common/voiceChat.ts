@@ -87,19 +87,16 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	private createPhrases(model?: IChatModel): Map<string, IPhraseValue> {
 		const phrases = new Map<string, IPhraseValue>();
 
-		for (const agent of this.chatAgentService.getAgents()) {
+		for (const agent of this.chatAgentService.getActivatedAgents()) {
 			const agentPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]} ${VoiceChatService.CHAT_AGENT_ALIAS.get(agent.id) ?? agent.id}`.toLowerCase();
 			phrases.set(agentPhrase, { agent: agent.id });
 
-			const commands = model && agent.getLastSlashCommands(model);
-			if (commands) {
-				for (const slashCommand of commands) {
-					const slashCommandPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]} ${slashCommand.name}`.toLowerCase();
-					phrases.set(slashCommandPhrase, { agent: agent.id, command: slashCommand.name });
+			for (const slashCommand of agent.slashCommands) {
+				const slashCommandPhrase = `${VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]} ${slashCommand.name}`.toLowerCase();
+				phrases.set(slashCommandPhrase, { agent: agent.id, command: slashCommand.name });
 
-					const agentSlashCommandPhrase = `${agentPhrase} ${slashCommandPhrase}`.toLowerCase();
-					phrases.set(agentSlashCommandPhrase, { agent: agent.id, command: slashCommand.name });
-				}
+				const agentSlashCommandPhrase = `${agentPhrase} ${slashCommandPhrase}`.toLowerCase();
+				phrases.set(agentSlashCommandPhrase, { agent: agent.id, command: slashCommand.name });
 			}
 		}
 

@@ -683,7 +683,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'agentDetection') {
-			const agent = this.chatAgentService.getAgent(progress.agentName);
+			const agent = this.chatAgentService.getRegisteredAgent(progress.agentName);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
@@ -780,7 +780,10 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent ? { id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
+					agent: r.response?.agent ?
+						// May actually be the full IChatAgent instance, just take the data props. slashCommands don't matter here.
+						{ id: r.response.agent.id, extensionId: r.response.agent.extensionId, metadata: r.response.agent.metadata, slashCommands: [] }
+						: undefined,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences

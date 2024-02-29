@@ -41,7 +41,7 @@ import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, I
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
 
@@ -55,7 +55,7 @@ export class Match {
 	// For replace
 	private _fullPreviewRange: ISearchRange;
 
-	constructor(protected _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange) {
+	constructor(protected _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, public readonly aiContributed: boolean) {
 		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
 		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
 			_fullPreviewRange.endColumn :
@@ -289,7 +289,7 @@ export class MatchInNotebook extends Match {
 	private _webviewIndex: number | undefined;
 
 	constructor(private readonly _cellParent: CellMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, webviewIndex?: number) {
-		super(_cellParent.parent, _fullPreviewLines, _fullPreviewRange, _documentRange);
+		super(_cellParent.parent, _fullPreviewLines, _fullPreviewRange, _documentRange, false);
 		this._id = this._parent.id() + '>' + this._cellParent.cellIndex + (webviewIndex ? '_' + webviewIndex : '') + '_' + this.notebookMatchTypeString() + this._range + this.getMatchString();
 		this._webviewIndex = webviewIndex;
 	}
@@ -426,7 +426,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 		this._cellMatches = new Map<string, CellMatch>();
 		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
-		this.createMatches();
 	}
 
 	addWebviewMatchesToCell(cellID: string, webviewMatches: ITextSearchMatch[]) {
@@ -462,9 +461,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this.matches().some(m => m instanceof MatchInNotebook && m.isReadonly());
 	}
 
-	createMatches(): void {
+	hasDownstreamNonAIResults(): boolean {
+		return this.matches().some(m => !m.aiContributed);
+	}
+
+	createMatches(isAiContributed: boolean): void {
 		const model = this.modelService.getModel(this._resource);
-		if (model) {
+		if (model && !isAiContributed) {
+			// todo: handle better when ai contributed results has model, currently, createMatches does not work for this
 			this.bindModel(model);
 			this.updateMatchesForModel();
 		} else {
@@ -477,7 +481,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				this.rawMatch.results
 					.filter(resultIsMatch)
 					.forEach(rawMatch => {
-						textSearchResultToMatches(rawMatch, this)
+						textSearchResultToMatches(rawMatch, this, isAiContributed)
 							.forEach(m => this.add(m));
 					});
 			}
@@ -529,7 +533,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		const matches = this._model
 			.findMatches(this._query.pattern, this._model.getFullModelRange(), !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
 
-		this.updateMatches(matches, true, this._model);
+		this.updateMatches(matches, true, this._model, false);
 	}
 
 
@@ -549,17 +553,17 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
-		this.updateMatches(matches, modelChange, this._model);
+		this.updateMatches(matches, modelChange, this._model, false);
 
 		// await this.updateMatchesForEditorWidget();
 	}
 
 
 
-	private updateMatches(matches: FindMatch[], modelChange: boolean, model: ITextModel): void {
+	private updateMatches(matches: FindMatch[], modelChange: boolean, model: ITextModel, isAiContributed: boolean): void {
 		const textSearchResults = editorMatchesToTextSearchResults(matches, model, this._previewOptions);
 		textSearchResults.forEach(textSearchResult => {
-			textSearchResultToMatches(textSearchResult, this).forEach(match => {
+			textSearchResultToMatches(textSearchResult, this, isAiContributed).forEach(match => {
 				if (!this._removedTextMatches.has(match.id())) {
 					this.add(match);
 					if (this.isMatchSelected(match)) {
@@ -1012,6 +1016,19 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
+	hasDownstreamNonAIResults(): boolean {
+		let recursiveChildren: FileMatch[] = [];
+		const iterator = this.folderMatchesIterator();
+		for (const elem of iterator) {
+			recursiveChildren = recursiveChildren.concat(elem.allDownstreamFileMatches());
+			if (recursiveChildren.some(fileMatch => fileMatch.hasDownstreamNonAIResults())) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	async bindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI) {
 		const fileMatch = this._fileMatches.get(resource);
 
@@ -1142,7 +1159,7 @@ export class FolderMatch extends Disposable {
 		return this._query;
 	}
 
-	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string): void {
+	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string, isAiContributed: boolean): void {
 		// when adding a fileMatch that has intermediate directories
 		const added: FileMatch[] = [];
 		const updated: FileMatch[] = [];
@@ -1156,7 +1173,7 @@ export class FolderMatch extends Disposable {
 						.results
 						.filter(resultIsMatch)
 						.forEach(m => {
-							textSearchResultToMatches(m, existingFileMatch)
+							textSearchResultToMatches(m, existingFileMatch, isAiContributed)
 								.forEach(m => existingFileMatch.add(m));
 						});
 				}
@@ -1181,7 +1198,7 @@ export class FolderMatch extends Disposable {
 				}
 			} else {
 				if (this instanceof FolderMatchWorkspaceRoot || this instanceof FolderMatchNoRoot) {
-					const fileMatch = this.createAndConfigureFileMatch(rawFileMatch, searchInstanceID);
+					const fileMatch = this.createAndConfigureFileMatch(rawFileMatch, searchInstanceID, isAiContributed);
 					added.push(fileMatch);
 				}
 			}
@@ -1367,7 +1384,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		return this.uriIdentityService.extUri.isEqual(uri1, ur2);
 	}
 
-	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch, closestRoot: FolderMatchWorkspaceRoot | null, searchInstanceID: string): FileMatch {
+	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch, closestRoot: FolderMatchWorkspaceRoot | null, searchInstanceID: string, isAiContributed: boolean): FileMatch {
 		const fileMatch =
 			this.instantiationService.createInstance(
 				FileMatch,
@@ -1379,13 +1396,14 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 				closestRoot,
 				searchInstanceID
 			);
+		fileMatch.createMatches(isAiContributed);
 		parent.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
 
-	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string): FileMatch {
+	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string, ai: boolean): FileMatch {
 
 		if (!this.uriHasParent(this.resource, rawFileMatch.resource)) {
 			throw Error(`${rawFileMatch.resource} is not a descendant of ${this.resource}`);
@@ -1413,7 +1431,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 			parent = folderMatch;
 		}
 
-		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root, searchInstanceID);
+		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root, searchInstanceID, ai);
 	}
 }
 
@@ -1432,7 +1450,7 @@ export class FolderMatchNoRoot extends FolderMatch {
 		super(null, _id, _index, _query, _parent, _parent, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
-	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string): FileMatch {
+	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string, isAiContributed: boolean): FileMatch {
 		const fileMatch = this._register(this.instantiationService.createInstance(
 			FileMatch,
 			this._query.contentPattern,
@@ -1441,6 +1459,7 @@ export class FolderMatchNoRoot extends FolderMatch {
 			this, rawFileMatch,
 			null,
 			searchInstanceID));
+		fileMatch.createMatches(isAiContributed);
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
@@ -1750,7 +1769,7 @@ export class SearchResult extends Disposable {
 	}
 
 
-	add(allRaw: IFileMatch[], searchInstanceID: string, silent: boolean = false): void {
+	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent: boolean = false): void {
 		// Split up raw into a list per folder so we can do a batch add per folder.
 
 		const { byFolder, other } = this.groupFilesByFolder(allRaw);
@@ -1760,10 +1779,10 @@ export class SearchResult extends Disposable {
 			}
 
 			const folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch?.addFileMatch(raw, silent, searchInstanceID);
+			folderMatch?.addFileMatch(raw, silent, searchInstanceID, ai);
 		});
 
-		this._otherFilesMatch?.addFileMatch(other, silent, searchInstanceID);
+		this._otherFilesMatch?.addFileMatch(other, silent, searchInstanceID, ai);
 		this.disposePastResults();
 	}
 
@@ -1951,6 +1970,7 @@ export class SearchModel extends Disposable {
 	private _preserveCase: boolean = false;
 	private _startStreamDelay: Promise<void> = Promise.resolve();
 	private readonly _resultQueue: IFileMatch[] = [];
+	private _aiResultsEnabled = false;
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -2013,6 +2033,37 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
+	async disableAIResults() {
+		this._aiResultsEnabled = false;
+	}
+	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
+		if (this._aiResultsEnabled) {
+			return;
+		} else {
+			if (this._searchQuery) {
+				const start = Date.now();
+				const searchInstanceID = Date.now().toString();
+				const asyncAIResults = this.searchService.aiTextSearch(
+					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
+					this.currentCancelTokenSource?.token, async (p: ISearchProgressItem) => {
+						this.onSearchProgress(p, searchInstanceID, false);
+						onProgress?.(p);
+					});
+
+
+				await asyncAIResults.then(
+					value => {
+						this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
+						return value;
+					},
+					e => {
+						this.onSearchError(e, Date.now() - start);
+						throw e;
+					});
+			}
+			this._aiResultsEnabled = true;
+		}
+	}
 
 	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
 		asyncResults: Promise<ISearchComplete>;
@@ -2020,7 +2071,7 @@ export class SearchModel extends Disposable {
 	} {
 		const asyncGenerateOnProgress = async (p: ISearchProgressItem) => {
 			progressEmitter.fire();
-			this.onSearchProgress(p, searchInstanceID, false);
+			this.onSearchProgress(p, searchInstanceID, false, false);
 			onProgress?.(p);
 		};
 
@@ -2039,6 +2090,15 @@ export class SearchModel extends Disposable {
 			notebookResult.allScannedFiles,
 		);
 
+		const asyncAIResults = this._aiResultsEnabled ? this.searchService.aiTextSearch(
+			{ ...searchQuery, contentPattern: searchQuery.contentPattern.pattern, type: QueryType.aiText },
+			this.currentCancelTokenSource.token, async (p: ISearchProgressItem) => {
+				progressEmitter.fire();
+				this.onSearchProgress(p, searchInstanceID, false, true);
+				onProgress?.(p);
+			}) : Promise.resolve(undefined);
+
+
 		const syncResults = textResult.syncResults.results;
 		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
 
@@ -2048,10 +2108,11 @@ export class SearchModel extends Disposable {
 			// resolve async parts of search
 			const allClosedEditorResults = await textResult.asyncResults;
 			const resolvedNotebookResults = await notebookResult.completeData;
+			const aiResults = await asyncAIResults;
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
 			const resolvedResult = <ISearchComplete>{
-				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
+				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results, ...aiResults?.results ?? []],
 				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
 				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
 				exit: allClosedEditorResults.exit,
@@ -2141,12 +2202,12 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string): ISearchComplete | undefined {
+	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string, ai = false): ISearchComplete | undefined {
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
 
-		this._searchResult.add(this._resultQueue, searchInstanceID);
+		this._searchResult.add(this._resultQueue, searchInstanceID, ai);
 		this._resultQueue.length = 0;
 
 		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
@@ -2195,18 +2256,18 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true) {
+	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true, ai = false) {
 		if ((<IFileMatch>p).resource) {
 			this._resultQueue.push(<IFileMatch>p);
 			if (sync) {
 				if (this._resultQueue.length) {
-					this._searchResult.add(this._resultQueue, searchInstanceID, true);
+					this._searchResult.add(this._resultQueue, searchInstanceID, ai, true);
 					this._resultQueue.length = 0;
 				}
 			} else {
 				this._startStreamDelay.then(() => {
 					if (this._resultQueue.length) {
-						this._searchResult.add(this._resultQueue, searchInstanceID, true);
+						this._searchResult.add(this._resultQueue, searchInstanceID, ai, true);
 						this._resultQueue.length = 0;
 					}
 				});
@@ -2354,16 +2415,16 @@ export class RangeHighlightDecorations implements IDisposable {
 
 
 
-function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch): Match[] {
+function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch, isAiContributed: boolean): Match[] {
 	const previewLines = rawMatch.preview.text.split('\n');
 	if (Array.isArray(rawMatch.ranges)) {
 		return rawMatch.ranges.map((r, i) => {
 			const previewRange: ISearchRange = (<ISearchRange[]>rawMatch.preview.matches)[i];
-			return new Match(fileMatch, previewLines, previewRange, r);
+			return new Match(fileMatch, previewLines, previewRange, r, isAiContributed);
 		});
 	} else {
 		const previewRange = <ISearchRange>rawMatch.preview.matches;
-		const match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges);
+		const match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges, isAiContributed);
 		return [match];
 	}
 }

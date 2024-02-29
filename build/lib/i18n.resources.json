@@ -553,6 +553,10 @@
 		{
 			"name": "vs/workbench/contrib/accountEntitlements",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/authentication",
+			"project": "vscode-workbench"
 		}
 	]
 }

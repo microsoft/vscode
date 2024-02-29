@@ -104,6 +104,9 @@ import 'vs/workbench/services/views/browser/viewsService';
 import 'vs/workbench/services/quickinput/browser/quickInputService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
+import 'vs/workbench/services/authentication/browser/authenticationExtensionsService';
+import 'vs/workbench/services/authentication/browser/authenticationUsageService';
+import 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import 'vs/editor/browser/services/hoverService/hoverService';
 import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
@@ -340,6 +343,9 @@ import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contrib
 
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
+
+// Authentication
+import 'vs/workbench/contrib/authentication/browser/authentication.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';

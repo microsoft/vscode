@@ -50,12 +50,12 @@ import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IChatDynamicRequest, IChatProgress, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection, IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatDynamicRequest, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { DebugConfigurationProviderTriggerKind, MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
+import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
+import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatFollowup, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -1196,12 +1196,11 @@ export interface ExtHostLanguageModelsShape {
 }
 
 export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
-	hasSlashCommands?: boolean;
 	hasFollowups?: boolean;
 }
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
-	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata): void;
+	$registerAgent(handle: number, extension: ExtensionIdentifier, name: string, metadata: IExtensionChatAgentMetadata, allowDynamic: boolean): void;
 	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1228,7 +1227,6 @@ export type IChatAgentHistoryEntryDto = {
 
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
-	$provideSlashCommands(handle: number, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentCommand[]>;
 	$provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;

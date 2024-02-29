@@ -21,7 +21,7 @@ import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEnt
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatFollowup, IChatProgress, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -171,7 +171,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, extension.identifier, name, {});
+		this._proxy.$registerAgent(handle, extension.identifier, name, {}, isProposedApiEnabled(extension, 'chatParticipantAdditions'));
 		return agent.apiAgent;
 	}
 
@@ -245,23 +245,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
 
-	async $provideSlashCommands(handle: number, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentCommand[]> {
-		const agent = this._agents.get(handle);
-		if (!agent) {
-			// this is OK, the agent might have disposed while the request was in flight
-			return [];
-		}
-
-		const convertedHistory = await this.prepareHistoryTurns(agent.id, context);
-		try {
-			return await agent.provideSlashCommands({ history: convertedHistory }, token);
-		} catch (err) {
-			const msg = toErrorMessage(err);
-			this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] Error while providing slash commands: ${msg}`);
-			return [];
-		}
-	}
-
 	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -276,7 +259,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					this._agents.values(),
 					a => a.id === f.participant && ExtensionIdentifier.equals(a.extension.identifier, agent.extension.identifier));
 				if (!isValid) {
-					this._logService.warn(`[@${agent.id}] ChatFollowup refers to an invalid participant: ${f.participant}`);
+					this._logService.warn(`[@${agent.id}] ChatFollowup refers to an unknown participant: ${f.participant}`);
 				}
 				return isValid;
 			})
@@ -352,7 +335,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 class ExtHostChatAgent {
 
-	private _commandProvider: vscode.ChatCommandProvider | undefined;
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
@@ -392,30 +374,6 @@ class ExtHostChatAgent {
 		}
 
 		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
-	}
-
-	async provideSlashCommands(context: vscode.ChatContext, token: CancellationToken): Promise<IChatAgentCommand[]> {
-		if (!this._commandProvider) {
-			return [];
-		}
-		const result = await this._commandProvider.provideCommands(context, token);
-		if (!result) {
-			return [];
-		}
-		return result
-			.map(c => {
-				if ('isSticky2' in c) {
-					checkProposedApiEnabled(this.extension, 'chatParticipantAdditions');
-				}
-
-				return {
-					name: c.name,
-					description: c.description ?? '',
-					followupPlaceholder: c.isSticky2?.placeholder,
-					isSticky: c.isSticky2?.isSticky ?? c.isSticky,
-					sampleRequest: c.sampleRequest
-				} satisfies IChatAgentCommand;
-			});
 	}
 
 	async provideFollowups(result: vscode.ChatResult, token: CancellationToken): Promise<vscode.ChatFollowup[]> {
@@ -485,9 +443,7 @@ class ExtHostChatAgent {
 						'dark' in this._iconPath ? this._iconPath.dark :
 							undefined,
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
-					hasSlashCommands: this._commandProvider !== undefined,
 					hasFollowups: this._followupProvider !== undefined,
-					isDefault: this._isDefault,
 					isSecondary: this._isSecondary,
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
@@ -535,13 +491,6 @@ class ExtHostChatAgent {
 				assertType(typeof v === 'function', 'Invalid request handler');
 				that._requestHandler = v;
 			},
-			get commandProvider() {
-				return that._commandProvider;
-			},
-			set commandProvider(v) {
-				that._commandProvider = v;
-				updateMetadataSoon();
-			},
 			get followupProvider() {
 				return that._followupProvider;
 			},
@@ -564,10 +513,6 @@ class ExtHostChatAgent {
 			},
 			set helpTextPrefix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				if (!that._isDefault) {
-					throw new Error('helpTextPrefix is only available on the default chat agent');
-				}
-
 				that._helpTextPrefix = v;
 				updateMetadataSoon();
 			},
@@ -577,10 +522,6 @@ class ExtHostChatAgent {
 			},
 			set helpTextVariablesPrefix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				if (!that._isDefault) {
-					throw new Error('helpTextVariablesPrefix is only available on the default chat agent');
-				}
-
 				that._helpTextVariablesPrefix = v;
 				updateMetadataSoon();
 			},
@@ -590,10 +531,6 @@ class ExtHostChatAgent {
 			},
 			set helpTextPostfix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				if (!that._isDefault) {
-					throw new Error('helpTextPostfix is only available on the default chat agent');
-				}
-
 				that._helpTextPostfix = v;
 				updateMetadataSoon();
 			},
@@ -664,7 +601,6 @@ class ExtHostChatAgent {
 			},
 			dispose() {
 				disposed = true;
-				that._commandProvider = undefined;
 				that._followupProvider = undefined;
 				that._onDidReceiveFeedback.dispose();
 				that._proxy.$unregisterAgent(that._handle);
