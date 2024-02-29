@@ -107,6 +107,8 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			// 	this._refactorViewPane.input = this._bulkEditEditorInput;
 			// }
 			this._refactorViewPane.renderBody(this._refactorViewContainer);
+			// TODO: How to make the height not a set number but the minimum between 200 and the actual height?
+			this._refactorViewPane.layoutBody(200, this._refactorViewContainer.clientWidth);
 			this._refactorViewPane.focus();
 		}
 	}

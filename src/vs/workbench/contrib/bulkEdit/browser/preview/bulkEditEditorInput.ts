@@ -78,27 +78,13 @@ export class BulkEditEditorInput extends MultiDiffEditorInput {
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		// console.log('inside of matches of bulk edit editor input');
-		// console.log('otherInput : ', otherInput);
 		if (super.matches(otherInput)) {
-			// console.log('first return');
-			// console.log('return true');
 			return true;
 		}
 
 		if (otherInput instanceof BulkEditEditorInput) {
-
-			// console.log('second return');
-			// console.log('this.edits : ', this._edits);
-			// console.log('otherInput.edits : ', otherInput._edits);
-			// console.log('return : ', this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString());
-			// && this._edits.toString() === otherInput._edits.toString())
-			// && this._edits.toString() === otherInput._edits.toString()
-
 			return this.refactorPreviewSource.toString() === otherInput.refactorPreviewSource.toString();
 		}
-
-		// console.log('return false');
 		return false;
 	}
 }

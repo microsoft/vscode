@@ -26,6 +26,7 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IResourceEdit } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Orientation, OrthogonalEdge, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 
 // No longer needs to be a view pane. Since it's now just a simple HTML embedded element.
 export class BulkEditTreeView extends Disposable {
@@ -41,7 +42,6 @@ export class BulkEditTreeView extends Disposable {
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _treeDataSource!: BulkEditDataSource;
 	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
-	private _message!: HTMLSpanElement;
 
 	private readonly _ctxHasCategories: IContextKey<boolean>;
 	private readonly _ctxGroupByFile: IContextKey<boolean>;
@@ -53,6 +53,8 @@ export class BulkEditTreeView extends Disposable {
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
 	private _parent: HTMLElement | undefined;
+	private _sash: Sash | undefined;
+	private _currentHeight: number | undefined;
 
 	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
@@ -135,6 +137,7 @@ export class BulkEditTreeView extends Disposable {
 		// buttons
 		const buttonsContainer = document.createElement('div');
 		buttonsContainer.className = 'buttons';
+		buttonsContainer.style.paddingBottom = '6px';
 		contentContainer.appendChild(buttonsContainer);
 		const buttonBar = new ButtonBar(buttonsContainer);
 		this._disposables.add(buttonBar);
@@ -147,17 +150,36 @@ export class BulkEditTreeView extends Disposable {
 		btnCancel.label = localize('cancel', 'Discard');
 		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
 
-		// message
-		this._message = document.createElement('span');
-		this._message.className = 'message';
-		this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
-		parent.appendChild(this._message);
+		// Adding the sash
+		this._sash = new Sash(parent, {
+			getHorizontalSashTop: () => (parent.clientHeight + buttonsContainer.clientHeight) ?? 0
+		}, { orientation: Orientation.HORIZONTAL, orthogonalEdge: OrthogonalEdge.South });
+		this._sash.state = SashState.Enabled;
+		this._sash.onDidStart(() => {
+			if (this._currentHeight === undefined) {
+				this._currentHeight = parent.clientHeight;
+			}
+		});
+		this._sash.onDidEnd(() => {
+			if (this._currentHeight !== undefined) {
+				this._currentHeight = undefined;
+			}
+		});
+		this._sash.onDidChange(e => {
+			if (this._currentHeight) {
+				const deltaY = e.currentY - e.startY;
+				parent.style.height = `${this._currentHeight + deltaY}px`;
+				this._sash?.layout();
+			}
+		});
+		this._sash.layout();
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	layoutBody(height: number, width: number): void {
 		const treeHeight = height - 50;
 		this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
 		this._tree.layout(treeHeight, width);
+		this._sash?.layout();
 	}
 
 	get currentInput(): BulkFileOperations | undefined {
@@ -186,6 +208,7 @@ export class BulkEditTreeView extends Disposable {
 		this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
 
 		this._currentInput = input;
+		this._sash?.layout();
 
 		return new Promise<ResourceEdit[] | undefined>(resolve => {
 
