@@ -10,6 +10,7 @@
         text: "@ChatProviderWithUsedContext test request",
         parts: [
           {
+            kind: "agent",
             range: {
               start: 0,
               endExclusive: 28
@@ -22,11 +23,8 @@
             },
             agent: {
               id: "ChatProviderWithUsedContext",
-              metadata: {  },
-              provideSlashCommands: [Function provideSlashCommands],
-              invoke: [Function invoke]
-            },
-            kind: "agent"
+              metadata: {  }
+            }
           },
           {
             range: {
@@ -44,17 +42,18 @@
           }
         ]
       },
-      variableData: {
-        message: "@ChatProviderWithUsedContext test request",
-        variables: {  }
-      },
+      variableData: { variables: [  ] },
       response: [  ],
-      responseErrorDetails: undefined,
-      followups: [  ],
+      result: { metadata: { metadataKey: "value" } },
+      followups: undefined,
       isCanceled: false,
       vote: undefined,
       agent: {
         id: "ChatProviderWithUsedContext",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
         metadata: {  }
       },
       slashCommand: undefined,

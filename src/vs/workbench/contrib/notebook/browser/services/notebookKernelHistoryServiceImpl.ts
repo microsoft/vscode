@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedMap, Touch } from 'vs/base/common/map';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -138,10 +138,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.clearNotebookKernelsMRUCache',
-			title: {
-				value: localize('workbench.notebook.clearNotebookKernelsMRUCache', "Clear Notebook Kernels MRU Cache"),
-				original: 'Clear Notebook Kernels MRU Cache'
-			},
+			title: localize2('workbench.notebook.clearNotebookKernelsMRUCache', "Clear Notebook Kernels MRU Cache"),
 			category: Categories.Developer,
 			f1: true
 		});

@@ -62,7 +62,7 @@ export const enum TestCommandId {
 	CoverageAtCursor = 'testing.coverageAtCursor',
 	CoverageByUri = 'testing.coverage.uri',
 	CoverageViewChangeSorting = 'testing.coverageViewChangeSorting',
-	CoverageClose = 'testing.coverage.close',
+	CoverageClear = 'testing.coverage.close',
 	CoverageCurrentFile = 'testing.coverageCurrentFile',
 	CoverageLastRun = 'testing.coverageLastRun',
 	CoverageSelectedAction = 'testing.coverageSelected',

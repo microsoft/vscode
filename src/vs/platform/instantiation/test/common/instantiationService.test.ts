@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -653,4 +654,6 @@ suite('Instantiation Service', () => {
 		c.a.doIt();
 		assert.strictEqual(eventCount, 1);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

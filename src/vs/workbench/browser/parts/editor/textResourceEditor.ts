@@ -53,7 +53,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
-		const resolvedModel = await input.resolve(options);
+		const resolvedModel = await input.resolve();
 
 		// Check for cancellation
 		if (token.isCancellationRequested) {

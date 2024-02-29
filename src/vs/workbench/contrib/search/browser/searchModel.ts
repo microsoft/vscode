@@ -2372,7 +2372,7 @@ function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMa
 
 export function textSearchMatchesToNotebookMatches(textSearchMatches: ITextSearchMatch[], cell: CellMatch): MatchInNotebook[] {
 	const notebookMatches: MatchInNotebook[] = [];
-	textSearchMatches.map((textSearchMatch) => {
+	textSearchMatches.forEach((textSearchMatch) => {
 		const previewLines = textSearchMatch.preview.text.split('\n');
 		if (Array.isArray(textSearchMatch.ranges)) {
 			textSearchMatch.ranges.forEach((r, i) => {

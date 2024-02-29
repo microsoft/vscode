@@ -36,6 +36,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An implementation of editor for file system resources.
@@ -61,7 +62,8 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		@IPathService private readonly pathService: IPathService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService protected readonly preferencesService: IPreferencesService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 
@@ -201,8 +203,12 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			throw createTooLargeFileError(this.group, input, options, message, this.preferencesService);
 		}
 
-		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && await this.pathService.hasValidBasename(input.preferredResource)) {
+		// Offer to create a file from the error if we have a file not found and the name is valid and not readonly
+		if (
+			(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND &&
+			!this.filesConfigurationService.isReadonly(input.preferredResource) &&
+			await this.pathService.hasValidBasename(input.preferredResource)
+		) {
 			const fileNotFoundError = createEditorOpenError(new FileOperationError(localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found."), FileOperationResult.FILE_NOT_FOUND), [
 				toAction({
 					id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {

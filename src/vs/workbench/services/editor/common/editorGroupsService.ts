@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -434,6 +434,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly onDidScroll: Event<void>;
 
 	/**
+	 * The identifier of the window the editor part is contained in.
+	 */
+	readonly windowId: number;
+
+	/**
 	 * The size of the editor part.
 	 */
 	readonly contentDimension: IDimension;
@@ -460,11 +465,6 @@ export interface IEditorPart extends IEditorGroupsContainer {
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
-
-	/**
-	 * The identifier of the window the auxiliary editor part is contained in.
-	 */
-	readonly windowId: number;
 
 	/**
 	 * Close this auxiliary editor part after moving all
@@ -578,19 +578,13 @@ export interface IEditorGroup {
 	readonly onWillMoveEditor: Event<IEditorWillMoveEvent>;
 
 	/**
-	 * An event that is fired when an editor is about to be opened
-	 * in the group.
-	 */
-	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
-
-	/**
 	 * A unique identifier of this group that remains identical even if the
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
 
 	/**
-	 * The identifier of the `CodeWindow` this editor group is part of.
+	 * The identifier of the window this editor group is part of.
 	 */
 	readonly windowId: number;
 
@@ -734,6 +728,11 @@ export interface IEditorGroup {
 	isSticky(editorOrIndex: EditorInput | number): boolean;
 
 	/**
+	 * Find out if the provided editor or index of editor is transient in the group.
+	 */
+	isTransient(editorOrIndex: EditorInput | number): boolean;
+
+	/**
 	 * Find out if the provided editor is active in the group.
 	 */
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
@@ -837,6 +836,19 @@ export interface IEditorGroup {
 	 * if unspecified.
 	 */
 	unstickEditor(editor?: EditorInput): void;
+
+	/**
+	 * A transient editor will attempt to appear as preview and certain components
+	 * (such as history tracking) may decide to ignore the editor when it becomes
+	 * active.
+	 * This option is meant to be used only when the editor is used for a short
+	 * period of time, for example when opening a preview of the editor from a
+	 * picker control in the background while navigating through results of the picker.
+	 *
+	 * @param editor the editor to update transient state, or the currently active editor
+	 * if unspecified.
+	 */
+	setTransient(editor: EditorInput | undefined, transient: boolean): void;
 
 	/**
 	 * Whether this editor group should be locked or not.

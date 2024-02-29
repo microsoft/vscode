@@ -354,11 +354,11 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return resolvedTunnel.then(tunnel => {
 			if (!tunnel) {
 				this.logService.trace('ForwardedPorts: (TunnelService) New tunnel is undefined.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost!, remotePort);
+				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
 				return undefined;
 			} else if (typeof tunnel === 'string') {
 				this.logService.trace('ForwardedPorts: (TunnelService) The tunnel provider returned an error when creating the tunnel.');
-				this.removeEmptyOrErrorTunnelFromMap(remoteHost!, remotePort);
+				this.removeEmptyOrErrorTunnelFromMap(remoteHost, remotePort);
 				return tunnel;
 			}
 			this.logService.trace('ForwardedPorts: (TunnelService) New tunnel established.');

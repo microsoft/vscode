@@ -57,7 +57,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -151,10 +151,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const actions = collectContextMenuActions(menu);
 
 		const actionRunner = this._register(new RepositoryActionRunner(() => {
-			const focusedRepositories = this.list.getFocusedElements();
-			const selectedRepositories = this.list.getSelectedElements();
-
-			return Array.from(new Set<ISCMRepository>([...focusedRepositories, ...selectedRepositories]));
+			return this.list.getSelectedElements();
 		}));
 		actionRunner.onWillRun(() => this.list.domFocus());
 

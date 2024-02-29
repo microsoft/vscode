@@ -60,6 +60,8 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 				const coverage = evt.completed.tasks.find(t => t.coverage.get());
 				if (coverage) {
 					this.openCoverage(coverage, false);
+				} else {
+					this.closeCoverage();
 				}
 			} else if ('removed' in evt && this.selected.get()) {
 				const taskId = this.selected.get()?.fromTaskId;

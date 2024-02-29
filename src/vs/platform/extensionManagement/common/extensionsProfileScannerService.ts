@@ -253,12 +253,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						// Extension in new format. No migration needed.
 						location = this.resolveExtensionLocation(e.relativeLocation);
 					} else if (isString(e.location)) {
-						// Extension in intermediate format. Migrate to new format.
-						location = this.resolveExtensionLocation(e.location);
-						migrate = true;
-						e.relativeLocation = e.location;
-						// retain old format so that old clients can read it
-						e.location = location.toJSON();
+						this.logService.warn(`Extensions profile: Ignoring extension with invalid location: ${e.location}`);
+						continue;
 					} else {
 						location = URI.revive(e.location);
 						const relativePath = this.toRelativePath(location);
@@ -267,6 +263,10 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 							migrate = true;
 							e.relativeLocation = relativePath;
 						}
+					}
+					if (isUndefined(e.metadata?.hasPreReleaseVersion) && e.metadata?.preRelease) {
+						migrate = true;
+						e.metadata.hasPreReleaseVersion = true;
 					}
 					extensions.push({
 						identifier: e.identifier,

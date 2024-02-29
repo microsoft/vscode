@@ -70,7 +70,10 @@ export class MessageController implements IEditorContribution {
 		this._messageListeners.clear();
 		this._message = isMarkdownString(message) ? renderMarkdown(message, {
 			actionHandler: {
-				callback: (url) => openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined),
+				callback: (url) => {
+					this.closeMessage();
+					openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined);
+				},
 				disposables: this._messageListeners
 			},
 		}) : undefined;

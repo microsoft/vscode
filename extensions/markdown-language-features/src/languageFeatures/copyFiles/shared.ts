@@ -19,12 +19,6 @@ enum MediaKind {
 	Audio,
 }
 
-export const externalUriSchemes = [
-	'http',
-	'https',
-	'mailto',
-];
-
 export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Images
 	['bmp', MediaKind.Image],
@@ -75,6 +69,7 @@ export function createInsertUriListEdit(
 	document: ITextDocument,
 	ranges: readonly vscode.Range[],
 	urlList: string,
+	options?: UriListSnippetOptions,
 ): { edits: vscode.SnippetTextEdit[]; label: string } | undefined {
 	if (!ranges.length) {
 		return;
@@ -109,6 +104,7 @@ export function createInsertUriListEdit(
 		const snippet = createUriListSnippet(document.uri, entries, {
 			placeholderText: range.isEmpty ? undefined : document.getText(range),
 			placeholderStartIndex: allRangesAreEmpty ? 1 : placeHolderStartIndex,
+			...options,
 		});
 		if (!snippet) {
 			continue;
@@ -140,6 +136,13 @@ interface UriListSnippetOptions {
 	readonly insertAsMedia?: boolean;
 
 	readonly separator?: string;
+
+	/**
+	 * Prevents uris from being made relative to the document.
+	 *
+	 * This is mostly useful for `file:` uris.
+	 */
+	readonly preserveAbsoluteUris?: boolean;
 }
 
 
@@ -174,7 +177,7 @@ export function createUriListSnippet(
 	let placeholderIndex = options?.placeholderStartIndex ?? 1;
 
 	uris.forEach((uri, i) => {
-		const mdPath = getRelativeMdPath(documentDir, uri.uri) ?? uri.str ?? uri.uri.toString();
+		const mdPath = (!options?.preserveAbsoluteUris ? getRelativeMdPath(documentDir, uri.uri) : undefined) ?? uri.str ?? uri.uri.toString();
 
 		const ext = URI.Utils.extname(uri.uri).toLowerCase().replace('.', '');
 		const insertAsMedia = options?.insertAsMedia || (typeof options?.insertAsMedia === 'undefined' && mediaFileExtensions.has(ext));

@@ -605,13 +605,19 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 					return completeLinkTargetArg(token);
 				}
 				return completeLinkTarget(token);
-			} else if (lastLine.match(/(^|\s)\[\w/)) {
+			} else if (hasStartOfLinkTarget(lastLine)) {
+				return completeLinkTarget(token);
+			} else if (lastLine.match(/(^|\s)\[\w/) && !token.tokens.slice(i + 1).some(t => hasStartOfLinkTarget(t.raw))) {
 				return completeLinkText(token);
 			}
 		}
 	}
 
 	return undefined;
+}
+
+function hasStartOfLinkTarget(str: string): boolean {
+	return !!str.match(/^[^\[]*\]\([^\)]*$/);
 }
 
 // function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {
@@ -639,9 +645,11 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 	let newTokens: marked.Token[] | undefined;
 	for (i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
-		if (token.type === 'paragraph' && token.raw.match(/(\n|^)```/)) {
+		let codeblockStart: RegExpMatchArray | null;
+		if (token.type === 'paragraph' && (codeblockStart = token.raw.match(/(\n|^)(````*)/))) {
+			const codeblockLead = codeblockStart[2];
 			// If the code block was complete, it would be in a type='code'
-			newTokens = completeCodeBlock(tokens.slice(i));
+			newTokens = completeCodeBlock(tokens.slice(i), codeblockLead);
 			break;
 		}
 
@@ -680,9 +688,9 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 	return tokens;
 }
 
-function completeCodeBlock(tokens: marked.Token[]): marked.Token[] {
+function completeCodeBlock(tokens: marked.Token[], leader: string): marked.Token[] {
 	const mergedRawText = mergeRawTokenText(tokens);
-	return marked.lexer(mergedRawText + '\n```');
+	return marked.lexer(mergedRawText + `\n${leader}`);
 }
 
 function completeCodespan(token: marked.Token): marked.Token {

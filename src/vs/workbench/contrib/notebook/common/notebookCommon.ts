@@ -913,7 +913,8 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
-	stickyScroll: 'notebook.stickyScroll.enabled',
+	stickyScrollEnabled: 'notebook.stickyScroll.enabled',
+	stickyScrollMode: 'notebook.stickyScroll.mode',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
@@ -946,7 +947,8 @@ export const NotebookSetting = {
 	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell',
-	cellChat: 'notebook.experimental.cellChat'
+	cellChat: 'notebook.experimental.cellChat',
+	notebookVariablesView: 'notebook.experimental.variablesView'
 } as const;
 
 export const enum CellStatusbarAlignment {

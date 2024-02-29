@@ -221,7 +221,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		}));
 
 		if (this.machineClient === undefined) {
-			this.machineClient = new UserDataSyncMachinesService(this.environmentService, this.fileService, this.storageService, this.storeClient!, this.logService, this.productService);
+			this.machineClient = new UserDataSyncMachinesService(this.environmentService, this.fileService, this.storageService, this.storeClient, this.logService, this.productService);
 		}
 
 		// If we already have an existing auth session in memory, use that

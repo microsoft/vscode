@@ -137,6 +137,21 @@ export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	});
 }
 
+/**
+ * Creates and returns a new promise, plus its `resolve` and `reject` callbacks.
+ *
+ * Replace with standardized [`Promise.withResolvers`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers) once it is supported
+ */
+export function promiseWithResolvers<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void; reject: (err?: any) => void } {
+	let resolve: (value: T | PromiseLike<T>) => void;
+	let reject: (reason?: any) => void;
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	return { promise, resolve: resolve!, reject: reject! };
+}
+
 export interface ITask<T> {
 	(): T;
 }
@@ -1467,13 +1482,7 @@ export class TaskSequentializer {
 		// so that we can return a promise that completes when the task has
 		// completed.
 		if (!this._queued) {
-			let promiseResolve: () => void;
-			let promiseReject: (error: Error) => void;
-			const promise = new Promise<void>((resolve, reject) => {
-				promiseResolve = resolve;
-				promiseReject = reject;
-			});
-
+			const { promise, resolve: promiseResolve, reject: promiseReject } = promiseWithResolvers<void>();
 			this._queued = {
 				run,
 				promise,

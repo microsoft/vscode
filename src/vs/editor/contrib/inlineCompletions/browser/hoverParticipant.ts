@@ -142,7 +142,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 		disposableStore.add(autorun(reader => {
 			/** @description update hover */
-			const ghostText = part.controller.model.read(reader)?.ghostText.read(reader);
+			const ghostText = part.controller.model.read(reader)?.primaryGhostText.read(reader);
 			if (ghostText) {
 				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
 				render(ghostText.renderForScreenReader(lineText));

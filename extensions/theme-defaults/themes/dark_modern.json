@@ -49,7 +49,7 @@
 		"input.background": "#313131",
 		"input.border": "#3C3C3C",
 		"input.foreground": "#CCCCCC",
-		"input.placeholderForeground": "#818181",
+		"input.placeholderForeground": "#989898",
 		"inputOption.activeBackground": "#2489DB82",
 		"inputOption.activeBorder": "#2488DB",
 		"keybindingLabel.foreground": "#CCCCCC",

@@ -28,7 +28,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, joinErrors, toExtensionManagementError, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
-	Metadata, InstallVSIXOptions
+	Metadata, InstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
@@ -140,7 +140,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return this.extensionsScanner.scanUserExtensionAtLocation(location);
 	}
 
-	async install(vsix: URI, options: InstallVSIXOptions = {}): Promise<ILocalExtension> {
+	async install(vsix: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 
 		const { location, cleanup } = await this.downloadVsix(vsix);
@@ -169,7 +169,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	async installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#installFromLocation', location.toString());
 		const local = await this.extensionsScanner.scanUserExtensionAtLocation(location);
-		if (!local) {
+		if (!local || !local.manifest.name || !local.manifest.version) {
 			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
 		}
 		await this.addExtensionsToProfile([[local, undefined]], profileLocation);
@@ -192,6 +192,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
 		if (metadata.isPreReleaseVersion) {
 			metadata.preRelease = true;
+			metadata.hasPreReleaseVersion = true;
 		}
 		// unset if false
 		if (metadata.isMachineScoped === false) {
@@ -493,7 +494,9 @@ export class ExtensionsScanner extends Disposable {
 			exists = false;
 		}
 
-		if (!exists) {
+		if (exists) {
+			await this.extensionsScannerService.updateMetadata(extensionLocation, metadata);
+		} else {
 			try {
 				// Extract
 				try {
@@ -596,7 +599,13 @@ export class ExtensionsScanner extends Disposable {
 		metadata = { ...source?.metadata, ...metadata };
 
 		if (target) {
-			await this.extensionsProfileScannerService.updateMetadata([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
+			if (this.uriIdentityService.extUri.isEqual(target.location, extension.location)) {
+				await this.extensionsProfileScannerService.updateMetadata([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
+			} else {
+				const targetExtension = await this.scanLocalExtension(target.location, extension.type, toProfileLocation);
+				await this.extensionsProfileScannerService.removeExtensionFromProfile(targetExtension, toProfileLocation);
+				await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, { ...target.metadata, ...metadata }]], toProfileLocation);
+			}
 		} else {
 			await this.extensionsProfileScannerService.addExtensionsToProfile([[extension, metadata]], toProfileLocation);
 		}
@@ -700,6 +709,7 @@ export class ExtensionsScanner extends Disposable {
 			isApplicationScoped: !!extension.metadata?.isApplicationScoped,
 			isMachineScoped: !!extension.metadata?.isMachineScoped,
 			isPreReleaseVersion: !!extension.metadata?.isPreReleaseVersion,
+			hasPreReleaseVersion: !!extension.metadata?.hasPreReleaseVersion,
 			preRelease: !!extension.metadata?.preRelease,
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
@@ -815,7 +825,9 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 
 	protected async extractExtension({ zipPath, key, metadata }: InstallableExtension, removeIfExists: boolean, token: CancellationToken): Promise<ILocalExtension> {
 		let local = await this.unsetIfUninstalled(key);
-		if (!local) {
+		if (local) {
+			local = await this.extensionsScanner.updateMetadata(local, metadata);
+		} else {
 			this.logService.trace('Extracting extension...', key.id);
 			local = await this.extensionsScanner.extractUserExtension(key, zipPath, metadata, removeIfExists, token);
 			this.logService.info('Extracting extension completed.', key.id);
@@ -888,12 +900,12 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			isSystem: existingExtension?.type === ExtensionType.System ? true : undefined,
 			updated: !!existingExtension,
 			isPreReleaseVersion: this.gallery.properties.isPreReleaseVersion,
+			hasPreReleaseVersion: existingExtension?.hasPreReleaseVersion || this.gallery.properties.isPreReleaseVersion,
 			installedTimestamp: Date.now(),
 			pinned: this.options.installGivenVersion ? true : (this.options.pinned ?? existingExtension?.pinned),
-			preRelease: this.gallery.properties.isPreReleaseVersion ||
-				(isBoolean(this.options.installPreReleaseVersion)
-					? this.options.installPreReleaseVersion /* Respect the passed flag */
-					: existingExtension?.preRelease /* Respect the existing pre-release flag if it was set */)
+			preRelease: isBoolean(this.options.preRelease)
+				? this.options.preRelease
+				: this.options.installPreReleaseVersion || this.gallery.properties.isPreReleaseVersion || existingExtension?.preRelease
 		};
 
 		if (existingExtension?.manifest.version === this.gallery.version) {
@@ -1007,6 +1019,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 					publisherDisplayName: galleryExtension.publisherDisplayName,
 					publisherId: galleryExtension.publisherId,
 					isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion,
+					hasPreReleaseVersion: extension.hasPreReleaseVersion || galleryExtension.properties.isPreReleaseVersion,
 					preRelease: galleryExtension.properties.isPreReleaseVersion || this.options.installPreReleaseVersion
 				};
 				await this.extensionsScanner.updateMetadata(extension, metadata, this.options.profileLocation);

@@ -5,6 +5,7 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { CodeWindow } from 'vs/base/browser/window';
 import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -77,6 +78,7 @@ export interface WebviewInitInfo {
 	readonly contentOptions: WebviewContentOptions;
 
 	readonly extension: WebviewExtensionDescription | undefined;
+	readonly codeWindow?: CodeWindow;
 }
 
 export const enum WebviewContentPurpose {

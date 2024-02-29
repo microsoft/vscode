@@ -64,7 +64,7 @@ import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleVi
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { TerminalSpeechToTextSession } from 'vs/workbench/contrib/terminal/browser/terminalSpeechToText';
+import { TerminalVoiceSession } from 'vs/workbench/contrib/terminal/browser/terminalVoice';
 import { HasSpeechProvider } from 'vs/workbench/contrib/speech/common/speechService';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
@@ -457,7 +457,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommand,
-		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+		title: localize2('workbench.action.terminal.copyLastCommand', "Copy Last Command"),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
@@ -475,7 +475,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandOutput,
-		title: { value: localize('workbench.action.terminal.copyLastCommandOutput', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
+		title: localize2('workbench.action.terminal.copyLastCommandOutput', "Copy Last Command Output"),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
@@ -496,7 +496,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandAndLastCommandOutput,
-		title: { value: localize('workbench.action.terminal.copyLastCommandAndOutput', 'Copy Last Command and Output'), original: 'Copy Last Command and Output' },
+		title: localize2('workbench.action.terminal.copyLastCommandAndOutput', "Copy Last Command and Output"),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
@@ -811,8 +811,12 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
-		run: async (c, accessor) => {
+		run: async (c, accessor, args) => {
 			let icon: TerminalIcon | undefined;
+			if (c.groupService.lastAccessedMenu === 'inline-tab') {
+				getResourceOrActiveInstance(c, args)?.changeIcon();
+				return;
+			}
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
 				icon = await terminal.changeIcon(icon);
 			}
@@ -831,9 +835,13 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
-		run: async (c, accessor) => {
+		run: async (c, accessor, args) => {
 			let color: string | undefined;
 			let i = 0;
+			if (c.groupService.lastAccessedMenu === 'inline-tab') {
+				getResourceOrActiveInstance(c, args)?.changeColor();
+				return;
+			}
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
 				const skipQuickPick = i !== 0;
 				// Always show the quickpick on the first iteration
@@ -1645,30 +1653,24 @@ export function registerTerminalActions() {
 	});
 
 	registerActiveInstanceAction({
-		id: TerminalCommandId.StartSpeechToText,
-		title: {
-			value: localize('workbench.action.startTerminalSpeechToText', "Start Terminal Speech To Text"),
-			original: 'Start Terminal Speech To Text'
-		},
+		id: TerminalCommandId.StartVoice,
+		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
 		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
-			TerminalSpeechToTextSession.getInstance(instantiationService).start();
+			TerminalVoiceSession.getInstance(instantiationService).start();
 		}
 	});
 
 	registerActiveInstanceAction({
-		id: TerminalCommandId.StopSpeechToText,
-		title: {
-			value: localize('workbench.action.stopTerminalSpeechToText', "Stop Terminal Speech To Text"),
-			original: 'Stop Terminal Speech To Text'
-		},
+		id: TerminalCommandId.StopVoice,
+		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
 		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
-			TerminalSpeechToTextSession.getInstance(instantiationService).stop(true);
+			TerminalVoiceSession.getInstance(instantiationService).stop(true);
 		}
 	});
 }
@@ -1726,7 +1728,7 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	for (const selection of selections) {
 		result.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
 	}
-	return result;
+	return result.filter(r => !!r);
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {

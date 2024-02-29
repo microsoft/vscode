@@ -155,7 +155,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// modal flows
 		if (options.createIfNone || options.forceNewSession) {
 			const providerName = this.authenticationService.getLabel(providerId);
-			const detail = (typeof options.forceNewSession === 'object') ? options.forceNewSession!.detail : undefined;
+			const detail = (typeof options.forceNewSession === 'object') ? options.forceNewSession.detail : undefined;
 
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
 			// that we will be "forcing through".

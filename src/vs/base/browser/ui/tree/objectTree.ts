@@ -189,6 +189,10 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 
 	private compressStickyNodes(stickyNodes: StickyScrollNode<T, TFilterData>[]): StickyScrollNode<T, TFilterData> {
 
+		if (stickyNodes.length === 0) {
+			throw new Error('Can\'t compress empty sticky nodes');
+		}
+
 		if (!this.modelProvider().isCompressionEnabled()) {
 			return stickyNodes[0];
 		}
@@ -206,11 +210,7 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 			}
 		}
 
-		if (elements.length === 0) {
-			throw new Error('Can\'t compress when there are no elements to compress');
-		}
-
-		if (elements.length === 1) {
+		if (elements.length < 2) {
 			return stickyNodes[0];
 		}
 

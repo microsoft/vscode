@@ -10,7 +10,11 @@ import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { localize } from 'vs/nls';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
+
+const $ = dom.$;
+const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
@@ -25,7 +29,13 @@ export class NotebookVariablesDelegate implements IListVirtualDelegate<INotebook
 	}
 }
 
-export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, { wrapper: HTMLElement }> {
+export interface IVariableTemplateData {
+	expression: HTMLElement;
+	name: HTMLSpanElement;
+	value: HTMLSpanElement;
+}
+
+export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, IVariableTemplateData> {
 
 	static readonly ID = 'variableElement';
 
@@ -33,13 +43,26 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		return NotebookVariableRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement) {
-		const wrapper = dom.append(container, dom.$('.variable'));
-		return { wrapper };
+	renderTemplate(container: HTMLElement): IVariableTemplateData {
+		const expression = dom.append(container, $('.expression'));
+		const name = dom.append(expression, $('span.name'));
+		const value = dom.append(expression, $('span.value'));
+
+		const template: IVariableTemplateData = { expression, name, value };
+
+		return template;
 	}
 
-	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, templateData: { wrapper: HTMLElement }): void {
-		templateData.wrapper.innerText = `${element.element.name}: ${element.element.value}`;
+	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, data: IVariableTemplateData): void {
+		const text = element.element.value.trim() !== '' ? `${element.element.name}:` : element.element.name;
+		data.name.textContent = text;
+		data.name.title = element.element.type ?? '';
+
+		renderExpressionValue(element.element, data.value, {
+			colorize: true,
+			showHover: true,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET
+		});
 	}
 
 	disposeTemplate(): void {
