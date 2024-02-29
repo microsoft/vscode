@@ -550,7 +550,8 @@ const configuration: IConfigurationNode = {
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.voiceRecordingStarted.sound', "Plays a sound when the voice recording has started."),
-					...soundFeatureBase
+					...soundFeatureBase,
+					'default': 'on'
 				},
 			}
 		},
