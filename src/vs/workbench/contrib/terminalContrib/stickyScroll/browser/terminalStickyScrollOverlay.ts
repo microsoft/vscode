@@ -389,7 +389,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
-			if (this._xterm && this._currentStickyCommand && 'getOutput' in this._currentStickyCommand) {
+			if (this._xterm && this._currentStickyCommand) {
 				this._xterm.markTracker.revealCommand(this._currentStickyCommand);
 				this._instance.focus();
 			}
