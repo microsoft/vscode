@@ -280,6 +280,19 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			}
 		}));
 
+		this._register(Event.runAndSubscribe(this._editors.original.onDidChangeCursorPosition, (e) => {
+			if (e?.reason === CursorChangeReason.Explicit) {
+				const diff = this._diffModel.get()?.diff.get()?.mappings.find(m => m.lineRangeMapping.original.contains(e.position.lineNumber));
+				if (diff?.lineRangeMapping.modified.isEmpty) {
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'diffEditor.cursorPositionChanged' });
+				} else if (diff?.lineRangeMapping.original.isEmpty) {
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'diffEditor.cursorPositionChanged' });
+				} else if (diff) {
+					this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
+				}
+			}
+		}));
+
 		const isInitializingDiff = this._diffModel.map(this, (m, reader) => {
 			/** @isInitializingDiff isDiffUpToDate */
 			if (!m) { return undefined; }
