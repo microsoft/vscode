@@ -2418,7 +2418,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!config) {
 			return false;
 		} else if (!workspaceFolder) {
-			this._logService.trace('TaskService.computeTasksForSingleConfig: no workspace folder');
+			this._logService.trace('TaskService.computeTasksForSingleConfig: no workspace folder for worskspace', this._workspace?.id);
 			return false;
 		}
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
