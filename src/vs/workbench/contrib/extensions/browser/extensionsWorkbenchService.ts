@@ -52,7 +52,7 @@ import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUti
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { mainWindow } from 'vs/base/browser/window';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1650,17 +1650,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation): Promise<IExtension> {
-		let installable: URI | { extension: IExtension; gallery: IGalleryExtension };
+		let installable: URI | IGalleryExtension | undefined;
+		let extension: IExtension | undefined;
 
 		if (arg instanceof URI) {
 			installable = arg;
 		} else {
 			let installableInfo: IExtensionInfo | undefined;
 			let gallery: IGalleryExtension | undefined;
-			let extension: IExtension | undefined;
 			if (isString(arg)) {
-				installableInfo = { id: arg, version: installOptions.version, preRelease: installOptions?.installPreReleaseVersion ?? this.preferPreReleases };
 				extension = this.local.find(e => areSameExtensions(e.identifier, { id: arg }));
+				if (!extension?.isBuiltin) {
+					installableInfo = { id: arg, version: installOptions.version, preRelease: installOptions.installPreReleaseVersion ?? this.preferPreReleases };
+				}
 			} else {
 				extension = arg;
 				gallery = arg.gallery;
@@ -1672,47 +1674,44 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const targetPlatform = extension?.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
 				gallery = firstOrDefault(await this.galleryService.getExtensions([installableInfo], { targetPlatform }, CancellationToken.None));
 			}
-			if (!gallery) {
-				const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
-				if (installOptions.version) {
-					throw new Error(nls.localize('not found version', "Unable to install extension '{0}' because the requested version '{1}' is not found.", id, installOptions.version));
-				} else {
-					throw new Error(nls.localize('not found', "Unable to install extension '{0}' because it is not found.", id));
-				}
-			}
-			if (!extension) {
+			if (!extension && gallery) {
 				extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext), undefined, undefined, gallery);
+				Extensions.updateExtensionFromControlManifest(extension as Extension, await this.extensionManagementService.getExtensionsControlManifest());
 			}
 			if (extension?.isMalicious) {
 				throw new Error(nls.localize('malicious', "This extension is reported to be problematic."));
 			}
-			installable = { extension, gallery };
-			if (installOptions.version) {
-				installOptions.installGivenVersion = true;
+			// Do not install if requested to enable and extension is already installed
+			if (!(installOptions.enable && extension?.local)) {
+				if (!gallery) {
+					const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
+					if (installOptions.version) {
+						throw new Error(nls.localize('not found version', "Unable to install extension '{0}' because the requested version '{1}' is not found.", id, installOptions.version));
+					} else {
+						throw new Error(nls.localize('not found', "Unable to install extension '{0}' because it is not found.", id));
+					}
+				}
+				installable = gallery;
+				if (installOptions.version) {
+					installOptions.installGivenVersion = true;
+				}
 			}
 		}
 
-		let extension: IExtension;
-		if (installable instanceof URI || !(installOptions.enable && installable.extension.local)) {
+		if (installable) {
 			if (installOptions.justification) {
 				const syncCheck = isUndefined(installOptions.isMachineScoped) && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions);
+				const buttons: IPromptButton<boolean>[] = [];
+				buttons.push({ label: isString(installOptions.justification) ? nls.localize({ key: 'installButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Install Extension") : nls.localize({ key: 'installButtonLabelWithAction', comment: ['&& denotes a mnemonic'] }, "&&Install Extension and {0}", installOptions.justification.action), run: () => true });
+				if (!extension) {
+					buttons.push({ label: nls.localize('open', "Open Extension"), run: () => { this.open(extension!); return false; } });
+				}
 				const result = await this.dialogService.prompt<boolean>({
 					title: nls.localize('installExtensionTitle', "Install Extension"),
-					message: installable instanceof URI ? nls.localize('installVSIXMessage', "Would you like to install the extension?") : nls.localize('installExtensionMessage', "Would you like to install '{0}' extension from '{1}'?", installable.extension.displayName, installable.extension.publisherDisplayName),
+					message: extension ? nls.localize('installExtensionMessage', "Would you like to install '{0}' extension from '{1}'?", extension.displayName, extension.publisherDisplayName) : nls.localize('installVSIXMessage', "Would you like to install the extension?"),
 					detail: isString(installOptions.justification) ? installOptions.justification : installOptions.justification.reason,
 					cancelButton: true,
-					buttons: [{
-						label: isString(installOptions.justification) ? nls.localize({ key: 'installButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Install Extension") : nls.localize({ key: 'installButtonLabelWithAction', comment: ['&& denotes a mnemonic'] }, "&&Install Extension and {0}", installOptions.justification.action),
-						run: () => true
-					}, {
-						label: nls.localize('open', "Open Extension"),
-						run: () => {
-							if (!(installable instanceof URI)) {
-								this.open(installable.extension);
-							}
-							return false;
-						}
-					}],
+					buttons,
 					checkbox: syncCheck ? {
 						label: nls.localize('sync extension', "Sync this extension"),
 						checked: true,
@@ -1725,11 +1724,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					installOptions.isMachineScoped = !result.checkboxChecked;
 				}
 			}
-			extension = await this.doInstall(installable instanceof URI ? installable : installable.extension,
-				() => installable instanceof URI ? this.installFromVSIX(installable, installOptions) : this.installFromGallery(installable.extension, installable.gallery, installOptions),
-				progressLocation);
-		} else {
-			extension = installable.extension;
+			if (installable instanceof URI) {
+				extension = await this.doInstall(undefined, () => this.installFromVSIX(installable, installOptions), progressLocation);
+			} else if (extension) {
+				extension = await this.doInstall(extension, () => this.installFromGallery(extension!, installable, installOptions), progressLocation);
+			}
+		}
+
+		if (!extension) {
+			throw new Error(nls.localize('unknown', "Unable to install extension"));
 		}
 
 		if (installOptions.version) {
@@ -1902,21 +1905,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension;
 	}
 
-	private doInstall(extension: IExtension | URI, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation): Promise<IExtension> {
-		const title = extension instanceof URI ? nls.localize('installing extension', 'Installing extension....') : nls.localize('installing named extension', "Installing '{0}' extension....", extension.displayName);
+	private doInstall(extension: IExtension | undefined, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation): Promise<IExtension> {
+		const title = extension ? nls.localize('installing named extension', "Installing '{0}' extension....", extension.displayName) : nls.localize('installing extension', 'Installing extension....');
 		return this.withProgress({
 			location: progressLocation ?? ProgressLocation.Extensions,
 			title
 		}, async () => {
 			try {
-				if (!(extension instanceof URI)) {
+				if (extension) {
 					this.installing.push(extension);
 					this._onChange.fire(extension);
 				}
 				const local = await installTask();
 				return await this.waitAndGetInstalledExtension(local.identifier);
 			} finally {
-				if (!(extension instanceof URI)) {
+				if (extension) {
 					this.installing = this.installing.filter(e => e !== extension);
 					// Trigger the change without passing the extension because it is replaced by a new instance.
 					this._onChange.fire(undefined);

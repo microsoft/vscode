@@ -73,7 +73,7 @@ export class StatusbarEntryItem extends Disposable {
 		this._register(Gesture.addTarget(this.labelContainer)); // enable touch
 
 		// Label (with support for progress)
-		this.label = new StatusBarCodiconLabel(this.labelContainer);
+		this.label = this._register(new StatusBarCodiconLabel(this.labelContainer));
 		this.container.appendChild(this.labelContainer);
 
 		// Beak Container
