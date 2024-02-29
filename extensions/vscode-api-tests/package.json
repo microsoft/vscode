@@ -64,7 +64,7 @@
   },
   "icon": "media/icon.png",
   "contributes": {
-    "chatParticipant": [
+    "chatParticipants": [
       {
         "name": "participant",
         "description": "test",
