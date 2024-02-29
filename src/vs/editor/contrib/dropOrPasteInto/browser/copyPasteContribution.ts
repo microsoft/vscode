@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -76,6 +77,6 @@ registerEditorAction(class extends EditorAction {
 	}
 
 	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any) {
-		return CopyPasteController.get(editor)?.pasteAs('text');
+		return CopyPasteController.get(editor)?.pasteAs(new HierarchicalKind('text'));
 	}
 });

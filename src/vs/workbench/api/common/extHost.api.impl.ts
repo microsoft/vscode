@@ -1610,6 +1610,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
 			DocumentDropEdit: extHostTypes.DocumentDropEdit,
+			DocumentPasteEditKind: extHostTypes.DocumentPasteEditKind,
 			DocumentPasteEdit: extHostTypes.DocumentPasteEdit,
 			InlayHint: extHostTypes.InlayHint,
 			InlayHintLabelPart: extHostTypes.InlayHintLabelPart,
