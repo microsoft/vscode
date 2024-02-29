@@ -53,6 +53,7 @@ export class BulkEditTreeView extends Disposable {
 	private _currentInput?: BulkFileOperations;
 	private _currentProvider?: BulkEditPreviewProvider;
 	private _parent: HTMLElement | undefined;
+	private _contentContainer: HTMLElement | undefined;
 	private _sash: Sash | undefined;
 	private _currentHeight: number | undefined;
 
@@ -99,13 +100,14 @@ export class BulkEditTreeView extends Disposable {
 		this._disposables.add(resourceLabels);
 
 		const contentContainer = document.createElement('div');
-		contentContainer.className = 'content';
-		parent.appendChild(contentContainer);
+		this._contentContainer = contentContainer;
+		this._contentContainer.className = 'content';
+		parent.appendChild(this._contentContainer);
 
 		// tree
 		const treeContainer = document.createElement('div');
 		treeContainer.className = 'tree-refactor-preview-class';
-		contentContainer.appendChild(treeContainer);
+		this._contentContainer.appendChild(treeContainer);
 
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
 		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditTreeView._memGroupByFile, StorageScope.PROFILE, true);
@@ -138,7 +140,10 @@ export class BulkEditTreeView extends Disposable {
 		const buttonsContainer = document.createElement('div');
 		buttonsContainer.className = 'buttons';
 		buttonsContainer.style.paddingBottom = '6px';
-		contentContainer.appendChild(buttonsContainer);
+		buttonsContainer.style.height = '30px';
+		buttonsContainer.style.minHeight = '30px';
+		buttonsContainer.style.bottom = '0px';
+		this._contentContainer.appendChild(buttonsContainer);
 		const buttonBar = new ButtonBar(buttonsContainer);
 		this._disposables.add(buttonBar);
 
@@ -169,10 +174,13 @@ export class BulkEditTreeView extends Disposable {
 			if (this._currentHeight) {
 				const deltaY = e.currentY - e.startY;
 				const heightOfParent = this._currentHeight + deltaY;
-				parent.style.height = `${heightOfParent}px`;
-				contentContainer.style.height = `${heightOfParent}px`;
-				treeContainer.style.height = `${heightOfParent - 30}px`;
-				this._sash?.layout();
+				// We don't want to resize down more than the height of the button bar
+				if (heightOfParent > 30) {
+					parent.style.height = `${heightOfParent}px`;
+					contentContainer.style.height = `${heightOfParent}px`;
+					treeContainer.style.height = `${heightOfParent - 36}px`;
+					this._sash?.layout();
+				}
 			}
 		});
 		this._sash.layout();
@@ -182,6 +190,12 @@ export class BulkEditTreeView extends Disposable {
 		const treeHeight = height - 50;
 		this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
 		this._tree.layout(treeHeight, width);
+
+		// Setting also the appropriate height on the tree and the content container
+		if (this._contentContainer && this._parent) {
+			this._contentContainer.style.height = `${height}px`;
+			this._parent.style.height = `${height}px`;
+		}
 		this._sash?.layout();
 	}
 

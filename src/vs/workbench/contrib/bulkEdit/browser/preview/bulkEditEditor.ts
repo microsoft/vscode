@@ -40,6 +40,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 
 	private _refactorViewPane: BulkEditTreeView | undefined;
 	private _refactorViewContainer: HTMLElement | undefined;
+	private _multiDiffEditorContainer: HTMLElement | undefined;
 
 	private _edits: ResourceEdit[] = [];
 	private _promiseResolvedEdits: Promise<ResourceEdit[] | undefined> | undefined;
@@ -76,14 +77,14 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 		console.log('createEditor of BulkEditEditor');
 		this._refactorViewContainer = document.createElement('div');
 		this._refactorViewContainer.classList.add('bulk-edit-panel', 'show-file-icons');
-		const multiDiffEditorHTMLNode = document.createElement('div');
-		multiDiffEditorHTMLNode.classList.add('bulk-edit-editor-diff');
+		this._multiDiffEditorContainer = document.createElement('div');
+		this._multiDiffEditorContainer.classList.add('bulk-edit-editor-diff');
 
 		parent.appendChild(this._refactorViewContainer);
-		parent.appendChild(multiDiffEditorHTMLNode);
+		parent.appendChild(this._multiDiffEditorContainer);
 		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
 			MultiDiffEditorWidget,
-			multiDiffEditorHTMLNode,
+			this._multiDiffEditorContainer,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
 		));
 		// console.log('this._multiDiffEditorWidget : ', this._multiDiffEditorWidget);
