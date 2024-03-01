@@ -1313,7 +1313,6 @@ export type IChatProgressDto =
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
 	$acceptChatState(sessionId: number, state: any): Promise<void>;
-	$sendRequestToProvider(providerId: string, message: IChatDynamicRequest): void;
 	$unregisterChatProvider(handle: number): Promise<void>;
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void;
 }

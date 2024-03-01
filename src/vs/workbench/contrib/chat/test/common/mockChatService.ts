@@ -60,9 +60,6 @@ export class MockChatService implements IChatService {
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void {
 		throw new Error('Method not implemented.');
 	}
-	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void {
-		throw new Error('Method not implemented.');
-	}
 	getHistory(): IChatDetail[] {
 		throw new Error('Method not implemented.');
 	}

@@ -83,13 +83,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._stateEmitters.get(sessionId)?.fire(state);
 	}
 
-	async $sendRequestToProvider(providerId: string, message: IChatDynamicRequest): Promise<void> {
-		const widget = await this._chatWidgetService.revealViewForProvider(providerId);
-		if (widget && widget.viewModel) {
-			this._chatService.sendRequestToProvider(widget.viewModel.sessionId, message);
-		}
-	}
-
 	async $unregisterChatProvider(handle: number): Promise<void> {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
