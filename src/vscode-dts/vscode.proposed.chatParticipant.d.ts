@@ -143,49 +143,6 @@ declare module 'vscode' {
 		readonly kind: ChatResultFeedbackKind;
 	}
 
-	export interface ChatCommand {
-		/**
-		 * A short name by which this command is referred to in the UI, e.g. `fix` or
-		 * `explain` for commands that fix an issue or explain code.
-		 *
-		 * **Note**: The name should be unique among the commands provided by this participant.
-		 */
-		readonly name: string;
-
-		/**
-		 * Human-readable description explaining what this command does.
-		 */
-		readonly description: string;
-
-		/**
-		 * When the user clicks this command in `/help`, this text will be submitted to this command
-		 */
-		readonly sampleRequest?: string;
-
-		/**
-		 * Whether executing the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message.
-		 */
-		readonly isSticky?: boolean;
-	}
-
-	/**
-	 * A ChatCommandProvider returns {@link ChatCommands commands} that can be invoked on a chat participant using `/`. For example, `@participant /command`.
-	 * These can be used as shortcuts to let the user explicitly invoke different functionalities provided by the participant.
-	 */
-	export interface ChatCommandProvider {
-		/**
-		 * Returns a list of commands that its participant is capable of handling. A command
-		 * can be selected by the user and will then be passed to the {@link ChatRequestHandler handler}
-		 * via the {@link ChatRequest.command command} property.
-		 *
-		 *
-		 * @param token A cancellation token.
-		 * @returns A list of commands. The lack of a result can be signaled by returning `undefined`, `null`, or
-		 * an empty array.
-		 */
-		provideCommands(context: ChatContext, token: CancellationToken): ProviderResult<ChatCommand[]>;
-	}
-
 	/**
 	 * A followup question suggested by the participant.
 	 */
@@ -240,11 +197,6 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * A human-readable description explaining what this participant does.
-		 */
-		description?: string;
-
-		/**
 		 * Icon for the participant shown in UI.
 		 */
 		iconPath?: Uri | {
@@ -262,11 +214,6 @@ declare module 'vscode' {
 		 * The handler for requests to this participant.
 		 */
 		requestHandler: ChatRequestHandler;
-
-		/**
-		 * This provider will be called to retrieve the participant's commands.
-		 */
-		commandProvider?: ChatCommandProvider;
 
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.

@@ -565,7 +565,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		set commentingRangeProvider(provider: vscode.CommentingRangeProvider | undefined) {
 			this._commentingRangeProvider = provider;
-			proxy.$updateCommentingRanges(this.handle);
+			if (provider?.resourceHints) {
+				checkProposedApiEnabled(this._extension, 'commentingRangeHint');
+			}
+			proxy.$updateCommentingRanges(this.handle, provider?.resourceHints);
 		}
 
 		private _reactionHandler?: ReactionHandler;

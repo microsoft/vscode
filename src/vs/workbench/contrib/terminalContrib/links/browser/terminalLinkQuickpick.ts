@@ -154,6 +154,16 @@ export class TerminalLinkQuickpick extends DisposableStore {
 				r();
 			}));
 			disposables.add(Event.once(pick.onDidAccept)(() => {
+				// Restore terminal scroll state
+				if (this._terminalScrollStateSaved) {
+					const markTracker = this._instance?.xterm?.markTracker;
+					if (markTracker) {
+						markTracker.restoreScrollState();
+						markTracker.clear();
+						this._terminalScrollStateSaved = false;
+					}
+				}
+
 				accepted = true;
 				const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
 				const activeItem = pick.activeItems?.[0];

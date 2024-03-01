@@ -45,11 +45,6 @@ suite('chat', () => {
 			return null;
 		});
 		participant.isDefault = true;
-		participant.commandProvider = {
-			provideCommands: (_token) => {
-				return [{ name: 'hello', description: 'Hello' }];
-			}
-		};
 		disposables.push(participant);
 		return emitter.event;
 	}
@@ -102,11 +97,6 @@ suite('chat', () => {
 			return { metadata: { key: 'value' } };
 		});
 		participant.isDefault = true;
-		participant.commandProvider = {
-			provideCommands: (_token) => {
-				return [{ name: 'hello', description: 'Hello' }];
-			}
-		};
 		participant.followupProvider = {
 			provideFollowups(result, _token) {
 				deferred.complete(result);
