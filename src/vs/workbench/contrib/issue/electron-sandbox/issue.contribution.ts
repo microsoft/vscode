@@ -21,7 +21,6 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 
 //#region Issue Contribution
 
