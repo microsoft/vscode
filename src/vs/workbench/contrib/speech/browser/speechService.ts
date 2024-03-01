@@ -81,6 +81,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		} else if (this.providers.size > 1) {
 			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
 		}
+
 		const language = speechLanguageConfigToLanguage(this.configurationService.getValue<unknown>(SPEECH_LANGUAGE_CONFIG));
 		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token, typeof language === 'string' ? { language } : undefined);
 
