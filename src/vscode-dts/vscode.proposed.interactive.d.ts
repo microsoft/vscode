@@ -121,7 +121,6 @@ declare module 'vscode' {
 
 	export interface InteractiveSession {
 		requester: InteractiveSessionParticipantInformation;
-		responder: InteractiveSessionParticipantInformation;
 	}
 
 	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatFollowup[];

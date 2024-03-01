@@ -1277,8 +1277,6 @@ export interface IChatDto {
 	id: number;
 	requesterUsername: string;
 	requesterAvatarIconUri?: UriComponents;
-	responderUsername: string;
-	responderAvatarIconUri?: UriComponents;
 }
 
 export interface IChatRequestDto {
