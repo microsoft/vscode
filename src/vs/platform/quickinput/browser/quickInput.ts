@@ -162,6 +162,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _lastSeverity: Severity | undefined;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
+	private readonly onWillHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
@@ -351,6 +352,11 @@ class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	readonly onDidHide = this.onDidHideEmitter.event;
+
+	willHide(reason = QuickInputHideReason.Other): void {
+		this.onWillHideEmitter.fire({ reason });
+	}
+	readonly onWillHide = this.onWillHideEmitter.event;
 
 	protected update() {
 		if (!this.visible) {
