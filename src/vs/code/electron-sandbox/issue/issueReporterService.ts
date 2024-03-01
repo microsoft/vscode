@@ -501,6 +501,24 @@ export class IssueReporter extends Disposable {
 			this.previewButton.enabled = false;
 			this.previewButton.label = localize('loadingData', "Loading data...");
 		}
+
+		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+		if (selectedExtension && selectedExtension.uri) {
+			const extensionLink = document.createElement('a');
+			extensionLink.href = URI.revive(selectedExtension.uri).toString();
+			extensionLink.textContent = selectedExtension.id;
+			const issueReporterElement = this.getElementById('issue-reporter')!;
+			Object.assign(extensionLink.style, {
+				alignSelf: 'flex-end',
+				display: 'block',
+				fontSize: '13px',
+				marginBottom: '10px',
+				padding: '4px 0px',
+				textDecoration: 'none',
+				width: 'auto'
+			});
+			issueReporterElement.appendChild(extensionLink);
+		}
 	}
 
 	private isPreviewEnabled() {

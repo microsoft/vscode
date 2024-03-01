@@ -103,7 +103,8 @@ export class TerminalWordLinkDetector extends Disposable implements ITerminalLin
 			links.push({
 				text: word.text,
 				bufferRange,
-				type: TerminalBuiltinLinkType.Search
+				type: TerminalBuiltinLinkType.Search,
+				contextLine: text
 			});
 		}
 
