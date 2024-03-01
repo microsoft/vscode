@@ -24,6 +24,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { getWindowById } from 'vs/base/browser/dom';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -69,6 +70,8 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	protected _options: IEditorOptions | undefined;
 	get options(): IEditorOptions | undefined { return this._options; }
+
+	get window() { return getWindowById(this.group.windowId, true).window; }
 
 	/**
 	 * Should be overridden by editors that have their own ScopedContextKeyService
