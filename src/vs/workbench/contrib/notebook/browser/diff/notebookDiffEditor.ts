@@ -11,6 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
 import { getDefaultNotebookCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
@@ -48,7 +49,6 @@ import { NotebookDiffOverviewRuler } from 'vs/workbench/contrib/notebook/browser
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { mainWindow } from 'vs/base/browser/window';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = DOM.$;
 

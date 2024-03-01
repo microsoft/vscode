@@ -22,6 +22,7 @@ import { ITerminalEditorService, ITerminalService, terminalEditorId } from 'vs/w
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -29,7 +30,6 @@ import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalC
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class TerminalEditor extends EditorPane {
 
