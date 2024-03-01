@@ -119,7 +119,7 @@ registerAction2(class ExpandSelectedTreeForSearchResultsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, args: any): Promise<any> {
-		await expandSelectSubtree(accessor);
+		expandSelectSubtree(accessor);
 	}
 });
 
@@ -366,7 +366,7 @@ function expandSelectSubtree(accessor: ServicesAccessor) {
 	if (searchView) {
 		const viewer = searchView.getControl();
 		const selected = viewer.getFocus()[0];
-		viewer.expand(selected);
+		viewer.expand(selected, true);
 	}
 }
 
