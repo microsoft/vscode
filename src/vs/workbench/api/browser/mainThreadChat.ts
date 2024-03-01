@@ -66,7 +66,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					requesterAvatarIconUri: URI.revive(session.requesterAvatarIconUri),
 					responderUsername: session.responderUsername,
 					responderAvatarIconUri,
-					inputPlaceholder: session.inputPlaceholder,
 					dispose: () => {
 						emitter.dispose();
 						this._stateEmitters.delete(session.id);

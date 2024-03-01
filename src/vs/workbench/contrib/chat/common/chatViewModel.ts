@@ -150,7 +150,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
-		return this._inputPlaceholder ?? this._model.inputPlaceholder;
+		return this._inputPlaceholder;
 	}
 
 	get model(): IChatModel {

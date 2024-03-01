@@ -1279,7 +1279,6 @@ export interface IChatDto {
 	requesterAvatarIconUri?: UriComponents;
 	responderUsername: string;
 	responderAvatarIconUri?: UriComponents;
-	inputPlaceholder?: string;
 }
 
 export interface IChatRequestDto {

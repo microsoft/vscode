@@ -483,10 +483,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._sessionId;
 	}
 
-	get inputPlaceholder(): string | undefined {
-		return this._session?.inputPlaceholder;
-	}
-
 	get requestInProgress(): boolean {
 		const lastRequest = this._requests[this._requests.length - 1];
 		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
