@@ -53,6 +53,7 @@ export class WebviewEditor extends EditorPane {
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -62,7 +63,7 @@ export class WebviewEditor extends EditorPane {
 		@IHostService private readonly _hostService: IHostService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, storageService);
+		super(WebviewEditor.ID, group, telemetryService, themeService, storageService);
 
 		this._register(Event.any(
 			_editorGroupsService.activePart.onDidScroll,
@@ -122,7 +123,7 @@ export class WebviewEditor extends EditorPane {
 		this.webview?.focus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean): void {
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
@@ -131,7 +132,7 @@ export class WebviewEditor extends EditorPane {
 				this.webview.release(this);
 			}
 		}
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	public override clearInput() {
@@ -161,9 +162,7 @@ export class WebviewEditor extends EditorPane {
 		}
 
 		if (input instanceof WebviewInput) {
-			if (this.group) {
-				input.updateGroup(this.group.id);
-			}
+			input.updateGroup(this.group.id);
 
 			if (!alreadyOwnsWebview) {
 				this.claimWebview(input);
@@ -186,7 +185,7 @@ export class WebviewEditor extends EditorPane {
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
 		this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
-			containsGroup: (group) => this.group?.id === group.id
+			containsGroup: (group) => this.group.id === group.id
 		}));
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(() => this.webview));

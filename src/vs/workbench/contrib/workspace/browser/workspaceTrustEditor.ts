@@ -59,6 +59,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { basename, dirname } from 'vs/base/common/resources';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -685,6 +686,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private workspaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -697,7 +699,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
+	) { super(WorkspaceTrustEditor.ID, group, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
