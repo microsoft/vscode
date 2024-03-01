@@ -1227,7 +1227,7 @@ export type IChatAgentHistoryEntryDto = {
 
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
-	$provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
+	$provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;

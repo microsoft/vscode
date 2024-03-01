@@ -178,7 +178,7 @@ declare module 'vscode' {
 		 * @param result This instance has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
 		 * @param token A cancellation token.
 		 */
-		provideFollowups(result: ChatResult, token: CancellationToken): ProviderResult<ChatFollowup[]>;
+		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
 	/**
@@ -273,7 +273,7 @@ declare module 'vscode' {
 		/**
 		 * The prompt as entered by the user.
 		 *
-		 * Information about variables used in this request are is stored in {@link ChatRequest.variables}.
+		 * Information about variables used in this request is stored in {@link ChatRequest.variables}.
 		 *
 		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
 		 * are not part of the prompt.
