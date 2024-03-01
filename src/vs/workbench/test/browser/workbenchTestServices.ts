@@ -1563,8 +1563,8 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 		private _scopedContextKeyService: IContextKeyService;
 
-		constructor() {
-			super(id, NullTelemetryService, new TestThemeService(), disposables.add(new TestStorageService()));
+		constructor(group: IEditorGroup) {
+			super(id, group, NullTelemetryService, new TestThemeService(), disposables.add(new TestStorageService()));
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 

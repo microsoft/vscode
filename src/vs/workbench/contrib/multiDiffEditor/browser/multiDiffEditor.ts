@@ -19,7 +19,7 @@ import { ICompositeControl } from 'vs/workbench/common/composite';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
@@ -39,6 +39,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	constructor(
+		group: IEditorGroup,
 		@IInstantiationService instantiationService: InstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -49,6 +50,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	) {
 		super(
 			MultiDiffEditor.ID,
+			group,
 			'multiDiffEditor',
 			telemetryService,
 			instantiationService,

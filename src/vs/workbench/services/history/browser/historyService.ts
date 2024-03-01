@@ -182,7 +182,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditorPane?.input && activeEditorPane.group ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
+		this.lastActiveEditor = activeEditorPane?.input ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
 
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
@@ -1522,7 +1522,7 @@ ${entryLabels.join('\n')}
 		this.trace('notifyNavigation()', editorPane?.input, event);
 
 		const isSelectionAwareEditorPane = isEditorPaneWithSelection(editorPane);
-		const hasValidEditor = editorPane?.group && editorPane.input && !editorPane.input.isDisposed();
+		const hasValidEditor = editorPane?.input && !editorPane.input.isDisposed();
 
 		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
@@ -1893,7 +1893,7 @@ ${entryLabels.join('\n')}
 			return false; // we need an active editor pane with selection support
 		}
 
-		if (pane.group?.id !== this.current.groupId) {
+		if (pane.group.id !== this.current.groupId) {
 			return false; // we need matching groups
 		}
 

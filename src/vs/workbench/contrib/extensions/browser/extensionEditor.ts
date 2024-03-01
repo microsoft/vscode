@@ -81,6 +81,7 @@ import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/e
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { IWebview, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -228,6 +229,7 @@ export class ExtensionEditor extends EditorPane {
 	private showPreReleaseVersionContextKey: IContextKey<boolean> | undefined;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
@@ -244,7 +246,7 @@ export class ExtensionEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
-		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
+		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;

@@ -286,6 +286,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
+				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
+					checkProposedApiEnabled(extension, 'authLearnMore');
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getSessions(providerId: string, scopes: readonly string[]) {
@@ -1384,10 +1387,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChat.registerChatProvider(extension, id, provider);
-			},
-			sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest) {
-				checkProposedApiEnabled(extension, 'interactive');
-				return extHostChat.sendInteractiveRequestToProvider(providerId, message);
 			},
 			transferChatSession(session: vscode.InteractiveSession, toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
