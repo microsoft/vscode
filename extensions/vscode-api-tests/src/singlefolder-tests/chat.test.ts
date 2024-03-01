@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { CancellationToken, ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, InteractiveSession, ProviderResult, chat, interactive } from 'vscode';
+import { commands, CancellationToken, ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, InteractiveSession, ProviderResult, chat, interactive } from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -51,7 +51,7 @@ suite('chat', () => {
 
 	test('participant and slash command', async () => {
 		const onRequest = setupParticipant();
-		interactive.sendInteractiveRequestToProvider('provider', { message: '@participant /hello friend' });
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
 		let i = 0;
 		onRequest(request => {
@@ -59,7 +59,7 @@ suite('chat', () => {
 				assert.deepStrictEqual(request.request.command, 'hello');
 				assert.strictEqual(request.request.prompt, 'friend');
 				i++;
-				interactive.sendInteractiveRequestToProvider('provider', { message: '@participant /hello friend' });
+				commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 			} else {
 				assert.strictEqual(request.context.history.length, 1);
 				assert.strictEqual(request.context.history[0].participant.name, 'participant');
@@ -76,7 +76,7 @@ suite('chat', () => {
 		}));
 
 		const deferred = getDeferredForRequest();
-		interactive.sendInteractiveRequestToProvider('provider', { message: '@participant hi #myVar' });
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant hi #myVar' });
 		const request = await deferred.p;
 		assert.strictEqual(request.prompt, 'hi #myVar');
 		assert.strictEqual(request.variables[0].values[0].value, 'myValue');
@@ -105,7 +105,7 @@ suite('chat', () => {
 		};
 		disposables.push(participant);
 
-		interactive.sendInteractiveRequestToProvider('provider', { message: '@participant /hello friend' });
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 		const result = await deferred.p;
 		assert.deepStrictEqual(result.metadata, { key: 'value' });
 	});
