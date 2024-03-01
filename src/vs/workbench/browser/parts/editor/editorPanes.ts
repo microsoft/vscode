@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getWindow, getActiveElement } from 'vs/base/browser/dom';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -131,7 +131,7 @@ export class EditorPanes extends Disposable {
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			if (getWindow(this.editorGroupParent) !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
+			if (getWindowById(this.groupView.windowId, true).window !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
 				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in other windows yet."), [
 					toAction({
 						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {
@@ -277,7 +277,7 @@ export class EditorPanes extends Disposable {
 			if (focus && this.shouldRestoreFocus(activeElement)) {
 				pane.focus();
 			} else if (!internalOptions?.preserveWindowOrder) {
-				this.hostService.moveTop(getWindow(this.editorGroupParent));
+				this.hostService.moveTop(getWindowById(this.groupView.windowId, true).window);
 			}
 		}
 
