@@ -78,8 +78,6 @@ export class ExtHostChat implements ExtHostChatShape {
 
 		return {
 			id,
-			requesterUsername: session.requester?.name,
-			requesterAvatarIconUri: session.requester?.icon,
 		};
 	}
 

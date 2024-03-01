@@ -494,12 +494,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._creationDate;
 	}
 
-	get requesterUsername(): string {
-		return this._session?.requesterUsername ?? this.initialData?.requesterUsername ?? '';
-	}
-
 	private get _defaultAgent() {
 		return this.chatAgentService.getDefaultAgent();
+	}
+
+	get requesterUsername(): string {
+		return (this._defaultAgent ?
+			this._defaultAgent.metadata.requester?.name :
+			this.initialData?.requesterUsername) ?? '';
 	}
 
 	get responderUsername(): string {
@@ -510,7 +512,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	private readonly _initialRequesterAvatarIconUri: URI | undefined;
 	get requesterAvatarIconUri(): URI | undefined {
-		return this._session ? this._session.requesterAvatarIconUri : this._initialRequesterAvatarIconUri;
+		return this._defaultAgent ?
+			this._defaultAgent.metadata.requester?.icon :
+			this._initialRequesterAvatarIconUri;
 	}
 
 	private readonly _initialResponderAvatarIconUri: ThemeIcon | URI | undefined;

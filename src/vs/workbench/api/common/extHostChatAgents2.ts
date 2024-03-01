@@ -353,6 +353,7 @@ class ExtHostChatAgent {
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
 	private _isSticky: boolean | undefined;
+	private _requester: vscode.ChatRequesterInformation | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -454,6 +455,7 @@ class ExtHostChatAgent {
 					sampleRequest: this._sampleRequest,
 					supportIssueReporting: this._supportIssueReporting,
 					isSticky: this._isSticky,
+					requester: this._requester
 				});
 				updateScheduled = false;
 			});
@@ -601,6 +603,13 @@ class ExtHostChatAgent {
 			set isSticky(v) {
 				that._isSticky = v;
 				updateMetadataSoon();
+			},
+			set requester(v) {
+				that._requester = v;
+				updateMetadataSoon();
+			},
+			get requester() {
+				return that._requester;
 			},
 			dispose() {
 				disposed = true;

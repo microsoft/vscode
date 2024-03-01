@@ -110,17 +110,7 @@ declare module 'vscode' {
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
-	export interface InteractiveSessionParticipantInformation {
-		name: string;
-
-		/**
-		 * A full URI for the icon of the participant.
-		 */
-		icon?: Uri;
-	}
-
 	export interface InteractiveSession {
-		requester: InteractiveSessionParticipantInformation;
 	}
 
 	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatFollowup[];

@@ -71,6 +71,15 @@ export interface IChatAgentCommand {
 	sampleRequest?: string;
 }
 
+export interface IChatRequesterInformation {
+	name: string;
+
+	/**
+	 * A full URI for the icon of the requester.
+	 */
+	icon?: URI;
+}
+
 export interface IChatAgentMetadata {
 	description?: string;
 	helpTextPrefix?: string | IMarkdownString;
@@ -85,6 +94,7 @@ export interface IChatAgentMetadata {
 	supportIssueReporting?: boolean;
 	followupPlaceholder?: string;
 	isSticky?: boolean;
+	requester?: IChatRequesterInformation;
 }
 
 
