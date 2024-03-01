@@ -342,7 +342,9 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
+	private titleContainerHover?: ICustomHover;
 	private titleDescriptionContainer?: HTMLElement;
+	private titleDescriptionContainerHover?: ICustomHover;
 	private iconContainer?: HTMLElement;
 	private iconContainerHover?: ICustomHover;
 	protected twistiesContainer?: HTMLElement;
@@ -523,7 +525,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const calculatedTitle = this.calculateTitle(title);
 		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
-		setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle);
+		this.titleContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
@@ -537,7 +539,7 @@ export abstract class ViewPane extends Pane implements IView {
 		const calculatedTitle = this.calculateTitle(title);
 		if (this.titleContainer) {
 			this.titleContainer.textContent = calculatedTitle;
-			this.titleContainer.setAttribute('title', calculatedTitle);
+			this.titleContainerHover?.update(calculatedTitle);
 		}
 
 		if (this.iconContainer) {
@@ -552,10 +554,11 @@ export abstract class ViewPane extends Pane implements IView {
 	private setTitleDescription(description: string | undefined) {
 		if (this.titleDescriptionContainer) {
 			this.titleDescriptionContainer.textContent = description ?? '';
-			this.titleDescriptionContainer.setAttribute('title', description ?? '');
+			this.titleDescriptionContainerHover?.update(description ?? '');
 		}
 		else if (description && this.titleContainer) {
-			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', { title: description }, description));
+			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
+			this.titleDescriptionContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
 

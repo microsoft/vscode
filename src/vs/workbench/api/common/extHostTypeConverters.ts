@@ -2239,20 +2239,20 @@ export namespace ChatInlineFollowup {
 
 export namespace LanguageModelMessage {
 
-	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelMessage {
+	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
 		switch (message.role) {
-			case chatProvider.ChatMessageRole.System: return new types.LanguageModelSystemMessage(message.content);
-			case chatProvider.ChatMessageRole.User: return new types.LanguageModelUserMessage(message.content);
-			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelAssistantMessage(message.content);
+			case chatProvider.ChatMessageRole.System: return new types.LanguageModelChatSystemMessage(message.content);
+			case chatProvider.ChatMessageRole.User: return new types.LanguageModelChatUserMessage(message.content);
+			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelChatAssistantMessage(message.content);
 		}
 	}
 
-	export function from(message: vscode.LanguageModelMessage): chatProvider.IChatMessage {
-		if (message instanceof types.LanguageModelSystemMessage) {
+	export function from(message: vscode.LanguageModelChatMessage): chatProvider.IChatMessage {
+		if (message instanceof types.LanguageModelChatSystemMessage) {
 			return { role: chatProvider.ChatMessageRole.System, content: message.content };
-		} else if (message instanceof types.LanguageModelUserMessage) {
+		} else if (message instanceof types.LanguageModelChatUserMessage) {
 			return { role: chatProvider.ChatMessageRole.User, content: message.content };
-		} else if (message instanceof types.LanguageModelAssistantMessage) {
+		} else if (message instanceof types.LanguageModelChatAssistantMessage) {
 			return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
 		} else {
 			throw new Error('Invalid LanguageModelMessage');

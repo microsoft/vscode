@@ -275,6 +275,9 @@ export class SearchService extends Disposable implements ISearchService {
 			return this.getSearchProvider(query.type).has(scheme);
 		});
 
+		if (query.type === QueryType.aiText && !someSchemeHasProvider) {
+			return [];
+		}
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
 			let provider = this.getSearchProvider(query.type).get(scheme);

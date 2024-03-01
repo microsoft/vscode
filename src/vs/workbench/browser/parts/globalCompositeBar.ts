@@ -43,6 +43,7 @@ import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -309,6 +310,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@ILogService private readonly logService: ILogService,
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		const action = instantiationService.createInstance(CompositeBarAction, {
 			id: ACCOUNTS_ACTIVITY_ID,
@@ -391,7 +393,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				menus.push(noAccountsAvailableAction);
 				break;
 			}
-			const providerLabel = this.authenticationService.getLabel(providerId);
+			const providerLabel = this.authenticationService.getProvider(providerId).label;
 			const accounts = this.groupedAccounts.get(providerId);
 			if (!accounts) {
 				if (this.problematicProviders.has(providerId)) {
@@ -408,19 +410,22 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			}
 
 			for (const account of accounts) {
-				const manageExtensionsAction = disposables.add(new Action(`configureSessions${account.label}`, localize('manageTrustedExtensions', "Manage Trusted Extensions"), undefined, true, () => {
-					return this.authenticationService.manageTrustedExtensionsForAccount(providerId, account.label);
-				}));
+				const manageExtensionsAction = toAction({
+					id: `configureSessions${account.label}`,
+					label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
+					enabled: true,
+					run: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel: account.label })
+				});
 
-				const providerSubMenuActions: Action[] = [manageExtensionsAction];
+				const providerSubMenuActions: IAction[] = [manageExtensionsAction];
 
 				if (account.canSignOut) {
-					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), undefined, true, async () => {
-						const allSessions = await this.authenticationService.getSessions(providerId);
-						const sessionsForAccount = allSessions.filter(s => s.account.label === account.label);
-						return await this.authenticationService.removeAccountSessions(providerId, account.label, sessionsForAccount);
+					providerSubMenuActions.push(toAction({
+						id: 'signOut',
+						label: localize('signOut', "Sign Out"),
+						enabled: true,
+						run: () => this.commandService.executeCommand('_signOutOfAccount', { providerId, accountLabel: account.label })
 					}));
-					providerSubMenuActions.push(signOutAction);
 				}
 
 				const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${providerLabel})`, providerSubMenuActions);
@@ -628,7 +633,8 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@ISecretStorageService secretStorageService: ISecretStorageService,
 		@ILogService logService: ILogService,
 		@IActivityService activityService: IActivityService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandService commandService: ICommandService
 	) {
 		super(() => [], {
 			...options,
@@ -638,7 +644,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 			}),
 			hoverOptions,
 			compact: true,
-		}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService);
+		}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService);
 	}
 }
 

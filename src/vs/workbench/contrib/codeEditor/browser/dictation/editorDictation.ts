@@ -206,6 +206,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		const collection = this.editor.createDecorationsCollection();
 		disposables.add(toDisposable(() => collection.clear()));
 
+		disposables.add(this.editor.onDidChangeCursorPosition(() => this.widget.layout()));
+
 		let previewStart: Position | undefined = undefined;
 
 		let lastReplaceTextLength = 0;
@@ -242,7 +244,6 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			}
 
 			this.editor.revealPositionInCenterIfOutsideViewport(endPosition);
-			this.widget.layout();
 		};
 
 		const cts = new CancellationTokenSource();

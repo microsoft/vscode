@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,6 +14,7 @@ import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
+import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -32,11 +34,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 
-		this._proxy.$updateLanguageModels({ added: _chatProviderService.getLanguageModelIds() });
+		this._proxy.$updateLanguageModels({ added: coalesce(_chatProviderService.getLanguageModelIds().map(id => _chatProviderService.lookupLanguageModel(id))) });
 		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$updateLanguageModels, this._proxy));
 	}
 
@@ -91,7 +94,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 		await Promise.race([
 			activate,
-			Event.toPromise(Event.filter(this._chatProviderService.onDidChangeLanguageModels, e => Boolean(e.added?.includes(providerId))))
+			Event.toPromise(Event.filter(this._chatProviderService.onDidChangeLanguageModels, e => Boolean(e.added?.some(value => value.identifier === providerId))))
 		]);
 
 		return this._chatProviderService.lookupLanguageModel(providerId);
@@ -131,28 +134,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		disposables.add(toDisposable(() => {
 			this._authenticationService.unregisterAuthenticationProvider(authProviderId);
 		}));
-		disposables.add(this._authenticationService.onDidChangeSessions(async (e) => {
-			if (e.providerId === authProviderId) {
-				if (e.event.removed?.length) {
-					const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, accountLabel);
-					const extensionsToUpdateAccess = [];
-					for (const allowed of allowedExtensions) {
-						const from = await this._extensionService.getExtension(allowed.id);
-						this._authenticationService.updateAllowedExtension(authProviderId, authProviderId, allowed.id, allowed.name, false);
-						if (from) {
-							extensionsToUpdateAccess.push({
-								from: from.identifier,
-								to: extension,
-								enabled: false
-							});
-						}
-					}
-					this._proxy.$updateModelAccesslist(extensionsToUpdateAccess);
-				}
-			}
-		}));
-		disposables.add(this._authenticationService.onDidChangeExtensionSessionAccess(async (e) => {
-			const allowedExtensions = this._authenticationService.readAllowedExtensions(authProviderId, accountLabel);
+		disposables.add(this._authenticationAccessService.onDidChangeExtensionSessionAccess(async (e) => {
+			const allowedExtensions = this._authenticationAccessService.readAllowedExtensions(authProviderId, accountLabel);
 			const accessList = [];
 			for (const allowedExtension of allowedExtensions) {
 				const from = await this._extensionService.getExtension(allowedExtension.id);
