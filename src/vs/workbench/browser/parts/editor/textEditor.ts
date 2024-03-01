@@ -128,7 +128,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		return editorConfiguration;
 	}
 
-	private computeAriaLabel(): string {
+	protected computeAriaLabel(): string {
 		return this.input ? computeEditorAriaLabel(this.input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
 	}
 
