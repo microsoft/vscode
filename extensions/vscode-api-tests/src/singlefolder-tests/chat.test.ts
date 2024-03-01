@@ -98,7 +98,7 @@ suite('chat', () => {
 		});
 		participant.isDefault = true;
 		participant.followupProvider = {
-			provideFollowups(result, _token) {
+			provideFollowups(result, _context, _token) {
 				deferred.complete(result);
 				return [];
 			},
