@@ -35,7 +35,7 @@ suite('NativeTextSearchManager', () => {
 		};
 
 		const m = new NativeTextSearchManager(query, provider);
-		await m.search(() => { }, new CancellationTokenSource().token);
+		await m.search(() => { }, CancellationToken.None);
 
 		assert.ok(correctEncoding);
 	});
