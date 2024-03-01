@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, getWindowById, setParentFlowTo } from 'vs/base/browser/dom';
+import { $, Dimension, addDisposableListener, append, setParentFlowTo } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
@@ -676,13 +676,12 @@ export class ExtensionEditor extends EditorPane {
 
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 
-			const codeWindow = getWindowById(this.group?.windowId, true).window;
-			webview.claim(this, codeWindow, this.scopedContextKeyService);
+			webview.claim(this, this.window, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
 			webview.layoutWebviewOverElement(container);
 
 			webview.setHtml(body);
-			webview.claim(this, codeWindow, undefined);
+			webview.claim(this, this.window, undefined);
 
 			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
 

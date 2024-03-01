@@ -173,8 +173,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private claimWebview(input: WebviewInput): void {
-		const codeWindow = DOM.getWindowById(this.group?.windowId, true).window;
-		input.webview.claim(this, codeWindow, this.scopedContextKeyService);
+		input.webview.claim(this, this.window, this.scopedContextKeyService);
 
 		if (this._element) {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);
@@ -188,7 +187,7 @@ export class WebviewEditor extends EditorPane {
 			containsGroup: (group) => this.group.id === group.id
 		}));
 
-		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(codeWindow, () => this.webview));
+		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(this.window, () => this.webview));
 
 		this.synchronizeWebviewContainerDimensions(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
@@ -199,8 +198,7 @@ export class WebviewEditor extends EditorPane {
 			return;
 		}
 
-		const codeWindow = DOM.getWindowById(this.group?.windowId, true).window;
-		const rootContainer = this._workbenchLayoutService.getContainer(codeWindow, Parts.EDITOR_PART);
+		const rootContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
 	}
 

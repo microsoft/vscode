@@ -174,7 +174,6 @@ export class WebviewViewPane extends ViewPane {
 		this._activated = true;
 
 		const origin = this.extensionId ? WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId) : undefined;
-		const codeWindow = getWindow(this.element);
 		const webview = this.webviewService.createWebviewOverlay({
 			origin,
 			providedViewType: this.id,
@@ -207,7 +206,7 @@ export class WebviewViewPane extends ViewPane {
 			}));
 		}
 
-		this._webviewDisposables.add(new WebviewWindowDragMonitor(codeWindow, () => this._webview.value));
+		this._webviewDisposables.add(new WebviewWindowDragMonitor(getWindow(this.element), () => this._webview.value));
 
 		const source = this._webviewDisposables.add(new CancellationTokenSource());
 
