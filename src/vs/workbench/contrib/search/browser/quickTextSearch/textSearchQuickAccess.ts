@@ -128,8 +128,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				});
 			}
 		}));
-
-		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
+		disposables.add(Event.once(picker.onWillHide)(({ reason }) => {
 			// Restore view state upon cancellation if we changed it
 			// but only when the picker was closed via explicit user
 			// gesture and not e.g. when focus was lost because that
@@ -137,6 +136,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			if (reason === QuickInputHideReason.Gesture) {
 				this.editorViewState.restore(true);
 			}
+		}));
+
+		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
 			this.searchModel.searchResult.toggleHighlights(false);
 		}));
 
