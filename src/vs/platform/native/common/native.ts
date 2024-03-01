@@ -33,7 +33,7 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
-export interface INativeOptions {
+export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
@@ -77,25 +77,25 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	toggleFullScreen(options?: INativeOptions): Promise<void>;
+	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
-	handleTitleDoubleClick(options?: INativeOptions): Promise<void>;
+	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
-	isMaximized(options?: INativeOptions): Promise<boolean>;
-	maximizeWindow(options?: INativeOptions): Promise<void>;
-	unmaximizeWindow(options?: INativeOptions): Promise<void>;
-	minimizeWindow(options?: INativeOptions): Promise<void>;
-	moveWindowTop(options?: INativeOptions): Promise<void>;
-	positionWindow(position: IRectangle, options?: INativeOptions): Promise<void>;
+	isMaximized(options?: INativeHostOptions): Promise<boolean>;
+	maximizeWindow(options?: INativeHostOptions): Promise<void>;
+	unmaximizeWindow(options?: INativeHostOptions): Promise<void>;
+	minimizeWindow(options?: INativeHostOptions): Promise<void>;
+	moveWindowTop(options?: INativeHostOptions): Promise<void>;
+	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
 	 *
 	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
 	 */
-	updateWindowControls(options: INativeOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
@@ -109,12 +109,12 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: INativeOptions & { force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
 
 	// Dialogs
-	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
-	showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogReturnValue>;
-	showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogReturnValue>;
+	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
+	showSaveDialog(options: SaveDialogOptions & INativeHostOptions): Promise<SaveDialogReturnValue>;
+	showOpenDialog(options: OpenDialogOptions & INativeHostOptions): Promise<OpenDialogReturnValue>;
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
@@ -123,8 +123,8 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
-	setRepresentedFilename(path: string, options?: INativeOptions): Promise<void>;
-	setDocumentEdited(edited: boolean, options?: INativeOptions): Promise<void>;
+	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
+	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
@@ -169,13 +169,13 @@ export interface ICommonNativeHostService {
 	notifyReady(): Promise<void>;
 	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
-	closeWindow(options?: INativeOptions): Promise<void>;
+	closeWindow(options?: INativeHostOptions): Promise<void>;
 	quit(): Promise<void>;
 	exit(code: number): Promise<void>;
 
 	// Development
-	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
-	toggleDevTools(): Promise<void>;
+	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
+	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;

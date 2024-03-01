@@ -68,6 +68,9 @@ class TestCommentController implements ICommentController {
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo> {
 		throw new Error('Method not implemented.');
 	}
+	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment: Comment } | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 
 }
 

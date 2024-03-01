@@ -36,6 +36,15 @@ export function assert(condition: boolean): void {
 }
 
 /**
+ * Like assert, but doesn't throw.
+ */
+export function softAssert(condition: boolean): void {
+	if (!condition) {
+		onUnexpectedError(new BugIndicatingError('Soft Assertion Failed'));
+	}
+}
+
+/**
  * condition must be side-effect free!
  */
 export function assertFn(condition: () => boolean): void {

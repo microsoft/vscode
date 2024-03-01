@@ -7,8 +7,8 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
-import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, InlineChatResponseTypes, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -22,25 +22,32 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { Recording } from './inlineChatSessionService';
+import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { asRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 export type TelemetryData = {
 	extension: string;
 	rounds: string;
 	undos: string;
-	edits: boolean;
+	unstashed: number;
+	edits: number;
 	finishedByEdit: boolean;
 	startTime: string;
 	endTime: string;
 	editMode: string;
+	acceptedHunks: number;
+	discardedHunks: number;
+	responseTypes: string;
 };
 
 export type TelemetryDataClassification = {
@@ -50,10 +57,14 @@ export type TelemetryDataClassification = {
 	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
 	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
 	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
+	unstashed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How often did this session become stashed and resumed' };
 	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits cause the session to terminate' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
+	acceptedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of accepted hunks' };
+	discardedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of discarded hunks' };
+	responseTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated list of response types like edits, message, mixed' };
 };
 
 export enum ExpansionState {
@@ -135,7 +146,7 @@ export class Session {
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
-	private readonly _teldata: Partial<TelemetryData>;
+	private readonly _teldata: TelemetryData;
 
 	readonly textModelNAltVersion: number;
 	private _textModelNSnapshotAltVersion: number | undefined;
@@ -163,11 +174,16 @@ export class Session {
 		this._teldata = {
 			extension: provider.debugName,
 			startTime: this._startTime.toISOString(),
-			edits: false,
+			endTime: this._startTime.toISOString(),
+			edits: 0,
 			finishedByEdit: false,
 			rounds: '',
 			undos: '',
-			editMode
+			editMode,
+			unstashed: 0,
+			acceptedHunks: 0,
+			discardedHunks: 0,
+			responseTypes: ''
 		};
 	}
 
@@ -184,6 +200,7 @@ export class Session {
 	}
 
 	markUnstashed() {
+		this._teldata.unstashed! += 1;
 		this._isUnstashed = true;
 	}
 
@@ -207,6 +224,7 @@ export class Session {
 		this._isUnstashed = false;
 		const newLen = this._exchange.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
+		this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
 	}
 
 	get exchanges(): Iterable<SessionExchange> {
@@ -237,15 +255,25 @@ export class Session {
 	}
 
 	recordExternalEditOccurred(didFinish: boolean) {
-		this._teldata.edits = true;
+		this._teldata.edits += 1;
 		this._teldata.finishedByEdit = didFinish;
 	}
 
 	asTelemetryData(): TelemetryData {
-		return <TelemetryData>{
-			...this._teldata,
-			endTime: new Date().toISOString(),
-		};
+
+		for (const item of this.hunkData.getInfo()) {
+			switch (item.getState()) {
+				case HunkState.Accepted:
+					this._teldata.acceptedHunks += 1;
+					break;
+				case HunkState.Rejected:
+					this._teldata.discardedHunks += 1;
+					break;
+			}
+		}
+
+		this._teldata.endTime = new Date().toISOString();
+		return this._teldata;
 	}
 
 	asRecording(): Recording {
@@ -412,6 +440,56 @@ export class ReplyResponse {
 		} else {
 			this.responseType = InlineChatResponseTypes.Empty;
 		}
+	}
+}
+
+export class StashedSession {
+
+	private readonly _listener: IDisposable;
+	private readonly _ctxHasStashedSession: IContextKey<boolean>;
+	private _session: Session | undefined;
+
+	constructor(
+		editor: ICodeEditor,
+		session: Session,
+		private readonly _undoCancelEdits: IValidEditOperation[],
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInlineChatSessionService private readonly _sessionService: IInlineChatSessionService,
+		@ILogService private readonly _logService: ILogService
+	) {
+		this._ctxHasStashedSession = CTX_INLINE_CHAT_HAS_STASHED_SESSION.bindTo(contextKeyService);
+
+		// keep session for a little bit, only release when user continues to work (type, move cursor, etc.)
+		this._session = session;
+		this._ctxHasStashedSession.set(true);
+		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel))(() => {
+			this._session = undefined;
+			this._sessionService.releaseSession(session);
+			this._ctxHasStashedSession.reset();
+		});
+	}
+
+	dispose() {
+		this._listener.dispose();
+		this._ctxHasStashedSession.reset();
+		if (this._session) {
+			this._sessionService.releaseSession(this._session);
+		}
+	}
+
+	unstash(): Session | undefined {
+		if (!this._session) {
+			return undefined;
+		}
+		this._listener.dispose();
+		const result = this._session;
+		result.markUnstashed();
+		result.hunkData.ignoreTextModelNChanges = true;
+		result.textModelN.pushEditOperations(null, this._undoCancelEdits, () => null);
+		result.hunkData.ignoreTextModelNChanges = false;
+		this._session = undefined;
+		this._logService.debug('[IE] Unstashed session');
+		return result;
 	}
 }
 
@@ -629,6 +707,34 @@ export class HunkData {
 		return Iterable.reduce(this._data.values(), (r, { state }) => r + (state === HunkState.Pending ? 1 : 0), 0);
 	}
 
+	private _discardEdits(item: HunkInformation): ISingleEditOperation[] {
+		const edits: ISingleEditOperation[] = [];
+		const rangesN = item.getRangesN();
+		const ranges0 = item.getRanges0();
+		for (let i = 1; i < rangesN.length; i++) {
+			const modifiedRange = rangesN[i];
+
+			const originalValue = this._textModel0.getValueInRange(ranges0[i]);
+			edits.push(EditOperation.replace(modifiedRange, originalValue));
+		}
+		return edits;
+	}
+
+	discardAll() {
+		const edits: ISingleEditOperation[][] = [];
+		for (const item of this.getInfo()) {
+			if (item.getState() !== HunkState.Rejected) {
+				edits.push(this._discardEdits(item));
+			}
+		}
+		const undoEdits: IValidEditOperation[][] = [];
+		this._textModelN.pushEditOperations(null, edits.flat(), (_undoEdits) => {
+			undoEdits.push(_undoEdits);
+			return null;
+		});
+		return undoEdits.flat();
+	}
+
 	getInfo(): HunkInformation[] {
 
 		const result: HunkInformation[] = [];
@@ -655,14 +761,7 @@ export class HunkData {
 					// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
 					// which was created above so that typing in the editor keeps discard working.
 					if (data.state === HunkState.Pending) {
-						const edits: ISingleEditOperation[] = [];
-						const rangesN = item.getRangesN();
-						const ranges0 = item.getRanges0();
-						for (let i = 1; i < rangesN.length; i++) {
-							const modifiedRange = rangesN[i];
-							const originalValue = this._textModel0.getValueInRange(ranges0[i]);
-							edits.push(EditOperation.replace(modifiedRange, originalValue));
-						}
+						const edits = this._discardEdits(item);
 						this._textModelN.pushEditOperations(null, edits, () => null);
 						data.state = HunkState.Rejected;
 					}

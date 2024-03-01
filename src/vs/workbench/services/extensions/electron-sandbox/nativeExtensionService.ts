@@ -725,7 +725,7 @@ class RestartExtensionHostAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.restartExtensionHost',
-			title: { value: nls.localize('restartExtensionHost', "Restart Extension Host"), original: 'Restart Extension Host' },
+			title: nls.localize2('restartExtensionHost', "Restart Extension Host"),
 			category: Categories.Developer,
 			f1: true
 		});

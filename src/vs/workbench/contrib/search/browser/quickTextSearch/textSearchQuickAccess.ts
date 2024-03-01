@@ -30,6 +30,7 @@ import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench
 import { Event } from 'vs/base/common/event';
 import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Sequencer } from 'vs/base/common/async';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -48,13 +49,14 @@ interface ITextSearchQuickAccessItem extends IPickerQuickAccessItem {
 	match?: Match;
 }
 export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearchQuickAccessItem> {
+
+	private editorSequencer: Sequencer;
 	private queryBuilder: QueryBuilder;
 	private searchModel: SearchModel;
 	private currentAsyncSearch: Promise<ISearchComplete> = Promise.resolve({
 		results: [],
 		messages: []
 	});
-	private storedOriginalLocation = false;
 	private readonly editorViewState = new EditorViewState(
 		this._editorService
 	);
@@ -88,6 +90,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
+		this.editorSequencer = new Sequencer();
 	}
 
 	override dispose(): void {
@@ -102,6 +105,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		}
 		picker.customButton = true;
 		picker.customLabel = '$(link-external)';
+		this.editorViewState.reset();
 		disposables.add(picker.onDidCustom(() => {
 			if (this.searchModel.searchResult.count() > 0) {
 				this.moveToSearchViewlet(undefined);
@@ -114,16 +118,14 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			const [item] = picker.activeItems;
 
 			if (item?.match) {
-				// only store location once, or else it will store new state every time we change active pick
-				if (!this.storedOriginalLocation) {
-					// we must remember our curret view state to be able to restore
-					this.editorViewState.set();
-					this.storedOriginalLocation = true;
-				}
-				// open it
-				this._editorService.openEditor({
-					resource: item.match.parent().resource,
-					options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: item.match.range() }
+				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
+				this.editorViewState.set();
+				const itemMatch = item.match;
+				this.editorSequencer.queue(async () => {
+					await this._editorService.openEditor({
+						resource: itemMatch.parent().resource,
+						options: { transient: true, preserveFocus: true, revealIfOpened: true, ignoreError: true, selection: itemMatch.range() }
+					});
 				});
 			}
 		}));
@@ -134,7 +136,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			// gesture and not e.g. when focus was lost because that
 			// could mean the user clicked into the editor directly.
 			if (reason === QuickInputHideReason.Gesture) {
-				this.editorViewState.restore();
+				this.editorViewState.restore(true);
 			}
 			this.searchModel.searchResult.toggleHighlights(false);
 		}));
@@ -176,6 +178,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		const content: IPatternInfo = {
 			pattern: contentPattern,
 		};
+		this.searchModel.searchResult.toggleHighlights(false);
 		const charsPerLine = content.isRegExp ? 10000 : 1000; // from https://github.com/microsoft/vscode/blob/e7ad5651ac26fa00a40aa1e4010e81b92f655569/src/vs/workbench/contrib/search/browser/searchView.ts#L1508
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));

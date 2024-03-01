@@ -39,6 +39,7 @@ interface CompletionContext {
 
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
+	readonly optionalReplacementRange: vscode.Range | undefined;
 }
 
 type ResolvedCompletionItem = {
@@ -363,18 +364,25 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 	private getRangeFromReplacementSpan(tsEntry: Proto.CompletionEntry, completionContext: CompletionContext) {
 		if (!tsEntry.replacementSpan) {
-			return;
+			if (completionContext.optionalReplacementRange) {
+				return {
+					inserting: new vscode.Range(completionContext.optionalReplacementRange.start, this.position),
+					replacing: completionContext.optionalReplacementRange,
+				};
+			}
+
+			return undefined;
 		}
 
-		let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
+		// If TS returns an explicit replacement range on this item, we should use it for both types of completion
+
 		// Make sure we only replace a single line at most
+		let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 		if (!replaceRange.isSingleLine) {
 			replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, completionContext.line.length);
 		}
-
-		// If TS returns an explicit replacement range, we should use it for both types of completion
 		return {
-			inserting: new vscode.Range(replaceRange.start, this.position),
+			inserting: replaceRange,
 			replacing: replaceRange,
 		};
 	}
@@ -735,6 +743,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		let metadata: any | undefined;
 		let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
 		let duration: number | undefined;
+		let optionalReplacementRange: vscode.Range | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
 			const startTime = Date.now();
 			try {
@@ -762,9 +771,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			metadata = response.metadata;
 
 			if (response.body.optionalReplacementSpan) {
-				for (const entry of entries) {
-					entry.replacementSpan ??= response.body.optionalReplacementSpan;
-				}
+				optionalReplacementRange = typeConverters.Range.fromTextSpan(response.body.optionalReplacementSpan);
 			}
 		} else {
 			const response = await this.client.interruptGetErr(() => this.client.execute('completions', args, token));
@@ -784,6 +791,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			wordRange,
 			line: line.text,
 			completeFunctionCalls: completionConfiguration.completeFunctionCalls,
+			optionalReplacementRange,
 		};
 
 		let includesPackageJsonImport = false;

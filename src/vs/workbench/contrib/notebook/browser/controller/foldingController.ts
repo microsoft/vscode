@@ -151,7 +151,7 @@ registerNotebookContribution(FoldingController.id, FoldingController);
 
 
 const NOTEBOOK_FOLD_COMMAND_LABEL = localize('fold.cell', "Fold Cell");
-const NOTEBOOK_UNFOLD_COMMAND_LABEL = localize('unfold.cell', "Unfold Cell");
+const NOTEBOOK_UNFOLD_COMMAND_LABEL = localize2('unfold.cell', "Unfold Cell");
 
 const FOLDING_COMMAND_ARGS: Pick<ICommandMetadata, 'args'> = {
 	args: [{
@@ -253,7 +253,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.unfold',
-			title: { value: NOTEBOOK_UNFOLD_COMMAND_LABEL, original: 'Unfold Cell' },
+			title: NOTEBOOK_UNFOLD_COMMAND_LABEL,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),

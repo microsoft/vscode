@@ -979,14 +979,13 @@ export class DefaultStyleController implements IStyleController {
 		if (styles.listDropBetweenBackground) {
 			content.push(`
 			.monaco-list${suffix} .monaco-list-rows.drop-target-before .monaco-list-row:first-child::before,
-			.monaco-list${suffix} .monaco-list-row.drop-target-after + .monaco-list-row::before,
 			.monaco-list${suffix} .monaco-list-row.drop-target-before::before {
 				content: ""; position: absolute; top: 0px; left: 0px; width: 100%; height: 1px;
 				background-color: ${styles.listDropBetweenBackground};
 			}`);
 			content.push(`
 			.monaco-list${suffix} .monaco-list-rows.drop-target-after .monaco-list-row:last-child::after,
-			.monaco-list${suffix} .monaco-list-row:last-child.drop-target-after::after {
+			.monaco-list${suffix} .monaco-list-row.drop-target-after::after {
 				content: ""; position: absolute; bottom: 0px; left: 0px; width: 100%; height: 1px;
 				background-color: ${styles.listDropBetweenBackground};
 			}`);

@@ -173,6 +173,8 @@ import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribu
 import 'vs/workbench/contrib/chat/electron-sandbox/chat.contribution';
 import 'vs/workbench/contrib/inlineChat/electron-sandbox/inlineChat.contribution';
 
+// Encryption
+import 'vs/workbench/contrib/encryption/electron-sandbox/encryption.contribution';
 
 //#endregion
 

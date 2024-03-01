@@ -34,6 +34,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -83,6 +85,11 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => this.update()));
 		this.toDispose.push(this.inlineChatService.onDidChangeProviders(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.update()));
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.readOnly)) {
+				this.update();
+			}
+		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
 				this.update();
@@ -258,7 +265,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 			hintElement.appendChild(before);
 
-			const label = new KeybindingLabel(hintElement, OS);
+			const label = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
 			label.set(keybindingHint);
 			label.element.style.width = 'min-content';
 			label.element.style.display = 'inline';
@@ -377,7 +384,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			anchor.style.cursor = 'pointer';
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-			anchor.title = title ?? '';
+			hintHandler.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
 		}
 
 		return { hintElement, ariaLabel };

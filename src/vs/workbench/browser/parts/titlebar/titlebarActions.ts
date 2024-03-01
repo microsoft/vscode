@@ -3,26 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IAction } from 'vs/base/common/actions';
-import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarStyleContext, TitleBarVisibleContext } from 'vs/workbench/common/contextkeys';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
 
 // --- Context Menu Actions --- //
 
 class ToggleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean, showInCustomTitleBarWhenNativeTitle: boolean) {
-		let when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
-		when = showInCustomTitleBarWhenNativeTitle ? when : ContextKeyExpr.and(when, ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE).negate())!;
-
+	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean) {
+		const when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
 		super({
 			id: `toggle.${section}`,
 			title,
@@ -53,13 +51,13 @@ class ToggleConfigAction extends Action2 {
 
 registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
 	constructor() {
-		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1, false, true);
+		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1, false);
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2, true, false);
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2, true);
 	}
 });
 
@@ -69,8 +67,8 @@ registerAction2(class ToggleCustomTitleBar extends Action2 {
 			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}`,
 			title: localize('toggle.hideCustomTitleBar', 'Hide Custom Title Bar'),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.or(ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE), ContextKeyExpr.equals(`config.window.nativeTabs`, ContextKeyExpr.true())), group: '3_toggle' },
-				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.or(ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE), ContextKeyExpr.equals(`config.window.nativeTabs`, ContextKeyExpr.true())), group: '3_toggle' },
+				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), group: '3_toggle' },
+				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), group: '3_toggle' },
 			]
 		});
 	}
@@ -90,6 +88,111 @@ registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
 				{ id: MenuId.TitleBarContext, order: 1, when: IsMainWindowFullscreenContext, group: '3_toggle' },
 				{ id: MenuId.TitleBarTitleContext, order: 1, when: IsMainWindowFullscreenContext, group: '3_toggle' },
 			]
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.WINDOWED);
+	}
+});
+
+
+class ToggleCustomTitleBar extends Action2 {
+
+	constructor() {
+		super({
+			id: `toggle.toggleCustomTitleBar`,
+			title: localize('toggle.customTitleBar', 'Custom Title Bar'),
+			toggled: TitleBarVisibleContext,
+			menu: [
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					order: 6,
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
+								ContextKeyExpr.equals('config.window.commandCenter', false),
+								ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
+								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top')
+							)?.negate()
+						),
+						IsMainWindowFullscreenContext
+					),
+					group: '2_workbench_layout'
+				},
+			],
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const titleBarVisibility = configService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+		switch (titleBarVisibility) {
+			case CustomTitleBarVisibility.NEVER:
+				configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
+				break;
+			case CustomTitleBarVisibility.WINDOWED: {
+				const isFullScreen = IsMainWindowFullscreenContext.evaluate(contextKeyService.getContext(null));
+				if (isFullScreen) {
+					configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
+				} else {
+					configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.NEVER);
+				}
+				break;
+			}
+			case CustomTitleBarVisibility.AUTO:
+			default:
+				configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.NEVER);
+				break;
+		}
+	}
+}
+registerAction2(ToggleCustomTitleBar);
+
+registerAction2(class ShowCustomTitleBar extends Action2 {
+	constructor() {
+		super({
+			id: `showCustomTitleBar`,
+			title: localize2('showCustomTitleBar', "Show Custom Title Bar"),
+			precondition: TitleBarVisibleContext.negate(),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
+	}
+});
+
+
+registerAction2(class HideCustomTitleBar extends Action2 {
+	constructor() {
+		super({
+			id: `hideCustomTitleBar`,
+			title: localize2('hideCustomTitleBar', "Hide Custom Title Bar"),
+			precondition: TitleBarVisibleContext,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.NEVER);
+	}
+});
+
+registerAction2(class HideCustomTitleBar extends Action2 {
+	constructor() {
+		super({
+			id: `hideCustomTitleBarInFullScreen`,
+			title: localize2('hideCustomTitleBarInFullScreen', "Hide Custom Title Bar In Full Screen"),
+			precondition: ContextKeyExpr.and(TitleBarVisibleContext, IsMainWindowFullscreenContext),
+			f1: true
 		});
 	}
 
@@ -145,28 +248,6 @@ registerAction2(class ToggleEditorActions extends Action2 {
 			configService.updateValue(ToggleEditorActions.settingsID, 'hidden');
 			storageService.store(ToggleEditorActions.settingsID, location, StorageScope.PROFILE, StorageTarget.USER);
 		}
-	}
-});
-
-registerAction2(class ToggleActivityBarActions extends Action2 {
-	static readonly settingsID = `workbench.activityBar.location`;
-	constructor() {
-
-		super({
-			id: `toggle.${ToggleActivityBarActions.settingsID}`,
-			title: localize('toggle.activityBarActions', 'Activity Bar Actions'),
-			toggled: ContextKeyExpr.equals(`config.${ToggleActivityBarActions.settingsID}`, 'top'),
-			menu: [
-				{ id: MenuId.TitleBarContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side'), group: '2_config' },
-				{ id: MenuId.TitleBarTitleContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side'), group: '2_config' }
-			]
-		});
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const configService = accessor.get(IConfigurationService);
-		const oldLocation = configService.getValue<string>(ToggleActivityBarActions.settingsID);
-		configService.updateValue(ToggleActivityBarActions.settingsID, oldLocation === 'top' ? 'hidden' : 'top');
 	}
 });
 

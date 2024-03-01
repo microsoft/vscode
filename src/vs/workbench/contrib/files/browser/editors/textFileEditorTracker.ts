@@ -22,6 +22,8 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.textFileEditorTracker';
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,

@@ -233,19 +233,19 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'enum': ['native', 'custom'],
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
+				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
 			},
 			'window.customTitleBarVisibility': {
 				'type': 'string',
 				'enum': ['auto', 'windowed', 'never'],
 				'markdownEnumDescriptions': [
-					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom titlebar visibility."),
-					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. Automatically changes custom titlebar visibility in windowed."),
+					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom title bar visibility."),
+					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. When not in full screen, automatically change custom title bar visibility."),
 					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when `#window.titleBarStyle#` is set to `native`."),
 				],
 				'default': isLinux ? 'never' : 'auto',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown."),
+				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in none full screen mode with `never` when `#window.titleBarStyle#` is set to `native`."),
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -259,7 +259,7 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh
+				'included': isMacintosh,
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',

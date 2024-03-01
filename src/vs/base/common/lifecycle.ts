@@ -653,8 +653,8 @@ export abstract class ReferenceCollection<T> {
 
 		const { object } = reference;
 		const dispose = createSingleCallFunction(() => {
-			if (--reference!.counter === 0) {
-				this.destroyReferencedObject(key, reference!.object);
+			if (--reference.counter === 0) {
+				this.destroyReferencedObject(key, reference.object);
 				this.references.delete(key);
 			}
 		});

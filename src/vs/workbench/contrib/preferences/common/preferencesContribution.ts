@@ -28,6 +28,9 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 export class PreferencesContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.preferences';
+
 	private editorOpeningListener: IDisposable | undefined;
 	private settingsListener: IDisposable;
 

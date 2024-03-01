@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IChatProviderContribution {
 	id: string;
-	label: string;
-	extensionIcon?: URI;
 	when?: string;
 }
 
@@ -21,6 +19,10 @@ export interface IChatContributionService {
 	registerChatProvider(provider: IChatProviderContribution): void;
 	deregisterChatProvider(providerId: string): void;
 	getViewIdForProvider(providerId: string): string;
+
+	readonly registeredParticipants: IChatParticipantContribution[];
+	registerChatParticipant(participant: IChatParticipantContribution): void;
+	deregisterChatParticipant(participant: IChatParticipantContribution): void;
 }
 
 export interface IRawChatProviderContribution {
@@ -28,4 +30,24 @@ export interface IRawChatProviderContribution {
 	label: string;
 	icon?: string;
 	when?: string;
+}
+
+export interface IRawChatCommandContribution {
+	name: string;
+	description: string;
+	sampleRequest?: string;
+	isSticky?: boolean;
+	when?: string;
+}
+
+export interface IRawChatParticipantContribution {
+	name: string;
+	description?: string;
+	isDefault?: boolean;
+	commands?: IRawChatCommandContribution[];
+}
+
+export interface IChatParticipantContribution extends IRawChatParticipantContribution {
+	// Participant id is extensionId + name
+	extensionId: ExtensionIdentifier;
 }

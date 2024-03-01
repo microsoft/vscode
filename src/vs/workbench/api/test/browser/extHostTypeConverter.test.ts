@@ -8,11 +8,14 @@ import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
-import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostTypeConverter', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function size<T>(from: Record<any, any>): number {
 		let count = 0;
 		for (const key in from) {

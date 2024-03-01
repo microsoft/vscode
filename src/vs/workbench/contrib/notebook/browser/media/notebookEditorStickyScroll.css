@@ -6,29 +6,62 @@
 .monaco-workbench .notebookOverlay .notebook-sticky-scroll-container {
 	display: none;
 	background-color: var(--vscode-notebook-editorBackground);
-	width: 100%;
+	padding-left: 9.5px;
 }
 
 .monaco-workbench
 	.notebookOverlay
 	.notebook-sticky-scroll-container
-	.notebook-sticky-scroll-line {
-	background-color: var(--vscode-notebook-editorBackground);
-	position: relative;
-	padding-left: 12px;
-	/* transition: margin-top 0.2s ease-in-out; */
+	.notebook-sticky-scroll-element {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-sticky-scroll-element
+	.notebook-sticky-scroll-folding-icon:hover {
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-sticky-scroll-element
+	.notebook-sticky-scroll-header {
+	width: 100%;
+	padding-left: 6px;
+}
+
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-sticky-scroll-element
+	.notebook-sticky-scroll-header:hover {
+	background-color: var(--vscode-editorStickyScrollHover-background);
+	width: 100%;
+	cursor: pointer;
 }
 
 .monaco-workbench.hc-light .notebookOverlay .notebook-sticky-scroll-container,
 .monaco-workbench.hc-black .notebookOverlay .notebook-sticky-scroll-container {
 	background-color: var(--vscode-editorStickyScroll-background);
 	border-bottom: 1px solid var(--vscode-contrastBorder);
+	padding-bottom: 3px;
 }
 
-.monaco-workbench
+.monaco-workbench.hc-light
 	.notebookOverlay
 	.notebook-sticky-scroll-container
-	.notebook-sticky-scroll-line:hover {
-	background-color: var(--vscode-editorStickyScrollHover-background);
-	cursor: pointer;
+	.notebook-sticky-scroll-element
+	.notebook-sticky-scroll-header:hover,
+.monaco-workbench.hc-black
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-sticky-scroll-element
+	.notebook-sticky-scroll-header:hover {
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -2px;
 }

@@ -39,8 +39,8 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 		eventCount++;
 		dispose(toDispose);
 		for (let i = 0; i < data.length; i++) {
-			assert.strictEqual(e!.added![i] instanceof Breakpoint, true);
-			assert.strictEqual((e!.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
+			assert.strictEqual(e.added![i] instanceof Breakpoint, true);
+			assert.strictEqual((e.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
 		}
 	});
 	const bps = model.addBreakpoints(uri, data);
@@ -291,7 +291,7 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 		//address: string, offset: number, condition?: string, hitCondition?: string
-		model.addInstructionBreakpoint('0xCCCCFFFF', 0, 0n);
+		model.addInstructionBreakpoint({ instructionReference: '0xCCCCFFFF', offset: 0, address: 0n, canPersist: false });
 
 		assert.strictEqual(eventCount, 1);
 		let instructionBreakpoints = model.getInstructionBreakpoints();
@@ -299,7 +299,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(instructionBreakpoints[0].instructionReference, '0xCCCCFFFF');
 		assert.strictEqual(instructionBreakpoints[0].offset, 0);
 
-		model.addInstructionBreakpoint('0xCCCCEEEE', 1, 0n);
+		model.addInstructionBreakpoint({ instructionReference: '0xCCCCEEEE', offset: 1, address: 0n, canPersist: false });
 		assert.strictEqual(eventCount, 2);
 		instructionBreakpoints = model.getInstructionBreakpoints();
 		assert.strictEqual(instructionBreakpoints.length, 2);
@@ -313,8 +313,8 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
-		model.addDataBreakpoint('label', 'id', true, ['read'], 'read', '1');
-		model.addDataBreakpoint('second', 'secondId', false, ['readWrite'], 'readWrite', '2');
+		model.addDataBreakpoint({ description: 'label', dataId: 'id', canPersist: true, accessTypes: ['read'], accessType: 'read' }, '1');
+		model.addDataBreakpoint({ description: 'second', dataId: 'secondId', canPersist: false, accessTypes: ['readWrite'], accessType: 'readWrite' }, '2');
 		model.updateDataBreakpoint('1', { condition: 'aCondition' });
 		model.updateDataBreakpoint('2', { hitCondition: '10' });
 		const dataBreakpoints = model.getDataBreakpoints();
@@ -374,7 +374,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(result.message, 'Disabled Logpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-log-disabled');
 
-		model.addDataBreakpoint('label', 'id', true, ['read'], 'read');
+		model.addDataBreakpoint({ description: 'label', canPersist: true, accessTypes: ['read'], accessType: 'read', dataId: 'id' });
 		const dataBreakpoints = model.getDataBreakpoints();
 		result = getBreakpointMessageAndIcon(State.Stopped, true, dataBreakpoints[0], ls, model);
 		assert.strictEqual(result.message, 'Data Breakpoint');
