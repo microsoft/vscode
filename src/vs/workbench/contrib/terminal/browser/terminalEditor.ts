@@ -75,7 +75,7 @@ export class TerminalEditor extends EditorPane {
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);
 		}
-		this._editorInput.terminalInstance?.setVisible(this.isVisible() && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, dom.getWindow(this._editorInstanceElement)));
+		this._editorInput.terminalInstance?.setVisible(this.isVisible() && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, this.window));
 		if (this._editorInput.terminalInstance) {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
@@ -144,7 +144,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(dom.getWindow(this._editorInstanceElement), event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
+						openContextMenu(this.window, event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -182,7 +182,7 @@ export class TerminalEditor extends EditorPane {
 			else
 				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 					if (!this._cancelContextMenu) {
-						openContextMenu(dom.getWindow(this._editorInstanceElement), event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
+						openContextMenu(this.window, event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 					}
 					event.preventDefault();
 					event.stopImmediatePropagation();
@@ -202,7 +202,7 @@ export class TerminalEditor extends EditorPane {
 
 	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
-		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, dom.getWindow(this._editorInstanceElement)));
+		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, this.window));
 	}
 
 	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { $, Dimension, addStandardDisposableListener, append, getWindowById } from 'vs/base/browser/dom';
+import { $, Dimension, addStandardDisposableListener, append } from 'vs/base/browser/dom';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { binarySearch2 } from 'vs/base/common/arrays';
@@ -135,8 +135,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private createFontInfo() {
-		const window = getWindowById(this.group.windowId, true).window; //TODO@bpasero might crash
-		return BareFontInfo.createFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(window).value);
+		return BareFontInfo.createFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(this.window).value);
 	}
 
 	get currentInstructionAddresses() {

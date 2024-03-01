@@ -66,6 +66,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { CodeWindow } from 'vs/base/browser/window';
 
 
 export const enum SettingsFocusContext {
@@ -646,7 +647,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
 				this.lastSyncedLabel = lastSyncedLabel;
 				this.updateInputAriaLabel();
@@ -1427,7 +1428,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
-			const element = DOM.getWindow(this.settingsTree.getHTMLElement()).document.querySelector('.context-view');
+			const element = this.window.document.querySelector('.context-view');
 			if (element) {
 				this.scheduleRefresh(element as HTMLElement, key);
 			}
@@ -1850,6 +1851,7 @@ class SyncControls extends Disposable {
 	public readonly onDidChangeLastSyncedLabel = this._onDidChangeLastSyncedLabel.event;
 
 	constructor(
+		window: CodeWindow,
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -1882,7 +1884,7 @@ class SyncControls extends Disposable {
 		}));
 
 		const updateLastSyncedTimer = this._register(new DOM.WindowIntervalTimer());
-		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, DOM.getWindow(container));
+		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, window);
 
 		this.update();
 		this._register(this.userDataSyncService.onDidChangeStatus(() => {

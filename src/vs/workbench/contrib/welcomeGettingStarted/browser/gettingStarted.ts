@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, getWindow, reset } from 'vs/base/browser/dom';
+import { $, Dimension, addDisposableListener, append, clearNode, reset } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -267,7 +267,7 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(getWindow(this.container).document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
+				const badgeelements = assertIsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
 						badgeelement.setAttribute('aria-checked', 'true');
@@ -1118,7 +1118,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private updateCategoryProgress() {
-		getWindow(this.container).document.querySelectorAll('.category-progress').forEach(element => {
+		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }

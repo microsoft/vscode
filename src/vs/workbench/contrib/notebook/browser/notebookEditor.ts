@@ -211,7 +211,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(this.group.windowId, true).window);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, input, undefined, this._pagePosition?.dimension, this.window);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');
