@@ -42,6 +42,7 @@ import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugMo
 import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { isUri, sourcesEqual } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -92,6 +93,7 @@ export class DisassemblyView extends EditorPane {
 	private readonly _referenceToMemoryAddress = new Map<string, bigint>();
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -99,7 +101,7 @@ export class DisassemblyView extends EditorPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDebugService private readonly _debugService: IDebugService,
 	) {
-		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
+		super(DISASSEMBLY_VIEW_ID, group, telemetryService, themeService, storageService);
 
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));

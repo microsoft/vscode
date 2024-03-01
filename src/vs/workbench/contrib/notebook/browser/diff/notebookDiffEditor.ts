@@ -48,6 +48,7 @@ import { NotebookDiffOverviewRuler } from 'vs/workbench/contrib/notebook/browser
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { mainWindow } from 'vs/base/browser/window';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = DOM.$;
 
@@ -142,6 +143,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	constructor(
+		group: IEditorGroup,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -152,7 +154,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
+		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
 		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group.windowId, true).window ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, false);//TODO@bpasero will crash
 		this._register(this._notebookOptions);
 		this._revealFirst = true;

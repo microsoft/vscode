@@ -31,6 +31,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		viewStateStorageKey: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -40,7 +41,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		@IEditorService protected readonly editorService: IEditorService,
 		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, telemetryService, themeService, storageService);
+		super(id, group, telemetryService, themeService, storageService);
 
 		this.viewState = this.getEditorMemento<T>(editorGroupService, textResourceConfigurationService, viewStateStorageKey, 100);
 	}

@@ -393,8 +393,7 @@ export class EditorPanes extends Disposable {
 		}
 
 		// Otherwise instantiate new
-		const editorPane = this._register(descriptor.instantiate(this.instantiationService));
-		editorPane.group = this.groupView;
+		const editorPane = this._register(descriptor.instantiate(this.instantiationService, this.groupView));
 		this.editorPanes.push(editorPane);
 
 		return editorPane;

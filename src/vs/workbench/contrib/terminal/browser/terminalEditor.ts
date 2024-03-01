@@ -29,6 +29,7 @@ import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalC
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class TerminalEditor extends EditorPane {
 
@@ -46,6 +47,7 @@ export class TerminalEditor extends EditorPane {
 	private _cancelContextMenu: boolean = false;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -60,7 +62,7 @@ export class TerminalEditor extends EditorPane {
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService
 	) {
-		super(terminalEditorId, telemetryService, themeService, storageService);
+		super(terminalEditorId, group, telemetryService, themeService, storageService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}

@@ -14,7 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { assertIsDefined, isEmptyObject } from 'vs/base/common/types';
+import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
@@ -70,10 +70,6 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected _options: IEditorOptions | undefined;
 	get options(): IEditorOptions | undefined { return this._options; }
 
-	private _group: IEditorGroup | undefined;
-	get group(): IEditorGroup { return assertIsDefined(this._group); }
-	set group(group: IEditorGroup) { this._group = group; }
-
 	/**
 	 * Should be overridden by editors that have their own ScopedContextKeyService
 	 */
@@ -81,6 +77,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	constructor(
 		id: string,
+		readonly group: IEditorGroup,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
