@@ -1126,6 +1126,8 @@ export interface VariablesResult {
 	name: string;
 	value: string;
 	type?: string;
+	language?: string;
+	expression?: string;
 	hasNamedChildren: boolean;
 	indexedChildrenCount: number;
 	extensionId: string;
