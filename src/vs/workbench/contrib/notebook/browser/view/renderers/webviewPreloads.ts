@@ -455,7 +455,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
-	let scrollTimeout: NodeJS.Timeout | undefined;
+	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
 	let scrolledElement: Element | undefined;
 	function flagRecentlyScrolled(node: Element) {
 		scrolledElement = node;
