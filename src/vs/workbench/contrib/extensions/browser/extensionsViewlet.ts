@@ -590,7 +590,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			toolbarOptions: {
 				primaryGroup: () => true,
 			},
-			actionViewItemProvider: action => createActionViewItem(this.instantiationService, action)
+			actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options)
 		}));
 
 		// Register DragAndDrop support

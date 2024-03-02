@@ -143,7 +143,7 @@ suite('EditorService', () => {
 		assert.strictEqual(willInstantiateEditorPaneListenerCounter, 1);
 
 		// Close input
-		await editor?.group?.closeEditor(input);
+		await editor?.group.closeEditor(input);
 
 		assert.strictEqual(0, editorService.count);
 		assert.strictEqual(0, editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length);
@@ -1399,15 +1399,15 @@ suite('EditorService', () => {
 				const rootPane = await openEditor(untypedEditor1);
 				const sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
 
-				assert.strictEqual(rootPane?.group?.count, 1);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 1);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				accessor.editorGroupService.activateGroup(sidePane.group);
 
 				await openEditor(untypedEditor1);
 
-				assert.strictEqual(rootPane?.group?.count, 1);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 1);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				await resetTestState();
 			}
@@ -1419,18 +1419,18 @@ suite('EditorService', () => {
 
 				const rootPane = await openEditor(untypedEditor1);
 				await openEditor(untypedEditor2);
-				assert.strictEqual(rootPane?.group?.activeEditor?.resource?.toString(), untypedEditor2.resource.toString());
+				assert.strictEqual(rootPane?.group.activeEditor?.resource?.toString(), untypedEditor2.resource.toString());
 				const sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
 
-				assert.strictEqual(rootPane?.group?.count, 2);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 2);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				accessor.editorGroupService.activateGroup(sidePane.group);
 
 				await openEditor(untypedEditor1);
 
-				assert.strictEqual(rootPane?.group?.count, 2);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 2);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				await resetTestState();
 			}
@@ -1458,7 +1458,7 @@ suite('EditorService', () => {
 		assert.strictEqual(pane?.options?.sticky, true);
 		assert.strictEqual(pane?.options?.preserveFocus, true);
 
-		await pane.group?.closeAllEditors();
+		await pane.group.closeAllEditors();
 
 		// Untyped editor (without registered editor)
 		pane = await service.openEditor({ resource: URI.file('resource-openEditors') });
@@ -1499,7 +1499,7 @@ suite('EditorService', () => {
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
-		await editor2?.group?.closeEditor(input);
+		await editor2?.group.closeEditor(input);
 		assert.strictEqual(part.activeGroup.count, 1);
 
 		assert.strictEqual(service.isOpened(input), false);
@@ -1507,7 +1507,7 @@ suite('EditorService', () => {
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), false);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
-		await editor1?.group?.closeEditor(sideBySideInput);
+		await editor1?.group.closeEditor(sideBySideInput);
 
 		assert.strictEqual(service.isOpened(input), false);
 		assert.strictEqual(service.isOpened(otherInput), false);
@@ -2343,7 +2343,7 @@ suite('EditorService', () => {
 		assert.strictEqual(accessor.fileService.watches.length, 1);
 		assert.strictEqual(accessor.fileService.watches[0].toString(), input2.resource.toString());
 
-		await editor?.group?.closeAllEditors();
+		await editor?.group.closeAllEditors();
 		assert.strictEqual(accessor.fileService.watches.length, 0);
 	});
 
@@ -2608,14 +2608,14 @@ suite('EditorService', () => {
 			const found1 = service.findEditors(input.resource);
 			assert.strictEqual(found1.length, 2);
 			assert.strictEqual(found1[0].editor, input);
-			assert.strictEqual(found1[0].groupId, sideEditor?.group?.id);
+			assert.strictEqual(found1[0].groupId, sideEditor?.group.id);
 			assert.strictEqual(found1[1].editor, input);
 			assert.strictEqual(found1[1].groupId, rootGroup.id);
 
 			const found2 = service.findEditors(input);
 			assert.strictEqual(found2.length, 2);
 			assert.strictEqual(found2[0].editor, input);
-			assert.strictEqual(found2[0].groupId, sideEditor?.group?.id);
+			assert.strictEqual(found2[0].groupId, sideEditor?.group.id);
 			assert.strictEqual(found2[1].editor, input);
 			assert.strictEqual(found2[1].groupId, rootGroup.id);
 		}
@@ -2642,7 +2642,7 @@ suite('EditorService', () => {
 
 		// Check we don't find editors after closing them
 		await rootGroup.closeAllEditors();
-		await sideEditor?.group?.closeAllEditors();
+		await sideEditor?.group.closeAllEditors();
 		{
 			const found1 = service.findEditors(input.resource);
 			assert.strictEqual(found1.length, 0);

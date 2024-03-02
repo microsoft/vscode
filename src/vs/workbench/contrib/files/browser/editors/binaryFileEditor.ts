@@ -15,7 +15,7 @@ import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/edit
 import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -25,14 +25,15 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IStorageService storageService: IStorageService
 	) {
 		super(
 			BinaryFileEditor.ID,
+			group,
 			{
 				openInternal: (input, options) => this.openInternal(input, options)
 			},
@@ -43,7 +44,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	}
 
 	private async openInternal(input: EditorInput, options: IEditorOptions | undefined): Promise<void> {
-		if (input instanceof FileEditorInput && this.group?.activeEditor) {
+		if (input instanceof FileEditorInput && this.group.activeEditor) {
 
 			// We operate on the active editor here to support re-opening
 			// diff editors where `input` may just be one side of the
@@ -84,7 +85,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			}
 
 			// Replace the active editor with the picked one
-			await (this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
+			await this.group.replaceEditors([{
 				editor: activeEditor,
 				replacement: resolvedEditor?.editor ?? input,
 				options: {

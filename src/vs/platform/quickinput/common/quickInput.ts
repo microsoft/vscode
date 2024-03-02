@@ -210,6 +210,11 @@ export interface IQuickInput extends IDisposable {
 	readonly onDidHide: Event<IQuickInputHideEvent>;
 
 	/**
+	 * An event that is fired when the quick input will be hidden.
+	 */
+	readonly onWillHide: Event<IQuickInputHideEvent>;
+
+	/**
 	 * An event that is fired when the quick input is disposed.
 	 */
 	readonly onDispose: Event<void>;
@@ -285,6 +290,12 @@ export interface IQuickInput extends IDisposable {
 	 * @param reason The reason why the quick input was hidden.
 	 */
 	didHide(reason?: QuickInputHideReason): void;
+
+	/**
+	 * Notifies that the quick input will be hidden.
+	 * @param reason The reason why the quick input will be hidden.
+	 */
+	willHide(reason?: QuickInputHideReason): void;
 }
 
 export interface IQuickWidget extends IQuickInput {

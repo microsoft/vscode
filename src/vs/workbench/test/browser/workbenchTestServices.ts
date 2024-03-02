@@ -98,7 +98,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -161,16 +161,14 @@ import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserData
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { EnablementState, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
 import { EditorPaneService } from 'vs/workbench/services/editor/browser/editorPaneService';
 
@@ -282,7 +280,10 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
-	instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
+	instantiationService.stub(IAccessibilitySignalService, {
+		playSignal: async () => { },
+		isSoundEnabled(signal: unknown) { return false; },
+	} as any);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());
@@ -331,8 +332,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, disposables.add(new TestPaneCompositeService()));
 	instantiationService.stub(IListService, new TestListService());
-	const hoverService = instantiationService.stub(IHoverService, instantiationService.createInstance(TestHoverService));
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, hoverService)));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(false)));
@@ -542,27 +542,6 @@ export class TestMenuService implements IMenuService {
 	}
 }
 
-export class TestHistoryService implements IHistoryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(private root?: URI) { }
-
-	async reopenLastClosedEditor(): Promise<void> { }
-	async goForward(): Promise<void> { }
-	async goBack(): Promise<void> { }
-	async goPrevious(): Promise<void> { }
-	async goLast(): Promise<void> { }
-	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
-	clear(): void { }
-	clearRecentlyOpened(): void { }
-	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
-	async openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void> { }
-	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }
-	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
-	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
-}
-
 export class TestFileDialogService implements IFileDialogService {
 
 	declare readonly _serviceBrand: undefined;
@@ -754,25 +733,6 @@ export class TestSideBarPart implements IPaneCompositePart {
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
-class TestHoverService implements IHoverService {
-	private currentHover: IHoverWidget | undefined;
-	_serviceBrand: undefined;
-	showHover(options: IHoverOptions, focus?: boolean | undefined): IHoverWidget | undefined {
-		this.currentHover = new class implements IHoverWidget {
-			private _isDisposed = false;
-			get isDisposed(): boolean { return this._isDisposed; }
-			dispose(): void {
-				this._isDisposed = true;
-			}
-		};
-		return this.currentHover;
-	}
-	showAndFocusLastHover(): void { }
-	hideHover(): void {
-		this.currentHover?.dispose();
-	}
-}
-
 export class TestPanelPart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
 
@@ -944,6 +904,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	openEditors(_editors: EditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
 	isPinned(_editor: EditorInput): boolean { return false; }
 	isSticky(_editor: EditorInput): boolean { return false; }
+	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
@@ -957,6 +918,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
 	unstickEditor(editor?: EditorInput | undefined): void { }
+	setTransient(editor: EditorInput | undefined, transient: boolean): void { }
 	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
@@ -1601,8 +1563,8 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 		private _scopedContextKeyService: IContextKeyService;
 
-		constructor() {
-			super(id, NullTelemetryService, new TestThemeService(), disposables.add(new TestStorageService()));
+		constructor(group: IEditorGroup) {
+			super(id, group, NullTelemetryService, new TestThemeService(), disposables.add(new TestStorageService()));
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 
@@ -2140,7 +2102,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
 	onDidChangeProfile = Event.None;
-	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
 	installFromLocation(location: URI): Promise<ILocalExtension> {
@@ -2159,7 +2121,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	getManifest(vsix: URI): Promise<Readonly<IRelaxedExtensionManifest>> {
 		throw new Error('Method not implemented.');
 	}
-	install(vsix: URI, options?: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	install(vsix: URI, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
 	async canInstall(extension: IGalleryExtension): Promise<boolean> { return false; }

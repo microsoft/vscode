@@ -33,6 +33,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 class LanguageStatusViewModel {
 
@@ -327,7 +328,7 @@ class LanguageStatus {
 		}
 
 		// -- pin
-		const actionBar = new ActionBar(right, {});
+		const actionBar = new ActionBar(right, { hoverDelegate: nativeHoverDelegate });
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
