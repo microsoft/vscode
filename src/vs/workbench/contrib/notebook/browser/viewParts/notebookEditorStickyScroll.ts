@@ -34,17 +34,21 @@ export class ToggleNotebookStickyScroll extends Action2 {
 			id: 'notebook.action.toggleNotebookStickyScroll',
 			title: {
 				...localize2('toggleStickyScroll', "Toggle Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
 			},
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.notebook.stickyScroll.enabled', true),
 				title: localize('notebookStickyScroll', "Notebook Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'miNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Notebook Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mitoggleNotebookStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Notebook Sticky Scroll"),
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.NotebookStickyScrollContext }
+				{
+					id: MenuId.NotebookStickyScrollContext,
+					group: 'notebookView',
+					order: 2
+				}
 			]
 		});
 	}
@@ -53,6 +57,51 @@ export class ToggleNotebookStickyScroll extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const newValue = !configurationService.getValue('notebook.stickyScroll.enabled');
 		return configurationService.updateValue('notebook.stickyScroll.enabled', newValue);
+	}
+}
+
+type RunInSectionContext = {
+	target: HTMLElement;
+	currentStickyLines: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>;
+	notebookEditor: INotebookEditor;
+};
+
+export class RunInSectionStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.action.runInSection',
+			title: {
+				...localize2('runInSectionStickyScroll', "Run Section"),
+				mnemonicTitle: localize({ key: 'mirunInSectionStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Run Section"),
+			},
+			menu: [
+				{
+					id: MenuId.NotebookStickyScrollContext,
+					group: 'notebookExecution',
+					order: 1
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context: RunInSectionContext, ...args: any[]): Promise<void> {
+		const selectedElement = context.target.parentElement;
+		const stickyLines: Map<OutlineEntry, {
+			line: NotebookStickyLine;
+			rendered: boolean;
+		}> = context.currentStickyLines;
+
+		const selectedOutlineEntry = Array.from(stickyLines.values()).find(entry => entry.line.element.contains(selectedElement))?.line.entry;
+		if (!selectedOutlineEntry) {
+			return;
+		}
+
+		const flatList: OutlineEntry[] = [];
+		selectedOutlineEntry.asFlatList(flatList);
+
+		const cellViewModels = flatList.map(entry => entry.cell);
+		const notebookEditor: INotebookEditor = context.notebookEditor;
+		notebookEditor.executeNotebookCells(cellViewModels);
 	}
 }
 
@@ -77,14 +126,6 @@ export class NotebookStickyLine extends Disposable {
 				this.toggleFoldRange(currentFoldingState);
 			}
 		}));
-
-		// folding icon hovers
-		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OVER, () => {
-		// 	this.foldingIcon.setVisible(true);
-		// }));
-		// this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_OUT, () => {
-		// 	this.foldingIcon.setVisible(false);
-		// }));
 
 	}
 
@@ -145,7 +186,6 @@ export class NotebookStickyScroll extends Disposable {
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 
-
 	getDomNode(): HTMLElement {
 		return this.domNode;
 	}
@@ -205,9 +245,17 @@ export class NotebookStickyScroll extends Disposable {
 
 	private onContextMenu(e: MouseEvent) {
 		const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
+
+		const context: RunInSectionContext = {
+			target: event.target,
+			currentStickyLines: this.currentStickyLines,
+			notebookEditor: this.notebookEditor,
+		};
+
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
+			menuActionOptions: { shouldForwardArgs: true, arg: context },
 		});
 	}
 
@@ -384,6 +432,7 @@ export class NotebookStickyScroll extends Disposable {
 		stickyHeader.innerText = entry.label;
 
 		stickyElement.append(stickyFoldingIcon.domNode, stickyHeader);
+
 		return new NotebookStickyLine(stickyElement, stickyFoldingIcon, stickyHeader, entry, notebookEditor);
 	}
 
@@ -490,3 +539,4 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 }
 
 registerAction2(ToggleNotebookStickyScroll);
+registerAction2(RunInSectionStickyScroll);

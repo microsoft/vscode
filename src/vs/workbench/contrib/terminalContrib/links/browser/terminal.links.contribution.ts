@@ -83,7 +83,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 			});
 		}
 		const links = await this._getLinks();
-		return await this._terminalLinkQuickpick.show(links);
+		return await this._terminalLinkQuickpick.show(this._instance, links);
 	}
 
 	private async _getLinks(): Promise<{ viewport: IDetectedLinks; all: Promise<IDetectedLinks> }> {

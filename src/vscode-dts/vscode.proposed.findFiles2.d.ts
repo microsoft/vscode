@@ -10,8 +10,7 @@ declare module 'vscode' {
 
 		/**
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
-		 * apply.
+		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 */
 		exclude?: GlobPattern;
 
@@ -32,33 +31,37 @@ declare module 'vscode' {
 
 		/**
 		 * Whether external files that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 * Defaults to the value for `search.useIgnoreFiles` in settings.
+		 * For more info, see the setting listed above.
 		 */
 		useIgnoreFiles?: boolean;
 
 		/**
 		 * Whether global files that exclude files, like .gitignore, should be respected.
 		 * Must set `useIgnoreFiles` to `true` to use this.
-		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 * Defaults to the value for `search.useGlobalIgnoreFiles` in settings.
+		 * For more info, see the setting listed above.
 		 */
 		useGlobalIgnoreFiles?: boolean;
 
 		/**
 		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
 		 * Must set `useIgnoreFiles` to `true` to use this.
-		 * See the vscode setting `"search.useParentIgnoreFiles"`.
+		 * Defaults to the value for `search.useParentIgnoreFiles` in settings.
+		 * For more info, see the setting listed above.
 		 */
 		useParentIgnoreFiles?: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
-		 * See the vscode setting `"search.followSymlinks"`.
+		 * Defaults to the value for `search.followSymlinks` in settings.
+		 * For more info, see the setting listed above.
 		 */
 		followSymlinks?: boolean;
 
 		/**
 		 * If set to true, the `filePattern` arg will be fuzzy-searched instead of glob-searched.
-		 * If `filePattern` is a `GlobPattern`, then the fuzzy search will act on the `pattern` of the `RelativePattern`
+		 * If `filePattern` is a {@link RelativePattern relative pattern}, then the fuzzy search will act on the `pattern` of the {@link RelativePattern RelativePattern}
 		 */
 		fuzzy?: boolean;
 	}
@@ -71,13 +74,12 @@ declare module 'vscode' {
 		 * Find files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 *
 		 * @example
-		 * findFiles('**​/*.js', {exclude: '**​/out/**', useIgnoreFiles: true}, 10)
+		 * findFiles('**​/*.js', {exclude: '**​/out/**', useIgnoreFiles: true, maxResults: 10})
 		 *
 		 * @param filePattern A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}
 		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 * @param options A set of {@link FindFiles2Options FindFiles2Options} that defines where and how to search (e.g. exclude settings).
-		 * If enabled, any ignore files will take prescendence over any files found in the `filePattern` parameter.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * {@link workspace.workspaceFolders workspace folders} are opened.

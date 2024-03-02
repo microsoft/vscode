@@ -151,13 +151,9 @@ class QuickVoiceWidget implements IContentWidget {
 			return null;
 		}
 		const selection = this._editor.getSelection();
-		// const position = this._editor.getPosition();
 		return {
-			position: selection.getPosition(),
-			preference: [
-				selection.getPosition().equals(selection.getStartPosition()) ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW,
-				ContentWidgetPositionPreference.EXACT
-			]
+			position: selection.getStartPosition(),
+			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.EXACT]
 		};
 	}
 
@@ -240,7 +236,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 
 		let message: string | undefined;
 		let preview: string | undefined;
-		const session = this._voiceChatService.createVoiceChatSession(cts.token);
+		const session = this._voiceChatService.createVoiceChatSession(cts.token, { usesAgents: false });
 		const listener = session.onDidChange(e => {
 
 			if (cts.token.isCancellationRequested) {

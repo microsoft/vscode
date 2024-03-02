@@ -570,7 +570,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 			});
 
-
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
 			this._win = new BrowserWindow(options);

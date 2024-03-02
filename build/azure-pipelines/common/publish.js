@@ -595,7 +595,7 @@ async function main() {
             operations.push({ name: artifact.name, operation });
             resultPromise = Promise.allSettled(operations.map(o => o.operation));
         }
-        await new Promise(c => setTimeout(c, 10000));
+        await new Promise(c => setTimeout(c, 10_000));
     }
     console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
     const artifactsInProgress = operations.filter(o => processing.has(o.name));
