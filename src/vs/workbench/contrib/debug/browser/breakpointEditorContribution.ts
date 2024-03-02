@@ -327,7 +327,11 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						}
 					}
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+					if (e.event.middleButton) {
+						this.showBreakpointWidget(lineNumber, undefined, BreakpointWidgetContext.LOG_MESSAGE);
+					} else {
+						this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+					}
 				}
 			}
 		}));
