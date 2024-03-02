@@ -337,7 +337,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		}));
 
 		const buttonTrigger = async (button: IQuickInputButton, item: T | IPickerQuickAccessSeparator) => {
-			if (!item.trigger) {
+			if (typeof item.trigger !== 'function') {
 				return;
 			}
 
