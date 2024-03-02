@@ -43,6 +43,9 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Selection } from 'vs/editor/common/core/selection';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -1010,10 +1013,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._matchesCount.className = 'matchesCount';
 		this._updateMatchesCount();
 
+		// Create a scoped hover delegate for all find related buttons
+		const hoverDelegate = this._register(createInstantHoverDelegate());
+
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
 			icon: findPreviousMatchIcon,
+			hoverDelegate,
 			onTrigger: () => {
 				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
@@ -1023,6 +1030,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
 			icon: findNextMatchIcon,
+			hoverDelegate,
 			onTrigger: () => {
 				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
@@ -1043,6 +1051,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false,
+			hoverDelegate: hoverDelegate,
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
@@ -1077,6 +1086,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
 			icon: widgetClose,
+			hoverDelegate,
 			onTrigger: () => {
 				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
@@ -1138,10 +1148,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 		}));
 
+		// Create scoped hover delegate for replace actions
+		const replaceHoverDelegate = this._register(createInstantHoverDelegate());
+
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
 			icon: findReplaceIcon,
+			hoverDelegate: replaceHoverDelegate,
 			onTrigger: () => {
 				this._controller.replace();
 			},
@@ -1157,6 +1171,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceAllAction),
 			icon: findReplaceAllIcon,
+			hoverDelegate: replaceHoverDelegate,
 			onTrigger: () => {
 				this._controller.replaceAll();
 			}
@@ -1299,6 +1314,7 @@ export interface ISimpleButtonOpts {
 	readonly label: string;
 	readonly className?: string;
 	readonly icon?: ThemeIcon;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly onTrigger: () => void;
 	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 }
@@ -1321,11 +1337,11 @@ export class SimpleButton extends Widget {
 		}
 
 		this._domNode = document.createElement('div');
-		this._domNode.title = this._opts.label;
 		this._domNode.tabIndex = 0;
 		this._domNode.className = className;
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-label', this._opts.label);
+		this._register(setupCustomHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
 
 		this.onclick(this._domNode, (e) => {
 			this._opts.onTrigger();

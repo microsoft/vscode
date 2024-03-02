@@ -32,6 +32,10 @@ import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/ser
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 
 export interface ICompositeTitleLabel {
 
@@ -59,6 +63,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected toolBar: WorkbenchToolBar | undefined;
 	protected titleLabelElement: HTMLElement | undefined;
+	protected readonly toolbarHoverDelegate: IHoverDelegate;
 
 	private readonly mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private readonly mapActionsBindingToComposite = new Map<string, () => void>();
@@ -92,6 +97,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super(id, options, themeService, storageService, layoutService);
 
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
+		this.toolbarHoverDelegate = this._register(createInstantHoverDelegate());
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
@@ -396,12 +402,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Toolbar
 		this.toolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, titleActionsContainer, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions..."),
-			telemetrySource: this.nameForTelemetry
+			telemetrySource: this.nameForTelemetry,
+			hoverDelegate: this.toolbarHoverDelegate
 		}));
 
 		this.collectCompositeActions()();
@@ -413,6 +420,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const titleContainer = append(parent, $('.title-label'));
 		const titleLabel = append(titleContainer, $('h2'));
 		this.titleLabelElement = titleLabel;
+		const hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), titleLabel, ''));
 
 		const $this = this;
 		return {
@@ -420,7 +428,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				// The title label is shared for all composites in the base CompositePart
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
 					titleLabel.innerText = title;
-					titleLabel.title = keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+					hover.update(keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
 				}
 			},
 
@@ -438,14 +446,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		titleLabel.updateStyles();
 	}
 
-	protected actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+	protected actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 
 		// Check Active Composite
 		if (this.activeComposite) {
-			return this.activeComposite.getActionViewItem(action);
+			return this.activeComposite.getActionViewItem(action, options);
 		}
 
-		return createActionViewItem(this.instantiationService, action);
+		return createActionViewItem(this.instantiationService, action, options);
 	}
 
 	protected actionsContextProvider(): unknown {

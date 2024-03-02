@@ -75,7 +75,7 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
-		content.push(AccessibilityHelpNLS.listAudioCues);
+		content.push(AccessibilityHelpNLS.listSignalSounds);
 		content.push(AccessibilityHelpNLS.listAlerts);
 
 		const chatCommandInfo = getChatCommandInfo(this._keybindingService, this._contextKeyService);

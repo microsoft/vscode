@@ -116,6 +116,8 @@ import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityR
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
+import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
+import { getDesktopEnvironment } from 'vs/base/common/desktopEnvironmentInfo';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -172,6 +174,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			// Report Profiles Info
 			this.reportProfilesInfo(telemetryService, userDataProfilesService);
 			this._register(userDataProfilesService.onDidChangeProfiles(() => this.reportProfilesInfo(telemetryService, userDataProfilesService)));
+
+			// Report Client OS/DE Info
+			this.reportClientOSInfo(telemetryService, logService);
 		});
 
 		// Instantiate Contributions
@@ -456,6 +461,35 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		telemetryService.publicLog2<ProfilesInfoEvent, ProfilesInfoClassification>('profilesInfo', {
 			count: userDataProfilesService.profiles.length
 		});
+	}
+
+	private async reportClientOSInfo(telemetryService: ITelemetryService, logService: ILogService): Promise<void> {
+		if (isLinux) {
+			const releaseInfo = await getOSReleaseInfo(logService.error.bind(logService));
+			const desktopEnvironment = getDesktopEnvironment();
+			if (releaseInfo) {
+				type ClientPlatformInfoClassification = {
+					platformId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system without any version information.' };
+					platformVersionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system version excluding any name information or release code.' };
+					platformIdLike: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system the current OS derivate is closely related to.' };
+					desktopEnvironment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the desktop environment the user is using.' };
+					owner: 'benibenj';
+					comment: 'Provides insight into the distro and desktop environment information on Linux.';
+				};
+				type ClientPlatformInfoEvent = {
+					platformId: string;
+					platformVersionId: string | undefined;
+					platformIdLike: string | undefined;
+					desktopEnvironment: string | undefined;
+				};
+				telemetryService.publicLog2<ClientPlatformInfoEvent, ClientPlatformInfoClassification>('clientPlatformInfo', {
+					platformId: releaseInfo.id,
+					platformVersionId: releaseInfo.version_id,
+					platformIdLike: releaseInfo.id_like,
+					desktopEnvironment: desktopEnvironment
+				});
+			}
+		}
 	}
 
 	handledClientConnection(e: MessageEvent): boolean {

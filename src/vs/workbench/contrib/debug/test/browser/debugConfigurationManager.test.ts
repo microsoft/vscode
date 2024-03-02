@@ -20,8 +20,8 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { DebugConfigurationProviderTriggerKind, IAdapterManager, IConfig, IDebugAdapterExecutable, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { TestHistoryService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestHistoryService, TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('debugConfigurationManager', () => {
 	const configurationProviderType = 'custom-type';

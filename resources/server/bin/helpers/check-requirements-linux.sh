@@ -57,11 +57,7 @@ if [ "$OS_ID" != "alpine" ]; then
         else
             libstdcpp_path=$(echo "$libstdcpp_paths" | awk '{print $NF}')
         fi
-    fi
-fi
-
-if [ -z "$libstdcpp_path" ]; then
-    if [ -f /usr/lib/libstdc++.so.6 ]; then
+    elif [ -f /usr/lib/libstdc++.so.6 ]; then
 	    # Typical path
 	    libstdcpp_path='/usr/lib/libstdc++.so.6'
     elif [ -f /usr/lib64/libstdc++.so.6 ]; then
@@ -70,22 +66,26 @@ if [ -z "$libstdcpp_path" ]; then
     else
 	    echo "Warning: Can't find libstdc++.so or ldconfig, can't verify libstdc++ version"
     fi
-fi
 
-while [ -n "$libstdcpp_path" ]; do
-	# Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
-	# which is then compared based on the fact that release versioning and symbol versioning
-	# are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
-	# (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
-    libstdcpp_path_line=$(echo "$libstdcpp_path" | head -n1)
-    libstdcpp_real_path=$(readlink -f "$libstdcpp_path_line")
-    libstdcpp_version=$(echo "$libstdcpp_real_path" | awk -F'\\.so\\.' '{print $NF}')
-    if [ "$(printf '%s\n' "6.0.25" "$libstdcpp_version" | sort -V | head -n1)" = "6.0.25" ]; then
-        found_required_glibcxx=1
-        break
-    fi
-    libstdcpp_path=$(echo "$libstdcpp_path" | tail -n +2)    # remove first line
-done
+    while [ -n "$libstdcpp_path" ]; do
+	    # Extracts the version number from the path, e.g. libstdc++.so.6.0.22 -> 6.0.22
+	    # which is then compared based on the fact that release versioning and symbol versioning
+	    # are aligned for libstdc++. Refs https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
+	    # (i-e) GLIBCXX_3.4.<release> is provided by libstdc++.so.6.y.<release>
+        libstdcpp_path_line=$(echo "$libstdcpp_path" | head -n1)
+        libstdcpp_real_path=$(readlink -f "$libstdcpp_path_line")
+        libstdcpp_version=$(grep -ao 'GLIBCXX_[0-9]*\.[0-9]*\.[0-9]*' "$libstdcpp_real_path" | sort -V | tail -1)
+        libstdcpp_version_number=$(echo "$libstdcpp_version" | sed 's/GLIBCXX_//')
+        if [ "$(printf '%s\n' "3.4.24" "$libstdcpp_version_number" | sort -V | head -n1)" = "3.4.24" ]; then
+            found_required_glibcxx=1
+            break
+        fi
+        libstdcpp_path=$(echo "$libstdcpp_path" | tail -n +2)    # remove first line
+    done
+else
+    echo "Warning: alpine distro detected, skipping GLIBCXX check"
+    found_required_glibcxx=1
+fi
 if [ "$found_required_glibcxx" = "0" ]; then
     echo "Warning: Missing GLIBCXX >= 3.4.25! from $libstdcpp_real_path"
 fi

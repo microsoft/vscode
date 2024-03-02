@@ -120,7 +120,8 @@ export class NotebookViewZones extends Disposable {
 	}
 
 	private _addZone(zone: INotebookViewZone): string {
-		const whitespaceId = this.listView.insertWhitespace(zone.afterModelPosition, zone.heightInPx);
+		const viewPosition = this.coordinator.convertModelIndexToViewIndex(zone.afterModelPosition);
+		const whitespaceId = this.listView.insertWhitespace(viewPosition, zone.heightInPx);
 		const isInHiddenArea = this._isInHiddenRanges(zone);
 		const myZone: IZoneWidget = {
 			whitespaceId: whitespaceId,
@@ -148,6 +149,8 @@ export class NotebookViewZones extends Disposable {
 		if (!zoneWidget) {
 			return;
 		}
+
+		this._updateWhitespace(this._zones[id]);
 
 		const isInHiddenArea = this._isInHiddenRanges(zoneWidget.zone);
 

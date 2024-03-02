@@ -23,7 +23,7 @@ import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -80,7 +80,9 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -156,6 +158,7 @@ export class SearchView extends ViewPane {
 	private treeAccessibilityProvider: SearchAccessibilityProvider;
 
 	private treeViewKey: IContextKey<boolean>;
+	private aiResultsVisibleKey: IContextKey<boolean>;
 
 	private _visibleMatches: number = 0;
 
@@ -192,7 +195,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -216,6 +219,7 @@ export class SearchView extends ViewPane {
 		this.hasFilePatternKey = Constants.SearchContext.ViewHasFilePatternKey.bindTo(this.contextKeyService);
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
+		this.aiResultsVisibleKey = Constants.SearchContext.AIResultsVisibleKey.bindTo(this.contextKeyService);
 
 		// scoped
 		this.contextKeyService = this._register(this.contextKeyService.createScoped(this.container));
@@ -292,12 +296,33 @@ export class SearchView extends ViewPane {
 		this.treeViewKey.set(visible);
 	}
 
+	get aiResultsVisible(): boolean {
+		return this.aiResultsVisibleKey.get() ?? false;
+	}
+
+	private set aiResultsVisible(visible: boolean) {
+		this.aiResultsVisibleKey.set(visible);
+	}
+
 	setTreeView(visible: boolean): void {
 		if (visible === this.isTreeLayoutViewVisible) {
 			return;
 		}
 		this.isTreeLayoutViewVisible = visible;
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this.refreshTree();
+	}
+
+	async setAIResultsVisible(visible: boolean): Promise<void> {
+		if (visible === this.aiResultsVisible) {
+			return;
+		}
+		this.aiResultsVisible = visible;
+		if (visible) {
+			this.model.addAIResults();
+		} else {
+			this.model.disableAIResults();
+		}
 		this.refreshTree();
 	}
 
@@ -405,7 +430,8 @@ export class SearchView extends ViewPane {
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
+			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
+		this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -690,7 +716,7 @@ export class SearchView extends ViewPane {
 
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const folderMatches = this.searchResult.folderMatches()
-			.filter(fm => !fm.isEmpty())
+			.filter(fm => !fm.isEmpty() && (this.aiResultsVisible || fm.hasDownstreamNonAIResults()))
 			.sort(searchMatchComparer);
 
 		if (folderMatches.length === 1) {
@@ -709,7 +735,11 @@ export class SearchView extends ViewPane {
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
-		return Iterable.map(matches, match => {
+		return Iterable.filter(Iterable.map(matches, match => {
+
+			if (!this.aiResultsVisible && !match.hasDownstreamNonAIResults()) {
+				return undefined;
+			}
 			let children;
 			if (match instanceof FileMatch) {
 				children = this.createFileIterator(match);
@@ -720,11 +750,15 @@ export class SearchView extends ViewPane {
 			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
 			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
-		});
+		}), (item): item is ICompressedTreeElement<RenderableMatch> => !!item);
 	}
 
 	private createFileIterator(fileMatch: FileMatch): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const matches = fileMatch.matches().sort(searchMatchComparer);
+		let matches = fileMatch.matches().sort(searchMatchComparer);
+
+		if (!this.aiResultsVisible) {
+			matches = matches.filter(e => !e.aiContributed);
+		}
 		return Iterable.map(matches, r => (<ICompressedTreeElement<RenderableMatch>>{ element: r, incompressible: true }));
 	}
 
@@ -901,6 +935,7 @@ export class SearchView extends ViewPane {
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
 		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
+		this._register(this.tree.onDidChangeModel(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
 			if (options.element instanceof Match) {
@@ -1279,7 +1314,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		this.audioCueService.playAudioCue(AudioCue.clear);
+		this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		this.reLayout();
 	}
 
@@ -2132,7 +2167,8 @@ class SearchLinkButton extends Disposable {
 
 	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
 		super();
-		this.element = $('a.pointer', { tabindex: 0, title: tooltip }, label);
+		this.element = $('a.pointer', { tabindex: 0 }, label);
+		this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 

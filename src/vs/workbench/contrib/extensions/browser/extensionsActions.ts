@@ -1021,8 +1021,8 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 	}
 
 	private _actionViewItem: DropDownMenuActionViewItem | null = null;
-	createActionViewItem(): DropDownMenuActionViewItem {
-		this._actionViewItem = this.instantiationService.createInstance(DropDownMenuActionViewItem, this);
+	createActionViewItem(options: IActionViewItemOptions): DropDownMenuActionViewItem {
+		this._actionViewItem = this.instantiationService.createInstance(DropDownMenuActionViewItem, this, options);
 		return this._actionViewItem;
 	}
 
@@ -1034,10 +1034,12 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 
 export class DropDownMenuActionViewItem extends ActionViewItem {
 
-	constructor(action: ExtensionDropDownAction,
+	constructor(
+		action: ExtensionDropDownAction,
+		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
-		super(null, action, { icon: true, label: true });
+		super(null, action, { ...options, icon: true, label: true });
 	}
 
 	public showMenu(menuActionGroups: IAction[][], disposeActionsOnHide: boolean): void {
@@ -1384,7 +1386,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 					const [extension] = pick.id !== this.extension?.version ? await this.extensionsWorkbenchService.getExtensions([{ id: this.extension!.identifier.id, preRelease: pick.isPreReleaseVersion }], CancellationToken.None) : [this.extension];
 					await this.extensionsWorkbenchService.install(extension ?? this.extension!, { installPreReleaseVersion: pick.isPreReleaseVersion });
 				} else {
-					await this.extensionsWorkbenchService.installVersion(this.extension!, pick.id, { installPreReleaseVersion: pick.isPreReleaseVersion });
+					await this.extensionsWorkbenchService.install(this.extension!, { installPreReleaseVersion: pick.isPreReleaseVersion, version: pick.id });
 				}
 			} catch (error) {
 				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension!, pick.latest ? this.extension!.latestVersion : pick.id, InstallOperation.Install, error).run();

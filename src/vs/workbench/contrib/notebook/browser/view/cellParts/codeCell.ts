@@ -42,6 +42,7 @@ export class CodeCell extends Disposable {
 	private readonly cellParts: CellPartsCollection;
 
 	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
+	private _cellEditorOptions: CellEditorOptions;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -52,13 +53,13 @@ export class CodeCell extends Disposable {
 		@IOpenerService openerService: IOpenerService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
-		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
+		this._cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: outputDisplayLimit });
-		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer], DOM.getWindow(notebookEditor.getDomNode())));
+		this.cellParts = this._register(templateData.cellParts.concatContentPart([this._cellEditorOptions, this._outputContainerRenderer], DOM.getWindow(notebookEditor.getDomNode())));
 
 		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
@@ -135,9 +136,28 @@ export class CodeCell extends Disposable {
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 
-		cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
-		this._register(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri))));
-		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+		this._cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
+		templateData.editor.updateOptions(this._cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+	}
+
+	private updateCodeCellOptions(templateData: CodeCellRenderTemplate) {
+		templateData.editor.updateOptions(this._cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+		const cts = new CancellationTokenSource();
+		this._register({ dispose() { cts.dispose(true); } });
+		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+			if (this._isDisposed) {
+				return;
+			}
+
+			if (model) {
+				model.updateOptions({
+					indentSize: this._cellEditorOptions.indentSize,
+					tabSize: this._cellEditorOptions.tabSize,
+					insertSpaces: this._cellEditorOptions.insertSpaces,
+				});
+			}
+		});
 	}
 
 	private _pendingLayout: IDisposable | undefined;
@@ -186,6 +206,11 @@ export class CodeCell extends Disposable {
 			if (model && this.templateData.editor) {
 				this._reigsterModelListeners(model);
 				this.templateData.editor.setModel(model);
+				model.updateOptions({
+					indentSize: this._cellEditorOptions.indentSize,
+					tabSize: this._cellEditorOptions.tabSize,
+					insertSpaces: this._cellEditorOptions.insertSpaces,
+				});
 				this.viewCell.attachTextEditor(this.templateData.editor, this.viewCell.layoutInfo.estimatedHasHorizontalScrolling);
 				const focusEditorIfNeeded = () => {
 					if (
@@ -205,6 +230,8 @@ export class CodeCell extends Disposable {
 
 				focusEditorIfNeeded();
 			}
+
+			this._register(this._cellEditorOptions.onDidChange(() => this.updateCodeCellOptions(this.templateData)));
 		});
 	}
 

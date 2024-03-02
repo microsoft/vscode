@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, getWindow, reset } from 'vs/base/browser/dom';
+import { $, Dimension, addDisposableListener, append, clearNode, reset } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -65,7 +65,7 @@ import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
-import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -162,6 +162,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesSlideDisposables: DisposableStore;
 
 	constructor(
+		group: IEditorGroup,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -186,7 +187,7 @@ export class GettingStartedPage extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService) {
 
-		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
+		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
 
 		this.container = $('.gettingStartedContainer',
 			{
@@ -266,14 +267,16 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(getWindow(this.container).document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
+				const badgeelements = assertIsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
+						badgeelement.setAttribute('aria-checked', 'true');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
 						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 					}
 					else {
+						badgeelement.setAttribute('aria-checked', 'false');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
@@ -643,7 +646,12 @@ export class GettingStartedPage extends EditorPane {
 
 			this.stepDisposables.add(this.webview.onDidClickLink(link => {
 				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
-					this.openerService.open(link, { allowCommands: true });
+					const toSide = link.startsWith('command:toSide:');
+					if (toSide) {
+						link = link.replace('command:toSide:', 'command:');
+						this.focusSideEditorGroup();
+					}
+					this.openerService.open(link, { allowCommands: true, openToSide: toSide });
 				}
 			}));
 
@@ -822,7 +830,7 @@ export class GettingStartedPage extends EditorPane {
 		};
 
 		const layoutRecentList = () => {
-			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noExtensions')) {
+			if (this.container.classList.contains('noWalkthroughs')) {
 				recentList.setLimit(10);
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
@@ -1110,7 +1118,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private updateCategoryProgress() {
-		getWindow(this.container).document.querySelectorAll('.category-progress').forEach(element => {
+		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
@@ -1162,6 +1170,25 @@ export class GettingStartedPage extends EditorPane {
 		return widget;
 	}
 
+	private focusSideEditorGroup() {
+		const fullSize = this.groupsService.getPart(this.group).contentDimension;
+		if (!fullSize || fullSize.width <= 700) { return; }
+		if (this.groupsService.count === 1) {
+			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
+			this.groupsService.activateGroup(sideGroup);
+
+			const gettingStartedSize = Math.floor(fullSize.width / 2);
+
+			const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
+			this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+		}
+
+		const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
+		if (nonGettingStartedGroup) {
+			this.groupsService.activateGroup(nonGettingStartedGroup);
+			nonGettingStartedGroup.focus();
+		}
+	}
 	private runStepCommand(href: string) {
 
 		const isCommand = href.startsWith('command:');
@@ -1170,24 +1197,8 @@ export class GettingStartedPage extends EditorPane {
 
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
-		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
-
-		if (toSide && fullSize && fullSize.width > 700) {
-			if (this.groupsService.count === 1) {
-				const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
-				this.groupsService.activateGroup(sideGroup);
-
-				const gettingStartedSize = Math.floor(fullSize.width / 2);
-
-				const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-				this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
-			}
-
-			const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
-			if (nonGettingStartedGroup) {
-				this.groupsService.activateGroup(nonGettingStartedGroup);
-				nonGettingStartedGroup.focus();
-			}
+		if (toSide) {
+			this.focusSideEditorGroup();
 		}
 		if (isCommand) {
 			const commandURI = URI.parse(command);
@@ -1400,7 +1411,7 @@ export class GettingStartedPage extends EditorPane {
 							'x-dispatch': 'selectTask:' + step.id,
 							'data-step-id': step.id,
 							'aria-expanded': 'false',
-							'aria-checked': '' + step.done,
+							'aria-checked': step.done ? 'true' : 'false',
 							'role': 'button',
 						},
 						codicon,
