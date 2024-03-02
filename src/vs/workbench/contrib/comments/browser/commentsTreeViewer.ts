@@ -32,8 +32,8 @@ import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';

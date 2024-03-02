@@ -58,6 +58,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -68,7 +69,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		@IFileService fileService: IFileService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, fileService);
+		super(TextDiffEditor.ID, group, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, fileService);
 	}
 
 	override getTitle(): string {
@@ -171,7 +172,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		}
 
 		// Handle case where a file is too large to open without confirmation
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 			let message: string;
 			if (error instanceof TooLargeFileOperationError) {
 				message = localize('fileTooLargeForHeapErrorWithSize', "At least one file is not displayed in the text compare editor because it is very large ({0}).", ByteSize.formatSize(error.size));
@@ -222,7 +223,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		}
 
 		// Replace this editor with the binary one
-		(this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
+		this.group.replaceEditors([{
 			editor: input,
 			replacement: binaryDiffInput,
 			options: {
@@ -232,8 +233,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				// and do not control the initial intent that resulted
 				// in us now opening as binary.
 				activation: EditorActivation.PRESERVE,
-				pinned: this.group?.isPinned(input),
-				sticky: this.group?.isSticky(input)
+				pinned: this.group.isPinned(input),
+				sticky: this.group.isSticky(input)
 			}
 		}]);
 	}
@@ -365,8 +366,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return this.diffEditorControl?.hasTextFocus() || super.hasFocus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
 
 		if (visible) {
 			this.diffEditorControl?.onVisible();

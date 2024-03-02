@@ -28,8 +28,8 @@ import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpres
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -84,7 +84,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
@@ -299,7 +299,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 

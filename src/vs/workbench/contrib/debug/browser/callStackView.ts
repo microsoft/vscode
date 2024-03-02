@@ -48,8 +48,8 @@ import { createDisconnectMenuItemAction } from 'vs/workbench/contrib/debug/brows
 import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, getStateLabel, IDebugModel, IDebugService, IDebugSession, IRawStoppedDetails, IStackFrame, IThread, State } from 'vs/workbench/contrib/debug/common/debug';
 import { StackFrame, Thread, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 const $ = dom.$;
 
@@ -348,6 +348,7 @@ export class CallStackView extends ViewPane {
 			}
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
+				this.selectionNeedsUpdate = true;
 				return;
 			}
 			if (this.onCallStackChangeScheduler.isScheduled()) {
@@ -541,8 +542,8 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		dom.append(session, $(ThemeIcon.asCSSSelector(icons.callstackViewSession)));
 		const name = dom.append(session, $('.name'));
 		const stateLabel = dom.append(session, $('span.state.label.monaco-count-badge.long'));
-		const label = new HighlightedLabel(name);
 		const templateDisposable = new DisposableStore();
+		const label = templateDisposable.add(new HighlightedLabel(name));
 
 		const stopActionViewItemDisposables = templateDisposable.add(new DisposableStore());
 		const actionBar = templateDisposable.add(new ActionBar(session, {
@@ -556,9 +557,9 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 				}
 
 				if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+					return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 				} else if (action instanceof SubmenuItemAction) {
-					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 				}
 
 				return undefined;
@@ -656,9 +657,9 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		const thread = dom.append(container, $('.thread'));
 		const name = dom.append(thread, $('.name'));
 		const stateLabel = dom.append(thread, $('span.state.label.monaco-count-badge.long'));
-		const label = new HighlightedLabel(name);
 
 		const templateDisposable = new DisposableStore();
+		const label = templateDisposable.add(new HighlightedLabel(name));
 
 		const actionBar = templateDisposable.add(new ActionBar(thread));
 		const elementDisposable = templateDisposable.add(new DisposableStore());
@@ -732,9 +733,10 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		const fileName = dom.append(file, $('span.file-name'));
 		const wrapper = dom.append(file, $('span.line-number-wrapper'));
 		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
-		const label = new HighlightedLabel(labelDiv);
 
 		const templateDisposable = new DisposableStore();
+		const label = templateDisposable.add(new HighlightedLabel(labelDiv));
+
 		const actionBar = templateDisposable.add(new ActionBar(stackFrame));
 
 		return { file, fileName, label, lineNumber, stackFrame, actionBar, templateDisposable };

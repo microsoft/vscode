@@ -9,18 +9,15 @@ import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -50,27 +47,19 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 
 const $ = dom.$;
 
-interface ICodeBlockDataCommon {
-	codeBlockIndex: number;
-	element: unknown;
-	parentContextKeyService?: IContextKeyService;
-	hideToolbar?: boolean;
-}
+export interface ICodeBlockData {
+	readonly codeBlockIndex: number;
+	readonly element: unknown;
 
-export interface ISimpleCodeBlockData extends ICodeBlockDataCommon {
-	type: 'code';
-	text: string;
-	languageId: string;
-	vulns?: IMarkdownVulnerability[];
-}
+	readonly textModel: Promise<IReference<IResolvedTextEditorModel>>;
+	readonly languageId: string;
 
-export interface ILocalFileCodeBlockData extends ICodeBlockDataCommon {
-	type: 'localFile';
-	uri: URI;
-	range?: Range;
-}
+	readonly vulns?: readonly IMarkdownVulnerability[];
+	readonly range?: Range;
 
-export type ICodeBlockData = ISimpleCodeBlockData | ILocalFileCodeBlockData;
+	readonly parentContextKeyService?: IContextKeyService;
+	readonly hideToolbar?: boolean;
+}
 
 /**
  * Special markdown code block language id used to render a local file.
@@ -118,19 +107,20 @@ export interface ICodeBlockActionContext {
 }
 
 
-export interface ICodeBlockPart<Data = ICodeBlockData> {
+export interface ICodeBlockPart {
+	readonly editor: CodeEditorWidget;
 	readonly onDidChangeContentHeight: Event<void>;
 	readonly element: HTMLElement;
-	readonly uri: URI;
+	readonly uri: URI | undefined;
 	layout(width: number): void;
-	render(data: Data, width: number): Promise<void>;
+	render(data: ICodeBlockData, width: number): Promise<void>;
 	focus(): void;
 	reset(): unknown;
 	dispose(): void;
 }
 
 const defaultCodeblockPadding = 10;
-abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable implements ICodeBlockPart<Data> {
+export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
@@ -138,9 +128,12 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 	protected readonly toolbar: MenuWorkbenchToolBar;
 	private readonly contextKeyService: IContextKeyService;
 
-	abstract readonly uri: URI;
 	public readonly element: HTMLElement;
 
+	private readonly vulnsButton: Button;
+	private readonly vulnsListElement: HTMLElement;
+
+	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 
 	constructor(
@@ -152,7 +145,7 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService protected readonly modelService: IModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
@@ -173,6 +166,13 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
 			},
+			definitionLinkOpensInPeek: false,
+			gotoLocation: {
+				multiple: 'goto',
+				multipleDeclarations: 'goto',
+				multipleDefinitions: 'goto',
+				multipleImplementations: 'goto',
+			},
 			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
 			overflowWidgetsDomNode,
 			...this.getEditorOptionsFromConfig(),
@@ -186,6 +186,31 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 				shouldForwardArgs: true
 			}
 		}));
+
+		const vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
+		const vulnsHeaderElement = dom.append(vulnsContainer, $('.interactive-result-vulns-header', undefined));
+		this.vulnsButton = new Button(vulnsHeaderElement, {
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined,
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSeparator: undefined,
+			supportIcons: true
+		});
+
+		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
+
+		this.vulnsButton.onDidClick(() => {
+			const element = this.currentCodeBlockData!.element as IChatResponseViewModel;
+			element.vulnerabilitiesListExpanded = !element.vulnerabilitiesListExpanded;
+			this.vulnsButton.label = this.getVulnerabilitiesLabel();
+			this.element.classList.toggle('chat-vulnerabilities-collapsed', !element.vulnerabilitiesListExpanded);
+			this._onDidChangeContentHeight.fire();
+			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
+		});
 
 		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
 			toolbarElement.classList.toggle('force-visibility', e);
@@ -229,7 +254,27 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 		}
 	}
 
-	protected abstract createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget;
+	get uri(): URI | undefined {
+		return this.editor.getModel()?.uri;
+	}
+
+	private createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget {
+		return this._register(instantiationService.createInstance(CodeEditorWidget, parent, options, {
+			isSimpleWidget: false,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				MenuPreventer.ID,
+				SelectionClipboardContributionID,
+				ContextMenuController.ID,
+
+				WordHighlighterContribution.ID,
+				ViewportSemanticTokensContribution.ID,
+				BracketMatchingController.ID,
+				SmartSelectController.ID,
+				HoverController.ID,
+				GotoDefinitionAtPositionEditorContribution.ID,
+			])
+		}));
+	}
 
 	focus(): void {
 		this.editor.focus();
@@ -277,17 +322,22 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 		this.updatePaddingForLayout();
 	}
 
-	protected getContentHeight() {
+	private getContentHeight() {
+		if (this.currentCodeBlockData?.range) {
+			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
+			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			return lineCount * lineHeight;
+		}
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: Data, width: number) {
+	async render(data: ICodeBlockData, width: number) {
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
 
 		if (this.options.configuration.resultEditor.wordWrap === 'on') {
-			// Intialize the editor with the new proper width so that getContentHeight
+			// Initialize the editor with the new proper width so that getContentHeight
 			// will be computed correctly in the next call to layout()
 			this.layout(width);
 		}
@@ -302,102 +352,6 @@ abstract class BaseCodeBlockPart<Data extends ICodeBlockData> extends Disposable
 		} else {
 			dom.show(this.toolbar.getElement());
 		}
-	}
-
-	protected abstract updateEditor(data: Data): void | Promise<void>;
-
-	reset() {
-		this.clearWidgets();
-	}
-
-	private clearWidgets() {
-		HoverController.get(this.editor)?.hideContentHover();
-	}
-}
-
-
-export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData> {
-
-	private readonly vulnsButton: Button;
-	private readonly vulnsListElement: HTMLElement;
-
-	private currentCodeBlockData: ISimpleCodeBlockData | undefined;
-
-	private readonly textModel: Promise<ITextModel>;
-
-	private readonly _uri: URI;
-
-	constructor(
-		options: ChatEditorOptions,
-		menuId: MenuId,
-		delegate: IChatRendererDelegate,
-		overflowWidgetsDomNode: HTMLElement | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModelService modelService: IModelService,
-		@ITextModelService textModelService: ITextModelService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILanguageService private readonly languageService: ILanguageService,
-	) {
-		super(options, menuId, delegate, overflowWidgetsDomNode, instantiationService, contextKeyService, modelService, configurationService, accessibilityService);
-
-		const vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
-		const vulnsHeaderElement = dom.append(vulnsContainer, $('.interactive-result-vulns-header', undefined));
-		this.vulnsButton = new Button(vulnsHeaderElement, {
-			buttonBackground: undefined,
-			buttonBorder: undefined,
-			buttonForeground: undefined,
-			buttonHoverBackground: undefined,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined,
-			supportIcons: true
-		});
-		this._uri = URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() });
-		this.textModel = textModelService.createModelReference(this._uri).then(ref => {
-			this.editor.setModel(ref.object.textEditorModel);
-			this._register(ref);
-			return ref.object.textEditorModel;
-		});
-
-		this.vulnsListElement = dom.append(vulnsContainer, $('ul.interactive-result-vulns-list'));
-
-		this.vulnsButton.onDidClick(() => {
-			const element = this.currentCodeBlockData!.element as IChatResponseViewModel;
-			element.vulnerabilitiesListExpanded = !element.vulnerabilitiesListExpanded;
-			this.vulnsButton.label = this.getVulnerabilitiesLabel();
-			this.element.classList.toggle('chat-vulnerabilities-collapsed', !element.vulnerabilitiesListExpanded);
-			this._onDidChangeContentHeight.fire();
-			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
-		});
-	}
-
-	get uri(): URI {
-		return this._uri;
-	}
-
-	protected override createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget {
-		return this._register(instantiationService.createInstance(CodeEditorWidget, parent, options, {
-			isSimpleWidget: false,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				MenuPreventer.ID,
-				SelectionClipboardContributionID,
-				ContextMenuController.ID,
-
-				WordHighlighterContribution.ID,
-				ViewportSemanticTokensContribution.ID,
-				BracketMatchingController.ID,
-				SmartSelectController.ID,
-				HoverController.ID,
-				GotoDefinitionAtPositionEditorContribution.ID,
-			])
-		}));
-	}
-
-	override async render(data: ISimpleCodeBlockData, width: number): Promise<void> {
-		await super.render(data, width);
 
 		if (data.vulns?.length && isResponseVM(data.element)) {
 			dom.clearNode(this.vulnsListElement);
@@ -410,20 +364,27 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		}
 	}
 
-	protected override async updateEditor(data: ISimpleCodeBlockData): Promise<void> {
-		this.editor.setModel(await this.textModel);
-		const text = this.fixCodeText(data.text, data.languageId);
-		this.setText(text);
+	reset() {
+		this.clearWidgets();
+	}
 
-		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(data.languageId) ?? undefined;
-		this.setLanguage(vscodeLanguageId);
-		data.languageId = vscodeLanguageId ?? 'plaintext';
+	private clearWidgets() {
+		HoverController.get(this.editor)?.hideContentHover();
+	}
+
+	private async updateEditor(data: ICodeBlockData): Promise<void> {
+		const textModel = (await data.textModel).object.textEditorModel;
+		this.editor.setModel(textModel);
+		if (data.range) {
+			this.editor.setSelection(data.range);
+			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
+		}
 
 		this.toolbar.context = {
-			code: data.text,
+			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
-			languageId: data.languageId
+			languageId: textModel.getLanguageId()
 		} satisfies ICodeBlockActionContext;
 	}
 
@@ -438,109 +399,7 @@ export class SimpleCodeBlockPart extends BaseCodeBlockPart<ISimpleCodeBlockData>
 		const icon = (element: IChatResponseViewModel) => element.vulnerabilitiesListExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 		return `${referencesLabel} $(${icon(this.currentCodeBlockData.element as IChatResponseViewModel).id})`;
 	}
-
-	private fixCodeText(text: string, languageId: string): string {
-		if (languageId === 'php') {
-			if (!text.trim().startsWith('<')) {
-				return `<?php\n${text}\n?>`;
-			}
-		}
-
-		return text;
-	}
-
-	private async setText(newText: string): Promise<void> {
-		const model = await this.textModel;
-		const currentText = model.getValue(EndOfLinePreference.LF);
-		if (newText === currentText) {
-			return;
-		}
-
-		if (newText.startsWith(currentText)) {
-			const text = newText.slice(currentText.length);
-			const lastLine = model.getLineCount();
-			const lastCol = model.getLineMaxColumn(lastLine);
-			model.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
-		} else {
-			// console.log(`Failed to optimize setText`);
-			model.setValue(newText);
-		}
-	}
-
-	private async setLanguage(vscodeLanguageId: string | undefined): Promise<void> {
-		(await this.textModel).setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
-	}
 }
-
-export class LocalFileCodeBlockPart extends BaseCodeBlockPart<ILocalFileCodeBlockData> {
-
-	private readonly textModelReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
-	private currentCodeBlockData?: ILocalFileCodeBlockData;
-
-	constructor(
-		options: ChatEditorOptions,
-		menuId: MenuId,
-		delegate: IChatRendererDelegate,
-		overflowWidgetsDomNode: HTMLElement | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModelService modelService: IModelService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
-	) {
-		super(options, menuId, delegate, overflowWidgetsDomNode, instantiationService, contextKeyService, modelService, configurationService, accessibilityService);
-	}
-
-	get uri(): URI {
-		return this.currentCodeBlockData!.uri;
-	}
-
-	protected override getContentHeight() {
-		if (this.currentCodeBlockData?.range) {
-			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
-			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			return lineCount * lineHeight;
-		}
-		return super.getContentHeight();
-	}
-
-	protected override createEditor(instantiationService: IInstantiationService, parent: HTMLElement, options: Readonly<IEditorConstructionOptions>): CodeEditorWidget {
-		return this._register(instantiationService.createInstance(CodeEditorWidget, parent, {
-			...options,
-		}, {
-			// TODO: be more selective about contributions
-		}));
-	}
-
-	protected override async updateEditor(data: ILocalFileCodeBlockData): Promise<void> {
-		let model: ITextModel;
-		if (this.currentCodeBlockData?.uri.toString() === data.uri.toString()) {
-			this.currentCodeBlockData = data;
-			model = this.editor.getModel()!;
-		} else {
-			this.currentCodeBlockData = data;
-			const result = await this.textModelService.createModelReference(data.uri);
-			model = result.object.textEditorModel;
-			this.textModelReference.value = result;
-			this.editor.setModel(model);
-		}
-
-
-		if (data.range) {
-			this.editor.setSelection(data.range);
-			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
-		}
-
-		this.toolbar.context = {
-			code: model.getTextBuffer().getValueInRange(data.range ?? model.getFullModelRange(), EndOfLinePreference.TextDefined),
-			codeBlockIndex: data.codeBlockIndex,
-			element: data.element,
-			languageId: model.getLanguageId()
-		} satisfies ICodeBlockActionContext;
-	}
-}
-
 
 export class ChatCodeBlockContentProvider extends Disposable implements ITextModelContentProvider {
 

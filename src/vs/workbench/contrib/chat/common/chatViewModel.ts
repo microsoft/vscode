@@ -5,14 +5,19 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { marked } from 'vs/base/common/marked/marked';
 import { URI } from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatProgressMessage, IChatFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, IChatCommandButton } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCommandButton, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { CodeBlockModelCollection } from './codeBlockModelCollection';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -134,6 +139,7 @@ export interface IChatResponseViewModel {
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
+
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
@@ -179,12 +185,17 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	constructor(
 		private readonly _model: IChatModel,
+		public readonly codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
 		_model.getRequests().forEach((request, i) => {
-			this._items.push(new ChatRequestViewModel(request));
+			const requestModel = new ChatRequestViewModel(request);
+			this._items.push(requestModel);
+			this.updateCodeBlockTextModels(requestModel);
+
 			if (request.response) {
 				this.onAddResponse(request.response);
 			}
@@ -193,7 +204,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
-				this._items.push(new ChatRequestViewModel(e.request));
+				const requestModel = new ChatRequestViewModel(e.request);
+				this._items.push(requestModel);
+				this.updateCodeBlockTextModels(requestModel);
+
 				if (e.request.response) {
 					this.onAddResponse(e.request.response);
 				}
@@ -224,8 +238,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private onAddResponse(responseModel: IChatResponseModel) {
 		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
-		this._register(response.onDidChange(() => this._onDidChange.fire(null)));
+		this._register(response.onDidChange(() => {
+			this.updateCodeBlockTextModels(response);
+			return this._onDidChange.fire(null);
+		}));
 		this._items.push(response);
+		this.updateCodeBlockTextModels(response);
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[] {
@@ -237,6 +255,79 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._items
 			.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel)
 			.forEach((item: ChatResponseViewModel) => item.dispose());
+	}
+
+	private updateCodeBlockTextModels(model: IChatRequestViewModel | IChatResponseViewModel) {
+		const content = isRequestVM(model) ? model.messageText : model.response.asString();
+		const renderer = new marked.Renderer();
+
+		let codeBlockIndex = 0;
+		renderer.code = (value, languageId) => {
+			languageId ??= '';
+			const newText = this.fixCodeText(value, languageId);
+			const textModel = this.codeBlockModelCollection.getOrCreate(model.id, codeBlockIndex++);
+			textModel.then(ref => {
+				const model = ref.object.textEditorModel;
+				if (languageId) {
+					const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
+					if (vscodeLanguageId && vscodeLanguageId !== ref.object.textEditorModel.getLanguageId()) {
+						ref.object.textEditorModel.setLanguage(vscodeLanguageId);
+					}
+				}
+
+				const currentText = ref.object.textEditorModel.getValue(EndOfLinePreference.LF);
+				if (newText === currentText) {
+					return;
+				}
+
+				if (newText.startsWith(currentText)) {
+					const text = newText.slice(currentText.length);
+					const lastLine = model.getLineCount();
+					const lastCol = model.getLineMaxColumn(lastLine);
+					model.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
+				} else {
+					// console.log(`Failed to optimize setText`);
+					model.setValue(newText);
+				}
+			});
+			return '';
+		};
+
+		marked.parse(this.ensureFencedCodeBlocksTerminated(content), { renderer });
+	}
+
+	private fixCodeText(text: string, languageId: string): string {
+		if (languageId === 'php') {
+			if (!text.trim().startsWith('<')) {
+				return `<?php\n${text}\n?>`;
+			}
+		}
+
+		return text;
+	}
+
+	/**
+	 * Marked doesn't consistently render fenced code blocks that aren't terminated.
+	 *
+	 * Try to close them ourselves to workaround this.
+	 */
+	private ensureFencedCodeBlocksTerminated(content: string): string {
+		const lines = content.split('\n');
+		let inCodeBlock = false;
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			if (line.startsWith('```')) {
+				inCodeBlock = !inCodeBlock;
+			}
+		}
+
+		// If we're still in a code block at the end of the content, add a closing fence
+		if (inCodeBlock) {
+			lines.push('```');
+		}
+
+		return lines.join('\n');
 	}
 }
 

@@ -601,7 +601,8 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
 			type: 'boolean',
-			default: false
+			default: false,
+			markdownDeprecationMessage: localize('suggestEnabled.deprecated', 'This is an experimental setting and may break the terminal! Use at your own risk.')
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),

@@ -580,7 +580,7 @@ class TextEditElementTemplate {
 		this._icon = document.createElement('div');
 		container.appendChild(this._icon);
 
-		this._label = new HighlightedLabel(container);
+		this._label = this._disposables.add(new HighlightedLabel(container));
 	}
 
 	dispose(): void {

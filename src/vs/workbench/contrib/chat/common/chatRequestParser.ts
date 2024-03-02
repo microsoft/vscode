@@ -99,7 +99,7 @@ export class ChatRequestParser {
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const agent = this.agentService.getAgent(name);
+		const agent = this.agentService.getRegisteredAgent(name);
 		if (!agent) {
 			return;
 		}
@@ -171,8 +171,7 @@ export class ChatRequestParser {
 				return;
 			}
 
-			const subCommands = usedAgent.agent.getLastSlashCommands(model);
-			const subCommand = subCommands?.find(c => c.name === command);
+			const subCommand = usedAgent.agent.slashCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);

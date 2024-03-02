@@ -74,7 +74,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 	/**
 	 * Instantiates the editor pane using the provided services.
 	 */
-	instantiate(instantiationService: IInstantiationService): T;
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): T;
 
 	/**
 	 * Whether the descriptor is for the provided editor pane.
@@ -119,7 +119,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	readonly group: IEditorGroup;
 
 	/**
 	 * The minimum width of this editor.
@@ -327,7 +327,6 @@ export function findViewStateForEditor(input: EditorInput, group: GroupIdentifie
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: EditorInput;
-	readonly group: IEditorGroup;
 }
 
 /**
@@ -564,7 +563,7 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	return candidate?.original !== undefined && candidate.modified !== undefined;
 }
 
-export function isResourceDiffListEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
+export function isResourceMultiDiffEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
 	}
@@ -1133,6 +1132,7 @@ export const enum GroupModelChangeKind {
 	EDITOR_LABEL,
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
+	EDITOR_TRANSIENT,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE
@@ -1310,7 +1310,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1379,7 +1379,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

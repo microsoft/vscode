@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
@@ -68,6 +68,9 @@ export interface ICustomHover extends IDisposable {
 	update(tooltip: IHoverContent, options?: IUpdatableHoverOptions): void;
 }
 
+export interface IHoverWidget extends IDisposable {
+	readonly isDisposed: boolean;
+}
 
 class UpdatableHoverWidget implements IDisposable {
 

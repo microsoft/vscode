@@ -39,7 +39,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { mainWindow } from 'vs/base/browser/window';
-import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 /**

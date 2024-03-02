@@ -189,9 +189,9 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const inputToolbarContainer = DOM.append(sourceContainer, DOM.$('.editor-input-toolbar-container'));
 		const cellToolbarContainer = DOM.append(inputToolbarContainer, DOM.$('div.property-toolbar'));
 		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, cellToolbarContainer, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
+					const item = new CodiconActionViewItem(action, { hoverDelegate: options.hoverDelegate }, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
 					return item;
 				}
 

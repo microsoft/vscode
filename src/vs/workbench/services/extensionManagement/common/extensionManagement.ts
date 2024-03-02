@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, InstallVSIXOptions, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
 
@@ -56,7 +56,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
-	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
+	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 }
