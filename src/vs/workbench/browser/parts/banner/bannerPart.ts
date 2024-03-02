@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bannerpart';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -222,11 +222,13 @@ export class BannerPart extends Part implements IBannerService {
 		}
 
 		// Action
-		const actionBarContainer = append(this.element, $('div.action-container'));
-		this.actionBar = this._register(new ActionBar(actionBarContainer));
-		const closeAction = this._register(new Action('banner.close', 'Close Banner', ThemeIcon.asClassName(widgetClose), true, () => this.close(item)));
-		this.actionBar.push(closeAction, { icon: true, label: false });
-		this.actionBar.setFocusable(false);
+		if (!item.disableCloseAction) {
+			const actionBarContainer = append(this.element, $('div.action-container'));
+			this.actionBar = this._register(new ActionBar(actionBarContainer));
+			const closeAction = this._register(new Action('banner.close', 'Close Banner', ThemeIcon.asClassName(widgetClose), true, () => this.close(item)));
+			this.actionBar.push(closeAction, { icon: true, label: false });
+			this.actionBar.setFocusable(false);
+		}
 
 		this.setVisibility(true);
 		this.item = item;
@@ -285,12 +287,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 class FocusBannerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.focusBanner';
-	static readonly LABEL = localize('focusBanner', "Focus Banner");
+	static readonly LABEL = localize2('focusBanner', "Focus Banner");
 
 	constructor() {
 		super({
 			id: FocusBannerAction.ID,
-			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
+			title: FocusBannerAction.LABEL,
 			category: Categories.View,
 			f1: true
 		});

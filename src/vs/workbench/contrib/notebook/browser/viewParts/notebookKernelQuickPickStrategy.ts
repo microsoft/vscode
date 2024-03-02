@@ -674,7 +674,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				tooltip: localize('learnMoreTooltip', 'Learn More'),
 			}] : [];
 			return {
-				id: typeof action.command! === 'string' ? action.command! : action.command!.id,
+				id: typeof action.command! === 'string' ? action.command : action.command!.id,
 				label: action.label,
 				description: action.description,
 				command: action.command,

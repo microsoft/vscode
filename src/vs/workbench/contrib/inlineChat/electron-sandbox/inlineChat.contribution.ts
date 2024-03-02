@@ -6,11 +6,10 @@
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CancelAction, InlineChatQuickVoice, StartAction, StopAction } from 'vs/workbench/contrib/inlineChat/electron-sandbox/inlineChatQuickVoice';
-import { StartSessionAction, HoldToSpeak } from './inlineChatActions';
+import { HoldToSpeak } from './inlineChatActions';
 
 // start and hold for voice
 
-registerAction2(StartSessionAction);
 registerAction2(HoldToSpeak);
 
 // quick voice

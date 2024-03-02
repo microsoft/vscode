@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { isFirefox } from 'vs/base/browser/browser';
 import { raceTimeout, timeout } from 'vs/base/common/async';
-import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
-import { IEditor } from 'vs/editor/common/editorCommon';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
+import { stripIcons } from 'vs/base/common/iconLabels';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Language } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { IEditor } from 'vs/editor/common/editorCommon';
+import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
+import { localize, localize2 } from 'vs/nls';
+import { isLocalizedString } from 'vs/platform/action/common/action';
+import { Action2, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { CommandsHistory, ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { isFirefox } from 'vs/base/browser/browser';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
-import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { isLocalizedString } from 'vs/platform/action/common/action';
+import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -77,7 +77,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IProductService private readonly productService: IProductService,
 		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService,
-		@IChatService private readonly chatService: IChatService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
@@ -172,10 +172,10 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			});
 		}
 
-		const info = this.chatService.getProviderInfos()[0];
-		if (info) {
+		const defaultAgent = this.chatAgentService.getDefaultAgent();
+		if (defaultAgent) {
 			additionalPicks.push({
-				label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
+				label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.metadata.fullName, filter),
 				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
 				args: [filter]
 			});

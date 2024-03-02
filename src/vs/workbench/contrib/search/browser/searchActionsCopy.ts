@@ -22,10 +22,7 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.CopyMatchCommandId,
-			title: {
-				value: nls.localize('copyMatchLabel', "Copy"),
-				original: 'Copy'
-			},
+			title: nls.localize2('copyMatchLabel', "Copy"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -53,10 +50,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.CopyPathCommandId,
-			title: {
-				value: nls.localize('copyPathLabel', "Copy Path"),
-				original: 'Copy Path'
-			},
+			title: nls.localize2('copyPathLabel', "Copy Path"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -87,10 +81,7 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.CopyAllCommandId,
-			title: {
-				value: nls.localize('copyAllLabel', "Copy All"),
-				original: 'Copy All'
-			},
+			title: nls.localize2('copyAllLabel', "Copy All"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,

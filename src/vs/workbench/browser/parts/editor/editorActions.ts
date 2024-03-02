@@ -1380,7 +1380,10 @@ export class NavigateForwardAction extends Action2 {
 	constructor() {
 		super({
 			id: NavigateForwardAction.ID,
-			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward', mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward") },
+			title: {
+				...localize2('navigateForward', "Go Forward"),
+				mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward")
+			},
 			f1: true,
 			icon: Codicon.arrowRight,
 			precondition: ContextKeyExpr.has('canNavigateForward'),
@@ -1412,7 +1415,10 @@ export class NavigateBackwardsAction extends Action2 {
 	constructor() {
 		super({
 			id: NavigateBackwardsAction.ID,
-			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back', mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back") },
+			title: {
+				...localize2('navigateBack', "Go Back"),
+				mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back")
+			},
 			f1: true,
 			precondition: ContextKeyExpr.has('canNavigateBack'),
 			icon: Codicon.arrowLeft,
@@ -2530,9 +2536,8 @@ export class MoveEditorToNewWindowAction extends BaseMoveCopyEditorToNewWindowAc
 		super(
 			MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				value: localize('moveEditorToNewWindow', "Move Editor into New Window"),
+				...localize2('moveEditorToNewWindow', "Move Editor into New Window"),
 				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
-				original: 'Move Editor into New Window'
 			},
 			undefined,
 			true
@@ -2546,9 +2551,8 @@ export class CopyEditorToNewindowAction extends BaseMoveCopyEditorToNewWindowAct
 		super(
 			COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				value: localize('copyEditorToNewWindow', "Copy Editor into New Window"),
+				...localize2('copyEditorToNewWindow', "Copy Editor into New Window"),
 				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
-				original: 'Copy Editor into New Window'
 			},
 			{ primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
 			false
@@ -2591,9 +2595,8 @@ export class MoveEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToN
 		super(
 			MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				value: localize('moveEditorGroupToNewWindow', "Move Editor Group into New Window"),
+				...localize2('moveEditorGroupToNewWindow', "Move Editor Group into New Window"),
 				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Window"),
-				original: 'Move Editor Group into New Window'
 			},
 			true
 		);
@@ -2606,9 +2609,8 @@ export class CopyEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToN
 		super(
 			COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				value: localize('copyEditorGroupToNewWindow', "Copy Editor Group into New Window"),
+				...localize2('copyEditorGroupToNewWindow', "Copy Editor Group into New Window"),
 				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Window"),
-				original: 'Copy Editor Group into New Window'
 			},
 			false
 		);
@@ -2621,9 +2623,8 @@ export class RestoreEditorsToMainWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.restoreEditorsToMainWindow',
 			title: {
-				value: localize('restoreEditorsToMainWindow', "Restore Editors into Main Window"),
+				...localize2('restoreEditorsToMainWindow', "Restore Editors into Main Window"),
 				mnemonicTitle: localize({ key: 'miRestoreEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Editors into Main Window"),
-				original: 'Restore Editors into Main Window'
 			},
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext,
@@ -2644,9 +2645,8 @@ export class NewEmptyEditorWindowAction extends Action2 {
 		super({
 			id: NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID,
 			title: {
-				value: localize('newEmptyEditorWindow', "New Empty Editor Window"),
+				...localize2('newEmptyEditorWindow', "New Empty Editor Window"),
 				mnemonicTitle: localize({ key: 'miNewEmptyEditorWindow', comment: ['&& denotes a mnemonic'] }, "&&New Empty Editor Window"),
-				original: 'New Empty Editor Window'
 			},
 			f1: true,
 			category: Categories.View

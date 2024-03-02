@@ -706,7 +706,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent; element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
-			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+			this.openOnSingleClick = options?.configurationService.getValue(openModeSettingKey) !== 'doubleClick';
 			this._register(options?.configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(openModeSettingKey)) {
 					this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
@@ -723,8 +723,8 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 
 		const selectionKeyboardEvent = event.browserEvent as SelectionKeyboardEvent;
-		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus! : true;
-		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned! : !preserveFocus;
+		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus : true;
+		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned : !preserveFocus;
 		const sideBySide = false;
 
 		this._open(this.getSelectedElement(), preserveFocus, pinned, sideBySide, event.browserEvent);

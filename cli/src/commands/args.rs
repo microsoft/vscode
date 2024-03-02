@@ -10,9 +10,13 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
-const HELP_COMMANDS: &str = "Usage: {name} [options][paths...]
+const HELP_COMMANDS: &str = concatcp!(
+	"Usage: ",
+	constants::APPLICATION_NAME,
+	" [options][paths...]
 
-To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')";
+To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')"
+);
 
 const STANDALONE_TEMPLATE: &str = concatcp!(
 	CLI_NAME,

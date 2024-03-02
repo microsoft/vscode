@@ -142,6 +142,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
+				duration: 0,
 				executedX: undefined,
 				startX: undefined,
 				marker: {
@@ -279,6 +280,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					isTrusted: true,
 					cwd,
 					timestamp: 0,
+					duration: 0,
 					executedX: undefined,
 					startX: undefined,
 					marker: {
@@ -541,6 +543,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					executedX: undefined,
 					startX: undefined,
 					timestamp: 0,
+					duration: 0,
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,

@@ -561,6 +561,14 @@ suite('TerminalLinkParsing', () => {
 						] as IParsedLink[]
 					);
 				});
+				test('should not detect links starting with ? within query strings that contain posix-style paths (#204195)', () => {
+					// ? appended to the cwd will exist since it's just the cwd
+					strictEqual(detectLinks(`http://foo.com/?bar=/a/b&baz=c`, os).some(e => e.path.text.startsWith('?')), false);
+				});
+				test('should not detect links starting with ? within query strings that contain Windows-style paths (#204195)', () => {
+					// ? appended to the cwd will exist since it's just the cwd
+					strictEqual(detectLinks(`http://foo.com/?bar=a:\\b&baz=c`, os).some(e => e.path.text.startsWith('?')), false);
+				});
 			}
 		});
 
@@ -697,6 +705,12 @@ suite('TerminalLinkParsing', () => {
 					);
 				});
 			}
+		});
+		suite('should ignore links with suffixes when the path itself is the empty string', () => {
+			deepStrictEqual(
+				detectLinks('""",1', OperatingSystem.Linux),
+				[] as IParsedLink[]
+			);
 		});
 	});
 });

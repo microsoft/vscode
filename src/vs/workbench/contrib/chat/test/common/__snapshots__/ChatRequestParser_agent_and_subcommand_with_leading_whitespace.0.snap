@@ -28,7 +28,12 @@
       agent: {
         id: "agent",
         metadata: { description: "" },
-        provideSlashCommands: [Function provideSlashCommands]
+        slashCommands: [
+          {
+            name: "subCommand",
+            description: ""
+          }
+        ]
       },
       kind: "agent"
     },

@@ -20,12 +20,11 @@ lazy_static! {
 	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
-	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 19);
+	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
 }
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
-const SKIP_REQ_FILE: &str = "/tmp/vscode-skip-server-requirements-check";
 
 pub struct PreReqChecker {}
 
@@ -55,7 +54,7 @@ impl PreReqChecker {
 	pub async fn verify(&self) -> Result<Platform, CodeError> {
 		let (is_nixos, skip_glibc_checks, or_musl) = tokio::join!(
 			check_is_nixos(),
-			check_skip_req_file(),
+			skip_requirements_check(),
 			check_musl_interpreter()
 		);
 
@@ -169,9 +168,16 @@ async fn check_is_nixos() -> bool {
 /// Provides a way to skip the server glibc requirements check from
 /// outside the install flow. A system process can create this
 /// file before the server is downloaded and installed.
-#[allow(dead_code)]
-async fn check_skip_req_file() -> bool {
-	fs::metadata(SKIP_REQ_FILE).await.is_ok()
+#[cfg(not(windows))]
+pub async fn skip_requirements_check() -> bool {
+	fs::metadata("/tmp/vscode-skip-server-requirements-check")
+		.await
+		.is_ok()
+}
+
+#[cfg(windows)]
+pub async fn skip_requirements_check() -> bool {
+	false
 }
 
 #[allow(dead_code)]

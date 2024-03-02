@@ -416,7 +416,7 @@ suite('WorkingCopyFileService', () => {
 			(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 			await model.resolve();
-			model!.textEditorModel!.setValue('foo');
+			model.textEditorModel!.setValue('foo');
 			assert.ok(accessor.workingCopyService.isDirty(model.resource));
 			return model;
 		}));
@@ -476,7 +476,7 @@ suite('WorkingCopyFileService', () => {
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
+		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.workingCopyService.isDirty(model.resource));
 
 		let eventCounter = 0;

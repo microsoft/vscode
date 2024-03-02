@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, EditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IFindEditorOptions, isResourceMergeEditorInput, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
@@ -49,6 +49,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorsChangeEvent>());
 	readonly onDidEditorsChange = this._onDidEditorsChange.event;
+
+	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorWillOpenEvent>());
+	readonly onWillOpenEditor = this._onWillOpenEditor.event;
 
 	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
 	readonly onDidCloseEditor = this._onDidCloseEditor.event;
@@ -167,6 +170,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		groupDisposables.add(group.onDidActiveEditorChange(() => {
 			this.handleActiveEditorChange(group);
 			this._onDidVisibleEditorsChange.fire();
+		}));
+
+		groupDisposables.add(group.onWillOpenEditor(e => {
+			this._onWillOpenEditor.fire(e);
 		}));
 
 		groupDisposables.add(group.onDidCloseEditor(e => {

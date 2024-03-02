@@ -234,6 +234,6 @@ class ConfigurationEditing {
 				tabSize: this.configurationService.getValue('editor.tabSize', { overrideIdentifier: 'jsonc' })
 			};
 		}
-		return this._formattingOptions!;
+		return this._formattingOptions;
 	}
 }
