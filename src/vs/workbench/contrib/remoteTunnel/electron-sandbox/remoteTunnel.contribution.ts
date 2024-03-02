@@ -10,8 +10,7 @@ import { ITunnelApplicationConfig } from 'vs/base/common/product';
 import { joinPath } from 'vs/base/common/resources';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -37,10 +36,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
-	original: 'Remote-Tunnels',
-	value: localize('remoteTunnel.category', 'Remote Tunnels')
-};
+export const REMOTE_TUNNEL_CATEGORY = localize2('remoteTunnel.category', 'Remote Tunnels');
 
 type CONTEXT_KEY_STATES = 'connected' | 'connecting' | 'disconnected';
 
@@ -399,7 +395,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	private createExistingSessionItem(session: AuthenticationSession, providerId: string): ExistingSessionItem {
 		return {
 			label: session.account.label,
-			description: this.authenticationService.getLabel(providerId),
+			description: this.authenticationService.getProvider(providerId).label,
 			session,
 			providerId
 		};
@@ -416,9 +412,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
-			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
-				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
-				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", providerName), provider: authenticationProvider });
+			const provider = this.authenticationService.getProvider(authenticationProvider.id);
+			if (!signedInForProvider || provider.supportsMultipleAccounts) {
+				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", provider.label), provider: authenticationProvider });
 			}
 		}
 

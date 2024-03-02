@@ -4,25 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorConfiguration, IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
-import { EditorFontLigatures, EditorFontVariations, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { TestCodeEditorCreationOptions } from 'vs/editor/test/browser/testCodeEditor';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 
 export class TestConfiguration extends EditorConfiguration {
 
-	constructor(opts: IEditorOptions) {
+	constructor(opts: Readonly<TestCodeEditorCreationOptions>) {
 		super(false, opts, null, new TestAccessibilityService());
 	}
 
 	protected override _readEnvConfiguration(): IEnvConfiguration {
+		const envConfig = (this.getRawOptions() as TestCodeEditorCreationOptions).envConfig;
 		return {
-			extraEditorClassName: '',
-			outerWidth: 100,
-			outerHeight: 100,
-			emptySelectionClipboard: true,
-			pixelRatio: 1,
-			accessibilitySupport: AccessibilitySupport.Unknown
+			extraEditorClassName: envConfig?.extraEditorClassName ?? '',
+			outerWidth: envConfig?.outerWidth ?? 100,
+			outerHeight: envConfig?.outerHeight ?? 100,
+			emptySelectionClipboard: envConfig?.emptySelectionClipboard ?? true,
+			pixelRatio: envConfig?.pixelRatio ?? 1,
+			accessibilitySupport: envConfig?.accessibilitySupport ?? AccessibilitySupport.Unknown
 		};
 	}
 

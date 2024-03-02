@@ -628,7 +628,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: { value: nls.localize('remote.explorer', "Remote Explorer"), original: 'Remote Explorer' },
+		title: nls.localize2('remote.explorer', "Remote Explorer"),
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {

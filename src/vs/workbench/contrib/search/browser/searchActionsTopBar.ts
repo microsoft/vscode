@@ -8,7 +8,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchSparkleEmpty, searchSparkleFilled, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
@@ -27,10 +27,7 @@ registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.ClearSearchHistoryCommandId,
-			title: {
-				value: nls.localize('clearSearchHistoryLabel', "Clear Search History"),
-				original: 'Clear Search History'
-			},
+			title: nls.localize2('clearSearchHistoryLabel', "Clear Search History"),
 			category,
 			f1: true
 		});
@@ -46,10 +43,7 @@ registerAction2(class CancelSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.CancelSearchActionId,
-			title: {
-				value: nls.localize('CancelSearchAction.label', "Cancel Search"),
-				original: 'Cancel Search'
-			},
+			title: nls.localize2('CancelSearchAction.label', "Cancel Search"),
 			icon: searchStopIcon,
 			category,
 			f1: true,
@@ -76,10 +70,7 @@ registerAction2(class RefreshAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.RefreshSearchResultsActionId,
-			title: {
-				value: nls.localize('RefreshAction.label', "Refresh"),
-				original: 'Refresh'
-			},
+			title: nls.localize2('RefreshAction.label', "Refresh"),
 			icon: searchRefreshIcon,
 			precondition: Constants.SearchContext.ViewHasSearchPatternKey,
 			category,
@@ -101,10 +92,7 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.CollapseSearchResultsActionId,
-			title: {
-				value: nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
-				original: 'Collapse All'
-			},
+			title: nls.localize2('CollapseDeepestExpandedLevelAction.label', "Collapse All"),
 			category,
 			icon: searchCollapseAllIcon,
 			f1: true,
@@ -112,7 +100,7 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.SearchContext.HasSearchResults.negate(), Constants.SearchContext.ViewHasSomeCollapsibleKey)),
 			}]
 		});
@@ -126,10 +114,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ExpandSearchResultsActionId,
-			title: {
-				value: nls.localize('ExpandAllAction.label', "Expand All"),
-				original: 'Expand All'
-			},
+			title: nls.localize2('ExpandAllAction.label', "Expand All"),
 			category,
 			icon: searchExpandAllIcon,
 			f1: true,
@@ -137,7 +122,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey.toNegated()),
 			}]
 		});
@@ -151,10 +136,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ClearSearchResultsActionId,
-			title: {
-				value: nls.localize('ClearSearchResultsAction.label', "Clear Search Results"),
-				original: 'Clear Search Results'
-			},
+			title: nls.localize2('ClearSearchResultsAction.label', "Clear Search Results"),
 			category,
 			icon: searchClearIcon,
 			f1: true,
@@ -177,10 +159,7 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ViewAsTreeActionId,
-			title: {
-				value: nls.localize('ViewAsTreeAction.label', "View as Tree"),
-				original: 'View as Tree'
-			},
+			title: nls.localize2('ViewAsTreeAction.label', "View as Tree"),
 			category,
 			icon: searchShowAsList,
 			f1: true,
@@ -205,10 +184,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ViewAsListActionId,
-			title: {
-				value: nls.localize('ViewAsListAction.label', "View as List"),
-				original: 'View as List'
-			},
+			title: nls.localize2('ViewAsListAction.label', "View as List"),
 			category,
 			icon: searchShowAsTree,
 			f1: true,
@@ -225,6 +201,54 @@ registerAction2(class ViewAsListAction extends Action2 {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			searchView.setTreeView(false);
+		}
+	}
+});
+
+registerAction2(class ViewAIResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.ShowAIResultsActionId,
+			title: nls.localize2('ViewAIResultsAction.label', "Show AI Results"),
+			category,
+			icon: searchSparkleEmpty,
+			precondition: Constants.SearchContext.AIResultsVisibleKey.toNegated(),
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 3,
+				when: ContextKeyExpr.false(), // disabled for now
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (searchView) {
+			searchView.setAIResultsVisible(true);
+		}
+	}
+});
+
+registerAction2(class HideAIResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.HideAIResultsActionId,
+			title: nls.localize2('HideAIResultsAction.label', "Hide AI Results"),
+			category,
+			icon: searchSparkleFilled,
+			precondition: Constants.SearchContext.AIResultsVisibleKey,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 3,
+				when: ContextKeyExpr.false(), // disabled for now
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (searchView) {
+			searchView.setAIResultsVisible(false);
 		}
 	}
 });

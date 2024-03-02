@@ -30,6 +30,7 @@ registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, Instant
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 registerEditorContribution(INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, InlineChatActions.InlineAccessibilityHelpContribution, EditorContributionInstantiation.Eventually);
 
+registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.CloseAction);
 registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
@@ -41,6 +42,8 @@ registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.DiscardToClipboardAction);
 registerAction2(InlineChatActions.DiscardUndoToNewFileAction);
 registerAction2(InlineChatActions.CancelSessionAction);
+registerAction2(InlineChatActions.MoveToNextHunk);
+registerAction2(InlineChatActions.MoveToPreviousHunk);
 
 registerAction2(InlineChatActions.ArrowOutUpAction);
 registerAction2(InlineChatActions.ArrowOutDownAction);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { $, Dimension, addStandardDisposableListener, append, getWindowById } from 'vs/base/browser/dom';
+import { $, Dimension, addStandardDisposableListener, append } from 'vs/base/browser/dom';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { binarySearch2 } from 'vs/base/common/arrays';
@@ -42,6 +42,7 @@ import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugMo
 import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { isUri, sourcesEqual } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -92,6 +93,7 @@ export class DisassemblyView extends EditorPane {
 	private readonly _referenceToMemoryAddress = new Map<string, bigint>();
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -99,7 +101,7 @@ export class DisassemblyView extends EditorPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDebugService private readonly _debugService: IDebugService,
 	) {
-		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
+		super(DISASSEMBLY_VIEW_ID, group, telemetryService, themeService, storageService);
 
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));
@@ -133,8 +135,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private createFontInfo() {
-		const window = getWindowById(this.group?.windowId, true).window;
-		return BareFontInfo.createFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(window).value);
+		return BareFontInfo.createFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(this.window).value);
 	}
 
 	get currentInstructionAddresses() {
@@ -472,7 +473,7 @@ export class DisassemblyView extends EditorPane {
 					const currentLine: IRange = {
 						startLineNumber: instruction.line,
 						startColumn: instruction.column ?? 0,
-						endLineNumber: instruction.endLine ?? instruction.line!,
+						endLineNumber: instruction.endLine ?? instruction.line,
 						endColumn: instruction.endColumn ?? 0,
 					};
 
@@ -690,7 +691,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 					if (currentElement.element.isBreakpointSet) {
 						this._debugService.removeInstructionBreakpoints(reference, offset);
 					} else if (currentElement.element.allowBreakpoint && !currentElement.element.isBreakpointSet) {
-						this._debugService.addInstructionBreakpoint(reference, offset, currentElement.element.address);
+						this._debugService.addInstructionBreakpoint({ instructionReference: reference, offset, address: currentElement.element.address, canPersist: false });
 					}
 				}
 			})
@@ -788,7 +789,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 		const disposables = [
 			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
-			addStandardDisposableListener(sourcecode, 'dblclick', () => this.openSourceCode(currentElement.element?.instruction!)),
+			addStandardDisposableListener(sourcecode, 'dblclick', () => this.openSourceCode(currentElement.element?.instruction)),
 		];
 
 		return { currentElement, instruction, sourcecode, cellDisposable, disposables };
@@ -893,7 +894,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 			const sourceURI = this.getUriFromSource(instruction);
 			const selection = instruction.endLine ? {
 				startLineNumber: instruction.line!,
-				endLineNumber: instruction.endLine!,
+				endLineNumber: instruction.endLine,
 				startColumn: instruction.column || 1,
 				endColumn: instruction.endColumn || Constants.MAX_SAFE_SMALL_INTEGER,
 			} : {

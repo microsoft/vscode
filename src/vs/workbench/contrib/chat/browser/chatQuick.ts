@@ -289,13 +289,13 @@ class QuickChat extends Disposable {
 		}
 
 		for (const request of this.model.getRequests()) {
-			if (request.response?.response.value || request.response?.errorDetails) {
+			if (request.response?.response.value || request.response?.result) {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as IParsedChatRequest,
 					request.variableData,
 					{
 						message: request.response.response.value,
-						errorDetails: request.response.errorDetails,
+						result: request.response.result,
 						followups: request.response.followups
 					});
 			} else if (request.message) {

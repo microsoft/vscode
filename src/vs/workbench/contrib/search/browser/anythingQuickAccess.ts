@@ -747,7 +747,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 						includeHelp: provider.prefix === AnythingQuickAccessProvider.PREFIX ? false : runOptions?.includeHelp
 					};
 
-					const label = helpEntry.commandCenterLabel ?? helpEntry.description!;
+					const label = helpEntry.commandCenterLabel ?? helpEntry.description;
 					return {
 						label,
 						description: helpEntry.prefix ?? provider.prefix,

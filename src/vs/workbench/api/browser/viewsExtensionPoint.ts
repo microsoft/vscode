@@ -9,7 +9,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,7 +17,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
 import { CustomTreeView, RawCustomTreeViewContextKey, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ResolvableTreeItem, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
@@ -26,7 +26,6 @@ import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
 import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
@@ -36,6 +35,8 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesRegistryExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -269,6 +270,8 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 const CUSTOM_VIEWS_START_ORDER = 7;
 
 class ViewsExtensionHandler implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.viewsExtensionHandler';
 
 	private viewContainersRegistry: IViewContainersRegistry;
 	private viewsRegistry: IViewsRegistry;
@@ -665,5 +668,116 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ViewsExtensionHandler, LifecyclePhase.Starting);
+class ViewContainersDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.viewsContainers;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.viewsContainers || {};
+
+		const viewContainers = Object.keys(contrib).reduce((result, location) => {
+			const viewContainersForLocation = contrib[location];
+			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
+			return result;
+		}, [] as Array<{ id: string; title: string; location: string }>);
+
+		if (!viewContainers.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('view container id', "ID"),
+			localize('view container title', "Title"),
+			localize('view container location', "Where"),
+		];
+
+		const rows: IRowData[][] = viewContainers
+			.sort((a, b) => a.id.localeCompare(b.id))
+			.map(viewContainer => {
+				return [
+					viewContainer.id,
+					viewContainer.title,
+					viewContainer.location
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+class ViewsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.views;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contrib = manifest.contributes?.views || {};
+
+		const views = Object.keys(contrib).reduce((result, location) => {
+			const viewsForLocation = contrib[location];
+			result.push(...viewsForLocation.map(view => ({ ...view, location })));
+			return result;
+		}, [] as Array<{ id: string; name: string; location: string }>);
+
+		if (!views.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('view id', "ID"),
+			localize('view name title', "Name"),
+			localize('view container location', "Where"),
+		];
+
+		const rows: IRowData[][] = views
+			.sort((a, b) => a.id.localeCompare(b.id))
+			.map(view => {
+				return [
+					view.id,
+					view.name,
+					view.location
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesRegistryExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'viewsContainers',
+	label: localize('viewsContainers', "View Containers"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ViewContainersDataRenderer),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesRegistryExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'views',
+	label: localize('views', "Views"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ViewsDataRenderer),
+});
+
+registerWorkbenchContribution2(ViewsExtensionHandler.ID, ViewsExtensionHandler, WorkbenchPhase.BlockStartup);

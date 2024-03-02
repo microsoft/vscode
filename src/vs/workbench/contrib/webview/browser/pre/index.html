@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-frEVWVmmI4TWHGHXZaCTWqGQI9jv+i8hv+sOa87Gqlc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-zUToXLPvfhhGwJ9G2aKXxI1DL+LnafBpNyx1mQ/S5qU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -127,6 +127,10 @@
 				background-color: var(--vscode-textPreformat-background);
 				padding: 1px 3px;
 				border-radius: 4px;
+			}
+
+			pre code {
+				padding: 0;
 			}
 
 			blockquote {
@@ -597,7 +601,7 @@
 				} else {
 					return; // let the browser handle this
 				}
-			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e))) {
 				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
 				// (No effect in a regular browser tab.)
 				e.preventDefault();
@@ -700,6 +704,24 @@
 			const hasMeta = e.ctrlKey || e.metaKey;
 			// 78: keyCode of "N"
 			return hasMeta && e.keyCode === 78;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isHelp(e) {
+			// 112: keyCode of "F1"
+			return e.keyCode === 112;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isRefresh(e) {
+			// 116: keyCode of "F5"
+			return e.keyCode === 116;
 		}
 
 		let isHandlingScroll = false;

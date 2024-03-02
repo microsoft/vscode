@@ -776,10 +776,10 @@ suite('SnippetParser', () => {
 		assert.strictEqual(snippet.children.length, 1);
 		assert.ok(variable instanceof Variable);
 		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, 'import { hello } from world');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		assert.strictEqual(variable.transform.children.length, 1);
+		assert.ok(variable.transform.children[0] instanceof FormatString);
+		assert.strictEqual((<FormatString>variable.transform.children[0]).ifValue, 'import { hello } from world');
+		assert.strictEqual((<FormatString>variable.transform.children[0]).elseValue, undefined);
 	});
 
 	test('Snippet escape backslashes inside conditional insertion variable replacement #80394', function () {
@@ -789,10 +789,10 @@ suite('SnippetParser', () => {
 		assert.strictEqual(snippet.children.length, 1);
 		assert.ok(variable instanceof Variable);
 		assert.ok(variable.transform);
-		assert.strictEqual(variable.transform!.children.length, 1);
-		assert.ok(variable.transform!.children[0] instanceof FormatString);
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).ifValue, '\\');
-		assert.strictEqual((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+		assert.strictEqual(variable.transform.children.length, 1);
+		assert.ok(variable.transform.children[0] instanceof FormatString);
+		assert.strictEqual((<FormatString>variable.transform.children[0]).ifValue, '\\');
+		assert.strictEqual((<FormatString>variable.transform.children[0]).elseValue, undefined);
 	});
 
 	test('Snippet placeholder empty right after expansion #152553', function () {

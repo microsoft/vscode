@@ -23,9 +23,8 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 		super({
 			id: Constants.SearchCommandIds.ShowAllSymbolsActionId,
 			title: {
-				value: nls.localize('showTriggerActions', "Go to Symbol in Workspace..."),
-				original: 'Go to Symbol in Workspace...',
-				mnemonicTitle: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace...")
+				...nls.localize2('showTriggerActions', "Go to Symbol in Workspace..."),
+				mnemonicTitle: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace..."),
 			},
 			f1: true,
 			keybinding: {

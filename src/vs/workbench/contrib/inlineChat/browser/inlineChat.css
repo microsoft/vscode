@@ -307,6 +307,7 @@
 	padding-top: 6px;
 }
 
+.monaco-editor .inline-chat .diff-review.hidden,
 .monaco-editor .inline-chat .previewDiff.hidden,
 .monaco-editor .inline-chat .previewCreate.hidden,
 .monaco-editor .inline-chat .previewCreateTitle.hidden {

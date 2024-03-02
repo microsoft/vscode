@@ -300,5 +300,11 @@ suite('createEditAddingLinksForUriList', () => {
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('   \r\n\r\n'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 7)], noopToken),
 				false);
 		});
+
+		test('Smart should be disabled inside of autolinks', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('<>'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 1, 0, 1)], noopToken),
+				false);
+		});
 	});
 });

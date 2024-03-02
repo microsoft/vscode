@@ -30,6 +30,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -360,7 +362,9 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
-		templateData.parent.title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+
+		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+		templateData.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
 
@@ -372,7 +376,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
+		templateData.disposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
 
 		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: match };
 
