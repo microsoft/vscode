@@ -58,8 +58,9 @@ export abstract class BaseWindow extends Disposable {
 	//#region focus handling in multi-window applications
 
 	protected enableNativeWindowFocus(targetWindow: CodeWindow): void {
-		const that = this;
 		const originalWindowFocus = targetWindow.focus.bind(targetWindow);
+
+		const that = this;
 		targetWindow.focus = function () {
 			originalWindowFocus();
 
