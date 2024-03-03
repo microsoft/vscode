@@ -921,26 +921,6 @@ export function getActiveWindow(): CodeWindow {
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-export function focusWindow(element: Node, options?: { force: boolean }): void {
-	const window = getWindow(element);
-
-	// Force: always focus the element window
-	if (options?.force) {
-		window.focus();
-	}
-
-	// Not forced: only focus the element window if another
-	// window in the same workspace group has focus (when auxiliary
-	// windows are opened).
-	// This prevents stealing focus from another workspace window.
-	else {
-		const activeWindow = getActiveWindow();
-		if (activeWindow.document.hasFocus() && activeWindow !== window) {
-			window.focus();
-		}
-	}
-}
-
 const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
 
 export function isGlobalStylesheet(node: Node): boolean {
