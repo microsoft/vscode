@@ -22,6 +22,7 @@ suite('Window', () => {
 			super(window, dom, new TestHostService(), TestEnvironmentService);
 		}
 
+		protected override enableNativeWindowFocus(): void { }
 		protected override enableWindowFocusOnElementFocus(): void { }
 	}
 
