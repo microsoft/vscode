@@ -49,6 +49,7 @@ export abstract class BaseWindow extends Disposable {
 			this.enableNativeWindowFocus(targetWindow);
 		}
 		this.enableWindowFocusOnElementFocus(targetWindow);
+
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
