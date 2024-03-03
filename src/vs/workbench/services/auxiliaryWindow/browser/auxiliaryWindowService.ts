@@ -296,22 +296,18 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions): { stylesLoaded: Barrier; container: HTMLElement } {
-		this.patchMethods(auxiliaryWindow);
+		auxiliaryWindow.document.createElement = function () {
+			// Disallow `createElement` because it would create
+			// HTML Elements in the "wrong" context and break
+			// code that does "instanceof HTMLElement" etc.
+			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
+		};
 
 		this.applyMeta(auxiliaryWindow);
 		const { stylesLoaded } = this.applyCSS(auxiliaryWindow, disposables);
 		const container = this.applyHTML(auxiliaryWindow, disposables);
+
 		return { stylesLoaded, container };
-	}
-
-	protected patchMethods(auxiliaryWindow: CodeWindow): void {
-
-		// Disallow `createElement` because it would create
-		// HTML Elements in the "wrong" context and break
-		// code that does "instanceof HTMLElement" etc.
-		auxiliaryWindow.document.createElement = function () {
-			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
-		};
 	}
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
