@@ -102,7 +102,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
-	private _titleInterval: NodeJS.Timer | null = null;
+	private _titleInterval: NodeJS.Timeout | null = null;
 	private _writeQueue: IWriteObject[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
