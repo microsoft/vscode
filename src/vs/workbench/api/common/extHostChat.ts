@@ -58,10 +58,6 @@ export class ExtHostChat implements ExtHostChatShape {
 		this._proxy.$transferChatSession(sessionId, newWorkspace);
 	}
 
-	sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest): void {
-		this._proxy.$sendRequestToProvider(providerId, message);
-	}
-
 	async $prepareChat(handle: number, token: CancellationToken): Promise<IChatDto | undefined> {
 		const entry = this._chatProvider.get(handle);
 		if (!entry) {

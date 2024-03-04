@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -102,6 +105,7 @@ const TOC_ENTRY_TEMPLATE_ID = 'settings.toc.entry';
 interface ITOCEntryTemplate {
 	labelElement: HTMLElement;
 	countElement: HTMLElement;
+	elementDisposables: DisposableStore;
 }
 
 export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, never, ITOCEntryTemplate> {
@@ -111,17 +115,20 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 	renderTemplate(container: HTMLElement): ITOCEntryTemplate {
 		return {
 			labelElement: DOM.append(container, $('.settings-toc-entry')),
-			countElement: DOM.append(container, $('.settings-toc-count'))
+			countElement: DOM.append(container, $('.settings-toc-count')),
+			elementDisposables: new DisposableStore()
 		};
 	}
 
 	renderElement(node: ITreeNode<SettingsTreeGroupElement>, index: number, template: ITOCEntryTemplate): void {
+		template.elementDisposables.clear();
+
 		const element = node.element;
 		const count = element.count;
 		const label = element.label;
 
 		template.labelElement.textContent = label;
-		template.labelElement.title = label;
+		template.elementDisposables.add(setupCustomHover(getDefaultHoverDelegate('mouse'), template.labelElement, label));
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;
@@ -131,6 +138,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 	}
 
 	disposeTemplate(templateData: ITOCEntryTemplate): void {
+		templateData.elementDisposables.dispose();
 	}
 }
 

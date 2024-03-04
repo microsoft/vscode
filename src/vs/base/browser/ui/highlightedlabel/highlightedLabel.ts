@@ -140,7 +140,7 @@ export class HighlightedLabel extends Disposable {
 		} else {
 			if (!this.customHover && this.title !== '') {
 				const hoverDelegate = this.options?.hoverDelegate ?? getDefaultHoverDelegate('mouse');
-				this.customHover = this._store.add(setupCustomHover(hoverDelegate, this.domNode, this.title));
+				this.customHover = this._register(setupCustomHover(hoverDelegate, this.domNode, this.title));
 			} else if (this.customHover) {
 				this.customHover.update(this.title);
 			}

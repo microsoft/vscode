@@ -56,6 +56,7 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IUpdateService } from 'vs/platform/update/common/update';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -136,6 +137,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 
 	instantiationService.stub(IUserDataSyncEnablementService, disposables.add(instantiationService.createInstance(UserDataSyncEnablementService)));
 
+	instantiationService.stub(IUpdateService, { onStateChange: Event.None });
 	instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 }

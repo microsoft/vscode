@@ -549,6 +549,22 @@ export interface CompletionList {
 }
 
 /**
+ * Info provided on partial acceptance.
+ */
+export interface PartialAcceptInfo {
+	kind: PartialAcceptTriggerKind;
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export const enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2,
+}
+
+/**
  * How a suggest provider was triggered.
  */
 export const enum CompletionTriggerKind {
@@ -719,7 +735,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	/**
 	 * Will be called when an item is partially accepted.
 	 */
-	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
@@ -1728,6 +1744,14 @@ export interface CommentInfo {
 	commentingRanges: CommentingRanges;
 }
 
+
+/**
+ * @internal
+ */
+export interface CommentingRangeResourceHint {
+	schemes: readonly string[];
+}
+
 /**
  * @internal
  */
@@ -1904,14 +1928,6 @@ export interface CommentThreadChangedEvent<T> {
 	 * Changed comment threads.
 	 */
 	readonly changed: CommentThread<T>[];
-}
-
-/**
- * @internal
- */
-export interface CommentingRangeResources {
-	schemes: string[];
-	uris: URI[];
 }
 
 export interface CodeLens {
