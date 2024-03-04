@@ -497,12 +497,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',
-				'enum': ['side', 'top', 'hidden'],
+				'enum': ['side', 'top', 'bottom', 'hidden'],
 				'default': 'side',
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `side` or `top` of the Primary Side Bar or `hidden`."),
 				'enumDescriptions': [
 					localize('workbench.activityBar.location.side', "Show the Activity Bar to the side of the Primary Side Bar."),
 					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
+					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary Side Bar."),
 					localize('workbench.activityBar.location.hide', "Hide the Activity Bar.")
 				],
 			},

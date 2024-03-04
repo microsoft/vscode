@@ -175,8 +175,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 		super.layout(dimensions.width, dimensions.height, top, left);
 	}
 
-	protected shouldShowCompositeBar(): boolean {
+	protected shouldShowTitleCompositeBar(): boolean {
 		return true;
+	}
+
+	protected shouldShowFooterCompositeBar(): boolean {
+		return false;
 	}
 
 	toJSON(): object {

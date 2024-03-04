@@ -438,6 +438,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		};
 	}
 
+	protected override createFooterArea(parent: HTMLElement): HTMLElement {
+		const footerArea = append(parent, $('.composite'));
+		footerArea.classList.add('footer');
+
+		hide(footerArea);
+		return footerArea;
+	}
+
 	override updateStyles(): void {
 		super.updateStyles();
 

@@ -22,18 +22,21 @@
 	z-index: 12;
 }
 
-.monaco-workbench .part > .title {
+.monaco-workbench .part > .title,
+.monaco-workbench .part > .footer {
 	display: none; /* Parts have to opt in to show title area */
 }
 
-.monaco-workbench .part > .title {
+.monaco-workbench .part > .title,
+.monaco-workbench .part > .footer {
 	height: 35px;
 	display: flex;
 	box-sizing: border-box;
 	overflow: hidden;
 }
 
-.monaco-workbench .part > .title {
+.monaco-workbench .part > .title,
+.monaco-workbench .part > .footer {
 	padding-left: 8px;
 	padding-right: 8px;
 }

@@ -16,12 +16,14 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;
+	readonly hasFooter?: () => boolean;
 	readonly borderWidth?: () => number;
 }
 
 export interface ILayoutContentResult {
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
+	readonly footerSize: IDimension;
 }
 
 /**
@@ -39,6 +41,7 @@ export abstract class Part extends Component implements ISerializableView {
 	private parent: HTMLElement | undefined;
 	private titleArea: HTMLElement | undefined;
 	private contentArea: HTMLElement | undefined;
+	private footerArea: HTMLElement | undefined;
 	private partLayout: PartLayout | undefined;
 
 	constructor(
@@ -75,6 +78,7 @@ export abstract class Part extends Component implements ISerializableView {
 		this.parent = parent;
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
+		this.footerArea = this.createFooterArea(parent, options);
 
 		this.partLayout = new PartLayout(this.options, this.contentArea);
 
@@ -117,6 +121,20 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	/**
+	 * Subclasses override to provide a footer area implementation.
+	 */
+	protected createFooterArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Returns the footer area container.
+	 */
+	protected getFooterArea(): HTMLElement | undefined {
+		return this.footerArea;
+	}
+
+	/**
 	 * Layout title and content area in the given dimension.
 	 */
 	protected layoutContents(width: number, height: number): ILayoutContentResult {
@@ -153,6 +171,7 @@ export abstract class Part extends Component implements ISerializableView {
 class PartLayout {
 
 	private static readonly TITLE_HEIGHT = 35;
+	private static readonly FOOTER_HEIGHT = 35;
 
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 
@@ -166,20 +185,28 @@ class PartLayout {
 			titleSize = Dimension.None;
 		}
 
+		// Footer Size: Width (Fill), Height (Variable)
+		let footerSize: Dimension;
+		if (this.options.hasFooter?.()) {
+			footerSize = new Dimension(width, Math.min(height, PartLayout.FOOTER_HEIGHT));
+		} else {
+			footerSize = Dimension.None;
+		}
+
 		let contentWidth = width;
 		if (this.options && typeof this.options.borderWidth === 'function') {
 			contentWidth -= this.options.borderWidth(); // adjust for border size
 		}
 
 		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(contentWidth, height - titleSize.height);
+		const contentSize = new Dimension(contentWidth, height - titleSize.height - footerSize.height);
 
 		// Content
 		if (this.contentArea) {
 			size(this.contentArea, contentSize.width, contentSize.height);
 		}
 
-		return { titleSize, contentSize };
+		return { titleSize, contentSize, footerSize };
 	}
 }
 

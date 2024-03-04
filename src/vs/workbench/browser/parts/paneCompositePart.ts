@@ -15,7 +15,7 @@ import { IView } from 'vs/base/browser/ui/grid/grid';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from 'vs/workbench/browser/parts/paneCompositeBar';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, hide, show, IDomPosition } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -108,8 +108,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private readonly location: ViewContainerLocation;
 	private titleContainer: HTMLElement | undefined;
+	private footerContainer: HTMLElement | undefined;
+	private footerDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
 	private paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
+	private titleCompositeBarVisible: boolean = false;
+	private footerCompositeBarVisible: boolean = false;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
 	private globalToolBar: ToolBar | undefined;
@@ -117,6 +121,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private blockOpening = false;
 	protected contentDimension: Dimension | undefined;
+	protected contentPosition: IDomPosition | undefined;
 
 	constructor(
 		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
@@ -334,22 +339,91 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		if (!this.titleContainer) {
 			return;
 		}
-		if (this.shouldShowCompositeBar()) {
+
+		const wasTitleCompositeBarVisible = this.titleCompositeBarVisible;
+		this.titleCompositeBarVisible = this.shouldShowTitleCompositeBar();
+		if (this.titleCompositeBarVisible) {
 			if (!this.paneCompositeBar.value) {
 				this.titleContainer.classList.add('has-composite-bar');
 				this.paneCompositeBarContainer = prepend(this.titleContainer, $('.composite-bar-container'));
-				this.paneCompositeBar.value = this.createCompisteBar();
+				this.paneCompositeBar.value = this.createCompositeBar();
 				this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
 			}
-		} else {
+		} else if (wasTitleCompositeBarVisible) {
 			this.titleContainer.classList.remove('has-composite-bar');
-			this.paneCompositeBarContainer?.remove();
-			this.paneCompositeBarContainer = undefined;
-			this.paneCompositeBar.clear();
+			if (!this.footerCompositeBarVisible) {
+				this.removeCompositeBar();
+			}
 		}
 	}
 
-	protected createCompisteBar(): PaneCompositeBar {
+	protected override createFooterArea(parent: HTMLElement): HTMLElement {
+		this.footerContainer = super.createFooterArea(parent);
+		this.updateFooterArea();
+
+		return this.footerContainer;
+	}
+
+	protected updateFooterArea(): void {
+		if (!this.footerContainer) {
+			return;
+		}
+
+		const wasFooterCompositeBarVisible = this.footerCompositeBarVisible;
+		this.footerCompositeBarVisible = this.shouldShowFooterCompositeBar();
+		if (this.footerCompositeBarVisible) {
+			if (!this.paneCompositeBar.value) {
+				this.footerContainer.classList.add('has-composite-bar');
+				this.paneCompositeBarContainer = prepend(this.footerContainer, $('.composite-bar-container'));
+				this.paneCompositeBar.value = this.createCompositeBar();
+				this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
+
+				this.setFooterVisibility(true);
+			}
+		} else if (wasFooterCompositeBarVisible) {
+			if (!this.titleCompositeBarVisible) {
+				this.removeCompositeBar();
+			}
+			this.footerContainer.classList.remove('has-composite-bar');
+			this.setFooterVisibility(false);
+		}
+	}
+
+	protected removeCompositeBar(): void {
+		this.paneCompositeBarContainer?.remove();
+		this.paneCompositeBarContainer = undefined;
+		this.paneCompositeBar.clear();
+	}
+
+	private setFooterVisibility(visible: boolean): void {
+		if (!this.footerContainer) {
+			return;
+		}
+
+		if (visible) {
+			show(this.footerContainer);
+
+			// Only add listener if the footer is visible
+			this.footerDispoables.add(addDisposableListener(this.footerContainer, EventType.CONTEXT_MENU, e => {
+				this.onFooterAreaContextMenu(new StandardMouseEvent(getWindow(this.footerContainer), e));
+			}));
+			this.footerDispoables.add(Gesture.addTarget(this.footerContainer));
+			this.footerDispoables.add(addDisposableListener(this.footerContainer, GestureEventType.Contextmenu, e => {
+				this.onFooterAreaContextMenu(new StandardMouseEvent(getWindow(this.footerContainer), e));
+			}));
+		} else {
+			hide(this.footerContainer);
+
+			// Dispose any footer area listener
+			this.footerDispoables.clear();
+		}
+
+		if (this.contentDimension && this.contentPosition) {
+			this.layout(this.contentDimension.width, this.contentDimension.height, this.contentPosition.top, this.contentPosition.left);
+		}
+	}
+
+	protected createCompositeBar(): PaneCompositeBar {
 		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompositeBarOptions(), this.partId, this);
 	}
 
@@ -444,6 +518,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		this.contentDimension = new Dimension(width, height);
+		this.contentPosition = { top, left };
 
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
@@ -458,7 +533,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private layoutCompositeBar(): void {
 		if (this.contentDimension && this.dimension && this.paneCompositeBar.value) {
 			let availableWidth = this.contentDimension.width - 16; // take padding into account
-			if (this.toolBar) {
+			if (this.toolBar && this.titleCompositeBarVisible) {
 				availableWidth = Math.max(AbstractPaneCompositePart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
 			}
 			this.paneCompositeBar.value.layout(availableWidth, this.dimension.height);
@@ -488,15 +563,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-		if (this.shouldShowCompositeBar() && this.paneCompositeBar.value) {
-			const actions: IAction[] = [...this.paneCompositeBar.value.getContextMenuActions()];
-			if (actions.length) {
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => event,
-					getActions: () => actions,
-					skipTelemetry: true
-				});
-			}
+		if (this.shouldShowTitleCompositeBar()) {
+			return this.onCompositeBarContextMenu(event);
 		} else {
 			const activePaneComposite = this.getActivePaneComposite() as PaneComposite;
 			const activePaneCompositeActions = activePaneComposite ? activePaneComposite.getContextMenuActions() : [];
@@ -506,6 +574,25 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 					getActions: () => activePaneCompositeActions,
 					getActionViewItem: (action, options) => this.actionViewItemProvider(action, options),
 					actionRunner: activePaneComposite.getActionRunner(),
+					skipTelemetry: true
+				});
+			}
+		}
+	}
+
+	private onFooterAreaContextMenu(event: StandardMouseEvent): void {
+		if (this.shouldShowFooterCompositeBar() && this.paneCompositeBar.value) {
+			return this.onCompositeBarContextMenu(event);
+		}
+	}
+
+	private onCompositeBarContextMenu(event: StandardMouseEvent): void {
+		if (this.paneCompositeBar.value) {
+			const actions: IAction[] = [...this.paneCompositeBar.value.getContextMenuActions()];
+			if (actions.length) {
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => event,
+					getActions: () => actions,
 					skipTelemetry: true
 				});
 			}
@@ -527,7 +614,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return undefined;
 	}
 
-	protected abstract shouldShowCompositeBar(): boolean;
+	protected abstract shouldShowTitleCompositeBar(): boolean;
+	protected abstract shouldShowFooterCompositeBar(): boolean;
 	protected abstract getCompositeBarOptions(): IPaneCompositeBarOptions;
 
 }
