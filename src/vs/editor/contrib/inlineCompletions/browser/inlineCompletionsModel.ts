@@ -14,7 +14,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
@@ -379,7 +379,7 @@ export class InlineCompletionsModel extends Disposable {
 				}
 			}
 			return acceptUntilIndexExclusive;
-		});
+		}, PartialAcceptTriggerKind.Word);
 	}
 
 	public async acceptNextLine(editor: ICodeEditor): Promise<void> {
@@ -389,10 +389,10 @@ export class InlineCompletionsModel extends Disposable {
 				return m.index + 1;
 			}
 			return text.length;
-		});
+		}, PartialAcceptTriggerKind.Line);
 	}
 
-	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number): Promise<void> {
+	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number, kind: PartialAcceptTriggerKind): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -448,6 +448,9 @@ export class InlineCompletionsModel extends Disposable {
 					completion.source.inlineCompletions,
 					completion.sourceInlineCompletion,
 					text.length,
+					{
+						kind,
+					}
 				);
 			}
 		} finally {
@@ -465,6 +468,9 @@ export class InlineCompletionsModel extends Disposable {
 			inlineCompletion.source.inlineCompletions,
 			inlineCompletion.sourceInlineCompletion,
 			itemEdit.text.length,
+			{
+				kind: PartialAcceptTriggerKind.Suggest,
+			}
 		);
 	}
 }

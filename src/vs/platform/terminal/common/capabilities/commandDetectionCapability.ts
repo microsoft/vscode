@@ -515,8 +515,6 @@ class WindowsPtyHeuristics extends Disposable {
 
 	private _onCursorMoveListener = this._register(new MutableDisposable());
 
-	private _recentlyPerformedCsiJ = false;
-
 	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
 	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;
 	private _tryAdjustCommandStartMarkerPollCount: number = 0;
@@ -530,8 +528,8 @@ class WindowsPtyHeuristics extends Disposable {
 		super();
 
 		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			// Clear commands when the viewport is cleared
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				this._recentlyPerformedCsiJ = true;
 				this._hooks.clearCommandsInViewport();
 			}
 			// We don't want to override xterm.js' default behavior, just augment it
@@ -539,11 +537,6 @@ class WindowsPtyHeuristics extends Disposable {
 		}));
 
 		this._register(this._capability.onBeforeCommandFinished(command => {
-			if (this._recentlyPerformedCsiJ) {
-				this._recentlyPerformedCsiJ = false;
-				return;
-			}
-
 			// For older Windows backends we cannot listen to CSI J, instead we assume running clear
 			// or cls will clear all commands in the viewport. This is not perfect but it's right
 			// most of the time.

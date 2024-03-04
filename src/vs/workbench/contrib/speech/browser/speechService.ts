@@ -14,6 +14,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, IKeywordRecognitionSession, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
 export class SpeechService extends Disposable implements ISpeechService {
 
@@ -36,7 +37,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
 	}
@@ -127,6 +129,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 					if (session === this._activeSpeechToTextSession) {
 						this.speechToTextInProgress.set(true);
 						this._onDidStartSpeechToTextSession.fire();
+						this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
 					}
 					break;
 				case SpeechToTextStatus.Recognizing:

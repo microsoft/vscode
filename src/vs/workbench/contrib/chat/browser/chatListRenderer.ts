@@ -360,7 +360,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
 		let progressMsg: string = '';
-		if (element.agent && !element.agent.metadata.isDefault) {
+		if (element.agent && !element.agent.isDefault) {
 			let usingMsg = chatAgentLeader + element.agent.id;
 			if (element.slashCommand) {
 				usingMsg += ` ${chatSubcommandLeader}${element.slashCommand.name}`;
@@ -394,7 +394,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
 
-		if (isResponseVM(element) && element.agent && !element.agent.metadata.isDefault) {
+		if (isResponseVM(element) && element.agent && !element.agent.isDefault) {
 			dom.show(templateData.agentAvatarContainer);
 			const icon = this.getAgentIcon(element.agent.metadata);
 			if (icon instanceof URI) {

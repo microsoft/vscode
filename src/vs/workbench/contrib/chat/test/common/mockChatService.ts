@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatCompleteResponse, IChatDetail, IChatProvider, IChatProviderInfo, IChatSendRequestData, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
@@ -58,9 +58,6 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void {
-		throw new Error('Method not implemented.');
-	}
-	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void {
 		throw new Error('Method not implemented.');
 	}
 	getHistory(): IChatDetail[] {

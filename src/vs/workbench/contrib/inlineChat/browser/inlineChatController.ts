@@ -520,8 +520,8 @@ export class InlineChatController implements IEditorContribution {
 				const withoutSubCommandLeader = input.slice(1);
 				const cts = new CancellationTokenSource();
 				this._sessionStore.add(cts);
-				for (const agent of this._chatAgentService.getAgents()) {
-					const commands = await agent.provideSlashCommands(undefined, [], cts.token);
+				for (const agent of this._chatAgentService.getActivatedAgents()) {
+					const commands = agent.slashCommands;
 					if (commands.find((command) => withoutSubCommandLeader.startsWith(command.name))) {
 						massagedInput = `${chatAgentLeader}${agent.id} ${input}`;
 						break;

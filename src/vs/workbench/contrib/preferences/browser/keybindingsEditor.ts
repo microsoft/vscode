@@ -60,6 +60,7 @@ import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetN
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = DOM.$;
 
@@ -108,6 +109,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	readonly overflowWidgetsDomNode: HTMLElement;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingsService: IKeybindingService,
@@ -121,7 +123,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
+		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(!!this.keybindingFocusContextKey.get())));
 
