@@ -101,7 +101,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 					label,
 					highlights: { label: highlights },
 					buttons: [{
-						iconClass: ThemeIcon.asClassName(Codicon.arrowRight),
+						iconClass: ThemeIcon.asClassName(Codicon.info),
 						tooltip: localize('contributedIssuePage', "Open Extension Page")
 					}],
 					trigger: () => {
@@ -122,7 +122,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 					label: extension.displayName,
 					highlights: { label: highlights },
 					buttons: [{
-						iconClass: ThemeIcon.asClassName(Codicon.arrowRight),
+						iconClass: ThemeIcon.asClassName(Codicon.info),
 						tooltip: localize('contributedIssuePage', "Open Extension Page")
 					}],
 					trigger: () => {
