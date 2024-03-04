@@ -260,7 +260,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.experimental.quickAcessExtensions': {
 				type: 'boolean',
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
-				default: false
+				default: true
 			}
 		}
 	});
