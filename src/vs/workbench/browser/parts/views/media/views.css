@@ -278,8 +278,8 @@
 	display: none;
 }
 
-.viewpane-filter > .viewpane-filter-controls > .monaco-action-bar .action-item .action-label.codicon.filter {
-	padding: 2px;
+.viewpane-filter > .viewpane-filter-controls > .monaco-toolbar .action-item .action-label.codicon-filter {
+	margin-left: 2px;
 }
 
 .panel > .title .monaco-action-bar .action-item.viewpane-filter-container {
