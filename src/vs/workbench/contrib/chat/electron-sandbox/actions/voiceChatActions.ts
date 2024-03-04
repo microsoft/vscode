@@ -52,11 +52,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-
-// This is a one-off/safe import, changing the eslint rules would require duplicating/complicating the rules
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
