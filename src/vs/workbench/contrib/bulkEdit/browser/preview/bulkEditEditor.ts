@@ -47,6 +47,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	private _promiseResolvedEdits: Promise<ResourceEdit[] | undefined> | undefined;
 	private _mapOfReverseEdits: Map<string, Map<DetailedLineRangeMapping, ISingleEditOperation>> = new Map();
 	private _lineRangeMapping: readonly DetailedLineRangeMapping[] | undefined;
+	private _lastDimensionOfEditor: DOM.Dimension | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -247,6 +248,11 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 			}
 			console.log('this._mapOfReverseEdits : ', this._mapOfReverseEdits);
 		});
+		this._refactorViewPane?.onSashMoved(() => {
+			if (this._lastDimensionOfEditor) {
+				this.layout(this._lastDimensionOfEditor);
+			}
+		});
 	}
 
 	override async setOptions(options: IMultiDiffEditorOptions | undefined): Promise<void> {
@@ -275,6 +281,7 @@ export class BulkEditEditor extends AbstractEditorWithViewState<IMultiDiffEditor
 	}
 
 	layout(dimension: DOM.Dimension): void {
+		this._lastDimensionOfEditor = dimension;
 		const newDimension = {
 			height: dimension.height - (this._refactorViewPane?.getHeight() ?? 0),
 			width: dimension.width
