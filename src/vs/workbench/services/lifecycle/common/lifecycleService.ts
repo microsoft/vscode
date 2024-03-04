@@ -51,6 +51,8 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		// Resolve startup kind
 		this._startupKind = this.resolveStartupKind();
 
+		this.logService.trace(`[lifecycle] starting up (startup kind: ${this._startupKind})`);
+
 		// Save shutdown reason to retrieve on next startup
 		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
@@ -59,7 +61,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		});
 	}
 
-	private resolveStartupKind(): StartupKind {
+	protected resolveStartupKind(): StartupKind {
 
 		// Retrieve and reset last shutdown reason
 		const lastShutdownReason = this.storageService.getNumber(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
@@ -77,14 +79,6 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 			default:
 				startupKind = StartupKind.NewWindow;
 		}
-
-		const timing = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-
-		if (timing.type === 'reload') {
-			startupKind = StartupKind.ReloadedWindow;
-		}
-
-		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
 
 		return startupKind;
 	}

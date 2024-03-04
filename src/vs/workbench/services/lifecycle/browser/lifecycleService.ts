@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
@@ -199,6 +199,17 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
 		// Refs: https://github.com/microsoft/vscode/issues/136035
 		this.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.reload());
+	}
+
+	protected override resolveStartupKind(): StartupKind {
+		const timing = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | null;
+		let startupKind = super.resolveStartupKind();
+
+		if (timing?.type === 'reload' && startupKind === StartupKind.NewWindow) {
+			startupKind = StartupKind.ReloadedWindow;
+		}
+
+		return startupKind;
 	}
 }
 
