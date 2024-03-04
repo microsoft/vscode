@@ -13,6 +13,7 @@ import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mainWindow } from 'vs/base/browser/window';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -201,12 +202,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		this.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.reload());
 	}
 
-	protected override resolveStartupKind(): StartupKind {
-		const timing = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | null;
-		let startupKind = super.resolveStartupKind();
-
-		if (timing?.type === 'reload' && startupKind === StartupKind.NewWindow) {
-			startupKind = StartupKind.ReloadedWindow;
+	protected override doResolveStartupKind(): StartupKind | undefined {
+		let startupKind = super.doResolveStartupKind();
+		if (typeof startupKind !== 'number') {
+			const timing = firstOrDefault(performance.getEntriesByType('navigation')) as PerformanceNavigationTiming | undefined;
+			if (timing?.type === 'reload') {
+				startupKind = StartupKind.ReloadedWindow;
+			}
 		}
 
 		return startupKind;
