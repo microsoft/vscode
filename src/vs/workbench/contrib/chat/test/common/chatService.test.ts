@@ -195,18 +195,6 @@ suite('Chat', () => {
 		}, 'Expected to throw for dupe provider');
 	});
 
-	test('sendRequestToProvider', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
-
-		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
-		assert.strictEqual(model.getRequests().length, 0);
-
-		const response = await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
-		await response?.responseCompletePromise;
-		assert.strictEqual(model.getRequests().length, 1);
-	});
-
 	test('addCompleteRequest', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));

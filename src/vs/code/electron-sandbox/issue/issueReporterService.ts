@@ -78,6 +78,10 @@ export class IssueReporter extends Disposable {
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
+			const issueRepoName = document.createElement('a');
+			issueReporterElement.appendChild(issueRepoName);
+			issueRepoName.id = 'show-repo-name';
+			issueRepoName.classList.add('hidden');
 			this.updatePreviewButtonState();
 		}
 
@@ -502,13 +506,16 @@ export class IssueReporter extends Disposable {
 			this.previewButton.label = localize('loadingData', "Loading data...");
 		}
 
+		const issueRepoName = this.getElementById('show-repo-name')! as HTMLAnchorElement;
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 		if (selectedExtension && selectedExtension.uri) {
-			const extensionLink = document.createElement('a');
-			extensionLink.href = URI.revive(selectedExtension.uri).toString();
-			extensionLink.textContent = selectedExtension.id;
-			const issueReporterElement = this.getElementById('issue-reporter')!;
-			Object.assign(extensionLink.style, {
+			const urlString = URI.revive(selectedExtension.uri).toString();
+			issueRepoName.href = urlString;
+			issueRepoName.addEventListener('click', (e) => this.openLink(e));
+			issueRepoName.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+			const gitHubInfo = this.parseGitHubUrl(urlString);
+			issueRepoName.textContent = gitHubInfo ? gitHubInfo.owner + '/' + gitHubInfo.repositoryName : urlString;
+			Object.assign(issueRepoName.style, {
 				alignSelf: 'flex-end',
 				display: 'block',
 				fontSize: '13px',
@@ -517,7 +524,11 @@ export class IssueReporter extends Disposable {
 				textDecoration: 'none',
 				width: 'auto'
 			});
-			issueReporterElement.appendChild(extensionLink);
+			show(issueRepoName);
+		} else {
+			// clear styles
+			issueRepoName.removeAttribute('style');
+			hide(issueRepoName);
 		}
 	}
 

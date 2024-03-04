@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { ICodeEditorViewState, IDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -63,7 +63,6 @@ import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
-import { mainWindow } from 'vs/base/browser/window';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -108,7 +107,7 @@ export class InteractiveEditor extends EditorPane {
 	private _editorOptions: IEditorOptions;
 	private _notebookOptions: NotebookOptions;
 	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	private _groupListener = this._register(new DisposableStore());
+	private _groupListener = this._register(new MutableDisposable());
 	private _runbuttonToolbar: ToolBar | undefined;
 
 	private _onDidFocusWidget = this._register(new Emitter<void>());
@@ -117,6 +116,7 @@ export class InteractiveEditor extends EditorPane {
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -137,6 +137,7 @@ export class InteractiveEditor extends EditorPane {
 	) {
 		super(
 			INTERACTIVE_WINDOW_EDITOR_ID,
+			group,
 			telemetryService,
 			themeService,
 			storageService
@@ -160,7 +161,7 @@ export class InteractiveEditor extends EditorPane {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(DOM.getWindowById(this.group?.windowId, true).window ?? mainWindow, configurationService, notebookExecutionStateService, codeEditorService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = new NotebookOptions(this.window, configurationService, notebookExecutionStateService, codeEditorService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false }); //TODO@bpasero might crash
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
@@ -313,7 +314,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this._notebookWidget.value && input instanceof InteractiveEditorInput) {
+		if (this._notebookWidget.value && input instanceof InteractiveEditorInput) {
 			if (this._notebookWidget.value.isDisposed) {
 				return;
 			}
@@ -328,10 +329,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
-		let result: InteractiveEditorViewState | undefined;
-		if (this.group) {
-			result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
-		}
+		const result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
 		if (result) {
 			return result;
 		}
@@ -351,7 +349,6 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override async setInput(input: InteractiveEditorInput, options: InteractiveEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const group = this.group!;
 		const notebookInput = input.notebookEditorInput;
 
 		// there currently is a widget which we still own so
@@ -362,9 +359,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this._widgetDisposableStore.clear();
 
-		const codeWindow = this.group ? DOM.getWindowById(group.windowId, true).window : mainWindow;
-
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, notebookInput, {
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
@@ -388,8 +383,8 @@ export class InteractiveEditor extends EditorPane {
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
-			codeWindow: codeWindow
-		}, undefined, this._rootElement ? DOM.getWindow(this._rootElement) : mainWindow);
+			codeWindow: this.window
+		}, undefined, this.window);
 
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
@@ -681,12 +676,9 @@ export class InteractiveEditor extends EditorPane {
 		this._notebookWidget.value!.focus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-		if (group) {
-			this._groupListener.clear();
-			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-		}
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this._groupListener.value = this.group.onWillCloseEditor(e => this._saveEditorViewState(e.editor));
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);

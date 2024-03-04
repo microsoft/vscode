@@ -22,6 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -84,9 +85,10 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		readonly container: HTMLElement,
 		stylesHaveLoaded: Barrier,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(window, undefined, hostService);
+		super(window, undefined, hostService, environmentService);
 
 		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
 		this.registerListeners();
@@ -182,7 +184,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -237,7 +240,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService);
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
@@ -293,22 +296,18 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions): { stylesLoaded: Barrier; container: HTMLElement } {
-		this.patchMethods(auxiliaryWindow);
+		auxiliaryWindow.document.createElement = function () {
+			// Disallow `createElement` because it would create
+			// HTML Elements in the "wrong" context and break
+			// code that does "instanceof HTMLElement" etc.
+			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
+		};
 
 		this.applyMeta(auxiliaryWindow);
 		const { stylesLoaded } = this.applyCSS(auxiliaryWindow, disposables);
 		const container = this.applyHTML(auxiliaryWindow, disposables);
+
 		return { stylesLoaded, container };
-	}
-
-	protected patchMethods(auxiliaryWindow: CodeWindow): void {
-
-		// Disallow `createElement` because it would create
-		// HTML Elements in the "wrong" context and break
-		// code that does "instanceof HTMLElement" etc.
-		auxiliaryWindow.document.createElement = function () {
-			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
-		};
 	}
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {

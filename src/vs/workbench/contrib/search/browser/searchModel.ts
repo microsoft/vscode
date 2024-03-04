@@ -1026,6 +1026,15 @@ export class FolderMatch extends Disposable {
 			}
 		}
 
+		// FolderMatch on a leaf node does not always run the for-loop of folderMatch because it does not have a FolderMatch as a child.
+		// Therefore, FileMatch is also searched to check for the existence of AIResults
+		const fileIterator = this.fileMatchesIterator();
+		for (const elem of fileIterator) {
+			if (elem.hasDownstreamNonAIResults()) {
+				return true;
+			}
+		}
+
 		return false;
 	}
 

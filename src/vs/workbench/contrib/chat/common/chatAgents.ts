@@ -37,7 +37,7 @@ export interface IChatAgentData {
 
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
+	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
 	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
@@ -118,7 +118,7 @@ export interface IChatAgentService {
 	registerAgent(name: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
 	invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]>;
+	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getRegisteredAgents(): Array<IChatAgentData>;
 	getActivatedAgents(): Array<IChatAgent>;
 	getRegisteredAgent(id: string): IChatAgentData | undefined;
@@ -236,7 +236,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return await data.impl.invoke(request, progress, history, token);
 	}
 
-	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
+	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 		const data = this._agents.get(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id ${id}`);
@@ -246,7 +246,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			return [];
 		}
 
-		return data.impl.provideFollowups(request, result, token);
+		return data.impl.provideFollowups(request, result, history, token);
 	}
 }
 
@@ -266,9 +266,9 @@ export class MergedChatAgent implements IChatAgent {
 		return this.impl.invoke(request, progress, history, token);
 	}
 
-	async provideFollowups(request: IChatAgentRequest, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
+	async provideFollowups(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 		if (this.impl.provideFollowups) {
-			return this.impl.provideFollowups(request, result, token);
+			return this.impl.provideFollowups(request, result, history, token);
 		}
 
 		return [];

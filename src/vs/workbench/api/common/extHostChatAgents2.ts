@@ -245,14 +245,16 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
 
-	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
+	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return Promise.resolve([]);
 		}
 
+		const convertedHistory = await this.prepareHistoryTurns(agent.id, context);
+
 		const ehResult = typeConvert.ChatAgentResult.to(result);
-		return (await agent.provideFollowups(ehResult, token))
+		return (await agent.provideFollowups(ehResult, { history: convertedHistory }, token))
 			.filter(f => {
 				// The followup must refer to a participant that exists from the same extension
 				const isValid = !f.participant || Iterable.some(
@@ -376,11 +378,12 @@ class ExtHostChatAgent {
 		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
 	}
 
-	async provideFollowups(result: vscode.ChatResult, token: CancellationToken): Promise<vscode.ChatFollowup[]> {
+	async provideFollowups(result: vscode.ChatResult, context: vscode.ChatContext, token: CancellationToken): Promise<vscode.ChatFollowup[]> {
 		if (!this._followupProvider) {
 			return [];
 		}
-		const followups = await this._followupProvider.provideFollowups(result, token);
+
+		const followups = await this._followupProvider.provideFollowups(result, context, token);
 		if (!followups) {
 			return [];
 		}

@@ -53,6 +53,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { mainWindow } from 'vs/base/browser/window';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
+import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -783,6 +784,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IStorageService private readonly storageService: IStorageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super();
 		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
@@ -858,6 +860,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}));
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0)));
+		this._register(this.updateService.onStateChange(e => {
+			if ((e.type === StateType.AvailableForDownload || e.type === StateType.Downloading) && this.isAutoUpdateEnabled()) {
+				this.checkForUpdates();
+			}
+		}));
 
 		// Update AutoUpdate Contexts
 		this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0);

@@ -8,16 +8,30 @@ import * as nls from 'vs/nls';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService } from 'vs/workbench/services/authentication/common/authentication';
 import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import type { AuthenticationGetSessionOptions } from 'vscode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
 import { getAuthenticationProviderActivationEvent } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+
+interface AuthenticationForceNewSessionOptions {
+	detail?: string;
+	learnMore?: UriComponents;
+	sessionToRecreate?: AuthenticationSession;
+}
+
+interface AuthenticationGetSessionOptions {
+	clearSessionPreference?: boolean;
+	createIfNone?: boolean;
+	forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
+	silent?: boolean;
+}
 
 export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
 
@@ -64,7 +78,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -102,18 +117,38 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
-	private async loginPrompt(providerName: string, extensionName: string, recreatingSession: boolean, detail?: string): Promise<boolean> {
+	private async loginPrompt(providerName: string, extensionName: string, recreatingSession: boolean, options?: AuthenticationForceNewSessionOptions): Promise<boolean> {
 		const message = recreatingSession
 			? nls.localize('confirmRelogin', "The extension '{0}' wants you to sign in again using {1}.", extensionName, providerName)
 			: nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName);
-		const { confirmed } = await this.dialogService.confirm({
+
+		const buttons: IPromptButton<boolean | undefined>[] = [
+			{
+				label: nls.localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
+				run() {
+					return true;
+				},
+			}
+		];
+		if (options?.learnMore) {
+			buttons.push({
+				label: nls.localize('learnMore', "Learn more"),
+				run: async () => {
+					const result = this.loginPrompt(providerName, extensionName, recreatingSession, options);
+					await this.openerService.open(URI.revive(options.learnMore!), { allowCommands: true });
+					return await result;
+				}
+			});
+		}
+		const { result } = await this.dialogService.prompt({
 			type: Severity.Info,
 			message,
-			detail,
-			primaryButton: nls.localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow")
+			buttons,
+			detail: options?.detail,
+			cancelButton: true,
 		});
 
-		return confirmed;
+		return result ?? false;
 	}
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
@@ -156,12 +191,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// We may need to prompt because we don't have a valid session
 		// modal flows
 		if (options.createIfNone || options.forceNewSession) {
-			const detail = (typeof options.forceNewSession === 'object') ? options.forceNewSession.detail : undefined;
+			let uiOptions: AuthenticationForceNewSessionOptions | undefined;
+			if (typeof options.forceNewSession === 'object') {
+				uiOptions = options.forceNewSession;
+			}
 
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
 			// that we will be "forcing through".
 			const recreatingSession = !!(options.forceNewSession && sessions.length);
-			const isAllowed = await this.loginPrompt(provider.label, extensionName, recreatingSession, detail);
+			const isAllowed = await this.loginPrompt(provider.label, extensionName, recreatingSession, uiOptions);
 			if (!isAllowed) {
 				throw new Error('User did not consent to login.');
 			}
