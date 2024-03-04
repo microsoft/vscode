@@ -32,7 +32,7 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		}
 		try {
 			if (item.resolver.resolve2) {
-				checkProposedApiEnabled(item.extension, 'chatAgents2Additions');
+				checkProposedApiEnabled(item.extension, 'chatParticipantAdditions');
 				const stream = new ChatVariableResolverResponseStream(requestId, this._proxy);
 				const value = await item.resolver.resolve2(item.data.name, { prompt: messageText }, stream.apiObject, token);
 				if (value) {

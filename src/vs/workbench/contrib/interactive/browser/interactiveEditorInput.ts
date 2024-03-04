@@ -132,7 +132,6 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	override get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Untitled
 			| EditorInputCapabilities.Readonly
-			| EditorInputCapabilities.AuxWindowUnsupported
 			| EditorInputCapabilities.Scratchpad;
 	}
 

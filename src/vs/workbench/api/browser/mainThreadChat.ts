@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostChatShape, ExtHostContext, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatDynamicRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -81,13 +81,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	async $acceptChatState(sessionId: number, state: any): Promise<void> {
 		this._stateEmitters.get(sessionId)?.fire(state);
-	}
-
-	async $sendRequestToProvider(providerId: string, message: IChatDynamicRequest): Promise<void> {
-		const widget = await this._chatWidgetService.revealViewForProvider(providerId);
-		if (widget && widget.viewModel) {
-			this._chatService.sendRequestToProvider(widget.viewModel.sessionId, message);
-		}
 	}
 
 	async $unregisterChatProvider(handle: number): Promise<void> {

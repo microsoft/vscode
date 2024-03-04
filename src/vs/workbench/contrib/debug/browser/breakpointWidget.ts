@@ -16,7 +16,7 @@ import 'vs/css!./media/breakpointWidget';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, ServicesAccessor, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -265,30 +265,28 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	private createTriggerBreakpointInput(container: HTMLElement) {
 		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint);
+		const breakpointOptions: ISelectOptionItem[] = [
+			{ text: nls.localize('noTriggerByBreakpoint', 'None'), isDisabled: true },
+			...breakpoints.map(bp => ({
+				text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
+				description: nls.localize('triggerByLoading', 'Loading...')
+			})),
+		];
 
 		const index = breakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
-		let select = 0;
-		if (index > -1) {
-			select = index + 1;
-		}
-
-		Promise.all(breakpoints.map(async (bp): Promise<ISelectOptionItem> => ({
-			text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
-			description: await this.textModelService.createModelReference(bp.uri).then(ref => {
+		for (const [i, bp] of breakpoints.entries()) {
+			this.textModelService.createModelReference(bp.uri).then(ref => {
 				try {
-					return ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
+					breakpointOptions[i + 1].description = ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
 				} finally {
 					ref.dispose();
 				}
-			}, () => undefined),
-		}))).then(breakpoints => {
-			selectBreakpointBox.setOptions([
-				{ text: nls.localize('noTriggerByBreakpoint', 'None') },
-				...breakpoints
-			], select);
-		});
+			}).catch(() => {
+				breakpointOptions[i + 1].description = nls.localize('noBpSource', 'Could not load source.');
+			});
+		}
 
-		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox([{ text: nls.localize('triggerByLoading', 'Loading...'), isDisabled: true }], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		const selectBreakpointBox = this.selectBreakpointBox = new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;

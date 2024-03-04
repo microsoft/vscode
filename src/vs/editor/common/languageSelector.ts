@@ -131,3 +131,14 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 		return 0;
 	}
 }
+
+
+export function targetsNotebooks(selector: LanguageSelector): boolean {
+	if (typeof selector === 'string') {
+		return false;
+	} else if (Array.isArray(selector)) {
+		return selector.some(targetsNotebooks);
+	} else {
+		return !!(<LanguageFilter>selector).notebookType;
+	}
+}

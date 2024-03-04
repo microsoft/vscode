@@ -4164,7 +4164,7 @@ export enum InteractiveSessionVoteDirection {
 	Up = 1
 }
 
-export enum ChatAgentCopyKind {
+export enum ChatCopyKind {
 	Action = 1,
 	Toolbar = 2
 }
@@ -4175,7 +4175,7 @@ export enum ChatVariableLevel {
 	Full = 3
 }
 
-export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
+export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	label: string | CompletionItemLabel;
 	insertText?: string;
 	values: vscode.ChatVariableValue[];
@@ -4200,17 +4200,9 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Bug = 4
 }
 
-export enum ChatAgentResultFeedbackKind {
+export enum ChatResultFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
-}
-
-
-export class ChatResponseTextPart {
-	value: string;
-	constructor(value: string) {
-		this.value = value;
-	}
 }
 
 export class ChatResponseMarkdownPart {
@@ -4260,25 +4252,26 @@ export class ChatResponseReferencePart {
 }
 
 
-export class ChatAgentRequestTurn implements vscode.ChatAgentRequestTurn {
+export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatAgentResolvedVariable[],
-		readonly agent: { extensionId: string; agent: string },
+		readonly variables: vscode.ChatResolvedVariable[],
+		readonly participant: { extensionId: string; name: string },
 	) { }
 }
 
-export class ChatAgentResponseTurn implements vscode.ChatAgentResponseTurn {
+export class ChatResponseTurn implements vscode.ChatResponseTurn {
 
 	constructor(
-		readonly response: ReadonlyArray<ChatResponseTextPart | ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
-		readonly result: vscode.ChatAgentResult2,
-		readonly agent: { extensionId: string; agent: string }
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		readonly result: vscode.ChatResult,
+		readonly participant: { extensionId: string; name: string },
+		readonly command?: string
 	) { }
 }
 
-export class LanguageModelSystemMessage {
+export class LanguageModelChatSystemMessage {
 	content: string;
 
 	constructor(content: string) {
@@ -4286,7 +4279,7 @@ export class LanguageModelSystemMessage {
 	}
 }
 
-export class LanguageModelUserMessage {
+export class LanguageModelChatUserMessage {
 	content: string;
 	name: string | undefined;
 
@@ -4296,12 +4289,32 @@ export class LanguageModelUserMessage {
 	}
 }
 
-export class LanguageModelAssistantMessage {
+export class LanguageModelChatAssistantMessage {
 	content: string;
 
 	constructor(content: string) {
 		this.content = content;
 	}
+}
+
+export class LanguageModelError extends Error {
+
+	static NotFound(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NotFound.name);
+	}
+
+	static NoPermissions(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
+	}
+
+	readonly code: string;
+
+	constructor(message?: string, code?: string, cause?: Error) {
+		super(message, { cause });
+		this.name = 'LanguageModelError';
+		this.code = code ?? '';
+	}
+
 }
 
 //#endregion
@@ -4329,6 +4342,22 @@ export enum SpeechToTextStatus {
 export enum KeywordRecognitionStatus {
 	Recognized = 1,
 	Stopped = 2
+}
+
+//#endregion
+
+//#region InlineEdit
+
+export class InlineEdit implements vscode.InlineEdit {
+	constructor(
+		public readonly text: string,
+		public readonly range: Range,
+	) { }
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
 }
 
 //#endregion

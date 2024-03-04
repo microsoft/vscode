@@ -723,7 +723,9 @@ export class HunkData {
 	discardAll() {
 		const edits: ISingleEditOperation[][] = [];
 		for (const item of this.getInfo()) {
-			edits.push(this._discardEdits(item));
+			if (item.getState() !== HunkState.Rejected) {
+				edits.push(this._discardEdits(item));
+			}
 		}
 		const undoEdits: IValidEditOperation[][] = [];
 		this._textModelN.pushEditOperations(null, edits.flat(), (_undoEdits) => {

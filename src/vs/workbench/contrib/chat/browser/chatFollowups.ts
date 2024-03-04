@@ -42,7 +42,20 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 			return;
 		}
 
-		const tooltip = 'tooltip' in followup ? followup.tooltip : undefined;
+		let tooltipPrefix = '';
+		if ('agentId' in followup && followup.agentId && followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
+			tooltipPrefix += `${chatAgentLeader}${followup.agentId} `;
+			if ('subCommand' in followup && followup.subCommand) {
+				tooltipPrefix += `${chatSubcommandLeader}${followup.subCommand} `;
+			}
+		}
+
+		const baseTitle = followup.kind === 'reply' ?
+			(followup.title || followup.message)
+			: followup.title;
+
+		const tooltip = tooltipPrefix +
+			('tooltip' in followup && followup.tooltip || baseTitle);
 		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');
@@ -50,19 +63,11 @@ export class ChatFollowups<T extends IChatFollowup | IInlineChatFollowup> extend
 			button.element.classList.add('interactive-followup-command');
 		}
 		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", followup.title);
-		let prefix = '';
-		if ('agentId' in followup && followup.agentId && followup.agentId !== this.chatAgentService.getDefaultAgent()?.id) {
-			prefix += `${chatAgentLeader}${followup.agentId} `;
-			if ('subCommand' in followup && followup.subCommand) {
-				prefix += `${chatSubcommandLeader}${followup.subCommand} `;
-			}
-		}
-
 		let label = '';
 		if (followup.kind === 'reply') {
-			label = '$(sparkle) ' + (followup.title || (prefix + followup.message));
+			label = '$(sparkle) ' + baseTitle;
 		} else {
-			label = followup.title;
+			label = baseTitle;
 		}
 		button.label = new MarkdownString(label, { supportThemeIcons: true });
 

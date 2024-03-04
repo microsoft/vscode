@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
 import { AccessibilityAlertSettingId, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
@@ -115,7 +115,7 @@ export const announcementFeatureBase: IConfigurationPropertySchema = {
 const defaultNoAnnouncement: IConfigurationPropertySchema = {
 	'type': 'object',
 	'tags': ['accessibility'],
-	additionalProperties: true,
+	additionalProperties: false,
 	'default': {
 		'sound': 'auto',
 	}
@@ -536,7 +536,6 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.chatResponseReceived': {
 			...defaultNoAnnouncement,
-			additionalProperties: false,
 			'description': localize('accessibility.signals.chatResponseReceived', "Indicates when the response has been received."),
 			'properties': {
 				'sound': {
@@ -545,9 +544,20 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
+		'accessibility.signals.voiceRecordingStarted': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.voiceRecordingStarted', "Indicates when the voice recording has started."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceRecordingStarted.sound', "Plays a sound when the voice recording has started."),
+					...soundFeatureBase,
+					'default': 'on'
+				},
+			}
+		},
 		'accessibility.signals.clear': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
+			'description': localize('accessibility.signals.clear', "Plays a signal when a feature is cleared (for example, the terminal, Debug Console, or Output channel)."),
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.clear.sound', "Plays a sound when a feature is cleared."),
@@ -562,7 +572,7 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.save': {
 			'type': 'object',
 			'tags': ['accessibility'],
-			additionalProperties: true,
+			additionalProperties: false,
 			'markdownDescription': localize('accessibility.signals.save', "Plays a signal when a file is saved."),
 			'properties': {
 				'sound': {
@@ -596,7 +606,7 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.format': {
 			'type': 'object',
 			'tags': ['accessibility'],
-			additionalProperties: true,
+			additionalProperties: false,
 			'markdownDescription': localize('accessibility.signals.format', "Plays a signal when a file or notebook is formatted."),
 			'properties': {
 				'sound': {
@@ -621,6 +631,10 @@ const configuration: IConfigurationNode = {
 						localize('accessibility.signals.format.announcement.never', "Never announces.")
 					],
 				},
+			},
+			default: {
+				'sound': 'never',
+				'announcement': 'never'
 			}
 		},
 	}
@@ -660,7 +674,8 @@ export function registerAccessibilityConfiguration() {
 }
 
 export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout'
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+	SpeechLanguage = SPEECH_LANGUAGE_CONFIG
 }
 export const SpeechTimeoutDefault = 1200;
 
@@ -681,6 +696,11 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 			return; // these settings require a speech provider
 		}
 
+		const languages = this.getLanguages();
+		const languagesSorted = Object.keys(languages).sort((langA, langB) => {
+			return languages[langA].name.localeCompare(languages[langB].name);
+		});
+
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		registry.registerConfiguration({
 			...accessibilityConfigurationNodeBase,
@@ -691,11 +711,30 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'default': SpeechTimeoutDefault,
 					'minimum': 0,
 					'tags': ['accessibility']
+				},
+				[AccessibilityVoiceSettingId.SpeechLanguage]: {
+					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition"),
+					'type': 'string',
+					'enum': languagesSorted,
+					'default': 'auto',
+					'tags': ['accessibility'],
+					'enumDescriptions': languagesSorted.map(key => languages[key].name),
+					'enumItemLabels': languagesSorted.map(key => languages[key].name)
 				}
 			}
 		});
 	}
+
+	private getLanguages(): { [locale: string]: { name: string } } {
+		return {
+			['auto']: {
+				name: localize('speechLanguage.auto', "Auto (Use Display Language)")
+			},
+			...SPEECH_LANGUAGES
+		};
+	}
 }
+
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'audioCues.volume',
@@ -731,21 +770,24 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 					announcement = announcement ? 'auto' : 'off';
 				}
 			}
+			configurationKeyValuePairs.push([`${item.legacySoundSettingsKey}`, { value: undefined }]);
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
 			return configurationKeyValuePairs;
 		}
 	})));
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.announcementMessage).map(item => ({
+	.registerConfigurationMigrations(AccessibilitySignal.allAccessibilitySignals.filter(i => !!i.legacyAnnouncementSettingsKey).map(item => ({
 		key: item.legacyAnnouncementSettingsKey!,
 		migrateFn: (announcement, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			const sound = accessor(item.legacySoundSettingsKey);
+			const sound = accessor(item.settingsKey)?.sound || accessor(item.legacySoundSettingsKey);
 			if (announcement !== undefined && typeof announcement !== 'string') {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push([`${item.settingsKey}`, { value: announcement !== undefined ? { announcement, sound } : { sound } }]);
+			configurationKeyValuePairs.push([`${item.legacyAnnouncementSettingsKey}`, { value: undefined }]);
+			configurationKeyValuePairs.push([`${item.legacySoundSettingsKey}`, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	})));

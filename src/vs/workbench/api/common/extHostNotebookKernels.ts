@@ -475,6 +475,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				name: result.variable.name,
 				value: result.variable.value,
 				type: result.variable.type,
+				language: result.variable.language,
+				expression: result.variable.expression,
 				hasNamedChildren: result.hasNamedChildren,
 				indexedChildrenCount: result.indexedChildrenCount,
 				extensionId: obj.extensionId.value,

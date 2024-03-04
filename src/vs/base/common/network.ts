@@ -7,6 +7,7 @@ import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/path';
 
 export namespace Schemas {
 
@@ -116,11 +117,6 @@ export namespace Schemas {
 	 * Scheme used for special rendering of settings in the release notes
 	 */
 	export const codeSetting = 'code-setting';
-
-	/**
-	 * Scheme used for special rendering of features in the release notes
-	 */
-	export const codeFeature = 'code-feature';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
@@ -144,7 +140,7 @@ class RemoteAuthoritiesImpl {
 	private readonly _connectionTokens: { [authority: string]: string | undefined } = Object.create(null);
 	private _preferredWebSchema: 'http' | 'https' = 'http';
 	private _delegate: ((uri: URI) => URI) | null = null;
-	private _remoteResourcesPath: string = `/${Schemas.vscodeRemoteResource}`;
+	private _serverRootPath: string = '/';
 
 	setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
@@ -154,8 +150,16 @@ class RemoteAuthoritiesImpl {
 		this._delegate = delegate;
 	}
 
-	setServerRootPath(serverRootPath: string): void {
-		this._remoteResourcesPath = `${serverRootPath}/${Schemas.vscodeRemoteResource}`;
+	setServerRootPath(product: { quality?: string; commit?: string }, serverBasePath: string | undefined): void {
+		this._serverRootPath = getServerRootPath(product, serverBasePath);
+	}
+
+	getServerRootPath(): string {
+		return this._serverRootPath;
+	}
+
+	private get _remoteResourcesPath(): string {
+		return paths.posix.join(this._serverRootPath, Schemas.vscodeRemoteResource);
 	}
 
 	set(authority: string, host: string, port: number): void {
@@ -201,6 +205,10 @@ class RemoteAuthoritiesImpl {
 }
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
+
+export function getServerRootPath(product: { quality?: string; commit?: string }, basePath: string | undefined): string {
+	return paths.posix.join(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
+}
 
 /**
  * A string pointing to a path inside the app. It should not begin with ./ or ../

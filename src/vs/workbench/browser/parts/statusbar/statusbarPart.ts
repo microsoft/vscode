@@ -136,8 +136,14 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
-
-	private readonly hoverDelegate: WorkbenchHoverDelegate;
+	private readonly hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, (_, focus?: boolean) => (
+		{
+			persistence: {
+				hideOnKeyDown: true,
+				sticky: focus
+			}
+		}
+	)));
 
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
@@ -149,19 +155,10 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
-
-		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, (_, focus?: boolean) => (
-			{
-				persistence: {
-					hideOnKeyDown: true,
-					sticky: focus
-				}
-			}
-		)));
 
 		this.registerListeners();
 	}
@@ -591,7 +588,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 
 				/* Status bar item focus outline */
-				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible:not(.disabled) {
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible {
 					outline: 1px solid ${this.getColor(activeContrastBorder) ?? itemBorderColor};
 					outline-offset: ${borderColor ? '-2px' : '-1px'};
 				}

@@ -177,7 +177,7 @@ export interface IChatVoteAction {
 	reportIssue?: boolean;
 }
 
-export enum ChatAgentCopyKind {
+export enum ChatCopyKind {
 	// Keyboard shortcut or context menu
 	Action = 1,
 	Toolbar = 2
@@ -186,7 +186,7 @@ export enum ChatAgentCopyKind {
 export interface IChatCopyAction {
 	kind: 'copy';
 	codeBlockIndex: number;
-	copyKind: ChatAgentCopyKind;
+	copyKind: ChatCopyKind;
 	copiedCharacters: number;
 	totalCharacters: number;
 	copiedText: string;
@@ -293,7 +293,6 @@ export interface IChatService {
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void;
-	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;

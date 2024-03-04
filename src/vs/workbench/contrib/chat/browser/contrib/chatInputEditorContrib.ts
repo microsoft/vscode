@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -346,8 +345,8 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getAgents()
-					.filter(a => !a.metadata.isDefault);
+				const agents = this.chatAgentService.getRegisteredAgents()
+					.filter(a => !a.isDefault);
 				return <CompletionList>{
 					suggestions: agents.map((c, i) => {
 						const withAt = `@${c.id}`;
@@ -398,10 +397,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
-				const commands = await usedAgent.agent.provideSlashCommands(token); // Refresh the cache here
-
 				return <CompletionList>{
-					suggestions: commands.map((c, i) => {
+					suggestions: usedAgent.agent.slashCommands.map((c, i) => {
 						const withSlash = `/${c.name}`;
 						return <CompletionItem>{
 							label: withSlash,
@@ -421,7 +418,8 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
+				const viewModel = widget?.viewModel;
+				if (!widget || !viewModel) {
 					return;
 				}
 
@@ -430,16 +428,9 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getAgents();
-				const all = agents.map(agent => agent.provideSlashCommands(token));
-				const commands = await raceCancellation(Promise.all(all), token);
-
-				if (!commands) {
-					return;
-				}
-
+				const agents = this.chatAgentService.getRegisteredAgents();
 				const justAgents: CompletionItem[] = agents
-					.filter(a => !a.metadata.isDefault)
+					.filter(a => !a.isDefault)
 					.map(agent => {
 						const agentLabel = `${chatAgentLeader}${agent.id}`;
 						return {
@@ -454,7 +445,7 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: justAgents.concat(
-						agents.flatMap((agent, i) => commands[i].map((c, i) => {
+						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
 							const agentLabel = `${chatAgentLeader}${agent.id}`;
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
 							return {
