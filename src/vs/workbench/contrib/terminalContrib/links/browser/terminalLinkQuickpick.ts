@@ -41,7 +41,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this._editorViewState = this.add(this._instantiationService.createInstance(EditorViewStateManager));
+		this._editorViewState = this.add(instantiationService.createInstance(EditorViewStateManager));
 	}
 
 	async show(instance: ITerminalInstance | IDetachedTerminalInstance, links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {
