@@ -83,9 +83,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
-	private readonly pickState = new class {
+	private readonly pickState = this._register(new class extends Disposable {
 
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
+
+		editorViewState: EditorViewStateManager;
 
 		scorerCache: FuzzyScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
@@ -98,7 +100,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		isQuickNavigating: boolean | undefined = undefined;
 
-		constructor(private readonly provider: AnythingQuickAccessProvider) { }
+		constructor(
+			private readonly provider: AnythingQuickAccessProvider,
+			instantiationService: IInstantiationService
+		) {
+			super();
+			this.editorViewState = this._register(instantiationService.createInstance(EditorViewStateManager));
+		}
 
 		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
 
@@ -123,8 +131,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.lastFilter = undefined;
 			this.lastRange = undefined;
 			this.lastGlobalPicks = undefined;
+			this.editorViewState.reset();
 		}
-	}(this);
+	}(this, this.instantiationService));
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -133,8 +142,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		return undefined;
 	}
-
-	private readonly editorViewState: EditorViewStateManager;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -161,7 +168,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			canAcceptInBackground: true,
 			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
-		this.editorViewState = this._register(this.instantiationService.createInstance(EditorViewStateManager));
 	}
 
 	private get configuration() {
@@ -184,7 +190,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Update the pick state for this run
 		this.pickState.set(picker);
-		this.editorViewState.reset();
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -206,7 +211,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// could mean the user clicked into the editor directly.
 		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
 			if (reason === QuickInputHideReason.Gesture) {
-				this.editorViewState.restore();
+				this.pickState.editorViewState.restore();
 			}
 		}));
 
@@ -228,7 +233,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// we must remember our curret view state to be able to restore
-		this.editorViewState.set();
+		this.pickState.editorViewState.set();
 
 		// Reveal
 		activeEditorControl.revealRangeInCenter(pick.range.selection, ScrollType.Smooth);
@@ -840,7 +845,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		try {
 
 			// we must remember our curret view state to be able to restore
-			this.editorViewState.set();
+			this.pickState.editorViewState.set();
 
 			// open it
 			await this.editorService.openEditor({
@@ -1008,7 +1013,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Restore any view state if the target is the side group
 		if (targetGroup === SIDE_GROUP) {
-			await this.editorViewState.restore();
+			await this.pickState.editorViewState.restore();
 		}
 
 		// Open editor (typed)
