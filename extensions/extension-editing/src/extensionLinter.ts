@@ -66,7 +66,7 @@ export class ExtensionLinter {
 	private folderToPackageJsonInfo: Record<string, PackageJsonInfo> = {};
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
-	private timer: NodeJS.Timer | undefined;
+	private timer: NodeJS.Timeout | undefined;
 	private markdownIt: MarkdownItType.MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
 
