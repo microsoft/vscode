@@ -15,7 +15,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import type { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { Sequencer, timeout } from 'vs/base/common/async';
-import { EditorViewStateManager } from 'vs/workbench/browser/quickaccess';
+import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
@@ -26,7 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 export class TerminalLinkQuickpick extends DisposableStore {
 
 	private readonly _editorSequencer = new Sequencer();
-	private readonly _editorViewState: EditorViewStateManager;
+	private readonly _editorViewState: PickerEditorState;
 
 	private _instance: ITerminalInstance | IDetachedTerminalInstance | undefined;
 
@@ -41,7 +41,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this._editorViewState = this.add(instantiationService.createInstance(EditorViewStateManager));
+		this._editorViewState = this.add(instantiationService.createInstance(PickerEditorState));
 	}
 
 	async show(instance: ITerminalInstance | IDetachedTerminalInstance, links: { viewport: IDetectedLinks; all: Promise<IDetectedLinks> }): Promise<void> {

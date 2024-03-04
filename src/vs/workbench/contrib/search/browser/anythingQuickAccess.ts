@@ -41,7 +41,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { EditorViewStateManager, IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
+import { PickerEditorState, IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
@@ -87,7 +87,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
-		editorViewState: EditorViewStateManager;
+		editorViewState: PickerEditorState;
 
 		scorerCache: FuzzyScorerCache = Object.create(null);
 		fileQueryCache: FileQueryCacheState | undefined = undefined;
@@ -105,7 +105,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			instantiationService: IInstantiationService
 		) {
 			super();
-			this.editorViewState = this._register(instantiationService.createInstance(EditorViewStateManager));
+			this.editorViewState = this._register(instantiationService.createInstance(PickerEditorState));
 		}
 
 		set(picker: IQuickPick<IAnythingQuickPickItem>): void {

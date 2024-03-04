@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { EditorViewStateManager } from 'vs/workbench/browser/quickaccess';
+import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { Range } from 'vs/editor/common/core/range';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -342,7 +342,7 @@ suite('QuickAccess', () => {
 		restore();
 	});
 
-	test('EditorViewStateManager can properly restore editors', async () => {
+	test('PickerEditorState can properly restore editors', async () => {
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
@@ -350,7 +350,7 @@ suite('QuickAccess', () => {
 		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
-		const editorViewState = disposables.add(instantiationService.createInstance(EditorViewStateManager));
+		const editorViewState = disposables.add(instantiationService.createInstance(PickerEditorState));
 		disposables.add(part);
 		disposables.add(editorService);
 

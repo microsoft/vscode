@@ -28,7 +28,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { Event } from 'vs/base/common/event';
-import { EditorViewStateManager } from 'vs/workbench/browser/quickaccess';
+import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { Sequencer } from 'vs/base/common/async';
 
@@ -57,7 +57,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		results: [],
 		messages: []
 	});
-	private readonly editorViewState: EditorViewStateManager;
+	private readonly editorViewState: PickerEditorState;
 
 	private _getTextQueryBuilderOptions(charsPerLine: number): ITextQueryBuilderOptions {
 		return {
@@ -87,7 +87,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this.searchModel = this._register(this._instantiationService.createInstance(SearchModel));
-		this.editorViewState = this._register(this._instantiationService.createInstance(EditorViewStateManager));
+		this.editorViewState = this._register(this._instantiationService.createInstance(PickerEditorState));
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 		this.editorSequencer = new Sequencer();
 	}

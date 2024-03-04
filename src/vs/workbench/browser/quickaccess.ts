@@ -52,7 +52,7 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 		quickInputService.navigate(!!next, quickNavigate);
 	};
 }
-export class EditorViewStateManager extends Disposable {
+export class PickerEditorState extends Disposable {
 	private _editorViewState: {
 		editor: EditorInput;
 		group: IEditorGroup;
@@ -111,13 +111,20 @@ export class EditorViewStateManager extends Disposable {
 				});
 				await closeEditorPromises;
 			}
-			this.openedEditors.clear();
 
 			await this._editorViewState.group.openEditor(this._editorViewState.editor, options);
+
+			this.reset();
 		}
 	}
 
 	reset() {
 		this._editorViewState = undefined;
+		this.openedEditors.clear();
+	}
+
+	public override dispose(): void {
+		this.reset();
+		super.dispose();
 	}
 }
