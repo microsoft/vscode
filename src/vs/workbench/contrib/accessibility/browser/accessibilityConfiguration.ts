@@ -53,7 +53,7 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	Comments = 'accessibility.verbosity.comments',
+	Comments = 'accessibility.verbosity.comments'
 }
 
 export const enum AccessibleViewProviderId {
