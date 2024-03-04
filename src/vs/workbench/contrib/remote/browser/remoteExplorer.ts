@@ -269,8 +269,10 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		this.outputForwarder?.dispose();
 		this.outputForwarder = undefined;
 		if (environment?.os !== OperatingSystem.Linux) {
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-				.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
+			if (this.configurationService.inspect<string>(PORT_AUTO_SOURCE_SETTING).default?.value !== PORT_AUTO_SOURCE_SETTING_OUTPUT) {
+				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
+			}
 			this.outputForwarder = this._register(new OutputAutomaticPortForwarding(this.terminalService, this.notificationService, this.openerService, this.externalOpenerService,
 				this.remoteExplorerService, this.configurationService, this.debugService, this.tunnelService, this.hostService, this.logService, this.contextKeyService, () => false));
 		} else {

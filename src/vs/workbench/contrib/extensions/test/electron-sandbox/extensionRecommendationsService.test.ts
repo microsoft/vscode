@@ -63,6 +63,7 @@ import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+import { IUpdateService } from 'vs/platform/update/common/update';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -274,6 +275,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			},
 		});
 
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		instantiationService.stub(IExtensionTipsService, disposableStore.add(instantiationService.createInstance(TestExtensionTipsService)));
 
