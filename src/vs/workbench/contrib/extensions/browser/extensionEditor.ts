@@ -683,7 +683,7 @@ export class ExtensionEditor extends EditorPane {
 			webview.setHtml(body);
 			webview.claim(this, undefined);
 
-			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
+			this.contentDisposables.add(webview.onDidFocus(() => this._onDidFocus?.fire()));
 
 			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
 
