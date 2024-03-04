@@ -725,6 +725,13 @@ export default class BufferSyncSupport extends Disposable {
 			orderedFileSet.set(buffer.resource, undefined);
 		}
 
+		for (const { resource } of orderedFileSet.entries()) {
+			const buffer = this.syncedBuffers.get(resource);
+			if (buffer && !this.shouldValidate(buffer)) {
+				orderedFileSet.delete(resource);
+			}
+		}
+
 		if (orderedFileSet.size) {
 			const getErr = this.pendingGetErr = GetErrRequest.executeGetErrRequest(this.client, orderedFileSet, () => {
 				if (this.pendingGetErr === getErr) {
