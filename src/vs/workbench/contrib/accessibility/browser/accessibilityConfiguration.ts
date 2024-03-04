@@ -64,7 +64,6 @@ export const enum AccessibleViewProviderId {
 	Chat = 'panelChat',
 	InlineChat = 'inlineChat',
 	InlineCompletions = 'inlineCompletions',
-	TerminalInlineChat = 'terminalInlineChat',
 	KeybindingsEditor = 'keybindingsEditor',
 	Notebook = 'notebook',
 	Editor = 'editor',
