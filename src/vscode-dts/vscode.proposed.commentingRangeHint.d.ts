@@ -5,7 +5,12 @@
 
 declare module 'vscode' {
 
+	// @alexr00 https://github.com/microsoft/vscode/issues/185551
+
+	/**
+	 * Commenting range provider for a {@link CommentController comment controller}.
+	 */
 	export interface CommentingRangeProvider {
-		readonly onDidChangeResourcesWithCommentingRanges?: Event<{ schemes: string[]; resources: Uri[] }>;
+		readonly resourceHints?: { schemes: readonly string[] };
 	}
 }

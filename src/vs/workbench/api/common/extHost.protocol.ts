@@ -145,8 +145,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange | undefined, extensionId: ExtensionIdentifier, isTemplate: boolean): languages.CommentThread<IRange | ICellRange> | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
-	$updateCommentingRanges(handle: number): void;
-	$onDidChangeResourcesWithCommentingRanges(handle: number, schemes: string[], uris: UriComponents[]): Promise<void>;
+	$updateCommentingRanges(handle: number, resourceHints?: languages.CommentingRangeResourceHint): void;
 }
 
 export interface AuthenticationForceNewSessionOptions {
@@ -1190,7 +1189,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 }
 
 export interface ExtHostLanguageModelsShape {
-	$updateLanguageModels(data: { added?: string[]; removed?: string[] }): void;
+	$updateLanguageModels(data: { added?: ILanguageModelChatMetadata[]; removed?: string[] }): void;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;

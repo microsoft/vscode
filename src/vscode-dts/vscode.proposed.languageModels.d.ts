@@ -149,7 +149,7 @@ declare module 'vscode' {
 		/**
 		 * Do not show the consent UI if the user has not yet granted access to the language model but fail the request instead.
 		 */
-		// TODO@API refine/define
+		// TODO@API Revisit this, how do you do the first request?
 		silent?: boolean;
 
 		/**
@@ -178,10 +178,10 @@ declare module 'vscode' {
 		 * @param messages An array of message instances.
 		 * @param options Objects that control the request.
 		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
-		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when making the request failed.
+		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 		 */
 		// TODO@API refine doc
-		// TODO@API ExtensionContext#permission#languageModels: { languageModel: string: LanguageModelAccessInformation}
+		// TODO@API ✅ ExtensionContext#permission#languageModels: { languageModel: string: LanguageModelAccessInformation}
 		// TODO@API ✅ define specific error types?
 		// TODO@API ✅ NAME: sendChatRequest, fetchChatResponse, makeChatRequest, chat, chatRequest sendChatRequest
 		// TODO@API ✅ NAME: LanguageModelChatXYZMessage
@@ -201,11 +201,39 @@ declare module 'vscode' {
 		export const onDidChangeLanguageModels: Event<LanguageModelChangeEvent>;
 	}
 
-	// export function chatRequest2<R = void>(languageModel: string, callback: (request: LanguageModelRequest) => R): Thenable<R>;
+	/**
+	 * Represents extension specific information about the access to language models.
+	 */
+	export interface LanguageModelAccessInformation {
 
-	// interface LanguageModelRequest {
-	// 	readonly quota: any;
-	// 	readonly permissions: any;
-	// 	makeRequest(messages: LanguageModelChatMessage[], options: { [name: string]: any }, token: CancellationToken): LanguageModelChatResponse;
-	// }
+		/**
+		 * An event that fires when access information changes.
+		 */
+		onDidChange: Event<void>;
+
+		/**
+		 * Checks if a request can be made to a language model.
+		 *
+		 * *Note* that calling this function will not trigger a consent UI but just checks.
+		 *
+		 * @param languageModelId A language model identifier.
+		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
+		 * model does not exist or consent hasn't been asked for.
+		 */
+		canSendRequest(languageModelId: string): boolean | undefined;
+
+		// TODO@API SYNC or ASYNC?
+		// TODO@API future
+		// retrieveQuota(languageModelId: string): { remaining: number; resets: Date };
+	}
+
+	export interface ExtensionContext {
+
+		/**
+		 * An object that keeps information about how this extension can use language models.
+		 *
+		 * @see {@link lm.sendChatRequest}
+		 */
+		readonly languageModelAccessInformation: LanguageModelAccessInformation;
+	}
 }

@@ -1710,6 +1710,14 @@ export interface CommentInfo {
 	commentingRanges: CommentingRanges;
 }
 
+
+/**
+ * @internal
+ */
+export interface CommentingRangeResourceHint {
+	schemes: readonly string[];
+}
+
 /**
  * @internal
  */
@@ -1886,14 +1894,6 @@ export interface CommentThreadChangedEvent<T> {
 	 * Changed comment threads.
 	 */
 	readonly changed: CommentThread<T>[];
-}
-
-/**
- * @internal
- */
-export interface CommentingRangeResources {
-	schemes: string[];
-	uris: URI[];
 }
 
 export interface CodeLens {

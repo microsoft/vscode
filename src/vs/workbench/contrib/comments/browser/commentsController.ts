@@ -13,7 +13,7 @@ import 'vs/css!./media/review';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { EditorType, IDiffEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorType, IDiffEditor, IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
@@ -376,6 +376,7 @@ export class CommentController implements IEditorContribution {
 	private _commentThreadRangeDecorator!: CommentThreadRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
+	private _commentingRangeAmountReserved = 0;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
 	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
@@ -462,6 +463,7 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
+		this.globalToDispose.add(this.editor.onWillChangeModel(e => this.onWillChangeModel(e)));
 		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
 		this.globalToDispose.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
@@ -776,6 +778,12 @@ export class CommentController implements IEditorContribution {
 		dispose(this._commentWidgets);
 
 		this.editor = null!; // Strict null override - nulling out in dispose
+	}
+
+	private onWillChangeModel(e: IModelChangedEvent): void {
+		if (e.newModelUrl) {
+			this.tryUpdateReservedSpace(e.newModelUrl);
+		}
 	}
 
 	public onModelChanged(): void {
@@ -1172,15 +1180,20 @@ export class CommentController implements IEditorContribution {
 		return { extraEditorClassName, lineDecorationsWidth };
 	}
 
-	private getWithCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
+	private getWithCommentsLineDecorationWidth(editor: ICodeEditor, startingLineDecorationsWidth: number) {
 		let lineDecorationsWidth = startingLineDecorationsWidth;
 		const options = editor.getOptions();
 		if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
 			lineDecorationsWidth -= 11;
 		}
 		lineDecorationsWidth += 24;
+		this._commentingRangeAmountReserved = lineDecorationsWidth;
+		return this._commentingRangeAmountReserved;
+	}
+
+	private getWithCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
 		extraEditorClassName.push('inline-comment');
-		return { lineDecorationsWidth, extraEditorClassName };
+		return { lineDecorationsWidth: this.getWithCommentsLineDecorationWidth(editor, startingLineDecorationsWidth), extraEditorClassName };
 	}
 
 	private updateEditorLayoutOptions(editor: ICodeEditor, extraEditorClassName: string[], lineDecorationsWidth: number) {
@@ -1190,7 +1203,16 @@ export class CommentController implements IEditorContribution {
 		});
 	}
 
-	private tryUpdateReservedSpace() {
+	private ensureCommentingRangeReservedAmount(editor: ICodeEditor) {
+		const existing = this.getExistingCommentEditorOptions(editor);
+		if (existing.lineDecorationsWidth !== this._commentingRangeAmountReserved) {
+			editor.updateOptions({
+				lineDecorationsWidth: this.getWithCommentsLineDecorationWidth(editor, existing.lineDecorationsWidth)
+			});
+		}
+	}
+
+	private tryUpdateReservedSpace(uri?: URI) {
 		if (!this.editor) {
 			return;
 		}
@@ -1199,16 +1221,20 @@ export class CommentController implements IEditorContribution {
 			const hasRanges = Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length);
 			return hasRanges || (info.threads.length > 0);
 		});
-		const uri = this.editor.getModel()?.uri;
+		uri = uri ?? this.editor.getModel()?.uri;
 		const resourceHasCommentingRanges = uri ? this.commentService.resourceHasCommentingRanges(uri) : false;
 
 		const hasCommentsOrRanges = hasCommentsOrRangesInInfo || resourceHasCommentingRanges;
 
-		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
-			this._commentingRangeSpaceReserved = true;
-			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
-			const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
-			this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
+		if (hasCommentsOrRanges && this.commentService.isCommentingEnabled) {
+			if (!this._commentingRangeSpaceReserved) {
+				this._commentingRangeSpaceReserved = true;
+				const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
+				const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
+				this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
+			} else {
+				this.ensureCommentingRangeReservedAmount(this.editor);
+			}
 		} else if ((!hasCommentsOrRanges || !this.commentService.isCommentingEnabled) && this._commentingRangeSpaceReserved) {
 			this._commentingRangeSpaceReserved = false;
 			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);

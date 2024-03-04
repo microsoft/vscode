@@ -365,7 +365,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
 			const identifier = gallery.identifier;
 
 			// Installing
@@ -450,7 +449,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extension = page.firstPage[0];
 		assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-		testObject.install(extension);
 		installEvent.fire({ identifier: gallery.identifier, source: gallery });
 		const promise = Event.toPromise(testObject.onChange);
 
@@ -470,7 +468,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
 			disposableStore.add(testObject.onChange(target));
 
 			// Installing
