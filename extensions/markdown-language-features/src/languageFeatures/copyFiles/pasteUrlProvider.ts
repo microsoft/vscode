@@ -41,6 +41,7 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
+		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
 		const pasteUrlSetting = getPasteUrlAsFormattedLinkSetting(document);
