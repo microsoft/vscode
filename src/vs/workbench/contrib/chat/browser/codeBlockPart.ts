@@ -101,8 +101,8 @@ export function parseLocalFileData(text: string) {
 
 export interface ICodeBlockActionContext {
 	code: string;
-	languageId: string;
 	codeBlockIndex: number;
+	languageId?: string;
 	element: unknown;
 }
 

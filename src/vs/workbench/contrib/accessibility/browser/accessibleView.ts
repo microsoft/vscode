@@ -42,6 +42,7 @@ import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQui
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewInCodeBlock, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const enum DIMENSIONS {
@@ -91,6 +92,7 @@ export interface IAccessibleViewService {
 	 * @param verbositySettingKey The setting key for the verbosity of the feature
 	 */
 	getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null;
+	getCodeBlockContext(): ICodeBlockActionContext | undefined;
 }
 
 export const enum AccessibleViewType {
@@ -131,6 +133,7 @@ interface ICodeBlock {
 	startLine: number;
 	endLine: number;
 	code: string;
+	languageId?: string;
 }
 
 export class AccessibleView extends Disposable {
@@ -272,6 +275,18 @@ export class AccessibleView extends Disposable {
 		}
 	}
 
+	getCodeBlockContext(): ICodeBlockActionContext | undefined {
+		const position = this._editorWidget.getPosition();
+		if (!this._codeBlocks?.length || !position) {
+			return;
+		}
+		const codeBlockIndex = this._codeBlocks?.findIndex(c => c.startLine <= position?.lineNumber && c.endLine >= position?.lineNumber);
+		const codeBlock = codeBlockIndex !== undefined && codeBlockIndex > -1 ? this._codeBlocks[codeBlockIndex] : undefined;
+		if (!codeBlock || codeBlockIndex === undefined) {
+			return;
+		}
+		return { code: codeBlock.code, languageId: codeBlock.languageId, codeBlockIndex, element: undefined };
+	}
 
 	showLastProvider(id: AccessibleViewProviderId): void {
 		if (!this._lastProvider || this._lastProvider.options.id !== id) {
@@ -360,14 +375,16 @@ export class AccessibleView extends Disposable {
 		let startLine = 0;
 
 		lines.forEach((line, i) => {
+			let languageId: string | undefined;
 			if (!inBlock && line.startsWith('```')) {
 				inBlock = true;
 				startLine = i + 1;
+				languageId = line.substring(3).trim();
 			} else if (inBlock && line.startsWith('```')) {
 				inBlock = false;
 				const endLine = i;
 				const code = lines.slice(startLine, endLine).join('\n');
-				this._codeBlocks?.push({ startLine, endLine, code });
+				this._codeBlocks?.push({ startLine, endLine, code, languageId });
 			}
 		});
 		this._accessibleViewContainsCodeBlocks.set(this._codeBlocks.length > 0);
@@ -782,6 +799,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		if (reveal) {
 			editorWidget?.revealLine(position.lineNumber);
 		}
+	}
+	getCodeBlockContext(): ICodeBlockActionContext | undefined {
+		return this._accessibleView?.getCodeBlockContext();
 	}
 }
 
