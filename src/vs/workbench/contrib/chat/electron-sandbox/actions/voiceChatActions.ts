@@ -826,7 +826,6 @@ registerThemingParticipant((theme, collector) => {
 	// Show a "microphone" icon when recording is in progress that glows via outline.
 	collector.addRule(`
 		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
-<<<<<<< HEAD
 		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
 		.monaco-workbench:not(.reduce-motion) .terminal-inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
 			color: ${activeRecordingColor};
