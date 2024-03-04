@@ -38,7 +38,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 		this._editorViewState = this.add(this._instantiationService.createInstance(EditorViewStateManager));
