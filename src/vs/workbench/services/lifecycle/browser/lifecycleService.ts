@@ -207,6 +207,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		if (typeof startupKind !== 'number') {
 			const timing = firstOrDefault(performance.getEntriesByType('navigation')) as PerformanceNavigationTiming | undefined;
 			if (timing?.type === 'reload') {
+				// MDN: https://developer.mozilla.org/en-US/docs/Web/API/PerformanceNavigationTiming/type#value
 				startupKind = StartupKind.ReloadedWindow;
 			}
 		}

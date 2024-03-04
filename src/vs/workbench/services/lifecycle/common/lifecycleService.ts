@@ -60,10 +60,10 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	}
 
 	private resolveStartupKind(): StartupKind {
-		const startupKind = this.doResolveStartupKind();
+		const startupKind = this.doResolveStartupKind() ?? StartupKind.NewWindow;
 		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
 
-		return startupKind ?? StartupKind.NewWindow;
+		return startupKind;
 	}
 
 	protected doResolveStartupKind(): StartupKind | undefined {
