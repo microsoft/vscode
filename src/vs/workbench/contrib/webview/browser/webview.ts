@@ -277,7 +277,7 @@ export interface IWebviewElement extends IWebview {
 	 *
 	 * @param parent Element to append the webview to.
 	 */
-	mountTo(parent: HTMLElement, codeWindow: CodeWindow): void;
+	mountTo(parent: HTMLElement, targetWindow: CodeWindow): void;
 }
 
 /**
@@ -307,7 +307,7 @@ export interface IOverlayWebview extends IWebview {
 	 * @param claimant Identifier for the object claiming the webview.
 	 *   This must match the `claimant` passed to {@link IOverlayWebview.release}.
 	 */
-	claim(claimant: any, codeWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void;
+	claim(claimant: any, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void;
 
 	/**
 	 * Release ownership of the webview.

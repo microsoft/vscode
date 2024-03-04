@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getWindowById } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { promiseWithResolvers, ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -88,7 +88,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	 */
 	public readonly origin: string;
 
-	private _codeWindow?: CodeWindow;
+	private _windowId: number | undefined = undefined;
+	private get window() { return typeof this._windowId === 'number' ? getWindowById(this._windowId)?.window : undefined; }
 
 	private _encodedWebviewOriginPromise?: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
@@ -106,11 +107,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			return false;
 		}
 		// code window is only available after the webview is mounted.
-		if (!this._codeWindow) {
+		if (!this.window) {
 			return false;
 		}
 
-		if (this._codeWindow.document.activeElement && this._codeWindow.document.activeElement !== this.element) {
+		if (this.window.document.activeElement && this.window.document.activeElement !== this.element) {
 			// looks like https://github.com/microsoft/vscode/issues/132641
 			// where the focus is actually not in the `<iframe>`
 			return false;
@@ -412,7 +413,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return element;
 	}
 
-	private _initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions, codeWindow: CodeWindow) {
+	private _initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions, targetWindow: CodeWindow) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
 			id: this.id,
@@ -421,7 +422,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
-			parentOrigin: codeWindow.origin,
+			parentOrigin: targetWindow.origin,
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -446,19 +447,19 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
-	public mountTo(element: HTMLElement, codeWindow: CodeWindow) {
+	public mountTo(element: HTMLElement, targetWindow: CodeWindow) {
 		if (!this.element) {
 			return;
 		}
 
-		this._codeWindow = codeWindow;
-		this._encodedWebviewOriginPromise = parentOriginHash(codeWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
+		this._windowId = targetWindow.vscodeWindowId;
+		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed) {
-				this._initElement(encodedWebviewOrigin, this.extension, this._options, codeWindow);
+				this._initElement(encodedWebviewOrigin, this.extension, this._options, targetWindow);
 			}
 		});
-		this._registerMessageHandler(codeWindow);
+		this._registerMessageHandler(targetWindow);
 
 		if (this._webviewFindWidget) {
 			element.appendChild(this._webviewFindWidget.getDomNode());
@@ -470,7 +471,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}));
 		}
 
-		for (const node of [element, codeWindow]) {
+		for (const node of [element, targetWindow]) {
 			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
@@ -481,8 +482,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		element.appendChild(this.element);
 	}
 
-	private _registerMessageHandler(codeWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(codeWindow, 'message', (e: MessageEvent) => {
+	private _registerMessageHandler(targetWindow: CodeWindow) {
+		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -693,7 +694,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			get: () => this.element,
 		});
 		// And re-dispatch
-		this._codeWindow?.dispatchEvent(emulatedKeyboardEvent);
+		this.window?.dispatchEvent(emulatedKeyboardEvent);
 	}
 
 	windowDidDragStart(): void {
@@ -835,7 +836,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
-			if (this._codeWindow?.document.activeElement && this._codeWindow.document.activeElement !== this.element && this._codeWindow.document.activeElement?.tagName !== 'BODY') {
+			if (this.window?.document.activeElement && this.window.document.activeElement !== this.element && this.window.document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 

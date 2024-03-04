@@ -513,10 +513,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	createWebview(codeWindow: CodeWindow): Promise<void> {
+	createWebview(targetWindow: CodeWindow): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 		const htmlContent = this.generateContent(baseUrl.toString());
-		return this._initialize(htmlContent, codeWindow);
+		return this._initialize(htmlContent, targetWindow);
 	}
 
 	private getNotebookBaseUri() {
@@ -551,16 +551,16 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		];
 	}
 
-	private async _initialize(content: string, codeWindow: CodeWindow): Promise<void> {
+	private async _initialize(content: string, targetWindow: CodeWindow): Promise<void> {
 		if (!getWindow(this.element).document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
 
 		this.webview = this._createInset(this.webviewService, content);
-		this.webview.mountTo(this.element, codeWindow);
+		this.webview.mountTo(this.element, targetWindow);
 		this._register(this.webview);
 
-		this._register(new WebviewWindowDragMonitor(codeWindow, () => this.webview));
+		this._register(new WebviewWindowDragMonitor(targetWindow, () => this.webview));
 
 		const initializePromise = new DeferredPromise<void>();
 
