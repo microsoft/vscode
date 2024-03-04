@@ -11,7 +11,7 @@ import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { matchesScheme, Schemas } from 'vs/base/common/network';
-import { isIOS, isMacintosh } from 'vs/base/common/platform';
+import { isIOS, isMacintosh, isNative } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -30,6 +30,7 @@ import { registerWindowDriver } from 'vs/workbench/services/driver/browser/drive
 import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -39,11 +40,16 @@ export abstract class BaseWindow extends Disposable {
 	constructor(
 		targetWindow: CodeWindow,
 		dom = { getWindowsCount, getWindows }, /* for testing */
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
+		if (isNative) {
+			this.enableNativeWindowFocus(targetWindow);
+		}
 		this.enableWindowFocusOnElementFocus(targetWindow);
+
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
@@ -51,12 +57,32 @@ export abstract class BaseWindow extends Disposable {
 
 	//#region focus handling in multi-window applications
 
+	protected enableNativeWindowFocus(targetWindow: CodeWindow): void {
+		const originalWindowFocus = targetWindow.focus.bind(targetWindow);
+
+		const that = this;
+		targetWindow.focus = function () {
+			originalWindowFocus();
+
+			if (
+				!that.environmentService.extensionTestsLocationURI && 	// never steal focus when running tests
+				!targetWindow.document.hasFocus()						// skip when already having focus
+			) {
+				// Enable `window.focus()` to work in Electron by
+				// asking the main process to focus the window.
+				// https://github.com/electron/electron/issues/25578
+				that.hostService.focus(targetWindow);
+			}
+		};
+	}
+
 	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
 		const originalFocus = HTMLElement.prototype.focus;
 
 		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
 
-			// Ensure elements window is focused
+			// Ensure the window the element belongs to is focused
+			// in scenarios where auxiliary windows are present
 			focusWindow(this);
 
 			// Pass to original focus() method
@@ -178,12 +204,12 @@ export class BrowserWindow extends BaseWindow {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly browserEnvironmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService
 	) {
-		super(mainWindow, undefined, hostService);
+		super(mainWindow, undefined, hostService, browserEnvironmentService);
 
 		this.registerListeners();
 		this.create();
@@ -280,8 +306,8 @@ export class BrowserWindow extends BaseWindow {
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				let isAllowedOpener = false;
-				if (this.environmentService.options?.openerAllowedExternalUrlPrefixes) {
-					for (const trustedPopupPrefix of this.environmentService.options.openerAllowedExternalUrlPrefixes) {
+				if (this.browserEnvironmentService.options?.openerAllowedExternalUrlPrefixes) {
+					for (const trustedPopupPrefix of this.browserEnvironmentService.options.openerAllowedExternalUrlPrefixes) {
 						if (href.startsWith(trustedPopupPrefix)) {
 							isAllowedOpener = true;
 							break;

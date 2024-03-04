@@ -921,6 +921,15 @@ export function getActiveWindow(): CodeWindow {
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
+/**
+ * Given an element, will attempt to pass focus() to the window it belongs
+ * to, depending on the options passed in:
+ * - force: always focus the element's window
+ * - otherwise: only focus the element's window if another window in the same
+ *  workspace group has focus (when auxiliary windows are opened).
+ *
+ * @param element used to figure out the window the element belongs to
+ */
 export function focusWindow(element: Node, options?: { force: boolean }): void {
 	const window = getWindow(element);
 
@@ -935,7 +944,7 @@ export function focusWindow(element: Node, options?: { force: boolean }): void {
 	// This prevents stealing focus from another workspace window.
 	else {
 		const activeWindow = getActiveWindow();
-		if (activeWindow.document.hasFocus() && activeWindow !== window) {
+		if (activeWindow !== window && activeWindow.document.hasFocus()) {
 			window.focus();
 		}
 	}
