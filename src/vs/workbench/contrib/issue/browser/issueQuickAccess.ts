@@ -15,6 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
+import { IssueSource } from 'vs/platform/issue/common/issue';
 
 export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -35,6 +36,29 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			const issuePicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 			const extensionIdList: Array<string> = [];
 
+			// add regular open issue reporter button
+			const createTerminalLabel1 = localize("workbench.action.openIssueReporter", "Visual Studio Code");
+			issuePicks.push({
+				label: `$(plus) ${createTerminalLabel1}`,
+				ariaLabel: createTerminalLabel1,
+				accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.VSCode })
+			});
+
+			if (issuePicks.length > 0) {
+				issuePicks.push({ type: 'separator' });
+			}
+
+			const createTerminalLabel2 = localize("workbench.action.openIssueReporter2", "Extension Marketplace");
+			issuePicks.push({
+				label: `$(plus) ${createTerminalLabel2}`,
+				ariaLabel: createTerminalLabel2,
+				accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.Marketplace })
+			});
+
+
+			if (issuePicks.length > 0) {
+				issuePicks.push({ type: 'separator', label: localize('extensions', "Extensions") });
+			}
 			// creates menu from contributed
 			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
 
@@ -50,17 +74,19 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 
 			// create picks from extensions
 			this.extensionService.extensions.forEach(extension => {
-				const pick = this._createPick(filter, undefined, extension);
-				const id = extension.identifier.value;
-				if (pick) {
-					if (extensionIdList.includes(id)) {
-						return;
+				if (!extension.isBuiltin) {
+					const pick = this._createPick(filter, undefined, extension);
+					const id = extension.identifier.value;
+					if (pick) {
+						if (extensionIdList.includes(id)) {
+							return;
+						}
+						else {
+							issuePicks.push(pick);
+						}
 					}
-					else {
-						issuePicks.push(pick);
-					}
+					extensionIdList.push(id);
 				}
-				extensionIdList.push(id);
 			});
 
 			if (issuePicks.length > 0) {
@@ -74,18 +100,6 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 					issuePicks.push(pick);
 				}
 			});
-
-			if (issuePicks.length > 0) {
-				issuePicks.push({ type: 'separator' });
-			}
-
-			// add regular open issue reporter button
-			const createTerminalLabel = localize("workbench.action.openIssueReporter", "Open Issue Reporter");
-			issuePicks.push({
-				label: `$(plus) ${createTerminalLabel}`,
-				ariaLabel: createTerminalLabel,
-				accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter')
-			});
 			return issuePicks;
 		}
 		return null;
@@ -94,7 +108,6 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 	private _createPick(filter: string, action?: MenuItemAction | SubmenuItemAction | undefined, extension?: IRelaxedExtensionDescription): IPickerQuickAccessItem | undefined {
 		if (action && 'source' in action.item && action.item.source) {
 			const label = action.item.source?.title;
-
 			const highlights = matchesFuzzy(filter, label, true);
 			if (highlights) {
 				return {
