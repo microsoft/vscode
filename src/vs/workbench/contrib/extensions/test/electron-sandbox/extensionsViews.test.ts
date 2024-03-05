@@ -48,7 +48,7 @@ import { arch } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IUpdateService } from 'vs/platform/update/common/update';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 suite('ExtensionsViews Tests', () => {
 
@@ -188,7 +188,7 @@ suite('ExtensionsViews Tests', () => {
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
-		instantiationService.stub(IUpdateService, { onStateChange: Event.None });
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 	});
