@@ -16,6 +16,7 @@ import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/exte
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { IssueSource } from 'vs/platform/issue/common/issue';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -26,7 +27,8 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(IssueQuickAccess.PREFIX, { canAcceptInBackground: true });
 	}
@@ -37,7 +39,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			const extensionIdList: Array<string> = [];
 
 			// add regular open issue reporter button
-			const createTerminalLabel1 = localize("workbench.action.openIssueReporter", "Visual Studio Code");
+			const createTerminalLabel1 = this.productService.quality === 'stable' ? localize("workbench.action.openIssueReporter", "Visual Studio Code") : localize("workbench.action.openIssueReporterInsiders", "Visual Studio Code: Insiders");
 			issuePicks.push({
 				label: `$(plus) ${createTerminalLabel1}`,
 				ariaLabel: createTerminalLabel1,
@@ -56,8 +58,9 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			});
 
 
+
 			if (issuePicks.length > 0) {
-				issuePicks.push({ type: 'separator', label: localize('extensions', "Extensions") });
+				issuePicks.push({ type: 'separator', label: localize('extensions', "Extensions: Custom Reporting") });
 			}
 			// creates menu from contributed
 			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
@@ -65,12 +68,22 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			// render menu and dispose
 			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
 
-			// Get contributed extensions.
+
+			// create picks from contributed menu
 			actions.forEach(action => {
 				if ('source' in action.item && action.item.source) {
 					extensionIdList.push(action.item?.source?.id);
 				}
+
+				const pick = this._createPick(filter, action);
+				if (pick) {
+					issuePicks.push(pick);
+				}
 			});
+
+			if (issuePicks.length > 0) {
+				issuePicks.push({ type: 'separator', label: localize('otherExtensions', "Other Extensions") });
+			}
 
 			// create picks from extensions
 			this.extensionService.extensions.forEach(extension => {
@@ -89,17 +102,6 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 				}
 			});
 
-			if (issuePicks.length > 0) {
-				issuePicks.push({ type: 'separator' });
-			}
-
-			// create picks from contributed menu
-			actions.forEach(action => {
-				const pick = this._createPick(filter, action);
-				if (pick) {
-					issuePicks.push(pick);
-				}
-			});
 			return issuePicks;
 		}
 		return null;
