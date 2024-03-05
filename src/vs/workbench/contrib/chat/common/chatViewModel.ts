@@ -266,7 +266,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		renderer.code = (value, languageId) => {
 			languageId ??= '';
 			const newText = this.fixCodeText(value, languageId);
-			const textModel = this.codeBlockModelCollection.getOrCreate(model.id, codeBlockIndex++);
+			const textModel = this.codeBlockModelCollection.getOrCreate(this._model.sessionId, model.id, codeBlockIndex++);
 			textModel.then(ref => {
 				const model = ref.object.textEditorModel;
 				if (languageId) {
