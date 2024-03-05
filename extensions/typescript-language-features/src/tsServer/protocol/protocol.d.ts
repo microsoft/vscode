@@ -59,23 +59,24 @@ declare module 'typescript/lib/tsserverlibrary' {
 		//#endregion
 
 		//#region Paste
-		export interface GetPostPasteImportFixesRequest extends Request {
-			command: 'getPostPasteImportFixes';
-			arguments: GetPostPasteImportFixesRequestArgs;
+
+
+		export interface GetPasteEditsRequest extends Request {
+			command: 'GetPasteEdits';
+			arguments: GetPasteEditsRequestArgs;
 		}
-		export type DocumentRange = FileRangeRequestArgs;
-		export type CopyRange = {
-			start: Location;
-			end: Location;
+
+		export type GetPasteEditsRequestArgs = FileRequestArgs & {
+			copies: {
+				text: string;
+				range?: FileSpan;
+			}[];
+			pastes: TextSpan[];
+		};
+		export interface GetPasteEditsResponse extends Response {
+			body: PasteEditsAction;
 		}
-		export type GetPostPasteImportFixesRequestArgs = FileRequestArgs & {
-			pastes: Array<{ text: string; range: TextSpan }>,
-			copy?: FileSpan;
-		}
-		export interface GetPostPasteImportFixesResponse extends Response {
-			body: PostPasteImportAction;
-		}
-		export interface PostPasteImportAction {
+		export interface PasteEditsAction {
 			edits: FileCodeEdits[];
 		}
 		//#endregion

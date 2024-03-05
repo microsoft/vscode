@@ -68,12 +68,13 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		const copyRange = metadata?.ranges.at(0);
 		const copyFile = metadata ? this._client.toTsFilePath(metadata.resource) : undefined;
 
-		const response = await this._client.execute('getPostPasteImportFixes', {
+		const response = await this._client.execute('GetPasteEdits', {
 			file,
-			pastes: ranges.map(range => ({ text, range: typeConverters.Range.toTextSpan(range) })),
-			copy: metadata && copyFile && copyRange
-				? { file: copyFile, ...typeConverters.Range.toTextSpan(copyRange) }
-				: undefined,
+			pastes: ranges.map(typeConverters.Range.toTextSpan),
+			copies: [{
+				text,
+				range: metadata && copyFile && copyRange ? { file: copyFile, ...typeConverters.Range.toTextSpan(copyRange) } : undefined,
+			}]
 		}, token);
 		if (response.type !== 'response' || !response.body || token.isCancellationRequested) {
 			return;
