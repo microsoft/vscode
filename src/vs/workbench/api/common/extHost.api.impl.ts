@@ -108,6 +108,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/serv
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
+import { ExtHostChatSkills } from 'vs/workbench/api/common/extHostChatSkill';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -212,6 +213,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
+	const extHostChatSkills = rpcProtocol.set(ExtHostContext.ExtHostChatSkills, new ExtHostChatSkills(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
@@ -1428,6 +1430,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipant');
 				return extHostChatAgents2.createChatAgent(extension, name, handler);
 			},
+			registerSkill(skill: vscode.ChatSkill) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostChatSkills.registerChatSkill(extension, skill);
+			},
+			invokeSkill(skillName: string, parameters: Object, token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostChatSkills.invokeSkill(skillName, parameters, token);
+			},
+			get skills() {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostChatSkills.skills;
+			}
 		};
 
 		// namespace: lm

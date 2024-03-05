@@ -20,6 +20,7 @@ import './mainThreadBulkEdits';
 import './mainThreadLanguageModels';
 import './mainThreadChatAgents2';
 import './mainThreadChatVariables';
+import './mainThreadChatSkills';
 import './mainThreadCodeInsets';
 import './mainThreadCLICommands';
 import './mainThreadClipboard';

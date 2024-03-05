@@ -49,6 +49,7 @@ import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatMo
 import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
+import { ChatSkillsService, IChatSkillsService } from 'vs/workbench/contrib/chat/common/chatSkillsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -330,4 +331,5 @@ registerSingleton(ILanguageModelsService, LanguageModelsService, InstantiationTy
 registerSingleton(IChatSlashCommandService, ChatSlashCommandService, InstantiationType.Delayed);
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
+registerSingleton(IChatSkillsService, ChatSkillsService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);

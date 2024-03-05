@@ -53,4 +53,28 @@ declare module 'vscode' {
 		 */
 		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
+
+	export namespace chat {
+		export const skills: ReadonlyArray<ChatSkillDescription>;
+		export function registerSkill(skill: ChatSkill): Disposable;
+
+		// Can non-chat participant AI actions invoke skills, just at any random time?
+		export function invokeSkill(skillName: string, parameters: Object, token: CancellationToken): Thenable<any>;
+	}
+
+	export interface ChatSkillDescription {
+		// Name conflicts????
+		name: string;
+		description: string;
+		parametersSchema: any; // JSON schema
+	}
+
+	// Are these just commands with a schema for parameters?
+	export interface ChatSkill extends ChatSkillDescription {
+		// TODO@API Does it stream?
+		// Is output only a string, or can it be structured data?
+		// How does it ask for confirmation? This resolver would get some other resolver/accessor object that lets it ask to render some confirm dialog in chat.
+		//  - In that case, this needs to be called via the chat participant query, not via the global namespace.
+		resolve(parameters: any, token: CancellationToken): ProviderResult<any>;
+	}
 }
