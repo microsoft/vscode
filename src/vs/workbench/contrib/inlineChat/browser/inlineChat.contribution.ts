@@ -42,6 +42,8 @@ registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.DiscardToClipboardAction);
 registerAction2(InlineChatActions.DiscardUndoToNewFileAction);
 registerAction2(InlineChatActions.CancelSessionAction);
+registerAction2(InlineChatActions.MoveToNextHunk);
+registerAction2(InlineChatActions.MoveToPreviousHunk);
 
 registerAction2(InlineChatActions.ArrowOutUpAction);
 registerAction2(InlineChatActions.ArrowOutDownAction);

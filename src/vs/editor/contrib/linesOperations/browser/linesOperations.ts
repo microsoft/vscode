@@ -1187,6 +1187,35 @@ export class CamelCaseAction extends AbstractCaseAction {
 	}
 }
 
+export class PascalCaseAction extends AbstractCaseAction {
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)', 'gm');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToPascalcase',
+			label: nls.localize('editor.transformToPascalcase', "Transform to Pascal Case"),
+			alias: 'Transform to Pascal Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const wordBoundary = PascalCaseAction.wordBoundary.get();
+		const wordBoundaryToMaintain = PascalCaseAction.wordBoundaryToMaintain.get();
+
+		if (!wordBoundary || !wordBoundaryToMaintain) {
+			// cannot support this
+			return text;
+		}
+
+		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
+		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat();
+		return words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
+			.join('');
+	}
+}
+
 export class KebabCaseAction extends AbstractCaseAction {
 
 	public static isSupported(): boolean {
@@ -1256,6 +1285,9 @@ if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.
 }
 if (CamelCaseAction.wordBoundary.isSupported()) {
 	registerEditorAction(CamelCaseAction);
+}
+if (PascalCaseAction.wordBoundary.isSupported()) {
+	registerEditorAction(PascalCaseAction);
 }
 if (TitleCaseAction.titleBoundary.isSupported()) {
 	registerEditorAction(TitleCaseAction);

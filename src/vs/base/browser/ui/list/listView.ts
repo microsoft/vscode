@@ -295,8 +295,8 @@ export class ListView<T> implements IListView<T> {
 	protected rangeMap: IRangeMap;
 	private cache: RowCache<T>;
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
-	private lastRenderTop: number;
-	private lastRenderHeight: number;
+	protected lastRenderTop: number;
+	protected lastRenderHeight: number;
 	private renderWidth = 0;
 	private rowsContainer: HTMLElement;
 	private scrollable: Scrollable;
@@ -1400,7 +1400,7 @@ export class ListView<T> implements IListView<T> {
 		return undefined;
 	}
 
-	private getRenderRange(renderTop: number, renderHeight: number): IRange {
+	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
 		return {
 			start: this.rangeMap.indexAt(renderTop),
 			end: this.rangeMap.indexAfter(renderTop + renderHeight - 1)

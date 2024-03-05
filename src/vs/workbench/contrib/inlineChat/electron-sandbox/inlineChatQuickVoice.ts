@@ -14,7 +14,7 @@ import { localize, localize2 } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import * as dom from 'vs/base/browser/dom';
@@ -25,6 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
 
 const CTX_QUICK_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inlineChat.quickChatInProgress', false);
 
@@ -150,13 +151,9 @@ class QuickVoiceWidget implements IContentWidget {
 			return null;
 		}
 		const selection = this._editor.getSelection();
-		// const position = this._editor.getPosition();
 		return {
-			position: selection.getPosition(),
-			preference: [
-				selection.getPosition().equals(selection.getStartPosition()) ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW,
-				ContentWidgetPositionPreference.EXACT
-			]
+			position: selection.getStartPosition(),
+			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.EXACT]
 		};
 	}
 
@@ -215,7 +212,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@ISpeechService private readonly _speechService: ISpeechService,
+		@IVoiceChatService private readonly _voiceChatService: IVoiceChatService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._widget = this._store.add(new QuickVoiceWidget(this._editor));
@@ -239,7 +236,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 
 		let message: string | undefined;
 		let preview: string | undefined;
-		const session = this._speechService.createSpeechToTextSession(cts.token);
+		const session = this._voiceChatService.createVoiceChatSession(cts.token, { usesAgents: false });
 		const listener = session.onDidChange(e => {
 
 			if (cts.token.isCancellationRequested) {

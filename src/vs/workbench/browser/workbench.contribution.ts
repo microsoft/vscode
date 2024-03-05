@@ -6,11 +6,12 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import { defaultWindowTitle, defaultWindowTitleSeparator } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -624,23 +625,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		'properties': {
 			'window.title': {
 				'type': 'string',
-				'default': (() => {
-					if (isMacintosh && isNative) {
-						return '${activeEditorShort}${separator}${rootName}${separator}${profileName}'; // macOS has native dirty indicator
-					}
-
-					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
-					if (isWeb) {
-						return base + '${separator}${remoteName}'; // Web: always show remote name
-					}
-
-					return base;
-				})(),
+				'default': defaultWindowTitle,
 				'markdownDescription': windowTitleDescription
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				'default': isMacintosh ? ' \u2014 ' : ' - ',
+				'default': defaultWindowTitleSeparator,
 				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
 			},
 			[LayoutSettings.COMMAND_CENTER]: {

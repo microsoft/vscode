@@ -12,7 +12,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isWeb, isMacintosh } from 'vs/base/common/platform';
+import { isWindows, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { trim } from 'vs/base/common/strings';
 import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -27,11 +27,27 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { getWindowById } from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
-	title = 'window.title',
+	title = 'window.title'
 }
+
+export const defaultWindowTitle = (() => {
+	if (isMacintosh && isNative) {
+		return '${activeEditorShort}${separator}${rootName}${separator}${profileName}'; // macOS has native dirty indicator
+	}
+
+	const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
+	if (isWeb) {
+		return base + '${separator}${remoteName}'; // Web: always show remote name
+	}
+
+	return base;
+})();
+export const defaultWindowTitleSeparator = isMacintosh ? ' \u2014 ' : ' - ';
 
 export class WindowTitle extends Disposable {
 
@@ -65,8 +81,10 @@ export class WindowTitle extends Disposable {
 
 	private readonly editorService: IEditorService;
 
+	private readonly windowId: number;
+
 	constructor(
-		private readonly targetWindow: Window,
+		targetWindow: CodeWindow,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -81,6 +99,7 @@ export class WindowTitle extends Disposable {
 		super();
 
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+		this.windowId = targetWindow.vscodeWindowId;
 
 		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
@@ -163,7 +182,8 @@ export class WindowTitle extends Disposable {
 				nativeTitle = this.productService.nameLong;
 			}
 
-			if (!this.targetWindow.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+			const window = getWindowById(this.windowId, true).window;
+			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
 				// `windowImpl.ts` somehow the window does not appear
@@ -171,10 +191,10 @@ export class WindowTitle extends Disposable {
 				// briefly to something different to ensure macOS
 				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
-				this.targetWindow.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
 
-			this.targetWindow.document.title = nativeTitle;
+			window.document.title = nativeTitle;
 			this.title = title;
 
 			this.onDidChangeEmitter.fire();
@@ -324,17 +344,24 @@ export class WindowTitle extends Disposable {
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
-		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
-		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 		const focusedView: string = this.viewsService.getFocusedViewName();
-
-		// Variables (contributed)
-		const contributedVariables: { [key: string]: string } = {};
+		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
-			contributedVariables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
+			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
+		}
+
+		let titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
+		if (typeof titleTemplate !== 'string') {
+			titleTemplate = defaultWindowTitle;
+		}
+
+		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
+		if (typeof separator !== 'string') {
+			separator = defaultWindowTitleSeparator;
 		}
 
 		return template(titleTemplate, {
+			...variables,
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
@@ -351,7 +378,6 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
-			...contributedVariables,
 			separator: { label: separator }
 		});
 	}

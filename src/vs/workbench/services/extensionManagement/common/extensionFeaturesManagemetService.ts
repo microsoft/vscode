@@ -104,17 +104,21 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		}
 
 		if (featureState.disabled === undefined) {
-			const extensionDescription = this.extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extension));
-			const confirmationResult = await this.dialogService.confirm({
-				title: localize('accessExtensionFeature', "Access '{0}' Feature", feature.label),
-				message: localize('accessExtensionFeatureMessage', "'{0}' extension would like to access the '{1}' feature.", extensionDescription?.displayName ?? extension.value, feature.label),
-				detail: justification ?? feature.description,
-				custom: true,
-				primaryButton: localize('allow', "Allow"),
-				cancelButton: localize('disallow', "Don't Allow"),
-			});
-			this.setEnablement(extension, featureId, confirmationResult.confirmed);
-			if (!confirmationResult.confirmed) {
+			let enabled = true;
+			if (feature.access.requireUserConsent) {
+				const extensionDescription = this.extensionService.extensions.find(e => ExtensionIdentifier.equals(e.identifier, extension));
+				const confirmationResult = await this.dialogService.confirm({
+					title: localize('accessExtensionFeature', "Access '{0}' Feature", feature.label),
+					message: localize('accessExtensionFeatureMessage', "'{0}' extension would like to access the '{1}' feature.", extensionDescription?.displayName ?? extension.value, feature.label),
+					detail: justification ?? feature.description,
+					custom: true,
+					primaryButton: localize('allow', "Allow"),
+					cancelButton: localize('disallow', "Don't Allow"),
+				});
+				enabled = confirmationResult.confirmed;
+			}
+			this.setEnablement(extension, featureId, enabled);
+			if (!enabled) {
 				return false;
 			}
 		}

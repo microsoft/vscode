@@ -207,13 +207,6 @@
 	color: var(--vscode-textPreformat-foreground);
 }
 
-.hc-black .interactive-item-container .value .rendered-markdown a:hover,
-.hc-black .interactive-item-container .value .rendered-markdown a:active,
-.hc-light .interactive-item-container .value .rendered-markdown a:hover,
-.hc-light .interactive-item-container .value .rendered-markdown a:active {
-	color: var(--vscode-textPreformat-foreground);
-}
-
 .interactive-list {
 	overflow: hidden;
 }
@@ -221,6 +214,13 @@
 .interactive-request {
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	border-top: 1px solid var(--vscode-chat-requestBorder);
+	background-color: var(--vscode-chat-requestBackground);
+}
+
+.hc-black .interactive-request,
+.hc-light .interactive-request {
+	border-left: 3px solid var(--vscode-chat-requestBorder);
+	border-right: 3px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .value {
@@ -357,6 +357,10 @@
 
 .interactive-session .interactive-input-and-execute-toolbar.focused {
 	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .mtk1 {
+	color: var(--vscode-input-foreground);
 }
 
 .interactive-session .interactive-input-and-execute-toolbar .monaco-editor,
@@ -632,4 +636,20 @@
 .interactive-item-container .rendered-markdown.progress-step > p .codicon.codicon-check {
 	font-size: 14px;
 	color: var(--vscode-debugIcon-startForeground) !important;
+}
+
+.interactive-item-container .chat-command-button {
+	display: flex;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button {
+	text-align: left;
+	width: initial;
+	padding: 4px 8px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button .codicon {
+	margin-left: 0;
+	margin-top: 1px;
 }
