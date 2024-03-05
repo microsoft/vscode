@@ -873,7 +873,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return $('div');
 					}
 				} else {
-					const blockModel = this.codeBlockModelCollection.get(element.id, index);
+					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
+					const blockModel = this.codeBlockModelCollection.get(sessionId, element.id, index);
 					if (!blockModel) {
 						console.error('Trying to render code block without model', element.id, index);
 						return $('div');
