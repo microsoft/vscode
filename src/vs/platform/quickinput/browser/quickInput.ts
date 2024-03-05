@@ -32,6 +32,11 @@ import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverOptions, IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const inQuickInputContextKeyValue = 'inQuickInput';
+export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
+export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValue);
 
 export interface IQuickInputOptions {
 	idPrefix: string;

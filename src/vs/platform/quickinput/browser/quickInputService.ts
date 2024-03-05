@@ -98,7 +98,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			...options
 		},
 			this.themeService,
-			this.layoutService
+			this.layoutService,
+			this.contextKeyService
 		));
 
 		controller.layout(host.activeContainerDimension, host.activeContainerOffset.quickPickTop);

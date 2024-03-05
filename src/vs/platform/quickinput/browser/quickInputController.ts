@@ -19,15 +19,19 @@ import { localize } from 'vs/nls';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
 import { QuickInputList, QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
-import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import 'vs/platform/quickinput/browser/quickInputActions';
 
 const $ = dom.$;
 
 export class QuickInputController extends Disposable {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
+
+	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
 
 	private idPrefix: string;
 	private ui: QuickInputUI | undefined;
@@ -56,7 +60,8 @@ export class QuickInputController extends Disposable {
 
 	constructor(private options: IQuickInputOptions,
 		private readonly themeService: IThemeService,
-		private readonly layoutService: ILayoutService
+		private readonly layoutService: ILayoutService,
+		private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.idPrefix = options.idPrefix;
@@ -207,12 +212,14 @@ export class QuickInputController extends Disposable {
 			if (dom.isAncestor(e.relatedTarget as HTMLElement, container)) {
 				return;
 			}
+			this.inQuickInputContext.set(true);
 			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
 				this.hide(QuickInputHideReason.Blur);
 			}
+			this.inQuickInputContext.set(false);
 			this.previousFocusElement = undefined;
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
@@ -224,16 +231,6 @@ export class QuickInputController extends Disposable {
 				return; // Ignore event if target is inside widget to allow the widget to handle the event.
 			}
 			switch (event.keyCode) {
-				case KeyCode.Enter:
-					dom.EventHelper.stop(event, true);
-					if (this.enabled) {
-						this.onDidAcceptEmitter.fire();
-					}
-					break;
-				case KeyCode.Escape:
-					dom.EventHelper.stop(event, true);
-					this.hide(QuickInputHideReason.Gesture);
-					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
 						// detect only visible actions

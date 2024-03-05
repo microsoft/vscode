@@ -20,6 +20,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { mainWindow } from 'vs/base/browser/window';
 import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
 import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -45,50 +46,53 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		mainWindow.document.body.appendChild(fixture);
 		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
 
-		controller = store.add(new QuickInputController({
-			container: fixture,
-			idPrefix: 'testQuickInput',
-			ignoreFocusOut() { return true; },
-			returnFocus() { },
-			backKeybindingLabel() { return undefined; },
-			setContextKey() { return undefined; },
-			linkOpenerDelegate(content) { },
-			createList: <T>(
-				user: string,
-				container: HTMLElement,
-				delegate: IListVirtualDelegate<T>,
-				renderers: IListRenderer<T, any>[],
-				options: IListOptions<T>,
-			) => new List<T>(user, container, delegate, renderers, options),
-			hoverDelegate: {
-				showHover(options, focus) {
-					return undefined;
+		controller = store.add(new QuickInputController(
+			{
+				container: fixture,
+				idPrefix: 'testQuickInput',
+				ignoreFocusOut() { return true; },
+				returnFocus() { },
+				backKeybindingLabel() { return undefined; },
+				setContextKey() { return undefined; },
+				linkOpenerDelegate(content) { },
+				createList: <T>(
+					user: string,
+					container: HTMLElement,
+					delegate: IListVirtualDelegate<T>,
+					renderers: IListRenderer<T, any>[],
+					options: IListOptions<T>,
+				) => new List<T>(user, container, delegate, renderers, options),
+				hoverDelegate: {
+					showHover(options, focus) {
+						return undefined;
+					},
+					delay: 200
 				},
-				delay: 200
-			},
-			styles: {
-				button: unthemedButtonStyles,
-				countBadge: unthemedCountStyles,
-				inputBox: unthemedInboxStyles,
-				toggle: unthemedToggleStyles,
-				keybindingLabel: unthemedKeybindingLabelOptions,
-				list: unthemedListStyles,
-				progressBar: unthemedProgressBarOptions,
-				widget: {
-					quickInputBackground: undefined,
-					quickInputForeground: undefined,
-					quickInputTitleBackground: undefined,
-					widgetBorder: undefined,
-					widgetShadow: undefined,
-				},
-				pickerGroup: {
-					pickerGroupBorder: undefined,
-					pickerGroupForeground: undefined,
+				styles: {
+					button: unthemedButtonStyles,
+					countBadge: unthemedCountStyles,
+					inputBox: unthemedInboxStyles,
+					toggle: unthemedToggleStyles,
+					keybindingLabel: unthemedKeybindingLabelOptions,
+					list: unthemedListStyles,
+					progressBar: unthemedProgressBarOptions,
+					widget: {
+						quickInputBackground: undefined,
+						quickInputForeground: undefined,
+						quickInputTitleBackground: undefined,
+						widgetBorder: undefined,
+						widgetShadow: undefined,
+					},
+					pickerGroup: {
+						pickerGroupBorder: undefined,
+						pickerGroupForeground: undefined,
+					}
 				}
-			}
-		},
+			},
 			new TestThemeService(),
-			{ activeContainer: fixture } as any));
+			{ activeContainer: fixture } as any,
+			new MockContextKeyService())
+		);
 
 		// initial layout
 		controller.layout({ height: 20, width: 40 }, 0);
